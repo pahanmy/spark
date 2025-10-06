@@ -24,6 +24,13 @@
         @keyframes pulse-animation { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
         .logo-pulse { animation: pulse-animation 2s infinite; }
         .emoji-btn.selected { transform: scale(1.1); border-color: #4f46e5; }
+        @keyframes highlight-fade {
+            from { background-color: #d1fae5; } /* Tailwind green-100 */
+            to { background-color: white; }
+        }
+        .new-entry {
+            animation: highlight-fade 2s ease-out;
+        }
     </style>
 </head>
 <body class="bg-gray-50 flex flex-col min-h-screen">
@@ -131,6 +138,8 @@
         let db, auth, userId;
         let currentLoadedProgram = null;
         let unsubscribeProgramListener = null;
+        let isInitialLoad = true;
+        let lastAttendanceCount = 0;
         let currentCheckinUrl = '';
         const appId = firebaseConfig.projectId;
 
@@ -204,6 +213,8 @@
             if (!enteredKey) return;
 
             if (unsubscribeProgramListener) unsubscribeProgramListener();
+            isInitialLoad = true;
+            lastAttendanceCount = 0;
 
             const programRef = doc(db, `artifacts/${appId}/public/data/spark_programs`, enteredKey);
             
@@ -221,16 +232,20 @@
                     currentCheckinUrl = `${baseUrl}participant.html?kod=${currentLoadedProgram.id}`;
                     updateQrCode();
 
-                    document.getElementById('stats-section').classList.add('hidden'); // Sembunyikan statistik
+                    document.getElementById('stats-section').classList.add('hidden');
                     document.getElementById('key-entry-section').classList.add('hidden');
                     document.getElementById('full-dashboard-content').classList.remove('hidden');
                     keyError.classList.add('hidden');
                     startCountdown(currentLoadedProgram);
                     renderAttendanceTable(currentLoadedProgram.attendance || []);
+                    
+                    isInitialLoad = false;
+                    lastAttendanceCount = (currentLoadedProgram.attendance || []).length;
+
                 } else {
                     keyError.classList.remove('hidden');
                     currentLoadedProgram = null;
-                    document.getElementById('stats-section').classList.remove('hidden'); // Tunjukkan semula jika kunci salah
+                    document.getElementById('stats-section').classList.remove('hidden');
                     if (unsubscribeProgramListener) unsubscribeProgramListener();
                 }
             }, (error) => {
@@ -367,7 +382,39 @@
             }); 
         }
 
-        function renderAttendanceTable(attendanceList){ if (!currentLoadedProgram) return; const attendanceListBody = document.getElementById('attendance-list-body'); const sortedList = (attendanceList || []).sort((a, b) => new Date(b.time) - new Date(a.time)); if(sortedList.length === 0){ attendanceListBody.innerHTML=`<tr><td colspan="5" class="text-center text-gray-500 py-10">Belum ada kehadiran untuk program ini.</td></tr>` } else { attendanceListBody.innerHTML = sortedList.map((p, index) => ` <tr class="hover:bg-gray-50"> <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${index + 1}</td> <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${p.name}</td> <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 flex items-center gap-2"> <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd" /></svg> ${new Date(p.time).toLocaleTimeString('ms-MY')} </td> <td class="px-6 py-4 whitespace-nowrap text-sm"> ${p.status === 'Daftar Lewat' ? '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">Lewat</span>' : '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Hadir</span>'} </td> <td class="px-6 py-4 whitespace-nowrap text-sm font-medium"> <button onclick="removeParticipant('${p.ic}')" class="text-red-600 hover:text-red-800" title="Buang"> <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg> </button> </td> </tr> `).join(""); } renderInfographic(); }
+        function renderAttendanceTable(attendanceList){
+            if (!currentLoadedProgram) return;
+            const attendanceListBody = document.getElementById('attendance-list-body');
+            const sortedList = (attendanceList || []).sort((a, b) => new Date(b.time) - new Date(a.time));
+            
+            const isNewEntryAdded = !isInitialLoad && sortedList.length > lastAttendanceCount;
+
+            if(sortedList.length === 0){
+                attendanceListBody.innerHTML=`<tr><td colspan="5" class="text-center text-gray-500 py-10">Belum ada kehadiran untuk program ini.</td></tr>`
+            } else {
+                attendanceListBody.innerHTML = sortedList.map((p, index) => {
+                    const highlightClass = (isNewEntryAdded && index === 0) ? 'new-entry' : '';
+                    return ` <tr class="${highlightClass} hover:bg-gray-50">
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${index + 1}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${p.name}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 flex items-center gap-2">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd" /></svg>
+                                    ${new Date(p.time).toLocaleTimeString('ms-MY')}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                    ${p.status === 'Daftar Lewat' ? '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">Lewat</span>' : '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Hadir</span>'}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                    <button onclick="removeParticipant('${p.ic}')" class="text-red-600 hover:text-red-800" title="Buang">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>
+                                    </button>
+                                </td>
+                            </tr> `
+                }).join("");
+            }
+            renderInfographic();
+        }
+
         function renderInfographic() { if (!currentLoadedProgram) return; const jumlahHadir = (currentLoadedProgram.attendance || []).length; const kuota = parseInt(currentLoadedProgram.quota) || 0; const hadirElement = document.getElementById('info-hadir'); const kosongElement = document.getElementById('info-kosong'); const peratusElement = document.getElementById('info-peratus'); const progressCircle = document.getElementById('progress-circle'); if (kuota > 0) { const kosong = Math.max(0, kuota - jumlahHadir); const peratus = Math.round((jumlahHadir / kuota) * 100); hadirElement.textContent = jumlahHadir; kosongElement.textContent = kosong; peratusElement.textContent = `${peratus}%`; const offset = 100 - peratus; progressCircle.style.strokeDashoffset = offset; } else { hadirElement.textContent = jumlahHadir; kosongElement.textContent = 'N/A'; peratusElement.textContent = `N/A`; progressCircle.style.strokeDashoffset = 100; } }
         function startCountdown(programData) { let countdownInterval; if (countdownInterval) clearInterval(countdownInterval); const container = document.getElementById('countdown-timer-container'); const timerSpan = document.getElementById('countdown-timer'); if (!programData.expiryTimestamp) { container.classList.add('hidden'); return; } container.classList.remove('hidden'); const cutoffDateTime = new Date(programData.expiryTimestamp); countdownInterval = setInterval(() => { const distance = cutoffDateTime - new Date().getTime(); if (distance < 0) { clearInterval(countdownInterval); timerSpan.innerHTML = '<span class="text-xl font-bold">Pendaftaran Telah Ditutup</span>'; return; } const days = Math.floor(distance / 86400000); const hours = Math.floor((distance % 86400000) / 3600000); const minutes = Math.floor((distance % 3600000) / 60000); timerSpan.innerHTML = `<span class="text-sm font-medium text-red-700">Pendaftaran ditutup dalam:</span><br><span class="text-3xl font-bold tracking-tight">${days} hari ${hours} jam ${minutes} minit</span>`; }, 1000); }
         
