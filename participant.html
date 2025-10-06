@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SPARK – Pendaftaran Kehadiran</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Poppins', sans-serif; background-color: #f8f9fa; }
+        .card { background-color: white; border-radius: 0.75rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); }
+        .btn { transition: background-color 0.3s, transform 0.2s; }
+        .btn:hover { transform: translateY(-2px); }
+        .btn:disabled { cursor: not-allowed; opacity: 0.7; }
+        .modal-backdrop { background-color: rgba(0,0,0,0.5); }
+    </style>
+</head>
+<body class="bg-gray-50 flex items-center justify-center min-h-screen p-4">
+
+    <main id="main-content" class="w-full max-w-md">
+        <!-- Loading state -->
+        <div id="loading-state" class="text-center">
+            <svg class="animate-spin h-8 w-8 text-indigo-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+            <p class="mt-2 text-gray-600">Memuatkan maklumat program...</p>
+        </div>
+
+        <!-- Main Form -->
+        <div id="check-in-card" class="card p-8 hidden">
+            <div class="text-center mb-6">
+                <h1 id="program-name" class="text-2xl font-bold text-gray-800"></h1>
+                <p id="program-date" class="text-sm text-gray-500 mt-1"></p>
+            </div>
+            
+            <form id="ic-form" onsubmit="checkParticipant(event)">
+                <label for="participant-ic" class="block text-sm font-medium text-gray-700 mb-2">No. Kad Pengenalan</label>
+                <input type="text" id="participant-ic" required placeholder="Contoh: 900101131234 (tanpa sengkang)" class="block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                <button type="submit" id="submit-ic-btn" class="btn w-full mt-4 bg-indigo-600 text-white font-semibold py-2.5 px-4 rounded-lg">Sahkan Kehadiran</button>
+            </form>
+        </div>
+        
+        <!-- New Participant Modal -->
+        <div id="new-participant-modal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop hidden">
+            <div class="card w-full max-w-md p-6">
+                <h3 class="text-xl font-semibold mb-4">Daftar Peserta Baru</h3>
+                <p class="text-sm text-gray-600 mb-6">Nampaknya anda peserta baru. Sila lengkapkan maklumat di bawah.</p>
+                <form id="new-participant-form" onsubmit="registerAndCheckIn(event)">
+                    <div class="space-y-4">
+                        <div>
+                            <label for="new-ic" class="block text-sm font-medium text-gray-700">No. IC</label>
+                            <input type="text" id="new-ic" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-gray-100" readonly>
+                        </div>
+                        <div>
+                            <label for="new-name" class="block text-sm font-medium text-gray-700">Nama Penuh</label>
+                            <input type="text" id="new-name" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" required>
+                        </div>
+                        <div>
+                            <label for="new-station" class="block text-sm font-medium text-gray-700">Stesyen Kerja</label>
+                            <input type="text" id="new-station" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" required>
+                        </div>
+                        <div>
+                            <label for="new-position" class="block text-sm font-medium text-gray-700">Jawatan</label>
+                            <input type="text" id="new-position" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" required>
+                        </div>
+                    </div>
+                    <div class="mt-6 flex justify-end">
+                        <button type="submit" id="submit-new-participant-btn" class="btn bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg">Daftar & Sahkan Kehadiran</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Message/Status Card -->
+        <div id="message-card" class="card p-8 text-center hidden">
+             <div id="message-icon" class="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                <!-- Icon will be inserted here -->
+            </div>
+            <h2 id="message-title" class="text-2xl font-bold"></h2>
+            <p id="message-body" class="text-gray-600 mt-2"></p>
+        </div>
+
+    </main>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, updateDoc, arrayUnion, collection, query, where, getDocs, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM",
+            authDomain: "myqrhadir.firebaseapp.com",
+            projectId: "myqrhadir",
+            storageBucket: "myqrhadir.appspot.com",
+            messagingSenderId: "799691133747",
+            appId: "1:799691133747:web:835a5e3e9413eace806446"
+        };
+        
+        let db, auth;
+        let currentProgram = null;
+        const appId = firebaseConfig.projectId;
+
+        try {
+            const app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+        } catch (e) { console.error("Error initializing Firebase:", e); }
+        
+        onAuthStateChanged(auth, async (user) => {
+            if (user) { 
+                main(); 
+            } else { 
+                try { await signInAnonymously(auth); } catch (error) { console.error("Error signing in:", error); } 
+            }
+        });
+
+        async function main() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const programKey = urlParams.get('kod');
+
+            if (!programKey) {
+                return showMessage('error', 'Pautan Tidak Sah', 'Kod program tidak ditemui dalam pautan.');
+            }
+
+            const programRef = doc(db, `artifacts/${appId}/public/data/spark_programs`, programKey);
+            const docSnap = await getDoc(programRef);
+
+            if (docSnap.exists()) {
+                currentProgram = { id: docSnap.id, ...docSnap.data() };
+                
+                if(currentProgram.expiryTimestamp && new Date() > new Date(currentProgram.expiryTimestamp)) {
+                    return showMessage('error', 'Pendaftaran Ditutup', 'Pendaftaran untuk program ini telah tamat tempoh.');
+                }
+                
+                document.getElementById('program-name').textContent = currentProgram.name;
+                document.getElementById('program-date').textContent = new Date(currentProgram.startDate).toLocaleDateString('ms-MY', { day: 'numeric', month: 'long', year: 'numeric' });
+                document.getElementById('loading-state').classList.add('hidden');
+                document.getElementById('check-in-card').classList.remove('hidden');
+            } else {
+                showMessage('error', 'Program Tidak Ditemui', 'Sila pastikan anda menggunakan pautan kod QR yang betul.');
+            }
+        }
+
+        window.checkParticipant = async function(event) {
+            event.preventDefault();
+            const icInput = document.getElementById('participant-ic');
+            const ic = icInput.value.trim().replace(/[^0-9]/g, '');
+            icInput.value = ic;
+
+            if (!ic || ic.length !== 12) {
+                alert("Sila masukkan No. IC yang sah (12 digit tanpa sengkang).");
+                return;
+            }
+
+            const submitBtn = document.getElementById('submit-ic-btn');
+            submitBtn.disabled = true;
+            submitBtn.textContent = "Menyemak...";
+
+            const isAlreadyAttended = (currentProgram.attendance || []).some(p => p.ic === ic);
+            if (isAlreadyAttended) {
+                return showMessage('warning', 'Telah Mendaftar', 'Anda telah pun mengesahkan kehadiran untuk program ini.');
+            }
+            
+            const participantsRef = collection(db, `artifacts/${appId}/public/data/spark_participants`);
+            const q = query(participantsRef, where("ic", "==", ic));
+            const querySnapshot = await getDocs(q);
+
+            if (!querySnapshot.empty) {
+                const participantDoc = querySnapshot.docs[0];
+                await addParticipantToAttendance({ id: participantDoc.id, ...participantDoc.data() });
+            } else {
+                document.getElementById('new-ic').value = ic;
+                document.getElementById('new-participant-modal').classList.remove('hidden');
+                submitBtn.disabled = false;
+                submitBtn.textContent = "Sahkan Kehadiran";
+            }
+        }
+
+        window.registerAndCheckIn = async function(event) {
+            event.preventDefault();
+            const submitBtn = document.getElementById('submit-new-participant-btn');
+            submitBtn.disabled = true;
+            submitBtn.textContent = "Mendaftar...";
+
+            const newParticipant = {
+                ic: document.getElementById('new-ic').value,
+                name: document.getElementById('new-name').value.toUpperCase(),
+                station: document.getElementById('new-station').value,
+                position: document.getElementById('new-position').value
+            };
+
+            try {
+                const docRef = await addDoc(collection(db, `artifacts/${appId}/public/data/spark_participants`), newParticipant);
+                document.getElementById('new-participant-modal').classList.add('hidden');
+                await addParticipantToAttendance({ id: docRef.id, ...newParticipant });
+            } catch (error) {
+                console.error("Error registering new participant: ", error);
+                alert("Gagal mendaftar. Sila cuba lagi.");
+                submitBtn.disabled = false;
+                submitBtn.textContent = "Daftar & Sahkan Kehadiran";
+            }
+        }
+        
+        async function addParticipantToAttendance(participantData) {
+            const programRef = doc(db, `artifacts/${appId}/public/data/spark_programs`, currentProgram.id);
+            const newAttendanceRecord = { ...participantData, time: new Date().toISOString(), status: 'Hadir' };
+
+            try {
+                await updateDoc(programRef, {
+                    attendance: arrayUnion(newAttendanceRecord)
+                });
+                showMessage('success', 'Kehadiran Disahkan!', `Terima kasih, ${participantData.name}. Kehadiran anda telah direkodkan.`);
+            } catch (error) {
+                console.error("Error adding attendance: ", error);
+                showMessage('error', 'Gagal!', 'Gagal merekodkan kehadiran. Sila cuba lagi.');
+            }
+        }
+
+        function showMessage(type, title, body) {
+            // Hide other main sections
+            document.getElementById('loading-state').classList.add('hidden');
+            document.getElementById('check-in-card').classList.add('hidden');
+            
+            // Get message card elements
+            const msgCard = document.getElementById('message-card');
+            const msgIcon = document.getElementById('message-icon');
+            const msgTitle = document.getElementById('message-title');
+            const msgBody = document.getElementById('message-body');
+
+            // Set content
+            msgTitle.textContent = title;
+            msgBody.textContent = body;
+            
+            let icon, color;
+            if (type === 'success') {
+                icon = `<svg class="h-8 w-8 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`;
+                color = 'bg-green-500';
+            } else if (type === 'warning') {
+                icon = `<svg class="h-8 w-8 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>`;
+                color = 'bg-yellow-500';
+            } else { // error
+                icon = `<svg class="h-8 w-8 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`;
+                color = 'bg-red-500';
+            }
+            
+            // Apply styles
+            msgIcon.className = 'w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4'; // Reset classes
+            msgIcon.classList.add(color);
+            msgIcon.innerHTML = icon;
+
+            // Show the message card
+            msgCard.classList.remove('hidden');
+        }
+
+    </script>
+</body>
+</html>
+
