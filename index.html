@@ -73,6 +73,7 @@
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, setDoc, updateDoc, arrayUnion, arrayRemove, collection, query, where, onSnapshot, addDoc, getDocs, serverTimestamp, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
+        // Your web app's Firebase configuration
         const firebaseConfig = {
             apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM",
             authDomain: "myqrhadir.firebaseapp.com",
@@ -85,7 +86,7 @@
         let db, auth, userId;
         let currentLoadedProgram = null;
         let unsubscribeProgramListener = null;
-        const appId = firebaseConfig.projectId;
+        const appId = firebaseConfig.projectId; // Use projectId as appId
 
         try {
             const app = initializeApp(firebaseConfig);
@@ -94,18 +95,27 @@
         } catch (e) { console.error("Error initializing Firebase:", e); }
         
         onAuthStateChanged(auth, async (user) => {
-            if (user) { userId = user.uid; main(); } 
-            else { try { await signInAnonymously(auth); } catch (error) { console.error("Error signing in:", error); } }
+            if (user) { 
+                userId = user.uid; 
+                main(); 
+            } else { 
+                try { 
+                    await signInAnonymously(auth); 
+                } catch (error) { 
+                    console.error("Error signing in:", error); 
+                } 
+            }
         });
 
         function main() { 
             if (!userId) return; 
             updateDashboardStats(); 
             checkUrlForProgramKey(); 
+            renderFeedbackLog();
         }
-        
+
         // --- ALL JAVASCRIPT FUNCTIONS FOR FIREBASE ---
-        
+
         async function updateDashboardStats() {
             try {
                 const programsQuery = query(collection(db, `artifacts/${appId}/public/data/spark_programs`));
@@ -236,6 +246,13 @@
             
             try {
                 const participantsRef = collection(db, `artifacts/${appId}/public/data/spark_participants`);
+                const q = query(participantsRef, where("ic", "==", newParticipant.ic));
+                const existing = await getDocs(q);
+                if (!existing.empty) {
+                    alert("Peserta dengan No. IC ini telah wujud.");
+                    return;
+                }
+
                 const docRef = await addDoc(participantsRef, newParticipant);
                 
                 addParticipantToAttendance({ id: docRef.id, ...newParticipant });
@@ -263,60 +280,7 @@
                 }
             }
         }
-
-        function renderAttendanceTable(attendanceList){ 
-            if (!currentLoadedProgram) return; 
-            const attendanceListBody = document.getElementById('attendance-list-body'); 
-            const sortedList = (attendanceList || []).sort((a, b) => new Date(b.time) - new Date(a.time)); 
-            if(sortedList.length === 0){ 
-                attendanceListBody.innerHTML=`<tr><td colspan="5" class="text-center text-gray-500 py-10">Belum ada kehadiran untuk program ini.</td></tr>` 
-            } else { 
-                attendanceListBody.innerHTML = sortedList.map((p, index) => ` <tr class="hover:bg-gray-50"> <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${index + 1}</td> <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${p.name}</td> <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 flex items-center gap-2"> <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd" /></svg> ${new Date(p.time).toLocaleTimeString('ms-MY')} </td> <td class="px-6 py-4 whitespace-nowrap text-sm"> ${p.status === 'Daftar Lewat' ? '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">Lewat</span>' : '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Hadir</span>'} </td> <td class="px-6 py-4 whitespace-nowrap text-sm font-medium"> <button onclick="removeParticipant('${p.ic}')" class="text-red-600 hover:text-red-800" title="Buang"> <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg> </button> </td> </tr> `).join(""); 
-            } 
-            renderInfographic(); 
-        }
-
-        function renderInfographic() { 
-            if (!currentLoadedProgram) return; 
-            const jumlahHadir = (currentLoadedProgram.attendance || []).length; 
-            const kuota = parseInt(currentLoadedProgram.quota) || 0; 
-            const hadirElement = document.getElementById('info-hadir'); 
-            const kosongElement = document.getElementById('info-kosong'); 
-            const peratusElement = document.getElementById('info-peratus'); 
-            const progressCircle = document.getElementById('progress-circle'); 
-            if (kuota > 0) { 
-                const kosong = Math.max(0, kuota - jumlahHadir); 
-                const peratus = Math.round((jumlahHadir / kuota) * 100); 
-                hadirElement.textContent = jumlahHadir; 
-                kosongElement.textContent = kosong; 
-                peratusElement.textContent = `${peratus}%`; 
-                const offset = 100 - peratus; 
-                progressCircle.style.strokeDashoffset = offset; 
-            } else { 
-                hadirElement.textContent = jumlahHadir; 
-                kosongElement.textContent = 'N/A'; 
-                peratusElement.textContent = `N/A`; 
-                progressCircle.style.strokeDashoffset = 100; 
-            } 
-        }
         
-        function startCountdown(programData) {
-            let countdownInterval; if (countdownInterval) clearInterval(countdownInterval);
-            const container = document.getElementById('countdown-timer-container');
-            const timerSpan = document.getElementById('countdown-timer');
-            if (!programData.expiryTimestamp) { container.classList.add('hidden'); return; }
-            container.classList.remove('hidden');
-            const cutoffDateTime = new Date(programData.expiryTimestamp);
-            countdownInterval = setInterval(() => {
-                const distance = cutoffDateTime - new Date().getTime();
-                if (distance < 0) { clearInterval(countdownInterval); timerSpan.innerHTML = '<span class="text-xl font-bold">Pendaftaran Telah Ditutup</span>'; return; }
-                const days = Math.floor(distance / 86400000);
-                const hours = Math.floor((distance % 86400000) / 3600000);
-                const minutes = Math.floor((distance % 3600000) / 60000);
-                timerSpan.innerHTML = `<span class="text-sm font-medium text-red-700">Pendaftaran ditutup dalam:</span><br><span class="text-3xl font-bold tracking-tight">${days} hari ${hours} jam ${minutes} minit</span>`;
-            }, 1000);
-        }
-
         async function submitFeedback(event) {
             event.preventDefault();
             const newFeedback = {
@@ -344,11 +308,14 @@
             const feedbackQuery = query(collection(db, `artifacts/${appId}/public/data/spark_feedback`));
             onSnapshot(feedbackQuery, (snapshot) => { 
                 if (snapshot.empty) { logBody.innerHTML = `<tr><td colspan="3" class="text-center text-gray-500 p-4">Tiada maklum balas lagi.</td></tr>`; return; } 
-                const feedbacks = snapshot.docs.map(doc => doc.data()).sort((a, b) => b.timestamp.toMillis() - a.timestamp.toMillis()); 
-                logBody.innerHTML = feedbacks.map(fb => ` <tr class="hover:bg-gray-50"> <td class="px-4 py-3 whitespace-nowrap"><div class="font-semibold text-gray-800">${fb.name}</div><div class="text-gray-500">${fb.org}</div></td> <td class="px-4 py-3"><p class="text-gray-700">${fb.comment}</p><span class="text-xl mt-1">${fb.feeling || ''}</span></td> <td class="px-4 py-3 whitespace-nowrap text-gray-500"> ${fb.timestamp.toDate().toLocaleDateString('ms-MY')} <div class="text-xs">v${fb.version}</div></td> </tr> `).join(''); 
+                const feedbacks = snapshot.docs.map(doc => doc.data()).sort((a, b) => (b.timestamp?.toMillis() || 0) - (a.timestamp?.toMillis() || 0));
+                logBody.innerHTML = feedbacks.map(fb => ` <tr class="hover:bg-gray-50"> <td class="px-4 py-3 whitespace-nowrap"><div class="font-semibold text-gray-800">${fb.name}</div><div class="text-gray-500">${fb.org}</div></td> <td class="px-4 py-3"><p class="text-gray-700">${fb.comment}</p><span class="text-xl mt-1">${fb.feeling || ''}</span></td> <td class="px-4 py-3 whitespace-nowrap text-gray-500"> ${fb.timestamp ? fb.timestamp.toDate().toLocaleDateString('ms-MY') : 'N/A'} <div class="text-xs">v${fb.version}</div></td> </tr> `).join(''); 
             }); 
         }
 
+        function renderAttendanceTable(attendanceList){ if (!currentLoadedProgram) return; const attendanceListBody = document.getElementById('attendance-list-body'); const sortedList = (attendanceList || []).sort((a, b) => new Date(b.time) - new Date(a.time)); if(sortedList.length === 0){ attendanceListBody.innerHTML=`<tr><td colspan="5" class="text-center text-gray-500 py-10">Belum ada kehadiran untuk program ini.</td></tr>` } else { attendanceListBody.innerHTML = sortedList.map((p, index) => ` <tr class="hover:bg-gray-50"> <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${index + 1}</td> <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${p.name}</td> <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 flex items-center gap-2"> <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd" /></svg> ${new Date(p.time).toLocaleTimeString('ms-MY')} </td> <td class="px-6 py-4 whitespace-nowrap text-sm"> ${p.status === 'Daftar Lewat' ? '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">Lewat</span>' : '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Hadir</span>'} </td> <td class="px-6 py-4 whitespace-nowrap text-sm font-medium"> <button onclick="removeParticipant('${p.ic}')" class="text-red-600 hover:text-red-800" title="Buang"> <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg> </button> </td> </tr> `).join(""); } renderInfographic(); }
+        function renderInfographic() { if (!currentLoadedProgram) return; const jumlahHadir = (currentLoadedProgram.attendance || []).length; const kuota = parseInt(currentLoadedProgram.quota) || 0; const hadirElement = document.getElementById('info-hadir'); const kosongElement = document.getElementById('info-kosong'); const peratusElement = document.getElementById('info-peratus'); const progressCircle = document.getElementById('progress-circle'); if (kuota > 0) { const kosong = Math.max(0, kuota - jumlahHadir); const peratus = Math.round((jumlahHadir / kuota) * 100); hadirElement.textContent = jumlahHadir; kosongElement.textContent = kosong; peratusElement.textContent = `${peratus}%`; const offset = 100 - peratus; progressCircle.style.strokeDashoffset = offset; } else { hadirElement.textContent = jumlahHadir; kosongElement.textContent = 'N/A'; peratusElement.textContent = `N/A`; progressCircle.style.strokeDashoffset = 100; } }
+        function startCountdown(programData) { let countdownInterval; if (countdownInterval) clearInterval(countdownInterval); const container = document.getElementById('countdown-timer-container'); const timerSpan = document.getElementById('countdown-timer'); if (!programData.expiryTimestamp) { container.classList.add('hidden'); return; } container.classList.remove('hidden'); const cutoffDateTime = new Date(programData.expiryTimestamp); countdownInterval = setInterval(() => { const distance = cutoffDateTime - new Date().getTime(); if (distance < 0) { clearInterval(countdownInterval); timerSpan.innerHTML = '<span class="text-xl font-bold">Pendaftaran Telah Ditutup</span>'; return; } const days = Math.floor(distance / 86400000); const hours = Math.floor((distance % 86400000) / 3600000); const minutes = Math.floor((distance % 3600000) / 60000); timerSpan.innerHTML = `<span class="text-sm font-medium text-red-700">Pendaftaran ditutup dalam:</span><br><span class="text-3xl font-bold tracking-tight">${days} hari ${hours} jam ${minutes} minit</span>`; }, 1000); }
         function showNewParticipantModal(ic){ document.getElementById('new-ic').value = ic; document.getElementById('new-participant-modal').classList.remove('hidden'); }
         function simulateQrScan(){ alert("Fungsi simulasi tidak digunapakai dengan Firebase. Sila daftar masuk secara manual."); }
         function showSparkInfoModal() { document.getElementById('spark-info-modal').classList.remove('hidden'); }
@@ -367,8 +334,33 @@
         function exportToSplkpm() { if (!currentLoadedProgram) return alert('Tiada data.'); const excelData = (currentLoadedProgram.attendance || []).map(item => ({ kputama: item.ic, status: 8 })); const worksheet = XLSX.utils.json_to_sheet(excelData); const workbook = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(workbook, worksheet, "Kehadiran"); XLSX.writeFile(workbook, `SPLKPM - ${currentLoadedProgram.name}.xlsx`); closeModal('unlock-modal'); }
         function showFeedbackModal() { document.getElementById('feedback-modal').classList.remove('hidden'); renderFeedbackLog(); }
         function selectEmoji(buttonElement, emoji) { document.getElementById('feedback-feeling').value = emoji; document.querySelectorAll('.emoji-btn').forEach(btn => btn.classList.remove('selected', 'border-indigo-500')); buttonElement.classList.add('selected', 'border-indigo-500'); }
-        
-        window.showSparkInfoModal=showSparkInfoModal; window.closeModal=closeModal; window.simulateQrScan=simulateQrScan; window.showNewParticipantModal=showNewParticipantModal; window.registerAndCheckIn=registerAndCheckIn; window.removeParticipant=removeParticipant; window.submitFeedback=submitFeedback; window.showUnlockModal=showUnlockModal; window.verifyAndUnlock=verifyAndUnlock; window.shareCurrentProgramLink=shareCurrentProgramLink; window.copyShareLink=copyShareLink; window.showLateAttendanceModal=showLateAttendanceModal; window.resetLateModal=resetLateModal; window.findLateParticipant=findLateParticipant; window.registerLateParticipant=registerLateParticipant; window.showEditProgramModal=showEditProgramModal; window.updateProgram=updateProgram; window.exportToPdf=exportToPdf; window.exportToSplkpm=exportToSplkpm; window.showFeedbackModal=showFeedbackModal; window.selectEmoji=selectEmoji;
+        function formatDate(dateString) { if (!dateString) return ''; return new Date(dateString).toLocaleDateString('ms-MY', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kuala_Lumpur' }); }
+        function formatDateRange(start, end) { return start === end ? formatDate(start) : `${formatDate(start)} - ${formatDate(end)}`; }
+        function formatTimeRange(start, end) { const format = (t) => { const [h,m] = t.split(':'); return new Date(1970,0,1,h,m).toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit', hour12:true}); }; return `${format(start)} - ${format(end)}`; }
+
+        // EXPOSE FUNCTIONS TO GLOBAL SCOPE FOR ONCLICK ATTRIBUTES
+        window.loadProgram = loadProgram;
+        window.checkIn = checkIn;
+        window.registerAndCheckIn = registerAndCheckIn;
+        window.removeParticipant = removeParticipant;
+        window.submitFeedback = submitFeedback;
+        window.showUnlockModal = showUnlockModal;
+        window.verifyAndUnlock = verifyAndUnlock;
+        window.shareCurrentProgramLink = shareCurrentProgramLink;
+        window.copyShareLink = copyShareLink;
+        window.showLateAttendanceModal = showLateAttendanceModal;
+        window.resetLateModal = resetLateModal;
+        window.findLateParticipant = findLateParticipant;
+        window.registerLateParticipant = registerLateParticipant;
+        window.showEditProgramModal = showEditProgramModal;
+        window.updateProgram = updateProgram;
+        window.exportToPdf = exportToPdf;
+        window.exportToSplkpm = exportToSplkpm;
+        window.showFeedbackModal = showFeedbackModal;
+        window.selectEmoji = selectEmoji;
+        window.showSparkInfoModal = showSparkInfoModal;
+        window.closeModal = closeModal;
+        window.simulateQrScan = simulateQrScan;
     </script>
 </body>
 </html>
