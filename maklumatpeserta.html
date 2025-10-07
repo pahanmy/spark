@@ -8,11 +8,16 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
     <style>
         body { font-family: 'Poppins', sans-serif; background-color: #f8f9fa; }
         .card { background-color: white; border-radius: 0.75rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); }
         .btn { transition: background-color 0.3s, transform 0.2s; }
         .btn:hover { transform: translateY(-2px); }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+        .modal-backdrop { background-color: rgba(0,0,0,0.5); }
     </style>
 </head>
 <body class="bg-gray-50 flex flex-col min-h-screen">
@@ -26,8 +31,14 @@
                     <p class="text-sm text-gray-500">Percikan Inovasi Kehadiran Digital</p>
                 </div>
             </div>
-            <div>
-                 <a href="index.html" class="btn bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-gray-300">Halaman Utama</a>
+            <div class="flex items-center gap-3">
+                 <a id="back-to-program-link" href="#" class="btn bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-indigo-700 flex items-center gap-2 text-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" />
+                    </svg>
+                    Kembali ke Program
+                </a>
+                 <a href="index.html" class="btn bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-gray-300 text-sm">Halaman Utama</a>
             </div>
         </div>
     </header>
@@ -38,19 +49,47 @@
         </div>
         <div id="program-content" class="card p-6 md:p-8 hidden">
             <div id="program-details" class="mb-6 pb-4 border-b">
-                <h2 id="program-name" class="text-2xl font-bold text-gray-900"></h2>
+                <h2 id="program-name" class="text-2xl font-bold text-gray-900 uppercase"></h2>
                 <div class="flex flex-wrap gap-x-6 gap-y-2 text-sm text-gray-600 mt-2">
                     <p id="program-location"></p>
                     <p id="program-date"></p>
                     <p id="program-time"></p>
                 </div>
             </div>
-            <h3 class="text-xl font-bold text-gray-800 mb-4">Senarai Peserta Program</h3>
-            <div class="flex flex-wrap gap-4 mb-4">
-                <input type="text" id="search-input" placeholder="Cari nama atau No. IC..." class="block w-full sm:w-64 px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
-                <select id="station-filter" class="block w-full sm:w-64 px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
-                    <option value="">Semua Stesyen Kerja</option>
-                </select>
+            <h3 class="text-xl font-bold text-gray-800 mb-4 uppercase">Senarai Peserta Program</h3>
+            <div class="flex flex-wrap gap-4 mb-4 items-end">
+                <div class="flex-grow">
+                    <label for="search-input" class="text-sm font-medium text-gray-700">Carian</label>
+                    <input type="text" id="search-input" placeholder="Cari nama..." class="mt-1 block w-full sm:w-64 px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+                <div class="flex-grow">
+                    <label for="station-filter" class="text-sm font-medium text-gray-700">Tapis Stesyen Kerja</label>
+                    <select id="station-filter" class="mt-1 block w-full sm:w-64 px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="">Semua Stesyen Kerja</option>
+                    </select>
+                </div>
+                 <div class="flex-grow">
+                    <label for="items-per-page" class="text-sm font-medium text-gray-700">Papar</label>
+                    <select id="items-per-page" onchange="changeItemsPerPage()" class="mt-1 block w-full sm:w-32 px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="10">10</option>
+                        <option value="20">20</option>
+                        <option value="30">30</option>
+                    </select>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="exportToExcel()" title="Muat Turun Excel" class="btn text-sm bg-green-100 text-green-800 font-semibold py-2 px-3 rounded-lg hover:bg-green-200 flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M2 5a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V5zm2 1v2h12V6H4zm0 4v2h12v-2H4zm0 4v2h12v-2H4z" /></svg>
+                        <span>Excel</span>
+                    </button>
+                    <button onclick="exportToPdf()" title="Eksport ke PDF" class="btn text-sm bg-red-100 text-red-800 font-semibold py-2 px-3 rounded-lg hover:bg-red-200 flex items-center gap-2">
+                       <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd" /></svg>
+                       <span>PDF</span>
+                    </button>
+                    <button onclick="showLateAttendanceModal()" title="Tambah Kehadiran Lewat" class="btn text-sm bg-blue-100 text-blue-800 font-semibold py-2 px-3 rounded-lg hover:bg-blue-200 flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clip-rule="evenodd" /></svg>
+                        <span>Tambah Lewat</span>
+                    </button>
+                </div>
             </div>
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-gray-200">
@@ -61,14 +100,14 @@
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">No. IC</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Jawatan</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stesyen Kerja</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Peranan</th>
+                            <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Peranan</th>
                         </tr>
                     </thead>
                     <tbody id="participant-list-body" class="bg-white divide-y divide-gray-200">
-                        <!-- Data akan dimasukkan di sini oleh JavaScript -->
                     </tbody>
                 </table>
             </div>
+            <div id="pagination-controls" class="flex justify-between items-center mt-4"></div>
         </div>
     </main>
     
@@ -77,10 +116,12 @@
         <p id="version-info" class="text-xs text-gray-500"></p>
     </footer>
 
+    <div id="late-attendance-modal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop hidden"><div class="bg-white rounded-lg shadow-xl w-full max-w-md p-6"><h3 class="text-xl font-semibold mb-4">Tambah Kehadiran Lewat</h3><div id="late-ic-entry"><p class="text-sm text-gray-600">Masukkan No. IC peserta yang ingin ditambah.</p><div class="relative my-4"><div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 2a1 1 0 00-1 1v1a1 1 0 002 0V3a1 1 0 00-1-1zM4 4h3a3 3 0 006 0h3a2 2 0 012 2v9a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2zm12 5a1 1 0 100-2H4a1 1 0 100 2h12zM4 13a1 1 0 100 2h6a1 1 0 100-2H4z" clip-rule="evenodd" /></svg></div><input type="text" id="late-ic-input" placeholder="No. IC (tanpa sengkang)" class="block w-full pl-10 px-4 py-2 border border-gray-300 rounded-md shadow-sm"></div><div class="flex justify-end gap-3"><button type="button" onclick="closeModal('late-attendance-modal')" class="btn bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg">Batal</button><button type="button" onclick="findLateParticipant()" class="btn bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg">Cari</button></div></div><form id="new-late-participant-form" class="hidden text-left" onsubmit="registerLateParticipant(event)"><p class="text-center text-sm text-gray-600 mb-4">Peserta tidak ditemui. Sila lengkapkan maklumat.</p><div class="space-y-4"><div><label class="block text-sm font-medium text-gray-700">No. IC</label><input type="text" id="new-late-ic" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-gray-100" readonly></div><div><label class="block text-sm font-medium text-gray-700">Nama Penuh</label><input type="text" id="new-late-name" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" required></div><div><label class="block text-sm font-medium text-gray-700">Stesyen Kerja</label><input type="text" id="new-late-station" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" required></div><div><label class="block text-sm font-medium text-gray-700">Jawatan</label><input type="text" id="new-late-position" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" required></div></div><div class="mt-6 flex justify-end gap-3"><button type="button" onclick="resetLateModal()" class="btn bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg">Batal</button><button type="submit" class="btn bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg">Tambah Peserta</button></div></form></div></div>
+
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, onSnapshot, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, onSnapshot, updateDoc, arrayUnion, addDoc, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM",
@@ -93,6 +134,9 @@
         
         let db, auth;
         let currentProgram = null;
+        let allParticipants = [];
+        let currentPage = 1;
+        let itemsPerPage = 10;
         const appId = firebaseConfig.projectId;
 
         try {
@@ -102,11 +146,8 @@
         } catch (e) { console.error("Error initializing Firebase:", e); }
         
         onAuthStateChanged(auth, async (user) => {
-            if (user) { 
-                main(); 
-            } else { 
-                try { await signInAnonymously(auth); } catch (error) { console.error("Error signing in:", error); } 
-            }
+            if (user) { main(); } 
+            else { try { await signInAnonymously(auth); } catch (error) { console.error("Error signing in:", error); } }
         });
 
         function main() {
@@ -118,9 +159,11 @@
                 return;
             }
 
+            document.getElementById('back-to-program-link').href = `program.html?kod=${programKey}`;
+
             listenForProgramData(programKey);
-            document.getElementById('search-input').addEventListener('input', renderParticipantTable);
-            document.getElementById('station-filter').addEventListener('change', renderParticipantTable);
+            document.getElementById('search-input').addEventListener('input', () => { currentPage = 1; renderParticipantTable(); });
+            document.getElementById('station-filter').addEventListener('change', () => { currentPage = 1; renderParticipantTable(); });
 
             const versionInfo = document.getElementById('version-info');
             if(versionInfo) {
@@ -134,6 +177,8 @@
             onSnapshot(programRef, (docSnap) => {
                 if (docSnap.exists()) {
                     currentProgram = { id: docSnap.id, ...docSnap.data() };
+                    allParticipants = currentProgram.attendance || [];
+
                     document.getElementById('loading-state').classList.add('hidden');
                     document.getElementById('program-content').classList.remove('hidden');
                     
@@ -166,9 +211,14 @@
         }
         function formatTimeRange(start, end) { return `${formatTimeMalay(start)} - ${formatTimeMalay(end)}`; }
 
+        function maskIc(ic) {
+            if (!ic || ic.length < 8) return ic;
+            return `${ic.substring(0, 4)}******${ic.substring(ic.length - 4)}`;
+        }
+
         function populateStationFilter() {
             const stationFilter = document.getElementById('station-filter');
-            const stations = [...new Set((currentProgram.attendance || []).map(p => p.station))];
+            const stations = [...new Set(allParticipants.map(p => p.station.toUpperCase()))];
             stationFilter.innerHTML = '<option value="">Semua Stesyen Kerja</option>';
             stations.sort().forEach(station => {
                 const option = document.createElement('option');
@@ -178,53 +228,102 @@
             });
         }
 
-        function renderParticipantTable() {
-            if (!currentProgram) return;
-            const listBody = document.getElementById('participant-list-body');
+        function getFilteredAndSortedParticipants() {
             const searchTerm = document.getElementById('search-input').value.toLowerCase();
             const stationFilter = document.getElementById('station-filter').value;
             
-            let filteredParticipants = currentProgram.attendance || [];
+            let filtered = [...allParticipants];
 
             if (searchTerm) {
-                filteredParticipants = filteredParticipants.filter(p => 
-                    p.name.toLowerCase().includes(searchTerm) || 
-                    p.ic.includes(searchTerm)
-                );
+                filtered = filtered.filter(p => p.name.toLowerCase().includes(searchTerm));
             }
 
             if (stationFilter) {
-                filteredParticipants = filteredParticipants.filter(p => p.station === stationFilter);
+                filtered = filtered.filter(p => p.station.toUpperCase() === stationFilter);
             }
 
-            if (filteredParticipants.length === 0) {
+            return filtered.sort((a, b) => {
+                const aIsPpd = (a.station || '').toUpperCase().trim() === 'PPD MIRI';
+                const bIsPpd = (b.station || '').toUpperCase().trim() === 'PPD MIRI';
+
+                if (aIsPpd && !bIsPpd) return -1;
+                if (!aIsPpd && bIsPpd) return 1;
+
+                const stationCompare = (a.station || '').localeCompare(b.station || '');
+                if (stationCompare !== 0) return stationCompare;
+                return a.name.localeCompare(b.name);
+            });
+        }
+
+        function renderParticipantTable() {
+            const listBody = document.getElementById('participant-list-body');
+            const finalParticipants = getFilteredAndSortedParticipants();
+            
+            const startIndex = (currentPage - 1) * itemsPerPage;
+            const paginatedItems = finalParticipants.slice(startIndex, startIndex + itemsPerPage);
+
+            if (paginatedItems.length === 0) {
                 listBody.innerHTML = `<tr><td colspan="6" class="px-6 py-4 text-center text-gray-500">Tiada peserta ditemui.</td></tr>`;
+            } else {
+                listBody.innerHTML = paginatedItems.map((p, index) => {
+                    const role = p.role || 'Peserta';
+                    return `
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${startIndex + index + 1}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${p.name}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">${maskIc(p.ic)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${p.position.toUpperCase()}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${p.station.toUpperCase()}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-center">
+                            <div class="flex items-center justify-center gap-1">
+                                <button title="Peserta" onclick="updateParticipantRole('${p.ic}', 'Peserta')" 
+                                    class="btn rounded px-2.5 py-1 text-xs font-bold ${role === 'Peserta' ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}">P</button>
+                                <button title="Fasilitator" onclick="updateParticipantRole('${p.ic}', 'Fasilitator')" 
+                                    class="btn rounded px-2.5 py-1 text-xs font-bold ${role === 'Fasilitator' ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}">F</button>
+                                <button title="Urusetia" onclick="updateParticipantRole('${p.ic}', 'Urusetia')" 
+                                    class="btn rounded px-2.5 py-1 text-xs font-bold ${role === 'Urusetia' ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}">U</button>
+                            </div>
+                        </td>
+                    </tr>
+                `}).join('');
+            }
+            renderPaginationControls(finalParticipants.length);
+        }
+
+        function renderPaginationControls(totalItems) {
+            const paginationControls = document.getElementById('pagination-controls');
+            if (totalItems <= itemsPerPage && currentPage === 1) {
+                paginationControls.innerHTML = '';
                 return;
             }
+            const totalPages = Math.ceil(totalItems / itemsPerPage);
 
-            listBody.innerHTML = filteredParticipants
-                .sort((a, b) => a.name.localeCompare(b.name))
-                .map((p, index) => `
-                <tr class="hover:bg-gray-50">
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${index + 1}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${p.name}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${p.ic}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${p.position.toUpperCase()}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${p.station}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <select onchange="updateParticipantRole('${p.ic}', this.value)" class="block w-full p-1 border-gray-300 rounded-md shadow-sm text-xs focus:ring-indigo-500 focus:border-indigo-500">
-                            <option value="Peserta" ${p.role === 'Peserta' || !p.role ? 'selected' : ''}>Peserta</option>
-                            <option value="Fasilitator" ${p.role === 'Fasilitator' ? 'selected' : ''}>Fasilitator</option>
-                            <option value="Urusetia" ${p.role === 'Urusetia' ? 'selected' : ''}>Urusetia</option>
-                        </select>
-                    </td>
-                </tr>
-            `).join('');
+            paginationControls.innerHTML = `
+                <span class="text-sm text-gray-700">
+                    Memaparkan <span class="font-medium">${Math.min(totalItems, (currentPage - 1) * itemsPerPage + 1)}</span> hingga <span class="font-medium">${Math.min(currentPage * itemsPerPage, totalItems)}</span> dari <span class="font-medium">${totalItems}</span> keputusan
+                </span>
+                <div class="flex gap-2">
+                    <button onclick="prevPage()" class="btn bg-white text-gray-700 border border-gray-300 text-sm py-1.5 px-3 rounded-lg" ${currentPage === 1 ? 'disabled' : ''}>Sebelumnya</button>
+                    <button onclick="nextPage()" class="btn bg-white text-gray-700 border border-gray-300 text-sm py-1.5 px-3 rounded-lg" ${currentPage === totalPages || totalItems === 0 ? 'disabled' : ''}>Seterusnya</button>
+                </div>
+            `;
+        }
+
+        function changeItemsPerPage() {
+            itemsPerPage = parseInt(document.getElementById('items-per-page').value, 10);
+            currentPage = 1;
+            renderParticipantTable();
+        }
+
+        function prevPage() { if (currentPage > 1) { currentPage--; renderParticipantTable(); } }
+        function nextPage() { 
+            const totalItems = getFilteredAndSortedParticipants().length;
+            if (currentPage < Math.ceil(totalItems / itemsPerPage)) { currentPage++; renderParticipantTable(); }
         }
 
         async function updateParticipantRole(participantIc, newRole) {
             const programRef = doc(db, `artifacts/${appId}/public/data/spark_programs`, currentProgram.id);
-            const updatedAttendance = currentProgram.attendance.map(p => {
+            const updatedAttendance = allParticipants.map(p => {
                 if (p.ic === participantIc) {
                     return { ...p, role: newRole };
                 }
@@ -238,9 +337,140 @@
                 alert("Gagal mengemaskini peranan.");
             }
         }
+        
+        function exportToExcel() {
+            const participants = getFilteredAndSortedParticipants();
+            if (participants.length === 0) return alert('Tiada data untuk dieksport.');
 
-        window.updateParticipantRole = updateParticipantRole;
+            const dataToExport = participants.map((p, index) => ({
+                'Bil.': index + 1,
+                'Nama': p.name,
+                'No. IC': `'${p.ic}`,
+                'Jawatan': p.position,
+                'Stesyen Kerja': p.station,
+                'Peranan': p.role || 'Peserta'
+            }));
+
+            const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Senarai Peserta");
+            XLSX.writeFile(workbook, `Senarai Peserta - ${currentProgram.name}.xlsx`);
+        }
+
+        function exportToPdf() {
+            const participants = getFilteredAndSortedParticipants();
+            if (participants.length === 0) return alert('Tiada data untuk dieksport.');
+
+            const { jsPDF } = window.jspdf;
+            const pdfDoc = new jsPDF();
+            
+            pdfDoc.setFontSize(18);
+            pdfDoc.text(currentProgram.name.toUpperCase(), 14, 22);
+            pdfDoc.setFontSize(11);
+            pdfDoc.text('SENARAI PESERTA PROGRAM', 14, 30);
+
+            const tableColumn = ["Bil.", "Nama", "Stesyen Kerja", "Peranan"];
+            const tableRows = participants.map((p, index) => [
+                index + 1,
+                p.name,
+                p.station,
+                p.role || 'Peserta'
+            ]);
+
+            pdfDoc.autoTable({
+                head: [tableColumn],
+                body: tableRows,
+                startY: 40
+            });
+            pdfDoc.save(`Senarai Peserta - ${currentProgram.name}.pdf`);
+        }
+        
+        function showLateAttendanceModal() {
+            if (!currentProgram.penyelaras_ic) {
+                alert("Maklumat penyelaras tidak ditemui untuk pengesahan.");
+                return;
+            }
+            const confirmation = prompt("Sila sahkan 4 digit terakhir No. IC penyelaras untuk meneruskan.");
+            if (confirmation !== currentProgram.penyelaras_ic.slice(-4)) {
+                alert("Pengesahan gagal.");
+                return;
+            }
+            resetLateModal();
+            document.getElementById('late-attendance-modal').classList.remove('hidden');
+        }
+
+        async function findLateParticipant() {
+            const ic = document.getElementById('late-ic-input').value.trim().replace(/[^0-9]/g, '');
+            if (ic.length !== 12) { return alert("Sila masukkan No. IC yang sah."); }
+            if (allParticipants.find(p => p.ic === ic)) { return alert("Peserta ini telah ada dalam senarai kehadiran."); }
+
+            const q = query(collection(db, `artifacts/${appId}/public/data/spark_participants`), where("ic", "==", ic));
+            const querySnapshot = await getDocs(q);
+            if (!querySnapshot.empty) {
+                const participant = {id: querySnapshot.docs[0].id, ...querySnapshot.docs[0].data()};
+                if (confirm(`Tambah ${participant.name} ke senarai kehadiran?`)) {
+                    addParticipantToAttendance(participant, 'Daftar Lewat');
+                    alert("Kehadiran lewat berjaya ditambah.");
+                    closeModal('late-attendance-modal');
+                }
+            } else {
+                document.getElementById('late-ic-entry').classList.add('hidden');
+                document.getElementById('new-late-ic').value = ic;
+                document.getElementById('new-late-participant-form').classList.remove('hidden');
+            }
+        }
+
+        async function registerLateParticipant(event) {
+            event.preventDefault();
+            const newParticipant = {
+                ic: document.getElementById('new-late-ic').value,
+                name: document.getElementById('new-late-name').value.toUpperCase(),
+                station: document.getElementById('new-late-station').value.toUpperCase(),
+                position: document.getElementById('new-late-position').value.toUpperCase()
+            };
+            const docRef = await addDoc(collection(db, `artifacts/${appId}/public/data/spark_participants`), newParticipant);
+            addParticipantToAttendance({ id: docRef.id, ...newParticipant }, 'Daftar Lewat');
+            alert("Peserta baru berjaya didaftar dan kehadiran lewat telah ditambah.");
+            closeModal('late-attendance-modal');
+        }
+
+        async function addParticipantToAttendance(participantData, status) {
+            const programRef = doc(db, `artifacts/${appId}/public/data/spark_programs`, currentProgram.id);
+            const newAttendanceRecord = { ...participantData, time: new Date().toISOString(), status: status };
+            try {
+                await updateDoc(programRef, {
+                    attendance: arrayUnion(newAttendanceRecord)
+                });
+            } catch(error) {
+                console.error("Error adding late attendance: ", error);
+                alert("Gagal menambah kehadiran lewat.");
+            }
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.add('hidden');
+        }
+
+        function resetLateModal() {
+            document.getElementById('late-ic-entry').classList.remove('hidden');
+            document.getElementById('new-late-participant-form').classList.add('hidden');
+            document.getElementById('new-late-participant-form').reset();
+            document.getElementById('late-ic-input').value = '';
+        }
+
+        Object.assign(window, { 
+            updateParticipantRole, 
+            exportToExcel, 
+            exportToPdf, 
+            showLateAttendanceModal, 
+            closeModal, 
+            findLateParticipant,
+            registerLateParticipant,
+            resetLateModal,
+            changeItemsPerPage,
+            prevPage,
+            nextPage
+        });
     </script>
 </body>
 </html>
-
