@@ -81,6 +81,10 @@
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M2 5a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V5zm2 1v2h12V6H4zm0 4v2h12v-2H4zm0 4v2h12v-2H4z" /></svg>
                         <span>Excel</span>
                     </button>
+                     <button onclick="exportToSplkpm()" title="Muat Turun Excel SPLG-KPM" class="btn text-sm bg-sky-100 text-sky-800 font-semibold py-2 px-3 rounded-lg hover:bg-sky-200 flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" /></svg>
+                        <span>SPLG-KPM</span>
+                    </button>
                     <button onclick="exportToPdf()" title="Eksport ke PDF" class="btn text-sm bg-red-100 text-red-800 font-semibold py-2 px-3 rounded-lg hover:bg-red-200 flex items-center gap-2">
                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd" /></svg>
                        <span>PDF</span>
@@ -275,13 +279,11 @@
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${p.position.toUpperCase()}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${p.station.toUpperCase()}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-center">
-                            <div class="flex items-center justify-center gap-1">
-                                <button title="Peserta" onclick="updateParticipantRole('${p.ic}', 'Peserta')" 
-                                    class="btn rounded px-2.5 py-1 text-xs font-bold ${role === 'Peserta' ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}">P</button>
-                                <button title="Fasilitator" onclick="updateParticipantRole('${p.ic}', 'Fasilitator')" 
-                                    class="btn rounded px-2.5 py-1 text-xs font-bold ${role === 'Fasilitator' ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}">F</button>
-                                <button title="Urusetia" onclick="updateParticipantRole('${p.ic}', 'Urusetia')" 
-                                    class="btn rounded px-2.5 py-1 text-xs font-bold ${role === 'Urusetia' ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}">U</button>
+                            <div class="flex items-center justify-center gap-1 flex-wrap">
+                                <button onclick="updateParticipantRole('${p.ic}', 'Peserta')" class="btn rounded px-3 py-1 text-xs font-semibold ${role === 'Peserta' ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}">Peserta</button>
+                                <button onclick="updateParticipantRole('${p.ic}', 'Fasilitator')" class="btn rounded px-3 py-1 text-xs font-semibold ${role === 'Fasilitator' ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}">Fasilitator</button>
+                                <button onclick="updateParticipantRole('${p.ic}', 'Urusetia')" class="btn rounded px-3 py-1 text-xs font-semibold ${role === 'Urusetia' ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}">Urusetia</button>
+                                <button onclick="updateParticipantRole('${p.ic}', 'Penceramah')" class="btn rounded px-3 py-1 text-xs font-semibold ${role === 'Penceramah' ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}">Penceramah</button>
                             </div>
                         </td>
                     </tr>
@@ -355,6 +357,32 @@
             const workbook = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(workbook, worksheet, "Senarai Peserta");
             XLSX.writeFile(workbook, `Senarai Peserta - ${currentProgram.name}.xlsx`);
+        }
+
+        function exportToSplkpm() {
+            const participants = getFilteredAndSortedParticipants();
+            if (participants.length === 0) return alert('Tiada data untuk dieksport.');
+
+            const getStatusCode = (role) => {
+                switch (role) {
+                    case 'Penceramah': return 1;
+                    case 'Fasilitator': return 2;
+                    case 'Urusetia': return 3;
+                    case 'Peserta': 
+                    default:
+                        return 8;
+                }
+            };
+
+            const dataToExport = participants.map(p => ({
+                kputama: p.ic,
+                status: getStatusCode(p.role)
+            }));
+            
+            const worksheet = XLSX.utils.json_to_sheet(dataToExport, { header: ["kputama", "status"] });
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "SPLG-KPM");
+            XLSX.writeFile(workbook, `SPLG-KPM - ${currentProgram.name}.xlsx`);
         }
 
         function exportToPdf() {
@@ -462,6 +490,7 @@
             updateParticipantRole, 
             exportToExcel, 
             exportToPdf, 
+            exportToSplkpm,
             showLateAttendanceModal, 
             closeModal, 
             findLateParticipant,
