@@ -3,14 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SPARK – Admin Sekolah</title>
+    <title>SPARK – Admin Data</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     <style>
         body { font-family: 'Poppins', sans-serif; background-color: #f8f9fa; }
         .card { background-color: white; border-radius: 0.75rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); }
         .btn { transition: background-color 0.3s, transform 0.2s; }
         .btn:hover { transform: translateY(-2px); }
+        .drag-handle { cursor: move; }
+        .sortable-ghost { background-color: #eef2ff; }
     </style>
 </head>
 <body class="bg-gray-50 flex flex-col min-h-screen">
@@ -50,6 +53,7 @@
                         <table class="min-w-full divide-y divide-gray-200">
                             <thead class="bg-gray-50 sticky top-0">
                                 <tr>
+                                    <th class="px-2 py-3 w-10"></th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nama Sekolah</th>
                                     <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Tindakan</th>
                                 </tr>
@@ -80,6 +84,7 @@
                         <table class="min-w-full divide-y divide-gray-200">
                             <thead class="bg-gray-50 sticky top-0">
                                 <tr>
+                                    <th class="px-2 py-3 w-10"></th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nama Jawatan</th>
                                     <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Tindakan</th>
                                 </tr>
@@ -111,39 +116,56 @@
         const schoolsCollectionRef = collection(db, `artifacts/${appId}/public/data/spark_schools`);
         const positionsCollectionRef = collection(db, `artifacts/${appId}/public/data/spark_positions`);
 
+        // --- Generic Update Order Function ---
+        async function updateOrderInFirestore(listElement, collectionRef) {
+            const rows = listElement.querySelectorAll('tr');
+            if (rows.length === 0) return;
+
+            const batch = writeBatch(db);
+            rows.forEach((row, index) => {
+                const docId = row.dataset.id;
+                if (docId) {
+                    const docRef = doc(collectionRef, docId);
+                    batch.update(docRef, { order: index });
+                }
+            });
+
+            try {
+                await batch.commit();
+            } catch (error) {
+                console.error("Failed to update order:", error);
+                alert("Gagal menyimpan susunan baharu.");
+            }
+        }
+
         // --- School Functions ---
         async function addSchool() {
             const schoolNameInput = document.getElementById('school-name-input');
             const schoolName = schoolNameInput.value.trim().toUpperCase();
             if (!schoolName) return alert("Sila masukkan nama sekolah.");
             try {
-                await addDoc(schoolsCollectionRef, { name: schoolName, createdAt: serverTimestamp() });
+                await addDoc(schoolsCollectionRef, { name: schoolName, createdAt: serverTimestamp(), order: Date.now() });
                 schoolNameInput.value = '';
             } catch (error) { console.error("Error adding school: ", error); alert("Gagal menambah sekolah."); }
         }
 
         async function addSchoolsFromList() {
             const textarea = document.getElementById('school-list-textarea');
-            const lines = textarea.value.split('\n')
-                .map(line => line.trim().toUpperCase())
-                .filter(line => line.length > 0);
-            
-            const uniqueLines = [...new Set(lines)]; // Remove duplicates from input
+            const lines = textarea.value.split('\n').map(line => line.trim().toUpperCase()).filter(line => line.length > 0);
+            const uniqueLines = [...new Set(lines)];
             if (uniqueLines.length === 0) return alert("Tiada item sah untuk ditambah.");
 
             try {
                 const batch = writeBatch(db);
+                let orderIndex = Date.now();
                 uniqueLines.forEach(name => {
-                    const docRef = doc(schoolsCollectionRef); // Create a new doc reference
-                    batch.set(docRef, { name, createdAt: serverTimestamp() });
+                    const docRef = doc(schoolsCollectionRef);
+                    batch.set(docRef, { name, createdAt: serverTimestamp(), order: orderIndex++ });
                 });
                 await batch.commit();
                 textarea.value = '';
                 alert(`${uniqueLines.length} sekolah berjaya ditambah!`);
-            } catch (error) {
-                console.error("Error adding schools in batch: ", error);
-                alert("Gagal menambah senarai sekolah.");
-            }
+            } catch (error) { console.error("Error adding schools in batch: ", error); alert("Gagal menambah senarai sekolah."); }
         }
 
         async function deleteSchool(id) {
@@ -156,16 +178,19 @@
 
         function loadAndDisplaySchools() {
             const schoolListBody = document.getElementById('school-list-body');
-            const q = query(schoolsCollectionRef, orderBy("name", "asc"));
+            const q = query(schoolsCollectionRef, orderBy("order", "asc"));
             onSnapshot(q, (snapshot) => {
                 schoolListBody.innerHTML = '';
                 if (snapshot.empty) {
-                    schoolListBody.innerHTML = `<tr><td colspan="2" class="text-center text-gray-500 py-4">Tiada sekolah ditemui.</td></tr>`;
+                    schoolListBody.innerHTML = `<tr><td colspan="3" class="text-center text-gray-500 py-4">Tiada sekolah ditemui.</td></tr>`;
                 } else {
                     snapshot.docs.forEach(doc => {
                         const school = doc.data();
                         schoolListBody.innerHTML += `
-                            <tr>
+                            <tr data-id="${doc.id}">
+                                <td class="px-2 py-4 text-gray-400 drag-handle">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
+                                </td>
                                 <td class="px-6 py-4 text-sm font-medium text-gray-900">${school.name}</td>
                                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                     <button onclick="deleteSchool('${doc.id}')" class="text-red-600 hover:text-red-900">Padam</button>
@@ -182,33 +207,27 @@
             const positionName = positionNameInput.value.trim().toUpperCase();
             if (!positionName) return alert("Sila masukkan nama jawatan.");
             try {
-                await addDoc(positionsCollectionRef, { name: positionName, createdAt: serverTimestamp() });
+                await addDoc(positionsCollectionRef, { name: positionName, createdAt: serverTimestamp(), order: Date.now() });
                 positionNameInput.value = '';
             } catch (error) { console.error("Error adding position: ", error); alert("Gagal menambah jawatan."); }
         }
-
+        
         async function addPositionsFromList() {
             const textarea = document.getElementById('position-list-textarea');
-            const lines = textarea.value.split('\n')
-                .map(line => line.trim().toUpperCase())
-                .filter(line => line.length > 0);
-
+            const lines = textarea.value.split('\n').map(line => line.trim().toUpperCase()).filter(line => line.length > 0);
             const uniqueLines = [...new Set(lines)];
             if (uniqueLines.length === 0) return alert("Tiada item sah untuk ditambah.");
-
             try {
                 const batch = writeBatch(db);
+                let orderIndex = Date.now();
                 uniqueLines.forEach(name => {
                     const docRef = doc(positionsCollectionRef);
-                    batch.set(docRef, { name, createdAt: serverTimestamp() });
+                    batch.set(docRef, { name, createdAt: serverTimestamp(), order: orderIndex++ });
                 });
                 await batch.commit();
                 textarea.value = '';
                 alert(`${uniqueLines.length} jawatan berjaya ditambah!`);
-            } catch (error) {
-                console.error("Error adding positions in batch: ", error);
-                alert("Gagal menambah senarai jawatan.");
-            }
+            } catch (error) { console.error("Error adding positions in batch: ", error); alert("Gagal menambah senarai jawatan."); }
         }
 
         async function deletePosition(id) {
@@ -221,16 +240,19 @@
 
         function loadAndDisplayPositions() {
             const positionListBody = document.getElementById('position-list-body');
-            const q = query(positionsCollectionRef, orderBy("name", "asc"));
+            const q = query(positionsCollectionRef, orderBy("order", "asc"));
             onSnapshot(q, (snapshot) => {
                 positionListBody.innerHTML = '';
                 if (snapshot.empty) {
-                    positionListBody.innerHTML = `<tr><td colspan="2" class="text-center text-gray-500 py-4">Tiada jawatan ditemui.</td></tr>`;
+                    positionListBody.innerHTML = `<tr><td colspan="3" class="text-center text-gray-500 py-4">Tiada jawatan ditemui.</td></tr>`;
                 } else {
                     snapshot.docs.forEach(doc => {
                         const position = doc.data();
                         positionListBody.innerHTML += `
-                            <tr>
+                            <tr data-id="${doc.id}">
+                                <td class="px-2 py-4 text-gray-400 drag-handle">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
+                                </td>
                                 <td class="px-6 py-4 text-sm font-medium text-gray-900">${position.name}</td>
                                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                     <button onclick="deletePosition('${doc.id}')" class="text-red-600 hover:text-red-900">Padam</button>
@@ -241,10 +263,31 @@
             });
         }
 
+        // --- Initialize SortableJS ---
+        function initSortable() {
+            const schoolList = document.getElementById('school-list-body');
+            new Sortable(schoolList, {
+                animation: 150,
+                handle: '.drag-handle',
+                ghostClass: 'sortable-ghost',
+                onEnd: () => updateOrderInFirestore(schoolList, schoolsCollectionRef)
+            });
+
+            const positionList = document.getElementById('position-list-body');
+            new Sortable(positionList, {
+                animation: 150,
+                handle: '.drag-handle',
+                ghostClass: 'sortable-ghost',
+                onEnd: () => updateOrderInFirestore(positionList, positionsCollectionRef)
+            });
+        }
+
         Object.assign(window, { addSchool, deleteSchool, addSchoolsFromList, addPosition, deletePosition, addPositionsFromList });
 
+        // Initial Load
         loadAndDisplaySchools();
         loadAndDisplayPositions();
+        initSortable();
     </script>
 </body>
 </html>
