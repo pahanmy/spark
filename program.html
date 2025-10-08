@@ -482,7 +482,6 @@
             renderAttendanceTable(currentLoadedProgram.attendance || []);
         }
 
-        // PERUBAHAN DI SINI: Fungsi butang Penilaian diubahsuai
         function goToEvaluation() {
             if (currentLoadedProgram && currentLoadedProgram.evaluationNeeded && currentLoadedProgram.evaluationKey) {
                 const evalUrl = `penilaianprogram.html?kod=${currentLoadedProgram.evaluationKey}`;
@@ -492,7 +491,6 @@
             }
         }
 
-        // PERUBAHAN DI SINI: Fungsi baru untuk muat turun QR
         async function downloadQrCode() {
             const qrImage = document.getElementById('qr-code-image');
             const imageUrl = qrImage.src;
@@ -588,14 +586,85 @@
         
         function showEditProgramModal() { if (!currentLoadedProgram) return; document.getElementById('edit-program-name').value = currentLoadedProgram.name; document.getElementById('edit-location').value = currentLoadedProgram.location; document.getElementById('edit-start-date').value = currentLoadedProgram.startDate; document.getElementById('edit-end-date').value = currentLoadedProgram.endDate; document.getElementById('edit-start-time').value = currentLoadedProgram.startTime; document.getElementById('edit-end-time').value = currentLoadedProgram.endTime; document.getElementById('edit-quota').value = currentLoadedProgram.quota; closeModal('unlock-modal'); document.getElementById('edit-program-modal').classList.remove('hidden'); }
         async function updateProgram(event) { event.preventDefault(); if (!currentLoadedProgram) return; const updatedData = { name: document.getElementById('edit-program-name').value, location: document.getElementById('edit-location').value, startDate: document.getElementById('edit-start-date').value, endDate: document.getElementById('edit-end-date').value, startTime: document.getElementById('edit-start-time').value, endTime: document.getElementById('edit-end-time').value, quota: document.getElementById('edit-quota').value || null, }; const programRef = doc(db, `artifacts/${appId}/public/data/spark_programs`, currentLoadedProgram.id); await updateDoc(programRef, updatedData); alert("Maklumat program berjaya dikemaskini."); closeModal('edit-program-modal'); }
+        
+        // --- PERUBAHAN DI SINI ---
         function printQrPage() {
             if (!currentLoadedProgram) return;
             const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(currentCheckinUrl)}`;
             const printWindow = window.open('', '_blank');
-            printWindow.document.write(`<html><head><title>Cetak Kod QR Kehadiran</title><style>body { font-family: sans-serif; text-align: center; padding: 40px; } h1 { font-size: 28px; margin-bottom: 10px; } p { font-size: 16px; margin: 5px 0; color: #555; } img { margin-top: 30px; border: 1px solid #ccc; padding: 10px; border-radius: 8px; } .container { max-width: 600px; margin: auto; } .details { margin-bottom: 20px; }</style></head><body><div class="container"><h1>${currentLoadedProgram.name.toUpperCase()}</h1><div class="details"><p><strong>Lokasi:</strong> ${currentLoadedProgram.location}</p><p><strong>Tarikh:</strong> ${formatDateRange(currentLoadedProgram.startDate, currentLoadedProgram.endDate)}</p><p><strong>Masa:</strong> ${formatTimeRange(currentLoadedProgram.startTime, currentLoadedProgram.endTime)}</p></div><hr><h2>SILA IMBAS KOD QR DI BAWAH UNTUK MENGESAHKAN KEHADIRAN</h2><img src="${qrUrl}" alt="QR Code Kehadiran"></div></body></html>`);
+            printWindow.document.write(`
+                <html>
+                    <head>
+                        <title>CETAK KOD QR KEHADIRAN</title>
+                        <style>
+                            body { 
+                                font-family: sans-serif; 
+                                text-align: center; 
+                                padding: 40px; 
+                                text-transform: uppercase;
+                                display: flex;
+                                flex-direction: column;
+                                min-height: 95vh;
+                                margin: 0;
+                                box-sizing: border-box;
+                            }
+                            .container { 
+                                max-width: 600px; 
+                                margin: auto; 
+                                flex-grow: 1;
+                            }
+                            header {
+                                margin-bottom: 20px;
+                                font-size: 18px;
+                                font-weight: bold;
+                                color: #333;
+                            }
+                            footer {
+                                margin-top: 40px;
+                                padding-top: 20px;
+                                border-top: 1px solid #ccc;
+                                font-size: 12px;
+                                color: #777;
+                            }
+                            h1 { font-size: 28px; margin-bottom: 10px; } 
+                            p { font-size: 16px; margin: 5px 0; color: #555; } 
+                            img { 
+                                margin-top: 30px; 
+                                border: 1px solid #ccc; 
+                                padding: 10px; 
+                                border-radius: 8px; 
+                            } 
+                            .details { margin-bottom: 20px; }
+                            @media print {
+                                body { -webkit-print-color-adjust: exact; }
+                                footer { position: fixed; bottom: 20px; left: 0; right: 0; }
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        <header>SPARK - PERCIKAN INOVASI KEHADIRAN DIGITAL</header>
+                        <div class="container">
+                            <h1>${currentLoadedProgram.name.toUpperCase()}</h1>
+                            <div class="details">
+                                <p><strong>LOKASI:</strong> ${currentLoadedProgram.location}</p>
+                                <p><strong>TARIKH:</strong> ${formatDateRange(currentLoadedProgram.startDate, currentLoadedProgram.endDate)}</p>
+                                <p><strong>MASA:</strong> ${formatTimeRange(currentLoadedProgram.startTime, currentLoadedProgram.endTime)}</p>
+                            </div>
+                            <hr>
+                            <h2>SILA IMBAS KOD QR DI BAWAH UNTUK MENGESAHKAN KEHADIRAN</h2>
+                            <img src="${qrUrl}" alt="QR Code Kehadiran">
+                        </div>
+                        <footer>
+                            PROJEK INOVASI OLEH PAHAN<br>
+                            VERSI 2.1 (2025)
+                        </footer>
+                    </body>
+                </html>
+            `);
             printWindow.document.close();
             printWindow.onload = function() { printWindow.focus(); printWindow.print(); };
         }
+        // --- AKHIR PERUBAHAN ---
         
         function formatDate(dateString) { if (!dateString) return ''; return new Date(dateString).toLocaleDateString('ms-MY', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kuala_Lumpur' }); }
         function formatDateRange(start, end) { return start === end ? formatDate(start) : `${formatDate(start)} - ${formatDate(end)}`; }
@@ -619,7 +688,6 @@
             window.location.href = url;
         }
 
-        // PERUBAHAN DI SINI: Daftarkan fungsi baru 'goToEvaluation' dan 'downloadQrCode'
         Object.assign(window, { checkIn, registerAndCheckIn, showUnlockModal, verifyAndUnlock, shareCurrentProgramLink, copyShareLink, copyShareAdminLink, copyEmbedCode, showEditProgramModal, updateProgram, closeModal, updateQrCode, changeAttendancePerPage, prevAttendancePage, nextAttendancePage, showSurveyListModal, toggleManualCheckin, toggleFullScreen, closeFullScreen, openParticipantInfo, printQrPage, goToEvaluation, downloadQrCode, generateAvatar });
     </script>
 </body>
