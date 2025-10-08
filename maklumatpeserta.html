@@ -105,6 +105,7 @@
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Jawatan</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stesyen Kerja</th>
                             <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Peranan</th>
+                            <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Tindakan</th>
                         </tr>
                     </thead>
                     <tbody id="participant-list-body" class="bg-white divide-y divide-gray-200">
@@ -267,7 +268,8 @@
             const paginatedItems = finalParticipants.slice(startIndex, startIndex + itemsPerPage);
 
             if (paginatedItems.length === 0) {
-                listBody.innerHTML = `<tr><td colspan="6" class="px-6 py-4 text-center text-gray-500">Tiada peserta ditemui.</td></tr>`;
+                 // PERUBAHAN DI SINI: colspan ditukar kepada 7
+                listBody.innerHTML = `<tr><td colspan="7" class="px-6 py-4 text-center text-gray-500">Tiada peserta ditemui.</td></tr>`;
             } else {
                 listBody.innerHTML = paginatedItems.map((p, index) => {
                     const role = p.role || 'Peserta';
@@ -287,6 +289,13 @@
                                     <button title="Penceramah" onclick="updateParticipantRole('${p.ic}', 'Penceramah')" class="btn rounded-md px-2 py-1 text-xs font-semibold transition-colors duration-200 ${role === 'Penceramah' ? 'bg-white text-indigo-700 shadow' : 'bg-transparent text-gray-600 hover:bg-gray-300'}">Penceramah</button>
                                 </div>
                             </div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
+                            <button onclick="promptDeleteParticipant('${p.ic}', '${p.name}')" class="text-gray-400 hover:text-red-600 p-2 rounded-full" title="Padam Peserta">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
+                                </svg>
+                            </button>
                         </td>
                     </tr>
                 `}).join('');
@@ -476,6 +485,39 @@
                 alert("Gagal menambah kehadiran lewat.");
             }
         }
+        
+        // PERUBAHAN DI SINI: Fungsi baru untuk memadam peserta
+        function promptDeleteParticipant(participantIc, participantName) {
+            if (!currentProgram || !currentProgram.penyelaras_ic) {
+                return alert("Ralat: Maklumat penyelaras tidak ditemui untuk pengesahan.");
+            }
+
+            const confirmation = prompt(`Untuk memadam ${participantName}, sila sahkan 4 digit terakhir No. IC penyelaras.`);
+            
+            if (confirmation === null) return; // User cancelled prompt
+
+            if (confirmation !== currentProgram.penyelaras_ic.slice(-4)) {
+                return alert("Pengesahan gagal. Tindakan dibatalkan.");
+            }
+
+            if (confirm(`Anda pasti ingin memadam ${participantName} daripada senarai ini? Tindakan ini tidak boleh diubah.`)) {
+                deleteParticipant(participantIc);
+            }
+        }
+
+        async function deleteParticipant(participantIc) {
+            const programRef = doc(db, `artifacts/${appId}/public/data/spark_programs`, currentProgram.id);
+            const updatedAttendance = allParticipants.filter(p => p.ic !== participantIc);
+
+            try {
+                await updateDoc(programRef, { attendance: updatedAttendance });
+                alert("Peserta telah berjaya dipadam.");
+                // onSnapshot akan mengemas kini paparan secara automatik
+            } catch (error) {
+                console.error("Error deleting participant: ", error);
+                alert("Gagal memadam peserta.");
+            }
+        }
 
         function closeModal(modalId) {
             document.getElementById(modalId).classList.add('hidden');
@@ -500,7 +542,9 @@
             resetLateModal,
             changeItemsPerPage,
             prevPage,
-            nextPage
+            nextPage,
+            // PERUBAHAN DI SINI: Daftarkan fungsi baru
+            promptDeleteParticipant 
         });
     </script>
 </body>
