@@ -20,12 +20,6 @@
         @keyframes pulse-animation { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
         .logo-pulse { animation: pulse-animation 2s infinite; }
         .emoji-btn.selected { transform: scale(1.1); border-color: #4f46e5; }
-        .line-clamp-2 {
-           overflow: hidden;
-           display: -webkit-box;
-           -webkit-box-orient: vertical;
-           -webkit-line-clamp: 2;
-        }
     </style>
 </head>
 <body class="bg-gray-50 flex flex-col min-h-screen">
@@ -285,7 +279,7 @@
                 const day = currentDate.getDay();
                 if (dayHeaders[day]) {
                     const dateString = currentDate.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit' });
-                    const dayName = dayHeaders[day].textContent;
+                    const dayName = dayHeaders[day].textContent.split(' ')[0]; // Keep only day name
                     dayHeaders[day].innerHTML = `${dayName} <span class="text-xs text-gray-500 font-normal">${dateString}</span>`;
                 }
             }
@@ -307,53 +301,73 @@
                 friday.setHours(23, 59, 59, 999);
                 return programDate >= monday && programDate <= friday;
             });
-
+            
+            const programsByDay = { 1: [], 2: [], 3: [], 4: [], 5: [] };
             weekPrograms.forEach(program => {
-                const programEndDateTime = new Date(`${program.endDate}T${program.endTime}`);
                 const programStartDate = new Date(program.startDate);
-                programStartDate.setHours(0,0,0,0);
                 const programDayOfWeek = programStartDate.getDay();
-
-                if (dayContainers[programDayOfWeek]) {
-                    if (dayContainers[programDayOfWeek].innerHTML.includes('Tiada aktiviti')) {
-                        dayContainers[programDayOfWeek].innerHTML = '';
-                    }
-                    
-                    const isPast = programEndDateTime < now;
-                    const isToday = programStartDate.toDateString() === today.toDateString();
-                    
-                    let statusClass = 'bg-white/50 hover:bg-gray-100 transition-colors';
-                    let indicatorHtml = '';
-
-                    if (isPast) {
-                        statusClass = 'bg-gray-100 opacity-60';
-                    } else if (isToday) {
-                        statusClass = 'bg-indigo-100 border border-indigo-200 shadow-sm';
-                        indicatorHtml = `<span class="absolute top-2 right-2 flex h-2 w-2">
-                                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-                                            <span class="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
-                                         </span>`;
-                    }
-                    
-                    const programHtml = `
-                        <div class="relative text-xs p-2 rounded-lg ${statusClass}">
-                            ${indicatorHtml}
-                            <p class="font-bold line-clamp-2 ${isPast ? 'line-through' : ''}">${program.name.toUpperCase()}</p>
-                            <div class="mt-1 space-y-0.5 text-gray-600 ${isPast ? 'line-through' : ''}">
-                                 <p class="flex items-center gap-1.5">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd" /></svg>
-                                    <span class="truncate">${(program.location || '').toUpperCase()}</span>
-                                 </p>
-                                 <p class="flex items-center gap-1.5">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.414-1.415L11 9.586V6z" clip-rule="evenodd" /></svg>
-                                    <span>${program.startTime} - ${program.endTime}</span>
-                                 </p>
-                            </div>
-                        </div>
-                    `;
-                    dayContainers[programDayOfWeek].innerHTML += programHtml;
+                if (programsByDay[programDayOfWeek]) {
+                    programsByDay[programDayOfWeek].push(program);
                 }
             });
+
+            for (const day in programsByDay) {
+                const container = dayContainers[day];
+                if (container) {
+                    const dayPrograms = programsByDay[day];
+
+                    if (dayPrograms.length === 0) {
+                        container.innerHTML = defaultMessage;
+                        continue;
+                    }
+
+                    dayPrograms.sort((a, b) => a.startTime.localeCompare(b.startTime));
+
+                    container.innerHTML = '';
+                    dayPrograms.forEach(program => {
+                        const programEndDateTime = new Date(`${program.endDate}T${program.endTime}`);
+                        const programStartDate = new Date(program.startDate);
+                        programStartDate.setHours(0,0,0,0);
+                        
+                        const isPast = programEndDateTime < now;
+                        const isToday = programStartDate.toDateString() === today.toDateString();
+                        
+                        let statusClass = 'bg-white/50 hover:bg-gray-100 transition-colors';
+                        let indicatorHtml = '';
+
+                        if (isPast) {
+                            statusClass = 'bg-gray-100 opacity-60';
+                        } else if (isToday) {
+                            statusClass = 'bg-indigo-100 border border-indigo-200 shadow-sm';
+                            indicatorHtml = `
+                                <div class="absolute top-1.5 right-1.5 flex items-center gap-1 bg-indigo-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                                      <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                                    </svg>
+                                    <span>HARI INI</span>
+                                </div>`;
+                        }
+                        
+                        const programHtml = `
+                            <div class="relative text-xs p-2 rounded-lg ${statusClass}">
+                                ${indicatorHtml}
+                                <p class="font-bold pr-4 ${isPast ? 'line-through' : ''}">${program.name.toUpperCase()}</p>
+                                <div class="mt-1 space-y-0.5 text-gray-600 ${isPast ? 'line-through' : ''}">
+                                     <p class="flex items-center gap-1.5">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd" /></svg>
+                                        <span class="truncate">${(program.location || '').toUpperCase()}</span>
+                                     </p>
+                                     <p class="flex items-center gap-1.5">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.414-1.415L11 9.586V6z" clip-rule="evenodd" /></svg>
+                                        <span>${program.startTime} - ${program.endTime}</span>
+                                     </p>
+                                </div>
+                            </div>
+                        `;
+                        container.innerHTML += programHtml;
+                    });
+                }
+            }
         }
 
 
