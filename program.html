@@ -103,16 +103,17 @@
                             <nav class="-mb-px flex space-x-6"><a href="#" id="attendance-date" class="py-2 px-1 border-b-2 font-medium text-sm text-indigo-600 border-indigo-500"></a></nav>
                         </div>
                         <div class="mt-4 overflow-x-auto">
-                            <table class="w-full"> <thead class="bg-gray-50">
+                            <table class="min-w-full">
+                                <thead class="bg-gray-50">
                                     <tr>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-12">Bil.</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nama Peserta</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stesen</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Masa Hadir</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                        <th scope="col" class="w-12 px-3 py-3"></th>
+                                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Peserta</th>
+                                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Masa Hadir</th>
+                                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                                     </tr>
                                 </thead>
-                                <tbody id="attendance-list-body"></tbody>
+                                <tbody id="attendance-list-body">
+                                    </tbody>
                             </table>
                         </div>
                         <div id="attendance-pagination-controls" class="flex justify-between items-center mt-4"></div>
@@ -393,6 +394,23 @@
                 alert("Gagal mendaftar peserta baru.");
             }
         }
+
+        // PERUBAHAN UTAMA: Fungsi untuk menjana avatar dan mengubahsuai paparan jadual
+        function generateAvatar(name) {
+            if (!name) return '';
+            const initials = name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
+            const colors = [
+                'bg-blue-100 text-blue-800', 'bg-green-100 text-green-800', 'bg-purple-100 text-purple-800',
+                'bg-yellow-100 text-yellow-800', 'bg-red-100 text-red-800', 'bg-indigo-100 text-indigo-800',
+                'bg-pink-100 text-pink-800', 'bg-teal-100 text-teal-800'
+            ];
+            let charCodeSum = 0;
+            for (let i = 0; i < name.length; i++) {
+                charCodeSum += name.charCodeAt(i);
+            }
+            const color = colors[charCodeSum % colors.length];
+            return `<div class="flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center text-sm font-bold ${color}">${initials}</div>`;
+        }
         
         function renderAttendanceTable(attendanceList){
             if (!currentLoadedProgram) return;
@@ -403,23 +421,26 @@
             const paginatedList = sortedList.slice(startIndex, startIndex + attendancePerPage);
 
             if(paginatedList.length === 0){
-                attendanceListBody.innerHTML=`<tr><td colspan="5" class="text-center text-gray-500 py-10">Belum ada kehadiran untuk program ini.</td></tr>`
+                attendanceListBody.innerHTML=`<tr><td colspan="4" class="text-center text-gray-500 py-10">Belum ada kehadiran untuk program ini.</td></tr>`
             } else {
-                attendanceListBody.innerHTML = paginatedList.map((p, index) => {
-                    const highlightClass = (isNewEntryAdded && (startIndex + index) === 0) ? 'new-entry' : '';
-                    // PERUBAHAN DI SINI: Tambah class untuk memendekkan teks dan title untuk paparan penuh
-                    return ` <tr class="${highlightClass} hover:bg-gray-50">
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${startIndex + index + 1}</td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 truncate max-w-xs" title="${p.name}">${p.name}</td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700 truncate max-w-xs" title="${p.station || ''}">${p.station || '-'}</td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 flex items-center gap-2">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd" /></svg>
-                                    ${new Date(p.time).toLocaleTimeString('ms-MY')}
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm">
-                                    ${p.status === 'Daftar Lewat' ? '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">Lewat</span>' : '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Hadir</span>'}
-                                </td>
-                            </tr> `
+                attendanceListBody.innerHTML = paginatedList.map((p) => {
+                    const highlightClass = isNewEntryAdded ? 'new-entry' : '';
+                    return `
+                        <tr class="${highlightClass} border-b border-gray-100 hover:bg-gray-50">
+                            <td class="px-3 py-3">
+                                ${generateAvatar(p.name)}
+                            </td>
+                            <td class="px-4 py-3">
+                                <div class="text-sm font-medium text-gray-900 truncate" title="${p.name}">${p.name}</div>
+                                <div class="text-xs text-gray-500 truncate" title="${p.station || ''}">${p.station || '-'}</div>
+                            </td>
+                            <td class="px-4 py-3 whitespace-nowrap text-xs text-gray-500">
+                                ${new Date(p.time).toLocaleTimeString('ms-MY')}
+                            </td>
+                            <td class="px-4 py-3 whitespace-nowrap text-sm">
+                                ${p.status === 'Daftar Lewat' ? '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">Lewat</span>' : '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Hadir</span>'}
+                            </td>
+                        </tr>`
                 }).join("");
             }
             renderInfographic();
@@ -455,7 +476,6 @@
             renderAttendanceTable(currentLoadedProgram.attendance || []);
         }
 
-        // PERUBAHAN DI SINI: Fungsi baru untuk prompt Penilaian
         function showEvaluationPrompt() {
             alert("Fungsi Penilaian Program akan datang tidak lama lagi.");
         }
@@ -562,7 +582,6 @@
             window.location.href = url;
         }
 
-        // PERUBAHAN DI SINI: Daftarkan fungsi baru supaya boleh diakses dari HTML
         Object.assign(window, { checkIn, registerAndCheckIn, showUnlockModal, verifyAndUnlock, shareCurrentProgramLink, copyShareLink, copyShareAdminLink, copyEmbedCode, showEditProgramModal, updateProgram, closeModal, updateQrCode, changeAttendancePerPage, prevAttendancePage, nextAttendancePage, showSurveyListModal, toggleManualCheckin, toggleFullScreen, closeFullScreen, openParticipantInfo, printQrPage, showEvaluationPrompt });
     </script>
 </body>
