@@ -93,9 +93,9 @@
                                     <label class="block text-sm font-medium text-gray-700">Lokasi Stesyen</label>
                                     <div class="mt-2 flex gap-x-6"><div class="flex items-center"><input type="radio" id="warga-loc-miri" name="warga-location" value="miri" checked class="h-4 w-4 text-indigo-600 border-gray-300"><label for="warga-loc-miri" class="ml-2 text-sm text-gray-900">Dalam Miri</label></div><div class="flex items-center"><input type="radio" id="warga-loc-luar" name="warga-location" value="luar" class="h-4 w-4 text-indigo-600 border-gray-300"><label for="warga-loc-luar" class="ml-2 text-sm text-gray-900">Lain</label></div></div>
                                 </div>
-                                <div id="warga-station-miri-container"><label for="warga-station-select" class="block text-sm font-medium text-gray-700">Sekolah</label><select id="warga-station-select" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" required><option value="">Sila Pilih Sekolah</option></select></div>
-                                <div id="warga-station-luar-container" class="hidden"><label for="warga-station-manual" class="block text-sm font-medium text-gray-700">Stesyen Kerja</label><input type="text" id="warga-station-manual" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm"></div>
-                                <div><label for="warga-position" class="block text-sm font-medium text-gray-700">Jawatan</label><input type="text" id="warga-position" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" required></div>
+                                <div id="warga-station-miri-container"><label for="warga-station-select" class="block text-sm font-medium text-gray-700">Stesen/Sekolah</label><select id="warga-station-select" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" required><option value="">Sila Pilih Sekolah</option></select></div>
+                                <div id="warga-station-luar-container" class="hidden"><label for="warga-station-manual" class="block text-sm font-medium text-gray-700">Stesen/Sekolah</label><input type="text" id="warga-station-manual" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm"></div>
+                                <div><label for="warga-position" class="block text-sm font-medium text-gray-700">Jawatan</label><select id="warga-position" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" required><option value="">Sila Pilih Jawatan</option></select></div>
                             </div>
                             
                             <div id="murid-fields" class="hidden space-y-4 pt-4 border-t">
@@ -137,10 +137,8 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        // PERUBAHAN DI SINI: orderBy ditambah untuk memuatkan senarai sekolah
         import { getFirestore, doc, getDoc, setDoc, updateDoc, arrayUnion, collection, query, where, getDocs, addDoc, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // ... (Kod konfigurasi Firebase tidak berubah) ...
         const firebaseConfig = {
             apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM",
             authDomain: "myqrhadir.firebaseapp.com",
@@ -168,7 +166,6 @@
             }
         });
 
-        // ... (Kod format masa tidak berubah) ...
         function formatTimeMalay(timeString) {
             if (!timeString) return '';
             const [hourStr, minuteStr] = timeString.split(':');
@@ -183,7 +180,6 @@
         function formatTimeRange(start, end) { return `${formatTimeMalay(start)} - ${formatTimeMalay(end)}`; }
 
         async function main() {
-            // ... (Bahagian atas fungsi main tidak berubah) ...
             const urlParams = new URLSearchParams(window.location.search);
             const programKey = urlParams.get('kod');
 
@@ -197,14 +193,13 @@
                 return showMessage('error', 'Pautan Tidak Sah', 'Kod program tidak ditemui dalam pautan.');
             }
             
-            // PERUBAHAN DI SINI: Panggil fungsi untuk listener borang dan muat senarai sekolah
             setupDynamicFormListeners();
             loadSchoolsIntoDropdowns();
+            loadPositionsIntoDropdown();
 
             const programRef = doc(db, `artifacts/${appId}/public/data/spark_programs`, programKey);
             const docSnap = await getDoc(programRef);
             
-            // ... (Bahagian bawah fungsi main tidak berubah) ...
             if (docSnap.exists()) {
                 currentProgram = { id: docSnap.id, ...docSnap.data() };
                 
@@ -224,7 +219,6 @@
             }
         }
         
-        // ... (Fungsi validateIcInput tidak berubah) ...
         function validateIcInput(input) {
             input.value = input.value.replace(/[^0-9]/g, '');
             const counter = document.getElementById('ic-counter');
@@ -237,7 +231,6 @@
             }
         }
         
-        // ... (Fungsi checkParticipant tidak berubah) ...
         window.checkParticipant = async function(event) {
             event.preventDefault();
             const icInput = document.getElementById('participant-ic');
@@ -272,7 +265,6 @@
             }
         }
         
-        // PERUBAHAN DI SINI: Fungsi registerAndCheckIn dikemas kini untuk borang dinamik
         window.registerAndCheckIn = async function(event) {
             event.preventDefault();
             const submitBtn = document.getElementById('submit-new-participant-btn');
@@ -288,7 +280,7 @@
                 const isMiri = document.querySelector('input[name="warga-location"]:checked').value === 'miri';
                 newParticipant.name = document.getElementById('warga-name').value.toUpperCase();
                 newParticipant.station = isMiri ? document.getElementById('warga-station-select').value : document.getElementById('warga-station-manual').value.toUpperCase();
-                newParticipant.position = document.getElementById('warga-position').value.toUpperCase();
+                newParticipant.position = document.getElementById('warga-position').value;
             } else if (category === 'murid') {
                 const isMiri = document.querySelector('input[name="murid-location"]:checked').value === 'miri';
                 newParticipant.name = document.getElementById('murid-name').value.toUpperCase();
@@ -312,7 +304,6 @@
             }
         }
         
-        // ... (Fungsi addParticipantToAttendance tidak berubah) ...
         async function addParticipantToAttendance(participantData) {
             const programRef = doc(db, `artifacts/${appId}/public/data/spark_programs`, currentProgram.id);
             const newAttendanceRecord = { ...participantData, time: new Date().toISOString(), status: 'Hadir' };
@@ -328,7 +319,6 @@
             }
         }
 
-        // ... (Fungsi showMessage tidak berubah) ...
         function showMessage(type, title, body) {
             document.getElementById('loading-state').classList.add('hidden');
             const checkInCard = document.getElementById('check-in-card');
@@ -360,7 +350,6 @@
             msgCard.classList.remove('hidden');
         }
 
-        // PERUBAHAN DI SINI: Fungsi baru untuk mengendalikan borang dinamik
         function setupDynamicFormListeners() {
             document.querySelectorAll('input[name="participant-category"]').forEach(radio => {
                 radio.addEventListener('change', (e) => {
@@ -410,6 +399,28 @@
                 });
             } catch (error) {
                 console.error("Error loading schools: ", error);
+            }
+        }
+
+        async function loadPositionsIntoDropdown() {
+            const selectElement = document.querySelector('#warga-position');
+            try {
+                const positionsRef = collection(db, `artifacts/${appId}/public/data/spark_positions`);
+                const q = query(positionsRef, orderBy("order", "asc"));
+                const querySnapshot = await getDocs(q);
+                
+                if (querySnapshot.empty) return;
+
+                const positions = querySnapshot.docs.map(doc => doc.data().name);
+
+                positions.forEach(positionName => {
+                    const option = document.createElement('option');
+                    option.value = positionName;
+                    option.textContent = positionName;
+                    selectElement.appendChild(option);
+                });
+            } catch (error) {
+                console.error("Error loading positions: ", error);
             }
         }
 
