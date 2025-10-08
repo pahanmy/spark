@@ -132,50 +132,52 @@
             </div>
         </div>
     </div>
+    
+    <!-- MODAL BARU UNTUK RALAT KEBENARAN AKSES -->
+    <div id="permission-error-modal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop hidden">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-lg p-6">
+            <div class="sm:flex sm:items-start">
+                <div class="mx-auto flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
+                    <svg class="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                    </svg>
+                </div>
+                <div class="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left">
+                    <h3 class="text-base font-semibold leading-6 text-gray-900" id="modal-title">Ralat Kebenaran Akses Pangkalan Data</h3>
+                    <div class="mt-2">
+                        <p class="text-sm text-gray-500">
+                            Tindakan ini gagal kerana tetapan keselamatan (Security Rules) pada pangkalan data Firebase anda tidak membenarkannya. 
+                            Ini BUKAN ralat pada kod aplikasi.
+                        </p>
+                        <p class="mt-2 text-sm text-gray-500">
+                            Untuk membetulkannya, anda <strong>MESTI</strong> mengemas kini fail <code class="text-xs bg-gray-100 p-1 rounded">firestore.rules</code> di Firebase Console anda.
+                        </p>
+                        <div class="mt-4">
+                            <label class="block text-sm font-medium text-gray-700">Kod Rules yang Betul:</label>
+                            <pre class="mt-1 text-xs bg-gray-800 text-white p-3 rounded-md overflow-x-auto"><code>rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /artifacts/{appId}/public/data/{collection}/{docId} {
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth.uid == resource.data.penyelaras_uid;
+    }
+  }
+}</code></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
+                <button type="button" onclick="closeModal('permission-error-modal')" class="btn inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:mt-0 sm:w-auto">Faham & Tutup</button>
+            </div>
+        </div>
+    </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, setDoc, addDoc, deleteDoc, collection, query, where, onSnapshot, serverTimestamp, getDocs, updateDoc, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        // ==========================================================================================
-        // NOTA PENTING UNTUK PEMBANGUN (PENTING FIX)
-        // ==========================================================================================
-        // Ralat "Missing or insufficient permissions" yang anda hadapi BUKAN berpunca daripada
-        // kod JavaScript di bawah, tetapi daripada konfigurasi Firebase Security Rules anda.
-        //
-        // Pengguna tanpa nama (anonymous users) tidak mempunyai kebenaran untuk membaca
-        // koleksi 'spark_schools' atau mengemas kini/memadam program.
-        //
-        // Untuk membetulkan ini, anda MESTI mengemas kini fail `firestore.rules`
-        // dalam projek Firebase anda dengan peraturan berikut:
-        //
-        // rules_version = '2';
-        // service cloud.firestore {
-        //   match /databases/{database}/documents {
-        //
-        //     // Laluan untuk data awam aplikasi
-        //     match /artifacts/{appId}/public/data/{collection}/{docId} {
-        //
-        //       // Benarkan sesiapa sahaja membaca data awam (seperti senarai sekolah)
-        //       allow read: if true;
-        //
-        //       // Benarkan pengguna yang log masuk untuk mencipta dokumen
-        //       allow create: if request.auth != null;
-        //
-        //       // Benarkan pengguna mengemas kini atau memadam HANYA jika
-        //       // UID mereka sepadan dengan penyelaras_uid dalam dokumen tersebut.
-        //       // Ini akan membetulkan isu butang Batal & Padam.
-        //       allow update, delete: if request.auth.uid == resource.data.penyelaras_uid;
-        //     }
-        //
-        //     // Anda boleh menambah peraturan lain di sini untuk koleksi lain
-        //   }
-        // }
-        //
-        // Selepas menerbitkan (publish) peraturan ini di Firebase Console,
-        // ralat kebenaran akan hilang dan semua fungsi akan berjalan seperti yang dijangkakan.
-        // ==========================================================================================
 
         const firebaseConfig = {
             apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM",
@@ -217,6 +219,10 @@
             }
         }
         
+        function showPermissionErrorModal() {
+            document.getElementById('permission-error-modal').classList.remove('hidden');
+        }
+        
         async function loadSchoolsIntoDropdown() {
             const selectElement = document.getElementById('new-applicant-station-select');
             const errorElement = document.getElementById('schools-loading-error');
@@ -246,6 +252,9 @@
                 });
             } catch (error) {
                 console.error("Error loading schools: ", error);
+                if (error.code === 'permission-denied') {
+                    showPermissionErrorModal();
+                }
                 errorElement.classList.remove('hidden');
                 selectElement.disabled = true;
             }
@@ -362,7 +371,11 @@
                 document.getElementById('program-generated-card').classList.remove('hidden');
             } catch(error) {
                 console.error("Error generating program:", error);
-                alert("Gagal menjana program. Sila semak konsol untuk ralat.");
+                if (error.code === 'permission-denied') {
+                    showPermissionErrorModal();
+                } else {
+                    alert("Gagal menjana program. Sila semak konsol untuk ralat.");
+                }
             }
         }
 
@@ -396,6 +409,9 @@
                 }
             } catch(error) {
                 console.error("Error fetching applicant:", error);
+                if (error.code === 'permission-denied') {
+                    showPermissionErrorModal();
+                }
                 document.getElementById('applicant-ic-error').textContent = "Gagal menghubungi pangkalan data.";
                 document.getElementById('applicant-ic-error').classList.remove('hidden');
             }
@@ -431,7 +447,11 @@
                 closeModal('new-applicant-modal');
             } catch(error) {
                 console.error("Error registering new applicant:", error);
-                alert("Gagal mendaftar pemohon baru.");
+                 if (error.code === 'permission-denied') {
+                    showPermissionErrorModal();
+                } else {
+                    alert("Gagal mendaftar pemohon baru.");
+                }
             }
         }
         
@@ -443,6 +463,9 @@
                 renderProgramListTable();
             }, (error) => {
                 console.error("Error listening for program updates:", error);
+                if (error.code === 'permission-denied') {
+                    showPermissionErrorModal();
+                }
             });
         }
         
@@ -576,7 +599,7 @@
             } catch (error) {
                 console.error("Error deleting program: ", error);
                 if (error.code === 'permission-denied') {
-                    alert("Gagal memadam program.\n\nRALAT: Tiada kebenaran (permission denied).\n\nSila pastikan Firebase Security Rules anda telah dikemas kini untuk membenarkan operasi 'delete'.");
+                    showPermissionErrorModal();
                 } else {
                     alert("Gagal memadam program.");
                 }
@@ -784,11 +807,15 @@
                 await validateAndFetchApplicantName();
             } catch (error) {
                 console.error("Error updating applicant data: ", error);
-                alert("Gagal mengemaskini maklumat.");
+                 if (error.code === 'permission-denied') {
+                    showPermissionErrorModal();
+                } else {
+                    alert("Gagal mengemaskini maklumat.");
+                }
             }
         }
 
-        Object.assign(window, { generateProgram, validateAndFetchApplicantName, registerNewApplicant, closeModal, copyKey, copyGeneratedSurveyLink, copyShareModalKey, copyShareSurveyLink, showShareModal, verifyAndShare, promptDeleteProgram, setSessionTime, filterPrograms, resetFilter, nextPage, prevPage, showEditApplicantModal, promptForEditVerification, verifyAndSaveChanges, copyGeneratedEvaluationLink, copyShareEvaluationLink, handleConfirmDelete });
+        Object.assign(window, { generateProgram, validateAndFetchApplicantName, registerNewApplicant, closeModal, copyKey, copyGeneratedSurveyLink, copyShareModalKey, copyShareSurveyLink, showShareModal, verifyAndShare, promptDeleteProgram, setSessionTime, filterPrograms, resetFilter, nextPage, prevPage, showEditApplicantModal, promptForEditVerification, verifyAndSaveChanges, copyGeneratedEvaluationLink, copyShareEvaluationLink, handleConfirmDelete, showPermissionErrorModal });
     </script>
 </body>
 </html>
