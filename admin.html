@@ -139,6 +139,21 @@
         const positionsCollectionRef = collection(db, `artifacts/${appId}/public/data/spark_positions`);
         const externalStationsCollectionRef = collection(db, `artifacts/${appId}/public/data/spark_external_stations`);
 
+        // PERUBAHAN DI SINI: Fungsi pengesahan Admin ditambah
+        const ADMIN_IC = "890522135381";
+        function confirmAdminAction(actionMessage) {
+            const userInput = prompt(`Sila masukkan No. IC Admin untuk ${actionMessage}.`);
+            if (userInput === null) { // User cancelled
+                return false;
+            }
+            if (userInput.trim() === ADMIN_IC) {
+                return true;
+            } else {
+                alert("Pengesahan gagal. No. IC tidak sepadan.");
+                return false;
+            }
+        }
+
         async function updateOrderInFirestore(listElement, collectionRef) {
             const rows = listElement.querySelectorAll('tr'); if (rows.length === 0) return;
             const batch = writeBatch(db);
@@ -155,25 +170,26 @@
                 </td>
             </tr>`;
 
-        // --- School Functions ---
-        async function addSchool() { const input = document.getElementById('school-name-input'); const name = input.value.trim().toUpperCase(); if (!name) return alert("Sila masukkan nama sekolah."); try { await addDoc(schoolsCollectionRef, { name, createdAt: serverTimestamp(), order: Date.now() }); input.value = ''; } catch (error) { console.error("Error adding school: ", error); alert("Gagal menambah sekolah."); } }
-        async function addSchoolsFromList() { const textarea = document.getElementById('school-list-textarea'); const lines = [...new Set(textarea.value.split('\n').map(l => l.trim().toUpperCase()).filter(l => l.length > 0))]; if (lines.length === 0) return alert("Tiada item sah untuk ditambah."); try { const batch = writeBatch(db); let orderIndex = Date.now(); lines.forEach(name => { batch.set(doc(schoolsCollectionRef), { name, createdAt: serverTimestamp(), order: orderIndex++ }); }); await batch.commit(); textarea.value = ''; alert(`${lines.length} sekolah berjaya ditambah!`); } catch (error) { console.error("Error adding schools: ", error); alert("Gagal menambah senarai sekolah."); } }
+        // --- School Functions (dengan pengesahan) ---
+        async function addSchool() { if (!confirmAdminAction("menambah sekolah")) return; const input = document.getElementById('school-name-input'); const name = input.value.trim().toUpperCase(); if (!name) return alert("Sila masukkan nama sekolah."); try { await addDoc(schoolsCollectionRef, { name, createdAt: serverTimestamp(), order: Date.now() }); input.value = ''; } catch (error) { console.error("Error adding school: ", error); alert("Gagal menambah sekolah."); } }
+        async function addSchoolsFromList() { if (!confirmAdminAction("menambah senarai sekolah")) return; const textarea = document.getElementById('school-list-textarea'); const lines = [...new Set(textarea.value.split('\n').map(l => l.trim().toUpperCase()).filter(l => l.length > 0))]; if (lines.length === 0) return alert("Tiada item sah untuk ditambah."); try { const batch = writeBatch(db); let orderIndex = Date.now(); lines.forEach(name => { batch.set(doc(schoolsCollectionRef), { name, createdAt: serverTimestamp(), order: orderIndex++ }); }); await batch.commit(); textarea.value = ''; alert(`${lines.length} sekolah berjaya ditambah!`); } catch (error) { console.error("Error adding schools: ", error); alert("Gagal menambah senarai sekolah."); } }
         async function deleteSchool(id) { if (confirm("Anda pasti mahu memadam sekolah ini?")) { try { await deleteDoc(doc(schoolsCollectionRef, id)); } catch (error) { console.error("Error deleting school: ", error); alert("Gagal memadam sekolah."); } } }
         function loadAndDisplaySchools() { const listBody = document.getElementById('school-list-body'); const q = query(schoolsCollectionRef, orderBy("order", "asc")); onSnapshot(q, (snapshot) => { document.getElementById('school-count').textContent = `(${snapshot.size})`; listBody.innerHTML = snapshot.empty ? `<tr><td colspan="3" class="text-center text-gray-500 py-4">Tiada sekolah ditemui.</td></tr>` : snapshot.docs.map(doc => createRowHTML(doc.id, doc.data().name, 'deleteSchool')).join(''); }); }
         
-        // --- External Station Functions ---
-        async function addExternalStation() { const input = document.getElementById('external-station-name-input'); const name = input.value.trim().toUpperCase(); if (!name) return alert("Sila masukkan nama stesen."); try { await addDoc(externalStationsCollectionRef, { name, createdAt: serverTimestamp(), order: Date.now() }); input.value = ''; } catch (error) { console.error("Error adding external station: ", error); alert("Gagal menambah stesen."); } }
-        async function addExternalStationsFromList() { const textarea = document.getElementById('external-station-list-textarea'); const lines = [...new Set(textarea.value.split('\n').map(l => l.trim().toUpperCase()).filter(l => l.length > 0))]; if (lines.length === 0) return alert("Tiada item sah untuk ditambah."); try { const batch = writeBatch(db); let orderIndex = Date.now(); lines.forEach(name => { batch.set(doc(externalStationsCollectionRef), { name, createdAt: serverTimestamp(), order: orderIndex++ }); }); await batch.commit(); textarea.value = ''; alert(`${lines.length} stesen berjaya ditambah!`); } catch (error) { console.error("Error adding external stations: ", error); alert("Gagal menambah senarai stesen."); } }
+        // --- External Station Functions (dengan pengesahan) ---
+        async function addExternalStation() { if (!confirmAdminAction("menambah stesen luar")) return; const input = document.getElementById('external-station-name-input'); const name = input.value.trim().toUpperCase(); if (!name) return alert("Sila masukkan nama stesen."); try { await addDoc(externalStationsCollectionRef, { name, createdAt: serverTimestamp(), order: Date.now() }); input.value = ''; } catch (error) { console.error("Error adding external station: ", error); alert("Gagal menambah stesen."); } }
+        async function addExternalStationsFromList() { if (!confirmAdminAction("menambah senarai stesen luar")) return; const textarea = document.getElementById('external-station-list-textarea'); const lines = [...new Set(textarea.value.split('\n').map(l => l.trim().toUpperCase()).filter(l => l.length > 0))]; if (lines.length === 0) return alert("Tiada item sah untuk ditambah."); try { const batch = writeBatch(db); let orderIndex = Date.now(); lines.forEach(name => { batch.set(doc(externalStationsCollectionRef), { name, createdAt: serverTimestamp(), order: orderIndex++ }); }); await batch.commit(); textarea.value = ''; alert(`${lines.length} stesen berjaya ditambah!`); } catch (error) { console.error("Error adding external stations: ", error); alert("Gagal menambah senarai stesen."); } }
         async function deleteExternalStation(id) { if (confirm("Anda pasti mahu memadam stesen ini?")) { try { await deleteDoc(doc(externalStationsCollectionRef, id)); } catch (error) { console.error("Error deleting external station: ", error); alert("Gagal memadam stesen."); } } }
         function loadAndDisplayExternalStations() { const listBody = document.getElementById('external-station-list-body'); const q = query(externalStationsCollectionRef, orderBy("order", "asc")); onSnapshot(q, (snapshot) => { document.getElementById('external-station-count').textContent = `(${snapshot.size})`; listBody.innerHTML = snapshot.empty ? `<tr><td colspan="3" class="text-center text-gray-500 py-4">Tiada stesen ditemui.</td></tr>` : snapshot.docs.map(doc => createRowHTML(doc.id, doc.data().name, 'deleteExternalStation')).join(''); }); }
 
-        // --- Position Functions ---
-        async function addPosition() { const input = document.getElementById('position-name-input'); const name = input.value.trim().toUpperCase(); if (!name) return alert("Sila masukkan nama jawatan."); try { await addDoc(positionsCollectionRef, { name, createdAt: serverTimestamp(), order: Date.now() }); input.value = ''; } catch (error) { console.error("Error adding position: ", error); alert("Gagal menambah jawatan."); } }
-        async function addPositionsFromList() { const textarea = document.getElementById('position-list-textarea'); const lines = [...new Set(textarea.value.split('\n').map(l => l.trim().toUpperCase()).filter(l => l.length > 0))]; if (lines.length === 0) return alert("Tiada item sah untuk ditambah."); try { const batch = writeBatch(db); let orderIndex = Date.now(); lines.forEach(name => { batch.set(doc(positionsCollectionRef), { name, createdAt: serverTimestamp(), order: orderIndex++ }); }); await batch.commit(); textarea.value = ''; alert(`${lines.length} jawatan berjaya ditambah!`); } catch (error) { console.error("Error adding positions: ", error); alert("Gagal menambah senarai jawatan."); } }
+        // --- Position Functions (dengan pengesahan) ---
+        async function addPosition() { if (!confirmAdminAction("menambah jawatan")) return; const input = document.getElementById('position-name-input'); const name = input.value.trim().toUpperCase(); if (!name) return alert("Sila masukkan nama jawatan."); try { await addDoc(positionsCollectionRef, { name, createdAt: serverTimestamp(), order: Date.now() }); input.value = ''; } catch (error) { console.error("Error adding position: ", error); alert("Gagal menambah jawatan."); } }
+        async function addPositionsFromList() { if (!confirmAdminAction("menambah senarai jawatan")) return; const textarea = document.getElementById('position-list-textarea'); const lines = [...new Set(textarea.value.split('\n').map(l => l.trim().toUpperCase()).filter(l => l.length > 0))]; if (lines.length === 0) return alert("Tiada item sah untuk ditambah."); try { const batch = writeBatch(db); let orderIndex = Date.now(); lines.forEach(name => { batch.set(doc(positionsCollectionRef), { name, createdAt: serverTimestamp(), order: orderIndex++ }); }); await batch.commit(); textarea.value = ''; alert(`${lines.length} jawatan berjaya ditambah!`); } catch (error) { console.error("Error adding positions: ", error); alert("Gagal menambah senarai jawatan."); } }
         async function deletePosition(id) { if (confirm("Anda pasti mahu memadam jawatan ini?")) { try { await deleteDoc(doc(positionsCollectionRef, id)); } catch (error) { console.error("Error deleting position: ", error); alert("Gagal memadam jawatan."); } } }
         function loadAndDisplayPositions() { const listBody = document.getElementById('position-list-body'); const q = query(positionsCollectionRef, orderBy("order", "asc")); onSnapshot(q, (snapshot) => { document.getElementById('position-count').textContent = `(${snapshot.size})`; listBody.innerHTML = snapshot.empty ? `<tr><td colspan="3" class="text-center text-gray-500 py-4">Tiada jawatan ditemui.</td></tr>` : snapshot.docs.map(doc => createRowHTML(doc.id, doc.data().name, 'deletePosition')).join(''); }); }
 
         async function removeDuplicates(collectionName) {
+            if (!confirmAdminAction(`membuang duplikat dari senarai ${collectionName}`)) return;
             let collectionRef, collectionDisplayName;
             if (collectionName === 'schools') { collectionRef = schoolsCollectionRef; collectionDisplayName = 'Sekolah'; } 
             else if (collectionName === 'external_stations') { collectionRef = externalStationsCollectionRef; collectionDisplayName = 'Stesen Luar'; }
