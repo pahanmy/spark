@@ -92,7 +92,14 @@
                             
                             <div id="warga-fields" class="space-y-4 pt-4 border-t">
                                 <div><label for="new-name-warga" class="block text-sm font-medium text-gray-700">Nama Penuh</label><input type="text" id="new-name-warga" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" oninput="this.value = this.value.toUpperCase()" required></div>
-                                <div><label for="new-station-select" class="block text-sm font-medium text-gray-700">Stesen Kerja</label><select id="new-station-select" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" required><option value="">Memuatkan senarai...</option></select></div>
+                                <div>
+                                    <label for="new-station-select" class="block text-sm font-medium text-gray-700">Stesen Kerja</label>
+                                    <select id="new-station-select" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" required><option value="">Memuatkan senarai...</option></select>
+                                    <div id="new-station-manual-container" class="hidden mt-2">
+                                        <label for="new-station-manual" class="block text-xs font-medium text-gray-600">Nama Stesen Kerja Baru</label>
+                                        <input type="text" id="new-station-manual" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" oninput="this.value = this.value.toUpperCase()">
+                                    </div>
+                                </div>
                                 <div><label for="new-ppd" class="block text-sm font-medium text-gray-700">PPD</label><input type="text" id="new-ppd" value="PPD MIRI, SARAWAK" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-gray-100" readonly></div>
                                 <div><label for="new-position-select" class="block text-sm font-medium text-gray-700">Jawatan</label><select id="new-position-select" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" required><option value="">Memuatkan senarai...</option></select></div>
                             </div>
@@ -131,7 +138,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, updateDoc, arrayUnion, collection, query, where, getDocs, addDoc, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, setDoc, updateDoc, arrayUnion, collection, query, where, getDocs, addDoc, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM",
@@ -174,6 +181,19 @@
             });
         });
 
+        document.getElementById('new-station-select').addEventListener('change', function() {
+            const manualContainer = document.getElementById('new-station-manual-container');
+            const manualInput = document.getElementById('new-station-manual');
+            if (this.value === 'TAMBAH_BARU') {
+                manualContainer.classList.remove('hidden');
+                manualInput.required = true;
+            } else {
+                manualContainer.classList.add('hidden');
+                manualInput.required = false;
+                manualInput.value = '';
+            }
+        });
+
         function formatTimeMalay(timeString) {
             if (!timeString) return '';
             const [hourStr, minuteStr] = timeString.split(':');
@@ -197,6 +217,8 @@
                 schoolsSnap.forEach(doc => {
                     schoolSelect.innerHTML += `<option value="${doc.data().name}">${doc.data().name}</option>`;
                 });
+                schoolSelect.innerHTML += `<option value="TAMBAH_BARU" class="font-bold text-indigo-600">--- TAMBAH STESEN BARU ---</option>`;
+
 
                 const positionsRef = collection(db, `artifacts/${appId}/public/data/spark_positions`);
                 const positionsQuery = query(positionsRef, orderBy("name", "asc"));
@@ -299,8 +321,29 @@
 
             if (category === 'warga') {
                 newParticipant.name = document.getElementById('new-name-warga').value;
-                newParticipant.station = document.getElementById('new-station-select').value;
+                const stationSelection = document.getElementById('new-station-select').value;
+
+                if (stationSelection === 'TAMBAH_BARU') {
+                    const newSchoolName = document.getElementById('new-station-manual').value;
+                    if (newSchoolName) {
+                        newParticipant.station = newSchoolName;
+                        // Save the new school to the database
+                        await addDoc(collection(db, `artifacts/${appId}/public/data/spark_schools`), { 
+                            name: newSchoolName, 
+                            createdAt: serverTimestamp() 
+                        });
+                    } else {
+                        alert('Sila masukkan nama stesen kerja yang baru.');
+                        submitBtn.disabled = false;
+                        submitBtn.textContent = "Daftar & Sahkan Kehadiran";
+                        return;
+                    }
+                } else {
+                    newParticipant.station = stationSelection;
+                }
+                
                 newParticipant.position = document.getElementById('new-position-select').value;
+
             } else if (category === 'murid') {
                 newParticipant.name = document.getElementById('new-name-murid').value;
                 newParticipant.station = document.getElementById('new-school-murid').value;
