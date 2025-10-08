@@ -114,25 +114,30 @@
                         Aktiviti Minggu Ini
                     </h3>
                     <div class="grid grid-cols-1 sm:grid-cols-5 gap-4 text-left">
-                        <div id="day-col-1" class="bg-white p-3 rounded-lg shadow-sm border min-h-[100px]">
+                        <div id="day-col-1" class="bg-white p-3 rounded-lg shadow-sm border min-h-[100px] relative">
                             <h4 id="monday-header" class="font-semibold text-sm text-gray-700 pb-2 border-b mb-2">Isnin</h4>
                             <div id="monday-activities" class="space-y-2"></div>
+                            <button id="more-btn-1" onclick="showMoreActivities(1)" class="hidden absolute bottom-2 right-2 text-xs text-indigo-600 font-semibold hover:underline">...Lagi</button>
                         </div>
-                        <div id="day-col-2" class="bg-white p-3 rounded-lg shadow-sm border min-h-[100px]">
+                        <div id="day-col-2" class="bg-white p-3 rounded-lg shadow-sm border min-h-[100px] relative">
                             <h4 id="tuesday-header" class="font-semibold text-sm text-gray-700 pb-2 border-b mb-2">Selasa</h4>
                             <div id="tuesday-activities" class="space-y-2"></div>
+                             <button id="more-btn-2" onclick="showMoreActivities(2)" class="hidden absolute bottom-2 right-2 text-xs text-indigo-600 font-semibold hover:underline">...Lagi</button>
                         </div>
-                        <div id="day-col-3" class="bg-white p-3 rounded-lg shadow-sm border min-h-[100px]">
+                        <div id="day-col-3" class="bg-white p-3 rounded-lg shadow-sm border min-h-[100px] relative">
                             <h4 id="wednesday-header" class="font-semibold text-sm text-gray-700 pb-2 border-b mb-2">Rabu</h4>
                             <div id="wednesday-activities" class="space-y-2"></div>
+                             <button id="more-btn-3" onclick="showMoreActivities(3)" class="hidden absolute bottom-2 right-2 text-xs text-indigo-600 font-semibold hover:underline">...Lagi</button>
                         </div>
-                        <div id="day-col-4" class="bg-white p-3 rounded-lg shadow-sm border min-h-[100px]">
+                        <div id="day-col-4" class="bg-white p-3 rounded-lg shadow-sm border min-h-[100px] relative">
                             <h4 id="thursday-header" class="font-semibold text-sm text-gray-700 pb-2 border-b mb-2">Khamis</h4>
                             <div id="thursday-activities" class="space-y-2"></div>
+                             <button id="more-btn-4" onclick="showMoreActivities(4)" class="hidden absolute bottom-2 right-2 text-xs text-indigo-600 font-semibold hover:underline">...Lagi</button>
                         </div>
-                        <div id="day-col-5" class="bg-white p-3 rounded-lg shadow-sm border min-h-[100px]">
+                        <div id="day-col-5" class="bg-white p-3 rounded-lg shadow-sm border min-h-[100px] relative">
                             <h4 id="friday-header" class="font-semibold text-sm text-gray-700 pb-2 border-b mb-2">Jumaat</h4>
                             <div id="friday-activities" class="space-y-2"></div>
+                             <button id="more-btn-5" onclick="showMoreActivities(5)" class="hidden absolute bottom-2 right-2 text-xs text-indigo-600 font-semibold hover:underline">...Lagi</button>
                         </div>
                     </div>
                 </div>
@@ -160,6 +165,22 @@
             </div>
         </div>
     </div>
+    
+    <div id="more-activities-modal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop hidden">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-lg max-h-[80vh] flex flex-col">
+            <div class="flex justify-between items-center p-4 border-b">
+                <h3 id="more-activities-title" class="text-lg font-semibold text-gray-800"></h3>
+                <button onclick="closeModal('more-activities-modal')" class="text-gray-400 hover:text-gray-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div id="more-activities-content" class="p-6 overflow-y-auto space-y-3">
+                <!-- Activities will be injected here -->
+            </div>
+        </div>
+    </div>
 
 
     <script type="module">
@@ -177,6 +198,7 @@
         };
         
         let db, auth, userId;
+        let weeklyProgramsCache = {};
         const appId = firebaseConfig.projectId;
         const DEVELOPER_IC = "890522135381"; 
 
@@ -279,7 +301,7 @@
                 const day = currentDate.getDay();
                 if (dayHeaders[day]) {
                     const dateString = currentDate.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit' });
-                    const dayName = dayHeaders[day].textContent.split(' ')[0]; // Keep only day name
+                    const dayName = dayHeaders[day].textContent.split(' ')[0];
                     dayHeaders[day].innerHTML = `${dayName} <span class="text-gray-400 mx-1">|</span> <span class="text-xs text-gray-500 font-normal">${dateString}</span>`;
                 }
             }
@@ -310,66 +332,100 @@
                     programsByDay[programDayOfWeek].push(program);
                 }
             });
+            
+            weeklyProgramsCache = programsByDay;
 
             for (const day in programsByDay) {
                 const container = dayContainers[day];
                 if (container) {
                     const dayPrograms = programsByDay[day];
+                    const moreBtn = document.getElementById(`more-btn-${day}`);
 
                     if (dayPrograms.length === 0) {
                         container.innerHTML = defaultMessage;
+                        if(moreBtn) moreBtn.classList.add('hidden');
                         continue;
                     }
 
                     dayPrograms.sort((a, b) => a.startTime.localeCompare(b.startTime));
 
                     container.innerHTML = '';
-                    dayPrograms.forEach(program => {
-                        const programEndDateTime = new Date(`${program.endDate}T${program.endTime}`);
-                        const programStartDate = new Date(program.startDate);
-                        programStartDate.setHours(0,0,0,0);
-                        
-                        const isPast = programEndDateTime < now;
-                        const isToday = programStartDate.toDateString() === today.toDateString();
-                        
-                        let statusClass = 'bg-white/50 hover:bg-gray-100 transition-colors';
-                        let indicatorHtml = '';
+                    const programsToShow = dayPrograms.slice(0, 2);
 
-                        if (isPast) {
-                            statusClass = 'bg-gray-100 opacity-60';
-                        } else if (isToday) {
-                            statusClass = 'bg-indigo-100 border border-indigo-200 shadow-sm';
-                            indicatorHtml = `
-                                <div class="absolute top-1.5 right-1.5 flex items-center gap-1 bg-indigo-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
-                                      <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-                                    </svg>
-                                    <span>HARI INI</span>
-                                </div>`;
-                        }
-                        
-                        const programHtml = `
-                            <div class="relative text-xs p-2 rounded-lg ${statusClass}">
-                                ${indicatorHtml}
-                                <p class="font-bold pr-4 ${isPast ? 'line-through' : ''}">${program.name.toUpperCase()}</p>
-                                <div class="mt-1 space-y-0.5 text-gray-600 ${isPast ? 'line-through' : ''}">
-                                     <p class="flex items-center gap-1.5">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd" /></svg>
-                                        <span>${(program.location || '').toUpperCase()}</span>
-                                     </p>
-                                     <p class="flex items-center gap-1.5">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.414-1.415L11 9.586V6z" clip-rule="evenodd" /></svg>
-                                        <span>${program.startTime} - ${program.endTime}</span>
-                                     </p>
-                                </div>
-                            </div>
-                        `;
-                        container.innerHTML += programHtml;
+                    programsToShow.forEach(program => {
+                        container.innerHTML += createActivityHtml(program, today);
                     });
+
+                    if (dayPrograms.length > 2) {
+                        if(moreBtn) moreBtn.classList.remove('hidden');
+                    } else {
+                        if(moreBtn) moreBtn.classList.add('hidden');
+                    }
                 }
             }
         }
+        
+        function createActivityHtml(program, today) {
+            const now = new Date();
+            const programEndDateTime = new Date(`${program.endDate}T${program.endTime}`);
+            const programStartDate = new Date(program.startDate);
+            programStartDate.setHours(0,0,0,0);
+            
+            const isPast = programEndDateTime < now;
+            const isToday = programStartDate.toDateString() === today.toDateString();
+            
+            let statusClass = 'bg-white/50 hover:bg-gray-100 transition-colors';
+            let indicatorHtml = '';
 
+            if (isPast) {
+                statusClass = 'bg-gray-100 opacity-60';
+            } else if (isToday) {
+                statusClass = 'bg-indigo-100 border border-indigo-200 shadow-sm';
+                indicatorHtml = `
+                    <div class="absolute top-1.5 right-1.5 flex items-center gap-1 bg-indigo-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                          <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                        </svg>
+                        <span>HARI INI</span>
+                    </div>`;
+            }
+            
+            return `
+                <div class="relative text-xs p-2 rounded-lg ${statusClass}">
+                    ${indicatorHtml}
+                    <p class="font-semibold pr-4 ${isPast ? 'line-through' : ''}">${program.name.toUpperCase()}</p>
+                    <div class="mt-1 space-y-0.5 text-gray-600 ${isPast ? 'line-through' : ''}">
+                         <p class="flex items-center gap-1.5">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd" /></svg>
+                            <span class="capitalize">${(program.location || '').toLowerCase()}</span>
+                         </p>
+                         <p class="flex items-center gap-1.5">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.414-1.415L11 9.586V6z" clip-rule="evenodd" /></svg>
+                            <span class="capitalize">${program.startTime} - ${program.endTime}</span>
+                         </p>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function showMoreActivities(dayIndex) {
+            const dayPrograms = weeklyProgramsCache[dayIndex] || [];
+            if (dayPrograms.length === 0) return;
+
+            const dayHeaderEl = document.getElementById(`day-col-${dayIndex}`).querySelector('h4');
+            const modalTitle = document.getElementById('more-activities-title');
+            const modalContent = document.getElementById('more-activities-content');
+            
+            modalTitle.innerHTML = dayHeaderEl.innerHTML;
+            modalContent.innerHTML = '';
+            
+            const today = new Date();
+            dayPrograms.forEach(program => {
+                modalContent.innerHTML += createActivityHtml(program, today);
+            });
+            
+            document.getElementById('more-activities-modal').classList.remove('hidden');
+        }
 
         async function loadProgram() {
             const programKeyInput = document.getElementById('program-key-input');
@@ -596,7 +652,7 @@
         function showFeedbackModal() { document.getElementById('feedback-modal').classList.remove('hidden'); renderFeedbackLog(); }
         function selectEmoji(buttonElement, emoji) { document.getElementById('feedback-feeling').value = emoji; document.querySelectorAll('.emoji-btn').forEach(btn => btn.classList.remove('selected', 'border-indigo-500')); buttonElement.classList.add('selected', 'border-indigo-500'); }
 
-        Object.assign(window, { submitFeedback, showFeedbackModal, selectEmoji, showSparkInfoModal, closeModal, addKeypoint, promptReplyAuth, verifyReplyIc, hideReplyForm, submitReply });
+        Object.assign(window, { submitFeedback, showFeedbackModal, showMoreActivities, selectEmoji, showSparkInfoModal, closeModal, addKeypoint, promptReplyAuth, verifyReplyIc, hideReplyForm, submitReply });
     </script>
 </body>
 </html>
