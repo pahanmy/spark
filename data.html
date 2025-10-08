@@ -42,7 +42,10 @@
         <div>
             <div class="border-b border-gray-200">
                 <nav class="-mb-px flex space-x-8" aria-label="Tabs">
-                    <button id="tab-peserta" onclick="switchTab('peserta')" class="tab-btn active whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                    <button id="tab-program" onclick="switchTab('program')" class="tab-btn active whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                        Program
+                    </button>
+                    <button id="tab-peserta" onclick="switchTab('peserta')" class="tab-btn text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
                         Peserta
                     </button>
                     <button id="tab-sekolah" onclick="switchTab('sekolah')" class="tab-btn text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
@@ -54,8 +57,31 @@
                 </nav>
             </div>
 
+            <!-- Panel Program -->
+            <div id="panel-program" class="mt-6">
+                <div class="card p-6 md:p-8">
+                   <div class="flex items-center gap-3 mb-4">
+                       <div class="bg-blue-100 p-2 rounded-lg"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg></div>
+                       <h2 class="text-xl font-bold text-gray-800">Senarai Semua Program</h2>
+                   </div>
+                   <div class="flex justify-between items-center mb-4">
+                       <div class="relative">
+                           <input type="text" id="program-search" placeholder="Cari nama program..." class="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500">
+                           <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                               <svg class="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" /></svg>
+                           </div>
+                       </div>
+                       <span id="program-count" class="text-sm font-medium text-gray-600"></span>
+                   </div>
+                   <div class="overflow-x-auto">
+                       <table class="min-w-full"><thead class="bg-gray-50"><tr><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Bil.</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nama Program</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tarikh</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Penyelaras</th><th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Tindakan</th></tr></thead><tbody id="program-list-body" class="divide-y divide-gray-200"></tbody></table>
+                   </div>
+                   <div id="program-pagination-controls" class="flex justify-between items-center mt-4"></div>
+               </div>
+           </div>
+
             <!-- Panel Peserta -->
-            <div id="panel-peserta" class="mt-6">
+            <div id="panel-peserta" class="mt-6 hidden">
                  <div class="card p-6 md:p-8">
                     <div class="flex items-center gap-3 mb-4">
                         <div class="bg-green-100 p-2 rounded-lg"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg></div>
@@ -159,12 +185,17 @@
         const schoolsCollectionRef = collection(db, `artifacts/${appId}/public/data/spark_schools`);
         const positionsCollectionRef = collection(db, `artifacts/${appId}/public/data/spark_positions`);
         const participantsCollectionRef = collection(db, `artifacts/${appId}/public/data/spark_participants`);
+        const programsCollectionRef = collection(db, `artifacts/${appId}/public/data/spark_programs`);
 
         const ADMIN_IC = "890522135381";
         
         let allParticipants = [];
         let participantCurrentPage = 1;
         const participantsPerPage = 15;
+
+        let allPrograms = [];
+        let programCurrentPage = 1;
+        const programsPerPage = 15;
 
         onAuthStateChanged(auth, async (user) => {
             if (user) {
@@ -180,10 +211,15 @@
         });
 
         function initializeAdminPage() {
+            loadAndDisplayPrograms();
+            loadAndDisplayParticipants();
             loadAndDisplaySchools();
             loadAndDisplayPositions();
-            loadAndDisplayParticipants();
             initSortable();
+            document.getElementById('program-search').addEventListener('input', () => {
+                programCurrentPage = 1;
+                renderProgramTable();
+            });
             document.getElementById('participant-search').addEventListener('input', () => {
                 participantCurrentPage = 1;
                 renderParticipantTable();
@@ -191,7 +227,7 @@
         }
 
         function switchTab(tabName) {
-            ['peserta', 'sekolah', 'jawatan'].forEach(name => {
+            ['program', 'peserta', 'sekolah', 'jawatan'].forEach(name => {
                 const tab = document.getElementById(`tab-${name}`);
                 const panel = document.getElementById(`panel-${name}`);
                 const isActive = name === tabName;
@@ -249,6 +285,74 @@
         async function addPositionsFromList() { if (!confirmAdminAction("menambah senarai jawatan")) return; const textarea = document.getElementById('position-list-textarea'); const lines = [...new Set(textarea.value.split('\n').map(l => l.trim().toUpperCase()).filter(l => l.length > 0))]; if (lines.length === 0) return alert("Tiada item sah untuk ditambah."); try { const batch = writeBatch(db); let orderIndex = Date.now(); lines.forEach(name => { batch.set(doc(positionsCollectionRef), { name, createdAt: serverTimestamp(), order: orderIndex++ }); }); await batch.commit(); textarea.value = ''; alert(`${lines.length} jawatan berjaya ditambah!`); } catch (error) { console.error("Ralat menambah jawatan: ", error); alert("Gagal menambah senarai jawatan."); } }
         async function deletePosition(id) { if (confirm("Anda pasti mahu memadam jawatan ini?")) { if (!confirmAdminAction("memadam jawatan")) return; try { await deleteDoc(doc(positionsCollectionRef, id)); } catch (error) { console.error("Ralat memadam jawatan: ", error); alert("Gagal memadam jawatan."); } } }
         function loadAndDisplayPositions() { const listBody = document.getElementById('position-list-body'); const q = query(positionsCollectionRef, orderBy("order", "asc")); onSnapshot(q, (snapshot) => { document.getElementById('position-count').textContent = `(${snapshot.size})`; listBody.innerHTML = snapshot.empty ? `<tr><td colspan="3" class="text-center text-gray-500 py-4">Tiada jawatan ditemui.</td></tr>` : snapshot.docs.map(doc => createRowHTML(doc.id, doc.data().name, 'deletePosition')).join(''); }, (error) => { console.error("Ralat memuatkan data jawatan:", error); if (error.code === 'permission-denied') listBody.innerHTML = `<tr><td colspan="3" class="text-center text-red-500 py-4">Ralat: Akses ditolak. Sila semak 'security rules' Firebase anda.</td></tr>`; }); }
+
+        // --- Fungsi Program ---
+        function loadAndDisplayPrograms() {
+            const q = query(programsCollectionRef, orderBy("createdAt", "desc"));
+            onSnapshot(q, (snapshot) => {
+                allPrograms = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderProgramTable();
+            }, (error) => {
+                console.error("Ralat memuatkan data program:", error);
+                document.getElementById('program-list-body').innerHTML = `<tr><td colspan="5" class="text-center text-red-500 py-4">Ralat: Akses ditolak. Sila semak 'security rules' Firebase anda.</td></tr>`;
+            });
+        }
+
+        function renderProgramTable() {
+            const listBody = document.getElementById('program-list-body');
+            const searchInput = document.getElementById('program-search').value.toLowerCase();
+            
+            const filteredPrograms = allPrograms.filter(p => p.name.toLowerCase().includes(searchInput) || (p.penyelaras_name && p.penyelaras_name.toLowerCase().includes(searchInput)));
+
+            document.getElementById('program-count').textContent = `Jumlah: ${filteredPrograms.length}`;
+
+            const startIndex = (programCurrentPage - 1) * programsPerPage;
+            const paginatedItems = filteredPrograms.slice(startIndex, startIndex + programsPerPage);
+
+            if (paginatedItems.length === 0) {
+                listBody.innerHTML = `<tr><td colspan="5" class="text-center text-gray-500 py-4">Tiada program ditemui.</td></tr>`;
+            } else {
+                listBody.innerHTML = paginatedItems.map((p, index) => `
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-6 py-4 text-sm text-gray-500">${startIndex + index + 1}</td>
+                        <td class="px-6 py-4 text-sm font-medium text-gray-900">${p.name}</td>
+                        <td class="px-6 py-4 text-sm text-gray-500">${formatDate(p.startDate)}</td>
+                        <td class="px-6 py-4 text-sm text-gray-500">${p.penyelaras_name || '-'}</td>
+                        <td class="px-6 py-4 text-center">
+                            <a href="program.html?kod=${p.id}" target="_blank" class="btn inline-flex items-center gap-2 text-xs font-bold text-white bg-gradient-to-r from-blue-500 to-indigo-600 py-2 px-4 rounded-lg shadow-md hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200">
+                                <span>Buka</span>
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                    <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
+                                    <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z" />
+                                </svg>
+                            </a>
+                        </td>
+                    </tr>
+                `).join('');
+            }
+            renderProgramPagination(filteredPrograms.length);
+        }
+
+        function renderProgramPagination(totalItems) {
+            const paginationControls = document.getElementById('program-pagination-controls');
+            const totalPages = Math.ceil(totalItems / programsPerPage);
+
+            if (totalPages <= 1) {
+                paginationControls.innerHTML = '';
+                return;
+            }
+
+            paginationControls.innerHTML = `
+                <span class="text-sm text-gray-700">Memaparkan ${Math.min(totalItems, (programCurrentPage - 1) * programsPerPage + 1)} hingga ${Math.min(programCurrentPage * programsPerPage, totalItems)} dari ${totalItems} keputusan</span>
+                <div class="flex gap-2">
+                    <button onclick="programPrevPage()" class="btn bg-white text-gray-700 border border-gray-300 text-sm py-1.5 px-3 rounded-lg" ${programCurrentPage === 1 ? 'disabled' : ''}>Sebelumnya</button>
+                    <button onclick="programNextPage()" class="btn bg-white text-gray-700 border border-gray-300 text-sm py-1.5 px-3 rounded-lg" ${programCurrentPage === totalPages ? 'disabled' : ''}>Seterusnya</button>
+                </div>
+            `;
+        }
+        function programPrevPage() { if (programCurrentPage > 1) { programCurrentPage--; renderProgramTable(); } }
+        function programNextPage() { const totalItems = allPrograms.filter(p => p.name.toLowerCase().includes(document.getElementById('program-search').value.toLowerCase())).length; if (programCurrentPage < Math.ceil(totalItems / programsPerPage)) { programCurrentPage++; renderProgramTable(); } }
+
 
         // --- Fungsi Peserta ---
         function loadAndDisplayParticipants() {
@@ -328,6 +432,11 @@
         }
 
         // --- Fungsi Utiliti ---
+        function formatDate(dateString) {
+            if (!dateString) return 'N/A';
+            return new Date(dateString).toLocaleDateString('ms-MY', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        }
+
         async function removeDuplicates(collectionName) {
             if (!confirmAdminAction(`membuang duplikat dari senarai ${collectionName}`)) return;
             let collectionRef, collectionDisplayName;
@@ -390,6 +499,7 @@
             deleteParticipant,
             removeDuplicates,
             switchTab,
+            programPrevPage, programNextPage,
             participantPrevPage, participantNextPage
         });
 
