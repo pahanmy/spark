@@ -40,7 +40,16 @@
                     <p class="text-sm text-gray-500">Percikan Inovasi Kehadiran Digital</p>
                 </div>
             </div>
-            <a href="index.html" class="btn bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-gray-300 uppercase">Halaman Utama</a>
+            <div class="flex items-center gap-2">
+                <a href="semak.html" class="btn bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-indigo-700 flex items-center gap-2 text-sm uppercase">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" /><path fill-rule="evenodd" d="M4 5a2 2 0 012-2h8a2 2 0 012 2v10a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h4a1 1 0 100-2H7z" clip-rule="evenodd" /></svg>
+                    JANA PERMOHONAN
+                </a>
+                <a href="index.html" class="btn bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-gray-300 flex items-center gap-2 text-sm uppercase">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" /></svg>
+                    HALAMAN UTAMA
+                </a>
+            </div>
         </div>
     </header>
 
@@ -135,8 +144,9 @@
             document.getElementById('month-select').addEventListener('change', updateCalendarView);
             document.getElementById('year-select').addEventListener('change', updateCalendarView);
             document.getElementById('search-input').addEventListener('input', () => {
+                renderCalendar(currentDate.getFullYear(), currentDate.getMonth());
                 if (selectedDateElement) {
-                    const date = new Date(selectedDateElement.dataset.date);
+                    const date = parseDateString(selectedDateElement.dataset.date);
                     displayProgramsForDate(date, selectedDateElement);
                 }
             });
@@ -174,7 +184,8 @@
 
             for (let day = 1; day <= daysInMonth; day++) {
                 const date = new Date(year, month, day);
-                const dateString = date.toISOString().split('T')[0];
+                const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
                 const programsOnThisDay = getProgramsForDate(date);
                 const isToday = new Date().toDateString() === date.toDateString();
                 
@@ -207,15 +218,23 @@
             calendarGrid.querySelectorAll('.has-events').forEach(el => {
                 el.addEventListener('click', (e) => {
                     const target = e.currentTarget;
-                    const date = new Date(target.dataset.date);
+                    const date = parseDateString(target.dataset.date);
                     displayProgramsForDate(date, target);
                 });
             });
         }
 
+        function parseDateString(dateString) {
+            const parts = dateString.split('-');
+            return new Date(parts[0], parts[1] - 1, parts[2]);
+        }
+
         function getProgramsForDate(date) {
-            const dateString = date.toISOString().split('T')[0];
-            return allPrograms.filter(p => p.startDate === dateString);
+            return allPrograms.filter(p => {
+                const startDate = parseDateString(p.startDate);
+                const endDate = p.endDate ? parseDateString(p.endDate) : startDate;
+                return date >= startDate && date <= endDate;
+            });
         }
 
         function displayProgramsForDate(date, element) {
@@ -239,15 +258,26 @@
                 return;
             }
 
-            programListContent.innerHTML = programs.map(p => `
+            programListContent.innerHTML = programs.map(p => {
+                const endDate = p.endDate ? parseDateString(p.endDate) : parseDateString(p.startDate);
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const isPast = endDate < today;
+
+                const buttonStyle = isPast 
+                    ? 'bg-gray-500 hover:bg-gray-600' 
+                    : 'bg-indigo-600';
+                const titleStyle = isPast ? 'text-gray-500' : 'text-gray-900';
+                
+                return `
                 <div class="p-4 border rounded-lg flex justify-between items-center bg-gray-50">
                     <div>
-                        <p class="font-semibold text-gray-900">${p.name.toUpperCase()}</p>
+                        <p class="font-semibold ${titleStyle}">${p.name.toUpperCase()}</p>
                         <p class="text-sm text-gray-500">${p.location.toUpperCase()}</p>
                     </div>
-                    <button onclick="promptIcVerification('${p.id}', '${p.penyelaras_ic}')" class="btn bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg text-sm uppercase">Buka Program</button>
+                    <button onclick="promptIcVerification('${p.id}', '${p.penyelaras_ic}')" class="btn ${buttonStyle} text-white font-semibold py-2 px-4 rounded-lg text-sm uppercase">Buka Program</button>
                 </div>
-            `).join('');
+            `}).join('');
         }
 
         function populateYearFilter() {
