@@ -360,22 +360,21 @@
         });
 
         window.toggleConditionalInput = (trigger, inputId, showOnChecked = true) => {
-            const inputElement = document.getElementById(inputId);
-            const followUpDiv = document.getElementById(inputId); // For question 6 follow up
-            const target = inputElement || followUpDiv;
+            const target = document.getElementById(inputId);
+            if (!target) return;
 
-            if (target) {
-                 if ((trigger.type === 'radio' && trigger.value === 'Ya' && showOnChecked) || (trigger.type === 'radio' && trigger.value === 'Tidak' && !showOnChecked) || (trigger.type === 'checkbox' && trigger.checked === showOnChecked)) {
-                    target.classList.remove('hidden');
-                    target.querySelectorAll('input, textarea').forEach(el => el.required = true);
-                } else {
-                    target.classList.add('hidden');
-                    target.querySelectorAll('input, textarea').forEach(el => {
-                        el.required = false;
-                        if(el.type !== 'radio' && el.type !== 'checkbox') el.value = '';
-                        if(el.type === 'radio' || el.type === 'checkbox') el.checked = false;
-                    });
-                }
+            const isTriggerChecked = trigger.type === 'checkbox' ? trigger.checked : (trigger.value === 'Ya' && trigger.checked);
+            
+            if (isTriggerChecked === showOnChecked) {
+                target.classList.remove('hidden');
+                target.querySelectorAll('input, textarea').forEach(el => el.required = true);
+            } else {
+                target.classList.add('hidden');
+                target.querySelectorAll('input, textarea').forEach(el => {
+                    el.required = false;
+                    if (el.type !== 'radio' && el.type !== 'checkbox') el.value = '';
+                    if (el.type === 'radio' || el.type === 'checkbox') el.checked = false;
+                });
             }
         };
 
@@ -392,29 +391,62 @@
             const formData = new FormData(form);
             const surveyData = {};
 
-            formData.forEach((value, key) => {
-                if (!key.endsWith('-lain')) { surveyData[key] = value; }
-            });
-
-            // Consolidate 'Lain-lain' fields
-            const jawatanLain = formData.get('jawatan-lain');
-            if (surveyData.jawatan === 'Lain-lain' && jawatanLain) { surveyData.jawatan = `Lain-lain: ${jawatanLain}`; }
-            
-            // Handle new checkbox groups
-            const checkboxGroups = ['langkah_sedia_ada', 'kaedah_rsvp', 'rekod_pengganti', 'kaedah_semasa_program', 'cabaran_splg'];
-            checkboxGroups.forEach(groupName => {
-                const checkedItems = form.querySelectorAll(`input[name="${groupName}"]:checked`);
-                let values = Array.from(checkedItems).map(cb => cb.value);
-                const lainInputName = `${groupName.replace(/_([a-z])/g, (g) => g[1].toUpperCase()).replace('splg', 'Splg')}Lain`; // e.g. kaedahRsvpLain
-                 const lainInputValue = formData.get(`${groupName.split('_')[0]}-lain`);
-
-                if (values.includes('Lain-lain') && lainInputValue) {
-                    values = values.filter(v => v !== 'Lain-lain');
-                    values.push(`Lain-lain: ${lainInputValue}`);
+            // A more robust way to handle form data, especially checkboxes
+            for (const [key, value] of formData.entries()) {
+                // If a key for a checkbox group already exists, push the new value to its array
+                if (surveyData[key] && Array.isArray(surveyData[key])) {
+                    surveyData[key].push(value);
+                } 
+                // If a key exists but isn't an array (first checkbox in a group), create an array
+                else if (surveyData[key]) {
+                    surveyData[key] = [surveyData[key], value];
+                } 
+                // Otherwise, just set the value
+                else {
+                    surveyData[key] = value;
                 }
-                surveyData[groupName] = values;
-            });
+            }
             
+            // Consolidate 'Lain-lain' text fields into their parent questions
+            if (surveyData.jawatan === 'Lain-lain' && surveyData['jawatan-lain']) {
+                surveyData.jawatan = `Lain-lain: ${surveyData['jawatan-lain']}`;
+            }
+             if (Array.isArray(surveyData.kaedah_rsvp) && surveyData.kaedah_rsvp.includes('Lain-lain') && surveyData['rsvp-lain']) {
+                surveyData.kaedah_rsvp = surveyData.kaedah_rsvp.filter(v => v !== 'Lain-lain');
+                surveyData.kaedah_rsvp.push(`Lain-lain: ${surveyData['rsvp-lain']}`);
+            }
+            if (Array.isArray(surveyData.rekod_pengganti) && surveyData.rekod_pengganti.includes('Lain-lain') && surveyData['pengganti-lain']) {
+                surveyData.rekod_pengganti = surveyData.rekod_pengganti.filter(v => v !== 'Lain-lain');
+                surveyData.rekod_pengganti.push(`Lain-lain: ${surveyData['pengganti-lain']}`);
+            }
+            if (Array.isArray(surveyData.kaedah_semasa_program) && surveyData.kaedah_semasa_program.includes('Lain-lain') && surveyData['kaedah-lain']) {
+                surveyData.kaedah_semasa_program = surveyData.kaedah_semasa_program.filter(v => v !== 'Lain-lain');
+                surveyData.kaedah_semasa_program.push(`Lain-lain: ${surveyData['kaedah-lain']}`);
+            }
+             if (Array.isArray(surveyData.cabaran_splg) && surveyData.cabaran_splg.includes('Lain-lain') && surveyData['cabaran-lain']) {
+                surveyData.cabaran_splg = surveyData.cabaran_splg.filter(v => v !== 'Lain-lain');
+                surveyData.cabaran_splg.push(`Lain-lain: ${surveyData['cabaran-lain']}`);
+            }
+
+            // Clean up the separate 'lain-lain' fields
+            delete surveyData['jawatan-lain'];
+            delete surveyData['rsvp-lain'];
+            delete surveyData['pengganti-lain'];
+            delete surveyData['kaedah-lain'];
+            delete surveyData['cabaran-lain'];
+            
+            // Ensure single-value checkbox groups are not arrays
+            Object.keys(surveyData).forEach(key => {
+                if(Array.isArray(surveyData[key]) && surveyData[key].length === 1) {
+                    const el = form.querySelector(`input[name="${key}"]`);
+                    if(el && el.type === 'checkbox'){
+                        // It's a checkbox group, keep it as an array even if only one is selected
+                    } else {
+                         // Likely an error, but for safety, we'll un-array. This shouldn't happen with the new logic.
+                    }
+                }
+            });
+
             surveyData.timestamp = serverTimestamp();
 
             try {
@@ -424,7 +456,7 @@
                 document.getElementById('thank-you-card').classList.remove('hidden');
             } catch (error) {
                 console.error("Error submitting survey: ", error);
-                alert("Gagal menghantar tinjauan. Sila cuba lagi.");
+                alert("Gagal menghantar tinjauan. Sila cuba lagi. Ralat: " + error.message);
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'Hantar Tinjauan';
             }
