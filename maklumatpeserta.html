@@ -9,10 +9,8 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    
-    <script src="./jspdf.umd.min.js"></script>
-    <script src="./jspdf.plugin.autotable.min.js"></script>
-    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
     <style>
         body { font-family: 'Poppins', sans-serif; background-color: #f8f9fa; }
         .card { background-color: white; border-radius: 0.75rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); }
@@ -407,85 +405,104 @@
             XLSX.writeFile(workbook, `SPLG-KPM - ${currentProgram.name}.xlsx`);
         }
 
-        // ===== KOD PDF YANG TELAH DIKEMAS KINI (LEBIH SELAMAT) =====
-        function exportToPdf() {
-            // 1. Pemeriksaan keselamatan untuk memastikan pustaka wujud
-            if (typeof window.jspdf === 'undefined' || typeof window.jspdf.jsPDF === 'undefined') {
-                alert('Ralat: Pustaka jsPDF gagal dimuatkan. Sila semak sambungan internet anda dan muat semula halaman.');
-                return;
-            }
-            if (typeof window.jspdf.autoTable === 'undefined') {
-                 alert('Ralat: Pustaka jsPDF-AutoTable gagal dimuatkan. Sila semak sambungan internet anda dan muat semula halaman.');
-                return;
-            }
-
+        async function exportToPdf() {
             const participants = getFilteredAndSortedParticipants();
-            if (participants.length === 0) {
-                alert('Tiada data untuk dieksport.');
-                return;
-            }
+            if (participants.length === 0) return alert('Tiada data untuk dieksport.');
 
             const { jsPDF } = window.jspdf;
-            const pdfDoc = new jsPDF('p', 'mm', 'a4');
+            const pdfDoc = new jsPDF();
 
-            // --- Bahagian Tajuk ---
-            pdfDoc.setFont('helvetica', 'bold');
+            // --- 1. MEMUATKAN DAN MENAMBAH LOGO ---
+            try {
+                // Muat turun imej dari URL dan tukar kepada format Base64
+                const logoUrl = 'https://i.imgur.com/bPfJlFR.png'; // Pautan Imgur yang lebih stabil
+                const response = await fetch(logoUrl);
+                const blob = await response.blob();
+                const logoBase64 = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => resolve(reader.result);
+                    reader.onerror = reject;
+                    reader.readAsDataURL(blob);
+                });
+                // Tambah logo ke PDF (koordinat x=14, y=15, saiz 25x25)
+                pdfDoc.addImage(logoBase64, 'PNG', 14, 15, 25, 25);
+            } catch (error) {
+                console.error("Gagal memuatkan logo:", error);
+                // Proses menjana PDF akan diteruskan walaupun logo gagal dimuatkan.
+            }
+
+            // --- 2. TAJUK DAN MAKLUMAT PROGRAM ---
+            const textStartX = 45; // Titik permulaan teks di sebelah kanan logo
+            let currentY = 20;
+
+            // Nama Program
             pdfDoc.setFontSize(16);
-            pdfDoc.setTextColor(45, 52, 54);
-            pdfDoc.text(currentProgram.name.toUpperCase(), 15, 25);
+            pdfDoc.setFont(undefined, 'bold');
+            // splitTextToSize digunakan untuk mengelakkan teks terkeluar dari muka surat jika terlalu panjang
+            const programNameLines = pdfDoc.splitTextToSize(currentProgram.name.toUpperCase(), 150);
+            pdfDoc.text(programNameLines, textStartX, currentY);
             
-            pdfDoc.setFont('helvetica', 'normal');
-            pdfDoc.setFontSize(10);
-            pdfDoc.setTextColor(99, 110, 114);
+            // Mengira kedudukan Y seterusnya berdasarkan bilangan baris nama program
+            currentY += (programNameLines.length * 6) + 5;
 
-            const programDate = new Date(currentProgram.startDate).toLocaleDateString('ms-MY', { day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase();
-            const programTime = formatTimeRange(currentProgram.startTime, currentProgram.endTime).toUpperCase();
+            // Maklumat Lokasi, Tarikh dan Masa dengan Ikon
+            pdfDoc.setFontSize(9);
+            pdfDoc.setFont(undefined, 'normal');
+
+            const locationText = `📍 ${currentProgram.location.toUpperCase()}`;
+            pdfDoc.text(locationText, textStartX, currentY);
+            currentY += 6; // Jarak antara baris
+
+            const dateStr = new Date(currentProgram.startDate).toLocaleDateString('ms-MY', { day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase();
+            const timeStr = formatTimeRange(currentProgram.startTime, currentProgram.endTime).toUpperCase();
+            const dateTimeText = `🕒 ${dateStr} | ${timeStr}`;
+            pdfDoc.text(dateTimeText, textStartX, currentY);
             
-            pdfDoc.text(`📍 LOKASI: ${currentProgram.location.toUpperCase()}`, 15, 33);
-            pdfDoc.text(`📅 TARIKH: ${programDate}`, 15, 39);
-            pdfDoc.text(`🕒 MASA: ${programTime}`, 15, 45);
+            // Tambah ruang sebelum jadual bermula
+            currentY += 15;
 
-            // --- Bahagian Jadual ---
+            // --- 3. MENYEDIAKAN DATA JADUAL ---
             const tableColumn = ["BIL.", "NAMA PESERTA", "JAWATAN", "STESEN BERTUGAS", "PERANAN"];
             const tableRows = participants.map((p, index) => [
                 index + 1,
-                p.name.toUpperCase(),
-                p.position.toUpperCase(),
-                p.station.toUpperCase(),
+                (p.name || '').toUpperCase(),
+                (p.position || '').toUpperCase(),
+                (p.station || '').toUpperCase(),
                 (p.role || 'PESERTA').toUpperCase()
             ]);
 
+            // --- 4. MENJANA JADUAL DENGAN GAYA PROFESIONAL ---
             pdfDoc.autoTable({
                 head: [tableColumn],
                 body: tableRows,
-                startY: 55,
-                theme: 'grid',
+                startY: currentY, // Mula jadual di bawah maklumat program
+                theme: 'striped', // 'striped' untuk baris berselang-seli warna, 'grid' untuk garisan penuh
                 headStyles: {
-                    fillColor: [41, 128, 185],
-                    textColor: [255, 255, 255],
+                    fillColor: [22, 78, 99], // Warna biru gelap untuk kepala jadual
+                    textColor: [255, 255, 255], // Teks putih
                     fontStyle: 'bold',
-                    halign: 'center'
-                },
-                alternateRowStyles: {
-                    fillColor: [245, 245, 245]
+                    halign: 'center' // Jajarkan teks kepala ke tengah
                 },
                 styles: {
-                    font: 'helvetica',
-                    fontSize: 9,
-                    cellPadding: 2.5,
-                    valign: 'middle'
+                    fontSize: 8,
+                    cellPadding: 2,
                 },
                 columnStyles: {
-                    0: { cellWidth: 15, halign: 'center' },
-                    1: { cellWidth: 'auto' },
-                    2: { cellWidth: 40 },
-                    3: { cellWidth: 40 },
-                    4: { cellWidth: 25, halign: 'center' }
+                    0: { halign: 'center', cellWidth: 10 }, // Lajur 'BIL.'
+                    1: { cellWidth: 50 }, // Lajur 'NAMA PESERTA'
+                    2: { cellWidth: 40 }, // Lajur 'JAWATAN'
+                },
+                didDrawPage: function(data) {
+                    // Menambah footer pada setiap muka surat
+                    const pageCount = pdfDoc.internal.getNumberOfPages();
+                    pdfDoc.setFontSize(8);
+                    const footerText = `SENARAI KEHADIRAN DIJANA OLEH SPARK | MUKA SURAT ${pdfDoc.internal.getCurrentPageInfo().pageNumber} DARI ${pageCount}`;
+                    pdfDoc.text(footerText, data.settings.margin.left, pdfDoc.internal.pageSize.height - 10);
                 }
             });
 
-            // --- Simpan Dokumen ---
-            pdfDoc.save(`Senarai Peserta - ${currentProgram.name}.pdf`);
+            // --- 5. SIMPAN FAIL PDF ---
+            pdfDoc.save(`Senarai Kehadiran - ${currentProgram.name}.pdf`);
         }
         
         function showLateAttendanceModal() {
