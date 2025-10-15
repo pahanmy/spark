@@ -345,9 +345,16 @@
             progressBar.style.width = `${progress}%`;
             progressText.textContent = `Bahagian ${stepIndex + 1} / ${steps.length}`;
 
-            prevBtn.classList.toggle('hidden', stepIndex === 0);
-            nextBtn.classList.toggle('hidden', stepIndex === steps.length - 1);
-            submitBtn.classList.toggle('hidden', stepIndex !== steps.length - 1);
+            prevBtn.style.display = stepIndex === 0 ? 'none' : 'inline-flex';
+            nextBtn.style.display = stepIndex === steps.length - 1 ? 'none' : 'inline-flex';
+            submitBtn.style.display = stepIndex === steps.length - 1 ? 'block' : 'none';
+
+            // Adjust navigation button container
+            if (stepIndex === 0) {
+                document.getElementById('navigation-buttons').style.justifyContent = 'flex-end';
+            } else {
+                document.getElementById('navigation-buttons').style.justifyContent = 'space-between';
+            }
         }
         
         function validateStep(stepIndex) {
@@ -357,33 +364,34 @@
             
             inputs.forEach(input => {
                 let isInputValid = false;
+                // Clear previous errors
+                input.closest('.choice-label')?.classList.remove('border-red-500');
+                input.classList.remove('border-red-500');
+
                 if (input.type === 'radio') {
                     const radioGroup = form.querySelectorAll(`input[name="${input.name}"]`);
                     isInputValid = Array.from(radioGroup).some(radio => radio.checked);
+                    if (!isInputValid) {
+                         // Find the legend/label for the group to alert user
+                         const legend = input.closest('fieldset').querySelector('legend');
+                         console.log("Radio group not answered:", input.name);
+                    }
                 } else {
                     isInputValid = input.value.trim() !== '';
                 }
 
                 if (!isInputValid) {
                     isValid = false;
-                    // Optional: Add visual feedback for invalid fields
                     const parentLabel = input.closest('.choice-label');
                     if(parentLabel) {
                         parentLabel.classList.add('border-red-500');
                     } else {
                         input.classList.add('border-red-500');
                     }
-                } else {
-                     const parentLabel = input.closest('.choice-label');
-                    if(parentLabel) {
-                        parentLabel.classList.remove('border-red-500');
-                    } else {
-                        input.classList.remove('border-red-500');
-                    }
                 }
             });
             
-            if(!isValid) alert('Sila lengkapkan semua soalan yang wajib di bahagian ini.');
+            if(!isValid) alert('Sila lengkapkan semua soalan yang wajib (bertanda merah) di bahagian ini.');
             return isValid;
         }
 
@@ -438,21 +446,32 @@
         window.toggleConditionalInput = (trigger, inputId, showOnChecked = true) => {
             const target = document.getElementById(inputId);
             if (!target) return;
-            
+
             const isRadioYa = trigger.type === 'radio' && trigger.value === 'Ya' && trigger.checked;
             const isCheckboxChecked = trigger.type === 'checkbox' && trigger.checked;
 
             const shouldShow = showOnChecked ? (isRadioYa || isCheckboxChecked) : !isRadioYa;
+            
+            // Specifically target only the radio buttons in the conditional RSVP section to make them required
+            const radiosToMakeRequired = target.querySelectorAll('input[name="masa_rsvp"]');
 
             if (shouldShow) {
                 target.classList.remove('hidden');
-                target.querySelectorAll('input, textarea').forEach(el => el.required = true);
+                radiosToMakeRequired.forEach(el => el.required = true);
+                if (target.id === 'masalah-rekod-input-container') {
+                    target.querySelector('textarea').required = true;
+                }
             } else {
                 target.classList.add('hidden');
+                radiosToMakeRequired.forEach(el => el.required = false);
+                 if (target.id === 'masalah-rekod-input-container') {
+                    target.querySelector('textarea').required = false;
+                }
+
+                // Reset all inputs within the hidden section
                 target.querySelectorAll('input, textarea').forEach(el => {
-                    el.required = false;
-                    if (el.type !== 'radio' && el.type !== 'checkbox') el.value = '';
                     if (el.type === 'radio' || el.type === 'checkbox') el.checked = false;
+                    else el.value = '';
                 });
             }
         };
