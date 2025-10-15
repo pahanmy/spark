@@ -385,27 +385,29 @@
             submitBtn.textContent = 'Menghantar...';
             
             const responsesRef = collection(db, `artifacts/${firebaseConfig.projectId}/public/data/spark_kajian_responses`);
-            const snapshot = await getDocs(responsesRef);
-            const currentCount = snapshot.size;
-
+            
             const formData = new FormData(form);
             const surveyData = {};
 
-            // A more robust way to handle form data, especially checkboxes
-            for (const [key, value] of formData.entries()) {
-                // If a key for a checkbox group already exists, push the new value to its array
-                if (surveyData[key] && Array.isArray(surveyData[key])) {
-                    surveyData[key].push(value);
-                } 
-                // If a key exists but isn't an array (first checkbox in a group), create an array
-                else if (surveyData[key]) {
-                    surveyData[key] = [surveyData[key], value];
-                } 
-                // Otherwise, just set the value
-                else {
-                    surveyData[key] = value;
+            const checkboxNames = new Set();
+            form.querySelectorAll('input[type="checkbox"]').forEach(cb => checkboxNames.add(cb.name));
+            
+            // Dapatkan semua kunci unik dari form
+            const keys = Array.from(formData.keys());
+            const uniqueKeys = [...new Set(keys)];
+
+            uniqueKeys.forEach(key => {
+                // Jika ia adalah checkbox, sentiasa dapatkan semua nilai sebagai array
+                if (checkboxNames.has(key)) {
+                    const values = formData.getAll(key);
+                    if (values.length > 0) {
+                         surveyData[key] = values;
+                    }
+                } else {
+                    // Untuk input lain, dapatkan nilai tunggal
+                    surveyData[key] = formData.get(key);
                 }
-            }
+            });
             
             // Consolidate 'Lain-lain' text fields into their parent questions
             if (surveyData.jawatan === 'Lain-lain' && surveyData['jawatan-lain']) {
@@ -435,21 +437,11 @@
             delete surveyData['kaedah-lain'];
             delete surveyData['cabaran-lain'];
             
-            // Ensure single-value checkbox groups are not arrays
-            Object.keys(surveyData).forEach(key => {
-                if(Array.isArray(surveyData[key]) && surveyData[key].length === 1) {
-                    const el = form.querySelector(`input[name="${key}"]`);
-                    if(el && el.type === 'checkbox'){
-                        // It's a checkbox group, keep it as an array even if only one is selected
-                    } else {
-                         // Likely an error, but for safety, we'll un-array. This shouldn't happen with the new logic.
-                    }
-                }
-            });
-
             surveyData.timestamp = serverTimestamp();
 
             try {
+                const snapshot = await getDocs(responsesRef);
+                const currentCount = snapshot.size;
                 await addDoc(responsesRef, surveyData);
                 document.getElementById('response-count').textContent = currentCount + 1;
                 document.getElementById('survey-card').classList.add('hidden');
