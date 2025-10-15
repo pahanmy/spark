@@ -137,8 +137,22 @@
     <div id="compare-data-modal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop hidden">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl p-6">
             <h3 class="text-xl font-semibold mb-2">Semak Senarai Kehadiran</h3>
-            <p class="text-sm text-gray-600 mb-4">Tampal senarai peserta (2 lajur: Nama dan Sekolah/Stesyen) dari Excel ke dalam ruangan di bawah. Sistem akan menyemak siapa yang belum mendaftar.</p>
+            <p class="text-sm text-gray-600 mb-4">Tampal senarai peserta (2 lajur: Nama dan Sekolah/Stesyen) dari Excel.</p>
             
+            <div id="compare-options" class="mb-4">
+                <label class="block text-sm font-medium text-gray-700">Bandingkan Mengikut:</label>
+                <div class="flex items-center gap-x-6 mt-1">
+                    <label class="inline-flex items-center">
+                        <input type="radio" name="compare-by" value="name" class="form-radio h-4 w-4 text-indigo-600" checked>
+                        <span class="ml-2 text-sm text-gray-800">Nama Peserta (Semakan Fleksibel)</span>
+                    </label>
+                    <label class="inline-flex items-center">
+                        <input type="radio" name="compare-by" value="station" class="form-radio h-4 w-4 text-indigo-600">
+                        <span class="ml-2 text-sm text-gray-800">Sekolah / Stesyen Kerja</span>
+                    </label>
+                </div>
+            </div>
+
             <div class="grid grid-cols-2 gap-4">
                 <div>
                     <label for="compare-input" class="block text-sm font-medium text-gray-700">Senarai Asal (Tampal di sini)</label>
@@ -630,12 +644,25 @@
             document.getElementById('late-ic-input').value = '';
         }
 
-        // FUNGSI BARU UNTUK BANDING DATA
+        // --- FUNGSI BARU UNTUK BANDING DATA (DIKEMAS KINI) ---
         function showCompareModal() {
             document.getElementById('compare-input').value = '';
             document.getElementById('compare-output').value = '';
             document.getElementById('copy-results-btn').classList.add('hidden');
+            document.querySelector('input[name="compare-by"][value="name"]').checked = true;
             document.getElementById('compare-data-modal').classList.remove('hidden');
+        }
+
+        function isFuzzyNameMatch(pastedName, presentName) {
+            const pWords = pastedName.toUpperCase().trim().split(' ').filter(Boolean);
+            const hWords = presentName.toUpperCase().trim().split(' ').filter(Boolean);
+            
+            if (pWords.length === 0 || hWords.length === 0) return false;
+
+            const [shorter, longer] = pWords.length < hWords.length ? [pWords, hWords] : [hWords, pWords];
+            
+            // Anggap padan jika semua perkataan dalam nama yang lebih pendek wujud dalam nama yang lebih panjang
+            return shorter.every(word => longer.includes(word));
         }
 
         function performComparison() {
@@ -645,29 +672,37 @@
                 return;
             }
             
-            // Wujudkan Set (koleksi unik) nama peserta yang sudah hadir untuk semakan pantas
-            const presentNames = new Set(allParticipants.map(p => p.name.trim().toUpperCase()));
-            
-            // Proses data yang ditampal
+            const compareBy = document.querySelector('input[name="compare-by"]:checked').value;
             const pastedRows = pastedData.split('\n');
             const absentees = [];
-            
-            pastedRows.forEach(row => {
-                if (row.trim() === '') return; // Abaikan baris kosong
-                
-                // Asingkan nama (lajur pertama) dari sekolah (lajur kedua)
-                const columns = row.split('\t');
-                const name = columns[0].trim();
-                
-                if (name) {
-                    // Semak jika nama yang dinormalkan (uppercase) wujud dalam senarai hadir
-                    if (!presentNames.has(name.toUpperCase())) {
-                        absentees.push(row); // Jika tiada, tambah ke senarai tidak hadir
+
+            if (compareBy === 'name') {
+                pastedRows.forEach(row => {
+                    if (row.trim() === '') return;
+                    const pastedName = row.split('\t')[0].trim();
+                    if (pastedName) {
+                        const isPresent = allParticipants.some(participant => 
+                            isFuzzyNameMatch(pastedName, participant.name)
+                        );
+                        if (!isPresent) {
+                            absentees.push(row);
+                        }
                     }
-                }
-            });
+                });
+            } else { // compareBy === 'station'
+                const presentStations = new Set(allParticipants.map(p => p.station.trim().toUpperCase()));
+                pastedRows.forEach(row => {
+                    if (row.trim() === '') return;
+                    const columns = row.split('\t');
+                    if (columns.length > 1) {
+                        const stationName = columns[1].trim();
+                        if (stationName && !presentStations.has(stationName.toUpperCase())) {
+                            absentees.push(row);
+                        }
+                    }
+                });
+            }
             
-            // Paparkan hasil
             const outputTextarea = document.getElementById('compare-output');
             const copyBtn = document.getElementById('copy-results-btn');
             
@@ -675,7 +710,7 @@
                 outputTextarea.value = absentees.join('\n');
                 copyBtn.classList.remove('hidden');
             } else {
-                outputTextarea.value = 'Hebat! Semua peserta dari senarai anda telah hadir.';
+                outputTextarea.value = 'Hebat! Semua peserta dari senarai anda didapati telah hadir.';
                 copyBtn.classList.add('hidden');
             }
         }
@@ -704,7 +739,6 @@
             prevPage,
             nextPage,
             promptDeleteParticipant,
-            // DAFTAR FUNGSI BARU
             showCompareModal,
             performComparison,
             copyResults
