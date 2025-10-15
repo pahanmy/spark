@@ -78,7 +78,7 @@
                     </div>
                 </div>
                 
-                <div class="overflow-x-auto"><table class="min-w-full divide-y divide-gray-200"><thead class="bg-gray-50"><tr><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bil.</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nama Program</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tarikh</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Kehadiran</th><th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Tindakan</th></tr></thead><tbody id="program-list-body" class="bg-white divide-y divide-gray-200"></tbody></table></div>
+                <div class="overflow-x-auto"><table class="min-w-full divide-y divide-gray-200"><thead class="bg-gray-50"><tr><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bil.</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nama Program</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tarikh & Masa</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Kehadiran</th><th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Tindakan</th></tr></thead><tbody id="program-list-body" class="bg-white divide-y divide-gray-200"></tbody></table></div>
                 <div id="pagination-controls" class="flex justify-between items-center mt-4"></div>
             </div>
         </div>
@@ -558,16 +558,24 @@ service cloud.firestore {
                 const isNew = timeDiff < oneDay;
                 const newBadge = isNew ? `<span class="ml-2 px-1.5 py-0.5 text-xs font-semibold text-white bg-red-500 rounded-full animate-pulse">BARU</span>` : '';
 
-                // Logik untuk lajur kehadiran
+                // Logik untuk lajur kehadiran dengan warna
                 let attendanceHtml = '';
                 const quota = parseInt(p.quota, 10);
                 if (quota > 0) {
-                    const percentage = Math.round((attendanceCount / quota) * 100);
-                    attendanceHtml = `<span class="font-semibold text-gray-800">${percentage}%</span> <span class="text-gray-500">(${attendanceCount})</span>`;
+                    const percentage = attendanceCount > 0 ? Math.round((attendanceCount / quota) * 100) : 0;
+                    let colorClass = 'text-gray-700';
+                    if (percentage >= 80) {
+                        colorClass = 'text-green-600';
+                    } else if (percentage >= 50) {
+                        colorClass = 'text-yellow-600';
+                    } else if (percentage > 0){
+                        colorClass = 'text-red-600';
+                    }
+                    attendanceHtml = `<span class="font-bold ${colorClass} text-base">${percentage}%</span>
+                                      <span class="text-xs text-gray-500 ml-1">(${attendanceCount}/${p.quota})</span>`;
                 } else {
-                     attendanceHtml = `<span class="font-semibold text-gray-800">${attendanceCount}</span> <span class="text-gray-400">(Tiada kuota)</span>`;
+                     attendanceHtml = `<span class="font-semibold text-gray-800">${attendanceCount}</span> <span class="text-gray-400 text-xs">(Tiada kuota)</span>`;
                 }
-
 
                 return ` <tr class="hover:bg-gray-50">
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${globalIndex}</td>
@@ -590,7 +598,10 @@ service cloud.firestore {
                                 </div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${statusHtml}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatDate(p.startDate)}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                <div>${formatDate(p.startDate)}</div>
+                                <div class="text-xs text-gray-400 mt-1">${formatTime(p.startTime)} - ${formatTime(p.endTime)}</div>
+                            </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm">${attendanceHtml}</td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-center">
                                 <div class="flex items-center justify-center space-x-2">
@@ -789,6 +800,7 @@ service cloud.firestore {
         function filterPrograms() { currentPage = 1; renderProgramListTable(); }
         function resetFilter() { document.getElementById('filter-year').value = ''; document.getElementById('filter-month').value = ''; document.getElementById('filter-search').value = ''; currentPage = 1; renderProgramListTable(); }
         function formatDate(dateString) { if (!dateString) return ''; return new Date(dateString).toLocaleDateString('en-GB', { timeZone: 'Asia/Kuala_Lumpur' }); }
+        function formatTime(timeString) { if (!timeString) return ''; const [hour, minute] = timeString.split(':'); const h = parseInt(hour, 10); const m = minute; const ampm = h >= 12 ? 'PM' : 'AM'; const formattedHour = h % 12 || 12; return `${formattedHour}:${m} ${ampm}`; }
         
         function setupFormListeners() { 
             const multiDayCheckbox = document.getElementById('multi-day-checkbox'); 
