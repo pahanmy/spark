@@ -414,8 +414,7 @@
 
             // --- 1. MEMUATKAN DAN MENAMBAH LOGO ---
             try {
-                // Muat turun imej dari URL dan tukar kepada format Base64
-                const logoUrl = 'https://i.imgur.com/bPfJlFR.png'; // Pautan Imgur yang lebih stabil
+                const logoUrl = 'https://i.imgur.com/bPfJlFR.png';
                 const response = await fetch(logoUrl);
                 const blob = await response.blob();
                 const logoBase64 = await new Promise((resolve, reject) => {
@@ -424,42 +423,44 @@
                     reader.onerror = reject;
                     reader.readAsDataURL(blob);
                 });
-                // Tambah logo ke PDF (koordinat x=14, y=15, saiz 25x25)
                 pdfDoc.addImage(logoBase64, 'PNG', 14, 15, 25, 25);
             } catch (error) {
                 console.error("Gagal memuatkan logo:", error);
-                // Proses menjana PDF akan diteruskan walaupun logo gagal dimuatkan.
             }
 
-            // --- 2. TAJUK DAN MAKLUMAT PROGRAM ---
-            const textStartX = 45; // Titik permulaan teks di sebelah kanan logo
+            // --- 2. TAJUK DAN MAKLUMAT PROGRAM (FORMAT FORMAL) ---
+            const textStartX = 45;
             let currentY = 20;
 
             // Nama Program
             pdfDoc.setFontSize(16);
             pdfDoc.setFont(undefined, 'bold');
-            // splitTextToSize digunakan untuk mengelakkan teks terkeluar dari muka surat jika terlalu panjang
             const programNameLines = pdfDoc.splitTextToSize(currentProgram.name.toUpperCase(), 150);
             pdfDoc.text(programNameLines, textStartX, currentY);
-            
-            // Mengira kedudukan Y seterusnya berdasarkan bilangan baris nama program
             currentY += (programNameLines.length * 6) + 5;
 
-            // Maklumat Lokasi, Tarikh dan Masa dengan Ikon
+            // Maklumat Lokasi, Tarikh dan Masa
             pdfDoc.setFontSize(9);
+            
+            // LOKASI
+            const locationLabel = 'LOKASI:';
+            const locationValue = currentProgram.location.toUpperCase();
+            pdfDoc.setFont(undefined, 'bold');
+            pdfDoc.text(locationLabel, textStartX, currentY);
             pdfDoc.setFont(undefined, 'normal');
-
-            const locationText = `📍 ${currentProgram.location.toUpperCase()}`;
-            pdfDoc.text(locationText, textStartX, currentY);
+            pdfDoc.text(locationValue, textStartX + pdfDoc.getTextWidth(locationLabel) + 2, currentY);
             currentY += 6; // Jarak antara baris
 
+            // TARIKH & MASA
             const dateStr = new Date(currentProgram.startDate).toLocaleDateString('ms-MY', { day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase();
             const timeStr = formatTimeRange(currentProgram.startTime, currentProgram.endTime).toUpperCase();
-            const dateTimeText = `🕒 ${dateStr} | ${timeStr}`;
-            pdfDoc.text(dateTimeText, textStartX, currentY);
-            
-            // Tambah ruang sebelum jadual bermula
-            currentY += 15;
+            const dateTimeLabel = 'TARIKH & MASA:';
+            const dateTimeValue = `${dateStr} | ${timeStr}`;
+            pdfDoc.setFont(undefined, 'bold');
+            pdfDoc.text(dateTimeLabel, textStartX, currentY);
+            pdfDoc.setFont(undefined, 'normal');
+            pdfDoc.text(dateTimeValue, textStartX + pdfDoc.getTextWidth(dateTimeLabel) + 2, currentY);
+            currentY += 15; // Tambah ruang sebelum jadual
 
             // --- 3. MENYEDIAKAN DATA JADUAL ---
             const tableColumn = ["BIL.", "NAMA PESERTA", "JAWATAN", "STESEN BERTUGAS", "PERANAN"];
@@ -475,25 +476,24 @@
             pdfDoc.autoTable({
                 head: [tableColumn],
                 body: tableRows,
-                startY: currentY, // Mula jadual di bawah maklumat program
-                theme: 'striped', // 'striped' untuk baris berselang-seli warna, 'grid' untuk garisan penuh
+                startY: currentY,
+                theme: 'striped',
                 headStyles: {
-                    fillColor: [22, 78, 99], // Warna biru gelap untuk kepala jadual
-                    textColor: [255, 255, 255], // Teks putih
+                    fillColor: [22, 78, 99],
+                    textColor: [255, 255, 255],
                     fontStyle: 'bold',
-                    halign: 'center' // Jajarkan teks kepala ke tengah
+                    halign: 'center'
                 },
                 styles: {
                     fontSize: 8,
                     cellPadding: 2,
                 },
                 columnStyles: {
-                    0: { halign: 'center', cellWidth: 10 }, // Lajur 'BIL.'
-                    1: { cellWidth: 50 }, // Lajur 'NAMA PESERTA'
-                    2: { cellWidth: 40 }, // Lajur 'JAWATAN'
+                    0: { halign: 'center', cellWidth: 10 },
+                    1: { cellWidth: 50 },
+                    2: { cellWidth: 40 },
                 },
                 didDrawPage: function(data) {
-                    // Menambah footer pada setiap muka surat
                     const pageCount = pdfDoc.internal.getNumberOfPages();
                     pdfDoc.setFontSize(8);
                     const footerText = `SENARAI KEHADIRAN DIJANA OLEH SPARK | MUKA SURAT ${pdfDoc.internal.getCurrentPageInfo().pageNumber} DARI ${pageCount}`;
