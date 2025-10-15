@@ -144,8 +144,8 @@
                     <div>
                         <label class="block text-md font-semibold text-gray-700 mb-3">6. Adakah anda perlu menyediakan borang tinjauan kehadiran (RSVP) sebelum program?</label>
                         <div class="flex gap-4">
-                            <label class="choice-label flex-1 text-center"><input type="radio" name="perlu_rsvp" value="Ya" class="sr-only" required onchange="toggleConditionalInput(this, 'rsvp-follow-up', true)"><span>Ya</span></label>
-                            <label class="choice-label flex-1 text-center"><input type="radio" name="perlu_rsvp" value="Tidak" class="sr-only" onchange="toggleConditionalInput(this, 'rsvp-follow-up', false)"><span>Tidak</span></label>
+                            <label class="choice-label flex-1 text-center"><input type="radio" name="perlu_rsvp" value="Ya" class="sr-only" required onchange="toggleConditionalInput(this, 'rsvp-follow-up')"><span>Ya</span></label>
+                            <label class="choice-label flex-1 text-center"><input type="radio" name="perlu_rsvp" value="Tidak" class="sr-only" onchange="toggleConditionalInput(this, 'rsvp-follow-up')"><span>Tidak</span></label>
                         </div>
                     </div>
                     
@@ -199,8 +199,8 @@
                      <div>
                         <label class="block text-md font-semibold text-gray-700 mb-3">11. Adakah semua peserta berjaya rekod kehadiran tanpa masalah?</label>
                         <div class="flex gap-4">
-                            <label class="choice-label flex-1 text-center"><input type="radio" name="rekod_berjaya" value="Ya" class="sr-only" required onchange="toggleConditionalInput(this, 'masalah-rekod-input-container', false)"><span>Ya</span></label>
-                            <label class="choice-label flex-1 text-center"><input type="radio" name="rekod_berjaya" value="Tidak" class="sr-only" onchange="toggleConditionalInput(this, 'masalah-rekod-input-container', true)"><span>Tidak</span></label>
+                            <label class="choice-label flex-1 text-center"><input type="radio" name="rekod_berjaya" value="Ya" class="sr-only" required onchange="toggleConditionalInput(this, 'masalah-rekod-input-container')"><span>Ya</span></label>
+                            <label class="choice-label flex-1 text-center"><input type="radio" name="rekod_berjaya" value="Tidak" class="sr-only" onchange="toggleConditionalInput(this, 'masalah-rekod-input-container')"><span>Tidak</span></label>
                         </div>
                          <div id="masalah-rekod-input-container" class="hidden mt-3">
                             <textarea id="masalah-rekod-input" name="masalah-rekod" rows="2" placeholder="Contoh: Peserta tiada capaian internet, kod QR tidak dapat diimbas..." class="w-full px-3 py-2 border border-gray-300 rounded-md"></textarea>
@@ -349,7 +349,6 @@
             nextBtn.style.display = stepIndex === steps.length - 1 ? 'none' : 'inline-flex';
             submitBtn.style.display = stepIndex === steps.length - 1 ? 'block' : 'none';
 
-            // Adjust navigation button container
             if (stepIndex === 0) {
                 document.getElementById('navigation-buttons').style.justifyContent = 'flex-end';
             } else {
@@ -364,18 +363,12 @@
             
             inputs.forEach(input => {
                 let isInputValid = false;
-                // Clear previous errors
                 input.closest('.choice-label')?.classList.remove('border-red-500');
                 input.classList.remove('border-red-500');
 
                 if (input.type === 'radio') {
                     const radioGroup = form.querySelectorAll(`input[name="${input.name}"]`);
                     isInputValid = Array.from(radioGroup).some(radio => radio.checked);
-                    if (!isInputValid) {
-                         // Find the legend/label for the group to alert user
-                         const legend = input.closest('fieldset').querySelector('legend');
-                         console.log("Radio group not answered:", input.name);
-                    }
                 } else {
                     isInputValid = input.value.trim() !== '';
                 }
@@ -391,7 +384,7 @@
                 }
             });
             
-            if(!isValid) alert('Sila lengkapkan semua soalan yang wajib (bertanda merah) di bahagian ini.');
+            if(!isValid) alert('Sila lengkapkan semua soalan yang wajib di bahagian ini.');
             return isValid;
         }
 
@@ -443,30 +436,36 @@
 
         document.addEventListener('DOMContentLoaded', setupWordCounters);
         
-        window.toggleConditionalInput = (trigger, inputId, showOnChecked = true) => {
+        window.toggleConditionalInput = (trigger, inputId) => {
             const target = document.getElementById(inputId);
             if (!target) return;
 
-            const isRadioYa = trigger.type === 'radio' && trigger.value === 'Ya' && trigger.checked;
-            const isCheckboxChecked = trigger.type === 'checkbox' && trigger.checked;
+            let shouldShow;
 
-            const shouldShow = showOnChecked ? (isRadioYa || isCheckboxChecked) : !isRadioYa;
+            // This logic determines if the section should be visible
+            if (trigger.type === 'radio') {
+                shouldShow = trigger.value === 'Ya' && trigger.checked;
+            } else if (trigger.type === 'checkbox') {
+                shouldShow = trigger.checked;
+            }
             
-            // Specifically target only the radio buttons in the conditional RSVP section to make them required
+            // This is for the 'Tidak' case on radio buttons
+            if (trigger.type === 'radio' && trigger.value !== 'Ya') {
+                 shouldShow = false;
+            }
+
+            // Target specific inputs within the section to make them required
             const radiosToMakeRequired = target.querySelectorAll('input[name="masa_rsvp"]');
+            const textareaToMakeRequired = target.querySelector('textarea[name="masalah-rekod"]');
 
             if (shouldShow) {
                 target.classList.remove('hidden');
                 radiosToMakeRequired.forEach(el => el.required = true);
-                if (target.id === 'masalah-rekod-input-container') {
-                    target.querySelector('textarea').required = true;
-                }
+                if (textareaToMakeRequired) textareaToMakeRequired.required = true;
             } else {
                 target.classList.add('hidden');
                 radiosToMakeRequired.forEach(el => el.required = false);
-                 if (target.id === 'masalah-rekod-input-container') {
-                    target.querySelector('textarea').required = false;
-                }
+                if (textareaToMakeRequired) textareaToMakeRequired.required = false;
 
                 // Reset all inputs within the hidden section
                 target.querySelectorAll('input, textarea').forEach(el => {
