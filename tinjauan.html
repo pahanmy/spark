@@ -30,6 +30,7 @@
             from { opacity: 0; transform: translateY(20px); }
             to { opacity: 1; transform: translateY(0); }
         }
+        input, textarea { text-transform: uppercase; }
     </style>
 </head>
 <body class="flex flex-col min-h-screen">
@@ -71,9 +72,35 @@
 
                 <form id="ic-form" onsubmit="handleIcSubmit(event)">
                     <label for="participant-ic" class="block text-sm font-medium text-gray-700 mb-2">No. Kad Pengenalan</label>
-                    <input type="tel" id="participant-ic" required placeholder="900101131234" maxlength="12" oninput="validateIcInput(this)" class="block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 text-lg tracking-wider">
+                    <input type="tel" id="participant-ic" required placeholder="900101131234" maxlength="12" oninput="validateIcInput(this)" class="block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 text-lg tracking-wider" style="text-transform: none;">
                     <div class="text-right text-xs text-gray-500 mt-1 pr-1"><span id="ic-counter">0</span>/12</div>
                     <button type="submit" id="submit-ic-btn" class="btn w-full mt-4 bg-sky-600 text-white font-bold py-3 px-4 rounded-lg text-base">Seterusnya</button>
+                </form>
+            </div>
+            
+            <div id="new-participant-card" class="card p-8 hidden">
+                <h3 class="text-xl font-semibold mb-1">Daftar Peserta Baru</h3>
+                <p class="text-sm text-gray-500 mb-6">No. IC anda tidak ditemui. Sila lengkapkan maklumat di bawah.</p>
+                <form id="new-participant-form" onsubmit="handleNewParticipantSubmit(event)" class="space-y-4">
+                    <div>
+                        <label for="new-ic" class="block text-sm font-medium text-gray-700">No. IC</label>
+                        <input type="text" id="new-ic" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-gray-100" readonly>
+                    </div>
+                    <div>
+                        <label for="new-name" class="block text-sm font-medium text-gray-700">Nama Penuh</label>
+                        <input type="text" id="new-name" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" required>
+                    </div>
+                    <div>
+                        <label for="new-station" class="block text-sm font-medium text-gray-700">Stesen Kerja</label>
+                        <input type="text" id="new-station" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" required>
+                    </div>
+                    <div>
+                        <label for="new-position" class="block text-sm font-medium text-gray-700">Jawatan</label>
+                        <input type="text" id="new-position" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" required>
+                    </div>
+                    <div class="pt-2">
+                        <button type="submit" id="register-btn" class="btn w-full bg-sky-600 text-white font-bold py-3 px-4 rounded-lg">Daftar & Teruskan</button>
+                    </div>
                 </form>
             </div>
 
@@ -103,12 +130,8 @@
                                 <input type="text" id="rep-name" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
                             </div>
                             <div>
-                                <label for="rep-position" class="block text-sm font-medium text-gray-700">Jawatan Wakil</label>
-                                <input type="text" id="rep-position" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
-                            </div>
-                            <div>
                                 <label for="rep-phone" class="block text-sm font-medium text-gray-700">No. Telefon Wakil</label>
-                                <input type="tel" id="rep-phone" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" placeholder="Contoh: 0123456789">
+                                <input type="tel" id="rep-phone" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" placeholder="Contoh: 0123456789" style="text-transform: none;">
                             </div>
                         </div>
                     </div>
@@ -135,7 +158,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, updateDoc, arrayUnion, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, updateDoc, arrayUnion, collection, query, where, getDocs, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const firebaseConfig = { apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM", authDomain: "myqrhadir.firebaseapp.com", projectId: "myqrhadir", storageBucket: "myqrhadir.appspot.com", messagingSenderId: "799691133747", appId: "1:799691133747:web:835a5e3e9413eace806446" };
         
@@ -211,7 +234,13 @@
             const q = query(participantsRef, where("ic", "==", ic));
             const querySnapshot = await getDocs(q);
 
-            if (!querySnapshot.empty) {
+            if (querySnapshot.empty) {
+                // IC not found, show registration form
+                document.getElementById('new-ic').value = ic;
+                document.getElementById('survey-card').classList.add('hidden');
+                document.getElementById('new-participant-card').classList.remove('hidden');
+            } else {
+                // IC found, proceed to survey options
                 const docData = querySnapshot.docs[0].data();
                 participantInfo = { 
                     ic: ic, 
@@ -219,13 +248,41 @@
                     position: docData.position,
                     station: docData.station
                 };
-            } else {
-                participantInfo = { 
-                    ic: ic, 
-                    name: 'PESERTA (IC TIDAK BERDAFTAR)' 
-                };
+                showSurveyOptions();
             }
-            
+        }
+
+        window.handleNewParticipantSubmit = async function(event) {
+            event.preventDefault();
+            const registerBtn = document.getElementById('register-btn');
+            registerBtn.disabled = true;
+            registerBtn.textContent = "MENDAFTAR...";
+
+            const newParticipantData = {
+                ic: document.getElementById('new-ic').value,
+                name: document.getElementById('new-name').value.toUpperCase(),
+                station: document.getElementById('new-station').value.toUpperCase(),
+                position: document.getElementById('new-position').value.toUpperCase()
+            };
+
+            try {
+                const participantsRef = collection(db, `artifacts/${appId}/public/data/spark_participants`);
+                await addDoc(participantsRef, newParticipantData);
+                
+                participantInfo = newParticipantData;
+                
+                document.getElementById('new-participant-card').classList.add('hidden');
+                showSurveyOptions();
+
+            } catch (error) {
+                console.error("Error registering new participant:", error);
+                showMessage('error', 'Pendaftaran Gagal', 'Gagal mendaftar maklumat anda. Sila cuba lagi.');
+                registerBtn.disabled = false;
+                registerBtn.textContent = "Daftar & Teruskan";
+            }
+        }
+        
+        function showSurveyOptions() {
             document.getElementById('confirmation-name').textContent = participantInfo.name;
             document.getElementById('survey-card').classList.add('hidden');
             document.getElementById('survey-options-card').classList.remove('hidden');
@@ -239,7 +296,6 @@
                 const absenceForm = document.getElementById('absence-form-card');
                 const repFields = document.getElementById('representative-fields');
                 const repNameInput = document.getElementById('rep-name');
-                const repPositionInput = document.getElementById('rep-position');
                 const repPhoneInput = document.getElementById('rep-phone');
 
                 document.getElementById('absence-status').value = choice;
@@ -248,12 +304,10 @@
                 if (choice === 'Tidak Hadir (Ada Wakil)') {
                     repFields.classList.remove('hidden');
                     repNameInput.required = true;
-                    repPositionInput.required = true;
                     repPhoneInput.required = true;
                 } else { // Tiada Wakil
                     repFields.classList.add('hidden');
                     repNameInput.required = false;
-                    repPositionInput.required = false;
                     repPhoneInput.required = false;
                 }
             }
@@ -267,8 +321,8 @@
             if (status === 'Tidak Hadir (Ada Wakil)') {
                 repInfo = {
                     rep_name: document.getElementById('rep-name').value,
-                    rep_position: document.getElementById('rep-position').value,
-                    rep_phone: document.getElementById('rep-phone').value
+                    rep_phone: document.getElementById('rep-phone').value,
+                    rep_station: participantInfo.station // Auto-fill station
                 };
             }
             submitSurveyResponse(status, reason, repInfo);
@@ -296,8 +350,8 @@
             
             if (status === 'Tidak Hadir (Ada Wakil)') {
                 newResponse.rep_name = repInfo.rep_name;
-                newResponse.rep_position = repInfo.rep_position;
                 newResponse.rep_phone = repInfo.rep_phone;
+                newResponse.rep_station = repInfo.rep_station; 
             }
 
             const programRef = doc(db, `artifacts/${appId}/public/data/spark_programs`, currentProgram.id);
@@ -320,6 +374,8 @@
             document.getElementById('survey-card').classList.add('hidden');
             document.getElementById('survey-options-card').classList.add('hidden');
             document.getElementById('absence-form-card').classList.add('hidden');
+            document.getElementById('new-participant-card').classList.add('hidden');
+
 
             const msgCard = document.getElementById('message-card');
             const msgIcon = document.getElementById('message-icon');
