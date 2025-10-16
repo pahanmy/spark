@@ -30,7 +30,12 @@
     <header class="bg-white shadow-md sticky top-0 z-50">
         <nav class="container mx-auto px-6 py-3">
             <div class="flex justify-between items-center">
-                <a href="index.html" class="text-2xl font-bold text-indigo-600">SPARK</a>
+                <div class="flex items-center">
+                    <a href="index.html" class="flex flex-col">
+                        <span class="text-2xl font-bold text-indigo-600">SPARK</span>
+                        <span class="text-xs text-gray-500 -mt-1">Percikan Inovasi Kehadiran Digital</span>
+                    </a>
+                </div>
                 <div class="flex items-center">
                     <a href="index.html" class="text-gray-600 hover:text-indigo-600 p-2 rounded-full hover:bg-gray-100" title="Halaman Utama">
                         <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
@@ -62,9 +67,10 @@
             <div id="participant-info" class="hidden card bg-indigo-50 p-6 mb-8 border border-indigo-200">
                  <h2 class="text-xl font-semibold text-indigo-800 mb-3">Maklumat Peserta</h2>
                  <div class="space-y-1 text-gray-700">
-                    <p><span class="font-semibold w-24 inline-block">Nama</span>: <span id="participant-name">-</span></p>
-                    <p><span class="font-semibold w-24 inline-block">Jawatan</span>: <span id="participant-position">-</span></p>
-                    <p><span class="font-semibold w-24 inline-block">Stesen</span>: <span id="participant-station">-</span></p>
+                    <p><span class="font-semibold w-32 inline-block">Nama</span>: <span id="participant-name">-</span></p>
+                    <p><span class="font-semibold w-32 inline-block">No. K/P</span>: <span id="participant-ic">-</span></p>
+                    <p><span class="font-semibold w-32 inline-block">Jawatan</span>: <span id="participant-position">-</span></p>
+                    <p><span class="font-semibold w-32 inline-block">Stesen</span>: <span id="participant-station">-</span></p>
                  </div>
             </div>
 
@@ -78,8 +84,9 @@
     </main>
 
     <footer class="bg-white border-t mt-12">
-        <div class="container mx-auto px-6 py-4 text-center text-gray-600">
-            <p>&copy; 2023 SPARK. Hak Cipta Terpelihara.</p>
+        <div class="container mx-auto px-6 py-4 text-center text-gray-600 text-sm">
+            <p>Projek Inovasi oleh Pahan</p>
+            <p class="text-xs text-gray-500 mt-1">Versi 2.1 (2025)</p>
         </div>
     </footer>
 
@@ -116,11 +123,12 @@
         icInput.addEventListener('keyup', (event) => {
             if (event.key === 'Enter') findCertificates();
         });
+        icInput.addEventListener('focus', resetSearch);
 
         async function findCertificates() {
             const icNumber = icInput.value.trim();
-            if (!icNumber) {
-                alert("Sila masukkan Nombor Kad Pengenalan.");
+            if (!icNumber || icNumber.includes('*')) {
+                alert("Sila masukkan Nombor Kad Pengenalan yang sah.");
                 return;
             }
 
@@ -134,8 +142,9 @@
                 if (snapshot.empty) {
                     noResultsMessage.classList.remove('hidden');
                 } else {
-                    // Papar maklumat peserta dari rekod pertama yang dijumpai
-                    displayParticipantInfo(snapshot.docs[0].data());
+                    const maskedIc = maskIc(icNumber);
+                    displayParticipantInfo(snapshot.docs[0].data(), maskedIc);
+                    icInput.value = maskedIc;
 
                     const promises = snapshot.docs.map(async (participantDoc) => {
                         const programRef = participantDoc.ref.parent.parent.parent.parent;
@@ -160,7 +169,7 @@
                         });
                     } else {
                          noResultsMessage.classList.remove('hidden');
-                         participantInfoDiv.classList.add('hidden'); // Sembunyikan info jika tiada program yang sah
+                         participantInfoDiv.classList.add('hidden');
                     }
                 }
                 
@@ -174,17 +183,24 @@
             }
         }
 
-        function displayParticipantInfo(data) {
+        function displayParticipantInfo(data, maskedIc) {
             document.getElementById('participant-name').textContent = data.name || '-';
+            document.getElementById('participant-ic').textContent = maskedIc;
             document.getElementById('participant-position').textContent = data.position || '-';
             document.getElementById('participant-station').textContent = data.station || '-';
             participantInfoDiv.classList.remove('hidden');
         }
+
+        function maskIc(ic) {
+            if (ic && ic.length > 4) {
+                const lastFour = ic.slice(-4);
+                return lastFour.padStart(ic.length, '*');
+            }
+            return '****';
+        }
         
         function createCertificateCard(programData, programId, participantId) {
             const date = programData.date ? new Date(programData.date.seconds * 1000).toLocaleDateString('ms-MY', { day: 'numeric', month: 'long', year: 'numeric' }) : '-';
-            
-            // Semak jika sijil tersedia dari data program
             const isCertificateAvailable = programData.certificateAvailable === true;
             
             let buttonHTML = '';
@@ -228,6 +244,13 @@
             certificatesContainer.innerHTML = '';
             participantInfoDiv.classList.add('hidden');
             noResultsMessage.classList.add('hidden');
+        }
+
+        function resetSearch() {
+            if (icInput.value.includes('*')) {
+                icInput.value = '';
+                resetDisplay();
+            }
         }
 
         function downloadCertificate(programId, participantId) {
