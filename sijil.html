@@ -21,8 +21,8 @@
             box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
         }
         .btn { transition: all 0.3s; }
-        .btn:hover { transform: translateY(-3px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
-        .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+        .btn:hover:not(:disabled) { transform: translateY(-3px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; }
     </style>
 </head>
 <body class="flex flex-col min-h-screen">
@@ -33,9 +33,7 @@
                 <a href="index.html" class="text-2xl font-bold text-indigo-600">SPARK</a>
                 <div class="flex items-center">
                     <a href="index.html" class="text-gray-600 hover:text-indigo-600 p-2 rounded-full hover:bg-gray-100" title="Halaman Utama">
-                        <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                        </svg>
+                        <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
                     </a>
                 </div>
             </div>
@@ -61,6 +59,15 @@
         </div>
 
         <div id="results-section" class="hidden">
+            <div id="participant-info" class="hidden card bg-indigo-50 p-6 mb-8 border border-indigo-200">
+                 <h2 class="text-xl font-semibold text-indigo-800 mb-3">Maklumat Peserta</h2>
+                 <div class="space-y-1 text-gray-700">
+                    <p><span class="font-semibold w-24 inline-block">Nama</span>: <span id="participant-name">-</span></p>
+                    <p><span class="font-semibold w-24 inline-block">Jawatan</span>: <span id="participant-position">-</span></p>
+                    <p><span class="font-semibold w-24 inline-block">Stesen</span>: <span id="participant-station">-</span></p>
+                 </div>
+            </div>
+
             <h2 class="text-2xl font-semibold text-gray-800 mb-6">Senarai Sijil</h2>
             <div id="certificates-container" class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 </div>
@@ -91,25 +98,23 @@
         };
         // -----------------------------------------------------------
 
-        // Initialize Firebase
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
 
-        // UI elements
         const checkBtn = document.getElementById('check-btn');
         const icInput = document.getElementById('ic-input');
         const resultsSection = document.getElementById('results-section');
         const certificatesContainer = document.getElementById('certificates-container');
         const noResultsMessage = document.getElementById('no-results-message');
+        const participantInfoDiv = document.getElementById('participant-info');
+        
         const searchIcon = document.getElementById('search-icon');
         const loadingSpinner = document.getElementById('loading-spinner');
         const buttonText = document.getElementById('button-text');
 
         checkBtn.addEventListener('click', findCertificates);
         icInput.addEventListener('keyup', (event) => {
-            if (event.key === 'Enter') {
-                findCertificates();
-            }
+            if (event.key === 'Enter') findCertificates();
         });
 
         async function findCertificates() {
@@ -120,9 +125,7 @@
             }
 
             setLoading(true);
-            certificatesContainer.innerHTML = '';
-            resultsSection.classList.add('hidden');
-            noResultsMessage.classList.add('hidden');
+            resetDisplay();
 
             try {
                 const participantsRef = db.collectionGroup('spark_participants');
@@ -131,11 +134,18 @@
                 if (snapshot.empty) {
                     noResultsMessage.classList.remove('hidden');
                 } else {
+                    // Papar maklumat peserta dari rekod pertama yang dijumpai
+                    displayParticipantInfo(snapshot.docs[0].data());
+
                     const promises = snapshot.docs.map(async (participantDoc) => {
                         const programRef = participantDoc.ref.parent.parent.parent.parent;
                         const programSnap = await programRef.get();
                         if (programSnap.exists) {
-                            return { programData: programSnap.data(), programId: programSnap.id, participantId: participantDoc.id };
+                            return { 
+                                programData: programSnap.data(), 
+                                programId: programSnap.id, 
+                                participantId: participantDoc.id 
+                            };
                         }
                         return null;
                     });
@@ -150,6 +160,7 @@
                         });
                     } else {
                          noResultsMessage.classList.remove('hidden');
+                         participantInfoDiv.classList.add('hidden'); // Sembunyikan info jika tiada program yang sah
                     }
                 }
                 
@@ -162,17 +173,32 @@
                 setLoading(false);
             }
         }
+
+        function displayParticipantInfo(data) {
+            document.getElementById('participant-name').textContent = data.name || '-';
+            document.getElementById('participant-position').textContent = data.position || '-';
+            document.getElementById('participant-station').textContent = data.station || '-';
+            participantInfoDiv.classList.remove('hidden');
+        }
         
         function createCertificateCard(programData, programId, participantId) {
             const date = programData.date ? new Date(programData.date.seconds * 1000).toLocaleDateString('ms-MY', { day: 'numeric', month: 'long', year: 'numeric' }) : '-';
+            
+            // Semak jika sijil tersedia dari data program
+            const isCertificateAvailable = programData.certificateAvailable === true;
+            
+            let buttonHTML = '';
+            if (isCertificateAvailable) {
+                buttonHTML = `<button onclick="downloadCertificate('${programId}', '${participantId}')" class="btn bg-green-500 text-white font-bold py-2 px-5 rounded-lg hover:bg-green-600">Muat Turun</button>`;
+            } else {
+                buttonHTML = `<button disabled title="Sijil untuk program ini tidak tersedia" class="btn bg-gray-300 text-gray-500 font-bold py-2 px-5 rounded-lg">Sijil Tiada</button>`;
+            }
 
             return `
                 <div class="card flex flex-col p-6">
                     <div class="flex items-start space-x-4">
                         <div class="flex-shrink-0 bg-indigo-100 text-indigo-600 rounded-lg p-3">
-                            <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
-                            </svg>
+                            <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" /></svg>
                         </div>
                         <div class="flex-grow">
                             <h3 class="text-lg font-semibold text-gray-800">${programData.programName || 'Nama Program Tidak Ditemui'}</h3>
@@ -184,26 +210,24 @@
                         <p class="flex items-center"><svg class="h-4 w-4 mr-2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>${programData.time || '-'}</p>
                     </div>
                     <div class="mt-auto pt-6 text-right">
-                        <button onclick="downloadCertificate('${programId}', '${participantId}')" class="btn bg-green-500 text-white font-bold py-2 px-5 rounded-lg hover:bg-green-600">
-                            Muat Turun
-                        </button>
+                        ${buttonHTML}
                     </div>
                 </div>
             `;
         }
 
         function setLoading(isLoading) {
-            if (isLoading) {
-                checkBtn.disabled = true;
-                searchIcon.classList.add('hidden');
-                loadingSpinner.classList.remove('hidden');
-                buttonText.textContent = 'Menyemak...';
-            } else {
-                checkBtn.disabled = false;
-                searchIcon.classList.remove('hidden');
-                loadingSpinner.classList.add('hidden');
-                buttonText.textContent = 'Semak';
-            }
+            checkBtn.disabled = isLoading;
+            searchIcon.classList.toggle('hidden', isLoading);
+            loadingSpinner.classList.toggle('hidden', !isLoading);
+            buttonText.textContent = isLoading ? 'Menyemak...' : 'Semak';
+        }
+
+        function resetDisplay() {
+            resultsSection.classList.add('hidden');
+            certificatesContainer.innerHTML = '';
+            participantInfoDiv.classList.add('hidden');
+            noResultsMessage.classList.add('hidden');
         }
 
         function downloadCertificate(programId, participantId) {
