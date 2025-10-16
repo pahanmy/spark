@@ -337,26 +337,46 @@
         }
         
         function showAbsentListModal() {
+            if (!currentLoadedProgram) return;
+
             const absentListBody = document.getElementById('absent-list-body');
             const attendance = currentLoadedProgram.attendance || [];
             const referenceList = currentLoadedProgram.referenceList || [];
-            
-            const attendedKeys = new Set(
+
+            // Create a Set of stations that have at least one attendee
+            const attendedStations = new Set(
+                attendance.map(p => (p.station || '').trim().toUpperCase())
+            );
+
+            // Create a Set of specific individuals who attended (Name + Station)
+            const attendedIndividuals = new Set(
                 attendance.map(p => `${(p.name || '').trim().toUpperCase()}|${(p.station || '').trim().toUpperCase()}`)
             );
             
             const absentList = referenceList.filter(ref => {
-                const refKey = `${(ref.name || '').trim().toUpperCase()}|${(ref.station || '').trim().toUpperCase()}`;
-                return !attendedKeys.has(refKey);
+                const refName = (ref.name || '').trim().toUpperCase();
+                const refStation = (ref.station || '').trim().toUpperCase();
+
+                // Case 1: Reference is for a specific person (name is provided)
+                if (refName) {
+                    const refIndividualKey = `${refName}|${refStation}`;
+                    return !attendedIndividuals.has(refIndividualKey);
+                }
+                // Case 2: Reference is for a station/school in general (name is blank)
+                else if (refStation) {
+                    return !attendedStations.has(refStation);
+                }
+                
+                return false; // Ignore empty/invalid reference entries
             });
 
             if (absentList.length === 0) {
-                absentListBody.innerHTML = `<tr><td colspan="3" class="px-6 py-4 text-center text-gray-500">Semua peserta dalam senarai rujukan telah hadir.</td></tr>`;
+                absentListBody.innerHTML = `<tr><td colspan="3" class="px-6 py-4 text-center text-gray-500">Semua peserta/sekolah dalam senarai rujukan telah hadir.</td></tr>`;
             } else {
                 absentListBody.innerHTML = absentList.map((person, index) => `
                     <tr>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${index + 1}.</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${person.name || '-'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${person.name || 'Wakil Belum Hadir'}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${person.station || '-'}</td>
                     </tr>
                 `).join('');
