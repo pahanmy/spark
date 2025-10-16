@@ -100,7 +100,7 @@
                             </div>
                         </div>
                         <div class="border-b border-gray-200">
-                            <nav class="-mb-px flex space-x-6"><a href="#" id="attendance-date" class="py-2 px-1 border-b-2 font-medium text-sm text-indigo-600 border-indigo-500"></a></nav>
+                            <nav id="attendance-date-tabs" class="-mb-px flex space-x-6 overflow-x-auto"></nav>
                         </div>
                         <div class="mt-4 overflow-x-auto">
                             <table class="min-w-full">
@@ -222,6 +222,7 @@
         let currentCheckinUrl = '';
         let attendancePerPage = 10;
         let currentAttendancePage = 1;
+        let selectedAttendanceDate = null;
         const appId = firebaseConfig.projectId;
 
         try {
@@ -277,7 +278,8 @@
                     document.getElementById('dashboard-location').textContent = currentLoadedProgram.location.toUpperCase();
                     document.getElementById('dashboard-date').textContent = formatDateRange(currentLoadedProgram.startDate, currentLoadedProgram.endDate).toUpperCase();
                     document.getElementById('dashboard-time').textContent = formatTimeRange(currentLoadedProgram.startTime, currentLoadedProgram.endTime).toUpperCase();
-                    document.getElementById('attendance-date').textContent = formatDate(new Date());
+                    
+                    renderDateTabsAndAttendance();
 
                     const baseUrl = window.location.origin + window.location.pathname.replace('program.html', '');
                     currentCheckinUrl = `${baseUrl}participant.html?kod=${currentLoadedProgram.id}`;
@@ -290,7 +292,6 @@
                     document.getElementById('full-dashboard-content').classList.remove('hidden');
                     
                     startCountdown(currentLoadedProgram);
-                    renderAttendanceTable(currentLoadedProgram.attendance || []);
                     
                     isInitialLoad = false;
                     lastAttendanceCount = (currentLoadedProgram.attendance || []).length;
@@ -306,6 +307,69 @@
             });
         }
         
+        function renderDateTabsAndAttendance() {
+            const tabsContainer = document.getElementById('attendance-date-tabs');
+            tabsContainer.innerHTML = '';
+            
+            const startDate = new Date(currentLoadedProgram.startDate + 'T00:00:00');
+            const endDate = new Date(currentLoadedProgram.endDate + 'T00:00:00');
+            const programDates = [];
+
+            for (let dt = startDate; dt <= endDate; dt.setDate(dt.getDate() + 1)) {
+                programDates.push(new Date(dt));
+            }
+
+            if (programDates.length === 0) return;
+
+            // Set default selected date if not already set, or if it's no longer valid
+            const todayStr = new Date().toISOString().split('T')[0];
+            const programDateStrings = programDates.map(d => d.toISOString().split('T')[0]);
+            
+            if (!selectedAttendanceDate || !programDateStrings.includes(selectedAttendanceDate)) {
+                 selectedAttendanceDate = programDateStrings.includes(todayStr) ? todayStr : programDateStrings[0];
+            }
+
+            if (programDates.length > 1) {
+                programDates.forEach(date => {
+                    const dateStr = date.toISOString().split('T')[0];
+                    const isActive = dateStr === selectedAttendanceDate;
+                    const tab = document.createElement('a');
+                    tab.href = '#';
+                    tab.textContent = formatDate(date);
+                    tab.className = `whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm ${isActive ? 'text-indigo-600 border-indigo-500' : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'}`;
+                    tab.onclick = (e) => {
+                        e.preventDefault();
+                        filterAttendanceByDate(dateStr);
+                    };
+                    tabsContainer.appendChild(tab);
+                });
+            } else {
+                const tab = document.createElement('span');
+                tab.textContent = formatDate(programDates[0]);
+                tab.className = 'py-2 px-1 border-b-2 font-medium text-sm text-indigo-600 border-indigo-500';
+                tabsContainer.appendChild(tab);
+            }
+            
+            filterAttendanceByDate(selectedAttendanceDate);
+        }
+        
+        function filterAttendanceByDate(dateStr) {
+            selectedAttendanceDate = dateStr;
+            const allAttendance = currentLoadedProgram.attendance || [];
+            const filteredList = allAttendance.filter(p => p.time.startsWith(dateStr));
+
+            // Update tab styles
+            const tabs = document.querySelectorAll('#attendance-date-tabs a');
+            tabs.forEach(tab => {
+                tab.classList.toggle('text-indigo-600', tab.textContent === formatDate(new Date(dateStr + 'T00:00:00')));
+                tab.classList.toggle('border-indigo-500', tab.textContent === formatDate(new Date(dateStr + 'T00:00:00')));
+                tab.classList.toggle('text-gray-500', tab.textContent !== formatDate(new Date(dateStr + 'T00:00:00')));
+                tab.classList.toggle('border-transparent', tab.textContent !== formatDate(new Date(dateStr + 'T00:00:00')));
+            });
+
+            renderAttendanceTable(filteredList);
+        }
+
         function updateSurveySummary(){
              const surveyCard = document.getElementById('survey-summary-card');
              if(currentLoadedProgram.surveyNeeded){
@@ -343,12 +407,10 @@
             const attendance = currentLoadedProgram.attendance || [];
             const referenceList = currentLoadedProgram.referenceList || [];
 
-            // Create a Set of stations that have at least one attendee
             const attendedStations = new Set(
                 attendance.map(p => (p.station || '').trim().toUpperCase())
             );
 
-            // Create a Set of specific individuals who attended (Name + Station)
             const attendedIndividuals = new Set(
                 attendance.map(p => `${(p.name || '').trim().toUpperCase()}|${(p.station || '').trim().toUpperCase()}`)
             );
@@ -357,17 +419,15 @@
                 const refName = (ref.name || '').trim().toUpperCase();
                 const refStation = (ref.station || '').trim().toUpperCase();
 
-                // Case 1: Reference is for a specific person (name is provided)
                 if (refName) {
                     const refIndividualKey = `${refName}|${refStation}`;
                     return !attendedIndividuals.has(refIndividualKey);
                 }
-                // Case 2: Reference is for a station/school in general (name is blank)
                 else if (refStation) {
                     return !attendedStations.has(refStation);
                 }
                 
-                return false; // Ignore empty/invalid reference entries
+                return false;
             });
 
             if (absentList.length === 0) {
@@ -495,7 +555,7 @@
             const paginatedList = sortedList.slice(startIndex, startIndex + attendancePerPage);
 
             if(paginatedList.length === 0){
-                attendanceListBody.innerHTML=`<tr><td colspan="4" class="text-center text-gray-500 py-10">Belum ada kehadiran untuk program ini.</td></tr>`
+                attendanceListBody.innerHTML=`<tr><td colspan="4" class="text-center text-gray-500 py-10">Belum ada kehadiran untuk tarikh ini.</td></tr>`
             } else {
                 attendanceListBody.innerHTML = paginatedList.map((p) => {
                     const highlightClass = isNewEntryAdded ? 'new-entry' : '';
@@ -506,8 +566,8 @@
                             </td>
                             <td class="px-4 py-3">
                                 <div class="text-sm font-medium text-gray-900 truncate" title="${p.name}">${p.name.toUpperCase()}</div>
-                                <div class="text-[11px] text-gray-500 truncate" title="${p.position || ''}">${p.position || '-'}</div>
-                                <div class="text-[11px] text-gray-500 truncate" title="${p.station || ''}">${p.station || '-'}</div>
+                                <div class="text-[11px] text-gray-500 truncate" title="${p.position || ''}">${(p.position || '-').toUpperCase()}</div>
+                                <div class="text-[11px] text-gray-500 truncate" title="${p.station || ''}">${(p.station || '-').toUpperCase()}</div>
                             </td>
                             <td class="px-4 py-3 whitespace-nowrap text-xs text-gray-500">
                                 ${new Date(p.time).toLocaleTimeString('ms-MY')}
@@ -536,19 +596,26 @@
         }
         
         function prevAttendancePage() {
-            if (currentAttendancePage > 1) { currentAttendancePage--; renderAttendanceTable(currentLoadedProgram.attendance || []); }
+            if (currentAttendancePage > 1) { 
+                currentAttendancePage--; 
+                filterAttendanceByDate(selectedAttendanceDate);
+            }
         }
 
         function nextAttendancePage() {
-            const totalItems = (currentLoadedProgram.attendance || []).length;
-            const totalPages = Math.ceil(totalItems / attendancePerPage);
-            if (currentAttendancePage < totalPages) { currentAttendancePage++; renderAttendanceTable(currentLoadedProgram.attendance || []); }
+            const allAttendance = currentLoadedProgram.attendance || [];
+            const filteredList = allAttendance.filter(p => p.time.startsWith(selectedAttendanceDate));
+            const totalPages = Math.ceil(filteredList.length / attendancePerPage);
+            if (currentAttendancePage < totalPages) { 
+                currentAttendancePage++; 
+                filterAttendanceByDate(selectedAttendanceDate);
+            }
         }
 
         function changeAttendancePerPage() {
             attendancePerPage = parseInt(document.getElementById('attendance-per-page').value, 10);
             currentAttendancePage = 1; 
-            renderAttendanceTable(currentLoadedProgram.attendance || []);
+            filterAttendanceByDate(selectedAttendanceDate);
         }
 
         function goToEvaluation() {
@@ -758,7 +825,7 @@
             printWindow.onload = function() { printWindow.focus(); printWindow.print(); };
         }
         
-        function formatDate(dateString) { if (!dateString) return ''; return new Date(dateString).toLocaleDateString('ms-MY', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kuala_Lumpur' }); }
+        function formatDate(dateString) { if (!dateString) return ''; const date = typeof dateString === 'string' ? new Date(dateString.split('T')[0] + 'T00:00:00') : dateString; return date.toLocaleDateString('ms-MY', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kuala_Lumpur' }); }
         function formatDateRange(start, end) { return start === end ? formatDate(start) : `${formatDate(start)} - ${formatDate(end)}`; }
         function formatTimeMalay(timeString) { if (!timeString) return ''; const [hourStr, minuteStr] = timeString.split(':'); let hour = parseInt(hourStr, 10); let period; if (hour === 0) { period = 'tengah malam'; hour = 12; } else if (hour < 12) { period = 'pagi'; } else if (hour === 12) { period = 'tengah hari'; } else { period = 'petang'; hour -= 12; } return `${hour}:${minuteStr} ${period}`; }
         function formatTimeRange(start, end) { return `${formatTimeMalay(start)} - ${formatTimeMalay(end)}`; }
@@ -780,7 +847,7 @@
             window.location.href = url;
         }
 
-        Object.assign(window, { checkIn, registerAndCheckIn, showUnlockModal, verifyAndUnlock, shareCurrentProgramLink, copyShareLink, copyShareAdminLink, copyEmbedCode, copyPromotionText, showEditProgramModal, updateProgram, closeModal, updateQrCode, changeAttendancePerPage, prevAttendancePage, nextAttendancePage, showSurveyListModal, toggleManualCheckin, toggleFullScreen, closeFullScreen, openParticipantInfo, printQrPage, goToEvaluation, downloadQrCode, generateAvatar, showAbsentListModal });
+        Object.assign(window, { checkIn, registerAndCheckIn, showUnlockModal, verifyAndUnlock, shareCurrentProgramLink, copyShareLink, copyShareAdminLink, copyEmbedCode, copyPromotionText, showEditProgramModal, updateProgram, closeModal, updateQrCode, changeAttendancePerPage, prevAttendancePage, nextAttendancePage, showSurveyListModal, toggleManualCheckin, toggleFullScreen, closeFullScreen, openParticipantInfo, printQrPage, goToEvaluation, downloadQrCode, generateAvatar, showAbsentListModal, filterAttendanceByDate });
     </script>
 </body>
 </html>
