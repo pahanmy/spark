@@ -261,6 +261,10 @@
             try {
                 await updateDoc(programRef, { evaluations: arrayUnion(newEvaluation) });
 
+                // Refresh currentProgram data to include the latest evaluation for correct cert number
+                const updatedDocSnap = await getDoc(programRef);
+                currentProgram = { id: updatedDocSnap.id, ...updatedDocSnap.data() };
+
                 if (currentProgram.eCertificateNeeded) {
                     const successTitle = `Tahniah, ${participantInfo.name}!`;
                     const successBody = "Penilaian anda telah diterima. Terima kasih kerana menggunakan SPARK - Percikan Inovasi Kehadiran Digital.";
@@ -320,9 +324,14 @@
                 dateString = `pada ${startDate.toLocaleDateString('ms-MY', { day: '2-digit' })} hingga ${endDate.toLocaleDateString('ms-MY', { day: '2-digit', month: 'long', year: 'numeric' }).toUpperCase()}`;
             }
 
-            const serialNumber = `SPK/${currentProgram.id}/${participantIC.slice(-4)}`;
-            const validationUrl = `${window.location.origin}${window.location.pathname.replace('penilaianprogram.html', 'sijil.html')}?siri=${encodeURIComponent(serialNumber)}`;
-            const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(validationUrl)}`;
+            const programYear = startDate.getFullYear();
+            const programMonth = startDate.getMonth() + 1;
+            const evaluationCount = currentProgram.evaluations.length;
+            const serialNumber = `PPDM/SPARK/${programYear}/${programMonth}/${evaluationCount}`;
+            
+            const dashboardUrl = `${window.location.origin}${window.location.pathname.replace('penilaianprogram.html', 'program.html')}?kod=${currentProgram.id}`;
+            const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(dashboardUrl)}`;
+
 
             const printWindow = window.open('', '_blank');
             printWindow.document.write(`
