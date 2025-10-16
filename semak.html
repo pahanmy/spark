@@ -277,6 +277,17 @@ service cloud.firestore {
         const appId = firebaseConfig.projectId;
         let programToDelete = {};
 
+        async function shortenUrl(longUrl) {
+            try {
+                const response = await fetch(`https://tinyurl.com/api-create.php?url=${encodeURIComponent(longUrl)}`);
+                if (!response.ok) throw new Error('Network response was not ok');
+                return await response.text();
+            } catch (error) {
+                console.error('Failed to shorten URL, returning original:', error);
+                return longUrl; 
+            }
+        }
+
         try {
             const app = initializeApp(firebaseConfig);
             db = getFirestore(app);
@@ -453,8 +464,10 @@ service cloud.firestore {
                 const surveyLinkContainer = document.getElementById('survey-link-container');
                 const surveyLinkElement = document.getElementById('generated-survey-link');
                 if (surveyNeeded && surveyKey) {
-                    const surveyUrl = `${window.location.origin}${window.location.pathname.replace('semak.html', 'tinjauan.html')}?kod=${surveyKey}`;
-                    surveyLinkElement.value = surveyUrl;
+                    const longSurveyUrl = `${window.location.origin}${window.location.pathname.replace('semak.html', 'tinjauan.html')}?kod=${surveyKey}`;
+                    surveyLinkElement.value = "Menjana pautan pendek...";
+                    const shortSurveyUrl = await shortenUrl(longSurveyUrl);
+                    surveyLinkElement.value = shortSurveyUrl;
                     surveyLinkContainer.classList.remove('hidden');
                 } else {
                     surveyLinkContainer.classList.add('hidden');
@@ -845,8 +858,11 @@ service cloud.firestore {
                 
                 const surveyLinkContainer = document.getElementById('share-survey-link-container');
                 if (programToShare.surveyKey && programToShare.surveyKey !== 'null') {
-                    const surveyUrl = `${window.location.origin}${window.location.pathname.replace('semak.html', 'tinjauan.html')}?kod=${programToShare.surveyKey}`;
-                    document.getElementById('share-survey-link').value = surveyUrl;
+                    const longSurveyUrl = `${window.location.origin}${window.location.pathname.replace('semak.html', 'tinjauan.html')}?kod=${programToShare.surveyKey}`;
+                    const shareSurveyLinkInput = document.getElementById('share-survey-link');
+                    shareSurveyLinkInput.value = "Menjana pautan...";
+                    const shortSurveyUrl = await shortenUrl(longSurveyUrl);
+                    shareSurveyLinkInput.value = shortSurveyUrl;
                     surveyLinkContainer.classList.remove('hidden');
                 } else {
                     surveyLinkContainer.classList.add('hidden');
