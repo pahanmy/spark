@@ -805,7 +805,7 @@
         function showUnlockModal() { if (!currentLoadedProgram) { alert('Sila buka satu program terlebih dahulu.'); return; } document.getElementById('unlock-modal').classList.remove('hidden'); }
         function verifyAndUnlock() { const enteredIc = document.getElementById('unlock-ic-input').value; if (currentLoadedProgram && enteredIc === currentLoadedProgram.penyelaras_ic) { document.getElementById('unlock-verification-section').classList.add('hidden'); document.getElementById('unlock-export-section').classList.remove('hidden'); document.getElementById('unlock-error').classList.add('hidden'); } else { document.getElementById('unlock-error').classList.remove('hidden'); } }
         
-        async function shareCurrentProgramLink() { 
+        async function shareCurrentProgramLink() {
             if (!currentLoadedProgram) return;
             const modal = document.getElementById('share-link-modal');
             const loadingDiv = document.getElementById('share-loading');
@@ -814,7 +814,7 @@
             const linkInput = document.getElementById('share-link-input');
             const embedTextarea = document.getElementById('embed-code-textarea');
             const promoTextarea = document.getElementById('promotion-text-textarea');
-            
+
             modal.classList.remove('hidden');
             loadingDiv.classList.remove('hidden');
             contentDiv.classList.add('hidden');
@@ -825,41 +825,58 @@
             const longUrl = `${baseUrl}participant.html?kod=${currentLoadedProgram.id}`;
             const embedUrl = `${baseUrl}index.html?embed_kod=${currentLoadedProgram.id}`;
             const iframeCode = `<iframe src="${embedUrl}" width="100%" height="600" style="border:1px solid #ccc; border-radius: 8px;"></iframe>`;
-            
+
             adminLinkInput.value = adminUrl;
             embedTextarea.value = iframeCode;
 
+            // Shorten the main registration URL
+            let shortUrl = longUrl;
             try {
                 const response = await fetch(`https://tinyurl.com/api-create.php?url=${encodeURIComponent(longUrl)}`);
-                if (!response.ok) { throw new Error('Network response was not ok'); }
-                const shortUrl = await response.text();
-                linkInput.value = shortUrl;
+                if (response.ok) {
+                    shortUrl = await response.text();
+                }
             } catch (error) {
                 console.error('Failed to shorten URL:', error);
-                linkInput.value = longUrl;
-            } finally {
-                const finalLink = linkInput.value;
-                let promotionMessage = `✨ JEMPUTAN RASMI ✨\n\n`;
-                promotionMessage += `Dengan segala hormatnya, semua yang berkenaan dijemput untuk menyertai:\n\n`;
-                promotionMessage += `📄 *Program:*\n${currentLoadedProgram.name.toUpperCase()}\n\n`;
-                promotionMessage += `🗓️ *Tarikh:*\n${formatDateRange(currentLoadedProgram.startDate, currentLoadedProgram.endDate)}\n\n`;
-                promotionMessage += `⏰ *Masa:*\n${formatTimeRange(currentLoadedProgram.startTime, currentLoadedProgram.endTime)}\n\n`;
-                promotionMessage += `📍 *Lokasi:*\n${currentLoadedProgram.location}\n\n`;
-
-                if (currentLoadedProgram.surveyNeeded) {
-                    const surveyUrl = `${baseUrl}survey.html?kod=${currentLoadedProgram.id}`;
-                    promotionMessage += `📝 *Pengesahan Kehadiran:*\nSila sahkan kehadiran anda melalui pautan di bawah. Kerjasama anda amat dihargai.\n\n`;
-                    promotionMessage += `🔗 *Pautan Pengesahan:*\n${surveyUrl}\n\n`;
-                } else {
-                    promotionMessage += `🔗 *Pautan Pendaftaran Kehadiran:*\n${finalLink}\n\n`;
-                }
-                promotionMessage += `Sekian, terima kasih.`;
-                promoTextarea.value = promotionMessage;
-
-                loadingDiv.classList.add('hidden');
-                contentDiv.classList.remove('hidden');
             }
+            linkInput.value = shortUrl;
+
+            // Shorten the survey URL if needed
+            let finalSurveyUrl = '';
+            if (currentLoadedProgram.surveyNeeded) {
+                const surveyUrl = `${baseUrl}survey.html?kod=${currentLoadedProgram.id}`;
+                finalSurveyUrl = surveyUrl; // Default to long URL
+                try {
+                    const surveyResponse = await fetch(`https://tinyurl.com/api-create.php?url=${encodeURIComponent(surveyUrl)}`);
+                    if (surveyResponse.ok) {
+                        finalSurveyUrl = await surveyResponse.text();
+                    }
+                } catch (surveyError) {
+                    console.error('Failed to shorten survey URL:', surveyError);
+                }
+            }
+
+            // Construct the promotion message
+            let promotionMessage = `✨ JEMPUTAN RASMI ✨\n\n`;
+            promotionMessage += `Dengan segala hormatnya, semua yang berkenaan dijemput untuk menyertai:\n\n`;
+            promotionMessage += `📄 *Program:*\n${currentLoadedProgram.name.toUpperCase()}\n\n`;
+            promotionMessage += `🗓️ *Tarikh:*\n${formatDateRange(currentLoadedProgram.startDate, currentLoadedProgram.endDate)}\n\n`;
+            promotionMessage += `⏰ *Masa:*\n${formatTimeRange(currentLoadedProgram.startTime, currentLoadedProgram.endTime)}\n\n`;
+            promotionMessage += `📍 *Lokasi:*\n${currentLoadedProgram.location}\n\n`;
+
+            if (currentLoadedProgram.surveyNeeded) {
+                promotionMessage += `📝 *Pengesahan Kehadiran:*\nSila sahkan kehadiran anda melalui pautan di bawah. Kerjasama anda amat dihargai.\n\n`;
+                promotionMessage += `🔗 *Pautan Pengesahan:*\n${finalSurveyUrl}\n\n`;
+            } else {
+                promotionMessage += `🔗 *Pautan Pendaftaran Kehadiran:*\n${shortUrl}\n\n`;
+            }
+            promotionMessage += `Sekian, terima kasih.`;
+            promoTextarea.value = promotionMessage;
+
+            loadingDiv.classList.add('hidden');
+            contentDiv.classList.remove('hidden');
         }
+
         function copyShareLink(buttonElement) { const linkInput = document.getElementById('share-link-input'); navigator.clipboard.writeText(linkInput.value).then(() => { buttonElement.textContent = 'Tersalin!'; setTimeout(() => { buttonElement.textContent = 'Salin'; }, 2000); }); }
         function copyShareAdminLink(buttonElement) { const linkInput = document.getElementById('share-admin-link-input'); navigator.clipboard.writeText(linkInput.value).then(() => { buttonElement.textContent = 'Tersalin!'; setTimeout(() => { buttonElement.textContent = 'Salin'; }, 2000); }); }
         function copyEmbedCode(buttonElement) { const textarea = document.getElementById('embed-code-textarea'); navigator.clipboard.writeText(textarea.value).then(() => { buttonElement.textContent = 'Tersalin!'; setTimeout(() => { buttonElement.textContent = 'Salin'; }, 2000); }); }
