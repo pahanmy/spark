@@ -27,6 +27,7 @@
 </head>
 <body class="flex flex-col min-h-screen">
 
+    <!-- Header -->
     <header class="bg-white shadow-md sticky top-0 z-50">
         <nav class="container mx-auto px-6 py-3">
             <div class="flex justify-between items-center">
@@ -45,6 +46,7 @@
         </nav>
     </header>
 
+    <!-- Main Content -->
     <main id="main-content" class="w-full max-w-5xl mx-auto flex-grow p-4 md:p-8">
         <div class="text-center my-8">
             <h1 class="text-4xl font-bold text-indigo-600">eSijil Spark</h1>
@@ -63,6 +65,7 @@
             </div>
         </div>
 
+        <!-- Info Peserta (Kedudukan Baru) -->
         <div id="participant-info" class="hidden card bg-indigo-50 p-6 mb-8 border border-indigo-200 max-w-2xl mx-auto">
              <h2 class="text-xl font-semibold text-indigo-800 mb-3">Maklumat Peserta</h2>
              <div class="space-y-1 text-gray-700">
@@ -73,16 +76,19 @@
              </div>
         </div>
 
+        <!-- Bahagian Paparan Sijil -->
         <div id="results-section" class="hidden">
             <h2 class="text-2xl font-semibold text-gray-800 mb-6">Senarai Program Disertai</h2>
             <div id="certificates-container" class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                </div>
+                <!-- Kad Sijil dari Firebase akan dimasukkan di sini -->
+            </div>
             <div id="no-results-message" class="text-center py-10 card hidden">
                 <p class="text-gray-600 text-lg">Tiada rekod penyertaan ditemui untuk No. Kad Pengenalan ini.</p>
             </div>
         </div>
     </main>
 
+    <!-- Footer -->
     <footer class="bg-white border-t mt-12">
         <div class="container mx-auto px-6 py-4 text-center text-gray-600 text-sm">
             <p>Projek Inovasi oleh Pahan</p>
@@ -90,23 +96,25 @@
         </div>
     </footer>
 
+    <!-- Firebase SDK Scripts -->
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
     
     <script>
-        // --- MASUKKAN KONFIGURASI FIREBASE ANDA DI SINI ---
+        // Konfigurasi Firebase anda
         const firebaseConfig = {
-            apiKey: "AIzaSy...",
-            authDomain: "your-project-id.firebaseapp.com",
-            projectId: "your-project-id",
-            storageBucket: "your-project-id.appspot.com",
-            messagingSenderId: "...",
-            appId: "1:..."
+            apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM",
+            authDomain: "myqrhadir.firebaseapp.com",
+            projectId: "myqrhadir",
+            storageBucket: "myqrhadir.appspot.com",
+            messagingSenderId: "799691133747",
+            appId: "1:799691133747:web:835a5e3e9413eace806446"
         };
-        // -----------------------------------------------------------
-
+        // Initialize Firebase
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
+        const auth = firebase.auth();
 
         const checkBtn = document.getElementById('check-btn');
         const icInput = document.getElementById('ic-input');
@@ -119,11 +127,36 @@
         const loadingSpinner = document.getElementById('loading-spinner');
         const buttonText = document.getElementById('button-text');
 
-        checkBtn.addEventListener('click', findCertificates);
-        icInput.addEventListener('keyup', (event) => {
-            if (event.key === 'Enter') findCertificates();
+        // Disable search button initially
+        checkBtn.disabled = true;
+        buttonText.textContent = 'Menyambung...';
+
+        // Listen for auth state changes
+        auth.onAuthStateChanged(user => {
+            if (user) {
+                // User is signed in anonymously, enable functionality
+                console.log("Successfully connected with anonymous user:", user.uid);
+                checkBtn.disabled = false;
+                buttonText.textContent = 'Semak';
+                checkBtn.addEventListener('click', findCertificates);
+                icInput.addEventListener('keyup', (event) => {
+                    if (event.key === 'Enter') findCertificates();
+                });
+                icInput.addEventListener('focus', resetSearch);
+            } else {
+                console.log("User is not signed in.");
+            }
         });
-        icInput.addEventListener('focus', resetSearch);
+
+        // Sign in anonymously if not already signed in
+        if (!auth.currentUser) {
+            auth.signInAnonymously().catch((error) => {
+                console.error("Anonymous sign-in failed:", error);
+                alert("Gagal menyambung ke servis. Sila muat semula halaman.");
+                buttonText.textContent = 'Ralat';
+                checkBtn.disabled = true;
+            });
+        }
 
         async function findCertificates() {
             const icNumber = icInput.value.trim();
@@ -247,7 +280,6 @@
         }
 
         function resetSearch() {
-            // Hanya reset jika nilai input mengandungi '*' (menandakan carian sebelumnya)
             if (icInput.value.includes('*')) {
                 icInput.value = '';
                 resetDisplay();
@@ -260,3 +292,4 @@
     </script>
 </body>
 </html>
+
