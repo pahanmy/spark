@@ -115,6 +115,7 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
         const auth = firebase.auth();
+        const appId = 'spark'; // App ID anda
 
         const checkBtn = document.getElementById('check-btn');
         const icInput = document.getElementById('ic-input');
@@ -169,43 +170,45 @@
             resetDisplay();
 
             try {
-                const participantsRef = db.collectionGroup('spark_participants');
-                const snapshot = await participantsRef.where('ic', '==', icNumber).get();
+                // PENYELESAIAN ALTERNATIF: Carian ini akan menyemak setiap program satu per satu.
+                // Ini mungkin perlahan jika anda mempunyai banyak program.
+                // CARA TERBAIK: Cipta 'composite index' di Firebase Console seperti yang dicadangkan dalam ralat.
+                
+                const programsRef = db.collection(`artifacts/${appId}/public/data/spark_programs`);
+                const programsSnapshot = await programsRef.get();
 
-                if (snapshot.empty) {
+                const participantPromises = programsSnapshot.docs.map(async (programDoc) => {
+                    const participantsRef = programDoc.ref.collection('spark_participants');
+                    const participantSnapshot = await participantsRef.where('ic', '==', icNumber).get();
+                    
+                    if (!participantSnapshot.empty) {
+                        const participantDoc = participantSnapshot.docs[0];
+                        return {
+                            programData: programDoc.data(),
+                            programId: programDoc.id,
+                            participantId: participantDoc.id,
+                            participantData: participantDoc.data()
+                        };
+                    }
+                    return null;
+                });
+
+                const results = await Promise.all(participantPromises);
+                const validResults = results.filter(r => r !== null);
+
+                if (validResults.length === 0) {
                     noResultsMessage.classList.remove('hidden');
-                    resultsSection.classList.remove('hidden'); // Tunjuk bahagian keputusan untuk papar mesej
+                    resultsSection.classList.remove('hidden');
                 } else {
                     const maskedIc = maskIc(icNumber);
-                    displayParticipantInfo(snapshot.docs[0].data(), maskedIc);
+                    displayParticipantInfo(validResults[0].participantData, maskedIc);
                     icInput.value = maskedIc;
-
-                    const promises = snapshot.docs.map(async (participantDoc) => {
-                        const programRef = participantDoc.ref.parent.parent.parent.parent;
-                        const programSnap = await programRef.get();
-                        if (programSnap.exists) {
-                            return { 
-                                programData: programSnap.data(), 
-                                programId: programSnap.id, 
-                                participantId: participantDoc.id 
-                            };
-                        }
-                        return null;
+                    
+                    validResults.forEach(result => {
+                        const cardHTML = createCertificateCard(result.programData, result.programId, result.participantId);
+                        certificatesContainer.innerHTML += cardHTML;
                     });
-                    
-                    const results = await Promise.all(promises);
-                    const validResults = results.filter(r => r !== null);
-                    
-                    if (validResults.length > 0) {
-                        validResults.forEach(result => {
-                            const cardHTML = createCertificateCard(result.programData, result.programId, result.participantId);
-                            certificatesContainer.innerHTML += cardHTML;
-                        });
-                    } else {
-                         noResultsMessage.classList.remove('hidden');
-                         participantInfoDiv.classList.add('hidden');
-                    }
-                     resultsSection.classList.remove('hidden');
+                    resultsSection.classList.remove('hidden');
                 }
                 
             } catch (error) {
