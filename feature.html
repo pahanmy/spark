@@ -41,6 +41,21 @@
             border-radius: 50%; width: 16px; height: 16px; animation: spin 1s linear infinite;
         }
         .admin-edit-mode .admin-controls { display: flex; }
+
+        /* ## PERUBAHAN 1: Menambah animasi untuk kesan paparan ## */
+        @keyframes fade-in-up {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .feature-card {
+            animation: fade-in-up 0.6s ease-out forwards;
+        }
     </style>
 </head>
 <body class="bg-gray-50 flex flex-col min-h-screen">
@@ -56,7 +71,7 @@
             </a>
             <div id="header-buttons" class="flex w-full sm:w-auto justify-center sm:justify-end items-center gap-2 sm:gap-4 flex-wrap">
                  <button onclick="window.location.href='index.html'" class="btn bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-indigo-700 flex items-center gap-2 text-xs sm:text-sm">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" /></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 S0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" /></svg>
                     Halaman Utama
                 </button>
             </div>
@@ -132,7 +147,6 @@
             if(versionInfo) versionInfo.textContent = `Versi 2.1 (${new Date().getFullYear()})`;
         }
 
-        // ## PERUBAHAN DI SINI ##
         function renderFeatures() {
             const q = query(featuresCollectionRef, orderBy("order", "asc"));
             onSnapshot(q, (snapshot) => {
@@ -140,10 +154,7 @@
                 container.innerHTML = snapshot.empty ? `<p class="text-center text-gray-500">Tiada ciri untuk dipaparkan. Aktifkan mod penyuntingan untuk menambah.</p>` : snapshot.docs.map((doc, i) => createFeatureHtml(doc.id, doc.data(), i)).join('');
                 
                 updateHeader(snapshot.size, snapshot.docs.map(doc => doc.data().title));
-
-                // Tambah baris ini:
-                // Semak jika mod admin sedang aktif. Jika ya, aktifkan semula mod suntingan
-                // untuk memastikan ciri yang baru ditambah juga boleh disunting.
+                
                 if (document.body.classList.contains('admin-edit-mode')) {
                     setEditMode(true);
                 }
@@ -164,11 +175,13 @@
                     </div>
                 </div>`;
             
+            // ## PERUBAHAN 2: Kemas kini HTML untuk gambar ##
             const imageSection = `
-                <div class="image-placeholder-editable relative w-full bg-gray-100 rounded-xl border-4 border-white shadow-lg flex items-center justify-center min-h-[200px] overflow-hidden">
+                <div class="image-placeholder-editable relative w-full h-64 bg-gray-100 rounded-xl border-4 border-white shadow-lg overflow-hidden group">
                     ${data.imageUrl
-                        ? `<img src="${data.imageUrl}" class="rounded-lg max-w-full h-auto" alt="Gambar Ciri ${data.title || ''}">`
-                        : `<span class="text-gray-400 font-medium text-lg p-4 text-center">[Tiada Gambar]</span>`
+                        // Kelas baharu ditambah pada <img> untuk membetulkan 'stretching' dan menambah kesan hover
+                        ? `<img src="${data.imageUrl}" class="w-full h-full object-cover transition-transform duration-500 ease-in-out group-hover:scale-105" alt="Gambar Ciri ${data.title || ''}">`
+                        : `<div class="w-full h-full flex items-center justify-center"><span class="text-gray-400 font-medium text-lg p-4 text-center">[Tiada Gambar]</span></div>`
                     }
                     <div class="absolute bottom-2 left-2 w-11/12 image-url-input">
                         <input type="text" id="img-url-${id}" value="${data.imageUrl || ''}" placeholder="Tampal URL gambar..." class="w-full p-2 rounded-md border shadow-sm text-sm">
@@ -201,7 +214,8 @@
                     ${aiGeneratorHtml}
                 </div>`;
             
-            return `<div class="relative grid md:grid-cols-2 gap-12 items-center" data-id="${id}">
+            // ## PERUBAHAN 3: Menambah kelas 'feature-card' untuk animasi ##
+            return `<div class="feature-card relative grid md:grid-cols-2 gap-12 items-center" data-id="${id}">
                         <div class="absolute -top-4 right-0 z-10 admin-controls items-center gap-2">
                             <input type="number" id="order-${id}" value="${data.order || 0}" title="Susunan" class="w-16 p-1 rounded-lg border text-center font-bold shadow-md">
                             <button onclick="saveFeature('${id}')" title="Simpan" class="btn bg-green-500 text-white p-2 rounded-lg shadow-md hover:bg-green-600"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M7.707 10.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V6h5a2 2 0 012 2v7a2 2 0 01-2 2H4a2 2 0 01-2-2V8a2 2 0 012-2h5v5.586l-1.293-1.293zM9 4a1 1 0 012 0v2H9V4z" /></svg></button>
