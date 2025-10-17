@@ -20,11 +20,10 @@
             outline: 2px dashed #4f46e5; padding: 4px; border-radius: 4px; background-color: #eef2ff; cursor: text;
         }
         
-        /* Logik Utama: Sembunyikan kawalan admin secara lalai */
         .admin-controls, .ai-generator, .add-feature-control, .delete-item-btn { 
             display: none; 
         }
-        /* Tunjukkan kawalan hanya apabila mod admin diaktifkan pada body */
+
         .admin-edit-mode .admin-controls, 
         .admin-edit-mode .ai-generator, 
         .admin-edit-mode .add-feature-control, 
@@ -133,12 +132,21 @@
             if(versionInfo) versionInfo.textContent = `Versi 2.1 (${new Date().getFullYear()})`;
         }
 
+        // ## PERUBAHAN DI SINI ##
         function renderFeatures() {
             const q = query(featuresCollectionRef, orderBy("order", "asc"));
             onSnapshot(q, (snapshot) => {
                 const container = document.getElementById('features-container');
                 container.innerHTML = snapshot.empty ? `<p class="text-center text-gray-500">Tiada ciri untuk dipaparkan. Aktifkan mod penyuntingan untuk menambah.</p>` : snapshot.docs.map((doc, i) => createFeatureHtml(doc.id, doc.data(), i)).join('');
+                
                 updateHeader(snapshot.size, snapshot.docs.map(doc => doc.data().title));
+
+                // Tambah baris ini:
+                // Semak jika mod admin sedang aktif. Jika ya, aktifkan semula mod suntingan
+                // untuk memastikan ciri yang baru ditambah juga boleh disunting.
+                if (document.body.classList.contains('admin-edit-mode')) {
+                    setEditMode(true);
+                }
             });
         }
         
@@ -167,7 +175,6 @@
                     </div>
                 </div>`;
             
-            // ## PERUBAHAN 1: HTML untuk setiap item senarai (<li>) dikemaskini dengan butang padam ##
             const textSection = `
                 <div>
                     <span id="badge-${id}" contenteditable="false" class="inline-block py-1 px-3 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-800">${data.badgeText||'BAHARU'}</span>
@@ -309,7 +316,6 @@
 
             const newItem = document.createElement('li');
             newItem.className = 'flex items-center justify-between gap-2';
-            // ## PERUBAHAN 2: Item baharu yang dicipta juga kini mempunyai butang padam ##
             newItem.innerHTML = `
                 <div class="flex items-start flex-grow">
                     <svg class="flex-shrink-0 h-6 w-6 text-green-500 mt-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -334,11 +340,9 @@
             }
         }
         
-        // ## PERUBAHAN 3: Fungsi JavaScript baharu untuk memadam item dari senarai ##
         function deleteFeatureListItem(buttonElement) {
             if (!document.body.classList.contains('admin-edit-mode')) return;
-            
-            // Dapatkan pengesahan sebelum memadam
+
             if (confirm('Anda pasti mahu padam butiran ini?')) {
                 const listItem = buttonElement.closest('li');
                 if (listItem) {
@@ -347,7 +351,6 @@
             }
         }
         
-        // ## PERUBAHAN 4: Mendaftarkan fungsi baharu `deleteFeatureListItem` ##
         Object.assign(window, { promptAdminAuth, verifyAdminIc, closeModal, saveFeature, addNewFeature, deleteFeature, generateWithAI, addFeatureListItem, deleteFeatureListItem });
     </script>
 </body>
