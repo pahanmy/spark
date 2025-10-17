@@ -163,9 +163,14 @@
                     <textarea id="compare-output" rows="10" readonly class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 font-mono text-sm bg-gray-50"></textarea>
                 </div>
             </div>
+            
+            <div id="compare-review-area" class="mt-4"></div>
 
             <div id="compare-actions" class="mt-4 flex justify-between items-center">
-                <button type="button" onclick="performComparison()" class="btn bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg">Semak Senarai</button>
+                <div class="flex gap-2">
+                    <button id="start-comparison-btn" type="button" onclick="performComparison()" class="btn bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg">Semak Senarai</button>
+                    <button id="finish-review-btn" type="button" onclick="showFinalResults(true)" class="btn bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg hidden">Papar Senarai Tidak Hadir</button>
+                </div>
                 <div>
                     <button id="copy-results-btn" type="button" onclick="copyResults()" class="btn bg-green-600 text-white font-semibold py-2 px-4 rounded-lg hidden">Salin Hasil</button>
                     <button type="button" onclick="closeModal('compare-data-modal')" class="btn bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg ml-2">Tutup</button>
@@ -644,25 +649,54 @@
             document.getElementById('late-ic-input').value = '';
         }
 
-        // --- FUNGSI BARU UNTUK BANDING DATA (DIKEMAS KINI) ---
+        // --- FUNGSI SEMAKAN KEHADIRAN (TELAH DIUBAHSUAI) ---
+
+        let comparisonReviewState = {};
+
         function showCompareModal() {
             document.getElementById('compare-input').value = '';
             document.getElementById('compare-output').value = '';
             document.getElementById('copy-results-btn').classList.add('hidden');
             document.querySelector('input[name="compare-by"][value="name"]').checked = true;
+            
+            // Reset UI to initial state
+            document.getElementById('compare-review-area').innerHTML = '';
+            document.getElementById('start-comparison-btn').classList.remove('hidden');
+            document.getElementById('finish-review-btn').classList.add('hidden');
             document.getElementById('compare-data-modal').classList.remove('hidden');
         }
 
-        function isFuzzyNameMatch(pastedName, presentName) {
-            const pWords = pastedName.toUpperCase().trim().split(' ').filter(Boolean);
-            const hWords = presentName.toUpperCase().trim().split(' ').filter(Boolean);
-            
-            if (pWords.length === 0 || hWords.length === 0) return false;
-
-            const [shorter, longer] = pWords.length < hWords.length ? [pWords, hWords] : [hWords, pWords];
-            
-            // Anggap padan jika semua perkataan dalam nama yang lebih pendek wujud dalam nama yang lebih panjang
-            return shorter.every(word => longer.includes(word));
+        function calculateSimilarity(str1, str2) {
+            const normalize = s => s.toLowerCase()
+                                    .replace(/\b(bin|binti|bte|anak lelaki|a\/l|anak perempuan|a\/p)\b/g, '')
+                                    .replace(/[^a-z0-9\s]/g, '')
+                                    .replace(/\s+/g, ' ').trim();
+            const s1 = normalize(str1);
+            const s2 = normalize(str2);
+            if (s1 === s2) return 1.0;
+            let longer = s1;
+            let shorter = s2;
+            if (s1.length < s2.length) { longer = s2; shorter = s1; }
+            const longerLength = longer.length;
+            if (longerLength === 0) return 1.0;
+            const distance = (longer.split('').filter((char, i) => char !== shorter.charAt(i))).length + Math.abs(longer.length - shorter.length);
+            const levenshtein = (str1 = '', str2 = '') => {
+                const track = Array(str2.length + 1).fill(null).map(() => Array(str1.length + 1).fill(null));
+                for (let i = 0; i <= str1.length; i += 1) { track[0][i] = i; }
+                for (let j = 0; j <= str2.length; j += 1) { track[j][0] = j; }
+                for (let j = 1; j <= str2.length; j += 1) {
+                    for (let i = 1; i <= str1.length; i += 1) {
+                        const indicator = str1[i - 1] === str2[j - 1] ? 0 : 1;
+                        track[j][i] = Math.min(
+                            track[j][i - 1] + 1,
+                            track[j - 1][i] + 1,
+                            track[j - 1][i - 1] + indicator,
+                        );
+                    }
+                }
+                return track[str2.length][str1.length];
+            };
+            return (longerLength - levenshtein(s1, s2)) / parseFloat(longerLength);
         }
 
         function performComparison() {
@@ -671,48 +705,163 @@
                 alert('Sila tampal data dari Excel untuk disemak.');
                 return;
             }
-            
-            const compareBy = document.querySelector('input[name="compare-by"]:checked').value;
-            const pastedRows = pastedData.split('\n');
-            const absentees = [];
 
-            if (compareBy === 'name') {
-                pastedRows.forEach(row => {
-                    if (row.trim() === '') return;
-                    const pastedName = row.split('\t')[0].trim();
-                    if (pastedName) {
-                        const isPresent = allParticipants.some(participant => 
-                            isFuzzyNameMatch(pastedName, participant.name)
-                        );
-                        if (!isPresent) {
-                            absentees.push(row);
-                        }
-                    }
-                });
-            } else { // compareBy === 'station'
-                const presentStations = new Set(allParticipants.map(p => p.station.trim().toUpperCase()));
-                pastedRows.forEach(row => {
-                    if (row.trim() === '') return;
-                    const columns = row.split('\t');
-                    if (columns.length > 1) {
-                        const stationName = columns[1].trim();
-                        if (stationName && !presentStations.has(stationName.toUpperCase())) {
-                            absentees.push(row);
-                        }
-                    }
-                });
+            const compareBy = document.querySelector('input[name="compare-by"]:checked').value;
+            const pastedRows = pastedData.split('\n').filter(row => row.trim() !== '');
+
+            if (compareBy === 'station') {
+                 const absentees = [];
+                 const presentStations = new Set(allParticipants.map(p => p.station.trim().toUpperCase()));
+                 pastedRows.forEach(row => {
+                     if (row.trim() === '') return;
+                     const columns = row.split('\t');
+                     if (columns.length > 1) {
+                         const stationName = columns[1].trim();
+                         if (stationName && !presentStations.has(stationName.toUpperCase())) {
+                             absentees.push(row);
+                         }
+                     }
+                 });
+                 const outputTextarea = document.getElementById('compare-output');
+                 const copyBtn = document.getElementById('copy-results-btn');
+                 if (absentees.length > 0) {
+                    outputTextarea.value = absentees.join('\n');
+                    copyBtn.classList.remove('hidden');
+                 } else {
+                    outputTextarea.value = 'Hebat! Semua stesyen dari senarai anda didapati telah hadir.';
+                    copyBtn.classList.add('hidden');
+                 }
+                 return;
             }
             
+            // Logic for name comparison
+            const definiteMatchThreshold = 0.95;
+            const potentialMatchThreshold = 0.70;
+            const availableAttendees = [...allParticipants];
+            
+            comparisonReviewState = {
+                pastedList: pastedRows.map(row => ({ raw: row, name: row.split('\t')[0].trim() })),
+                reviewItems: [],
+                absentees: [],
+            };
+
+            const remainingPasted = [];
+            comparisonReviewState.pastedList.forEach(pastedItem => {
+                let bestMatchIndex = -1, bestScore = -1;
+                availableAttendees.forEach((attendee, index) => {
+                    const score = calculateSimilarity(pastedItem.name, attendee.name);
+                    if (score > bestScore) {
+                        bestScore = score;
+                        bestMatchIndex = index;
+                    }
+                });
+
+                if (bestScore >= definiteMatchThreshold && bestMatchIndex > -1) {
+                    availableAttendees.splice(bestMatchIndex, 1);
+                } else {
+                    remainingPasted.push(pastedItem);
+                }
+            });
+
+            remainingPasted.forEach(pastedItem => {
+                let bestMatch = null, bestScore = -1;
+                availableAttendees.forEach(attendee => {
+                    const score = calculateSimilarity(pastedItem.name, attendee.name);
+                    if (score > bestScore) {
+                        bestScore = score;
+                        bestMatch = attendee;
+                    }
+                });
+
+                if (bestScore >= potentialMatchThreshold) {
+                    comparisonReviewState.reviewItems.push({
+                        pasted: pastedItem,
+                        potential: bestMatch,
+                        score: bestScore,
+                        id: `review-${Math.random().toString(36).substr(2, 9)}`
+                    });
+                } else {
+                    comparisonReviewState.absentees.push(pastedItem.raw);
+                }
+            });
+
+            displayReviewUI();
+        }
+
+        function displayReviewUI() {
+            const reviewArea = document.getElementById('compare-review-area');
+            const startBtn = document.getElementById('start-comparison-btn');
+            const finishBtn = document.getElementById('finish-review-btn');
+            
+            startBtn.classList.add('hidden');
+            document.getElementById('compare-output').value = '';
+            
+            if (comparisonReviewState.reviewItems.length > 0) {
+                reviewArea.innerHTML = `<h4 class="text-md font-semibold text-gray-800 mb-2">Sahkan Padanan Berikut:</h4>
+                <p class="text-xs text-gray-500 mb-3">Sistem mendapati nama berikut mempunyai persamaan. Sila sahkan sama ada mereka adalah orang yang sama.</p>
+                <div class="space-y-3 max-h-60 overflow-y-auto p-2 border rounded-md bg-gray-50">
+                    ${comparisonReviewState.reviewItems.map(item => `
+                        <div id="${item.id}" class="p-3 border rounded-lg bg-white shadow-sm transition-all duration-300">
+                            <div class="grid grid-cols-2 gap-2 items-center">
+                                 <div><span class="font-semibold text-sm text-gray-600">SENARAI ANDA:</span><br>${item.pasted.name}</div>
+                                 <div><span class="font-semibold text-sm text-indigo-600">SENARAI HADIR:</span><br>${item.potential.name}</div>
+                            </div>
+                             <div class="text-center mt-3 text-xs font-medium text-gray-500">Tahap Keyakinan: ${(item.score * 100).toFixed(0)}%</div>
+                            <div class="flex justify-center gap-3 mt-2">
+                                <button onclick="resolveMatch('${item.id}', true)" class="btn text-xs bg-green-100 text-green-800 font-semibold py-1 px-3 rounded-lg hover:bg-green-200">Ya, Orang Sama</button>
+                                <button onclick="resolveMatch('${item.id}', false)" class="btn text-xs bg-red-100 text-red-800 font-semibold py-1 px-3 rounded-lg hover:bg-red-200">Bukan Orang Sama</button>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>`;
+                finishBtn.classList.remove('hidden');
+            } else {
+                reviewArea.innerHTML = '';
+                showFinalResults();
+            }
+        }
+
+        function resolveMatch(itemId, isMatch) {
+            const item = comparisonReviewState.reviewItems.find(i => i.id === itemId);
+            if (!item) return;
+            item.decision = isMatch;
+            
+            const itemElement = document.getElementById(itemId);
+            itemElement.style.opacity = '0.5';
+            itemElement.style.pointerEvents = 'none';
+            if (isMatch) {
+                itemElement.innerHTML += `<p class="text-center text-sm font-bold text-green-700 p-2">✅ DISAHKAN HADIR</p>`;
+            } else {
+                itemElement.innerHTML += `<p class="text-center text-sm font-bold text-red-700 p-2">❌ DITANDA TIDAK HADIR</p>`;
+            }
+            
+            if (comparisonReviewState.reviewItems.every(i => typeof i.decision !== 'undefined')) {
+                document.getElementById('finish-review-btn').click();
+            }
+        }
+
+        function showFinalResults(force = false) {
+            comparisonReviewState.reviewItems.forEach(item => {
+                if (item.decision === false || (force && typeof item.decision === 'undefined')) {
+                    if (!comparisonReviewState.absentees.includes(item.pasted.raw)) {
+                         comparisonReviewState.absentees.push(item.pasted.raw);
+                    }
+                }
+            });
+
             const outputTextarea = document.getElementById('compare-output');
             const copyBtn = document.getElementById('copy-results-btn');
             
-            if (absentees.length > 0) {
-                outputTextarea.value = absentees.join('\n');
+            if (comparisonReviewState.absentees.length > 0) {
+                outputTextarea.value = comparisonReviewState.absentees.sort().join('\n');
                 copyBtn.classList.remove('hidden');
             } else {
                 outputTextarea.value = 'Hebat! Semua peserta dari senarai anda didapati telah hadir.';
                 copyBtn.classList.add('hidden');
             }
+            
+            document.getElementById('compare-review-area').innerHTML = '<p class="text-center font-semibold text-indigo-700 p-4">Semakan selesai. Sila lihat hasil di sebelah kanan.</p>';
+            document.getElementById('finish-review-btn').classList.add('hidden');
         }
 
         function copyResults() {
@@ -741,6 +890,8 @@
             promptDeleteParticipant,
             showCompareModal,
             performComparison,
+            resolveMatch,
+            showFinalResults,
             copyResults
         });
     </script>
