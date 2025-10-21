@@ -15,22 +15,22 @@
         .modal-backdrop { background-color: rgba(0,0,0,0.5); }
         .logo-pulse { animation: pulse-animation 2s infinite; }
         @keyframes pulse-animation { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
-        
+
         .admin-edit-mode [contenteditable="true"] {
             outline: 2px dashed #4f46e5; padding: 4px; border-radius: 4px; background-color: #eef2ff; cursor: text;
         }
-        
-        .admin-controls, .ai-generator, .add-feature-control, .delete-item-btn { 
-            display: none; 
+
+        .admin-controls, .ai-generator, .add-feature-control, .delete-item-btn {
+            display: none;
         }
 
-        .admin-edit-mode .admin-controls, 
-        .admin-edit-mode .ai-generator, 
-        .admin-edit-mode .add-feature-control, 
-        .admin-edit-mode .delete-item-btn { 
-            display: flex; 
+        .admin-edit-mode .admin-controls,
+        .admin-edit-mode .ai-generator,
+        .admin-edit-mode .add-feature-control,
+        .admin-edit-mode .delete-item-btn {
+            display: flex; /* Changed to flex for proper alignment */
         }
-        
+
         .image-placeholder-editable { position: relative; }
         .image-url-input { display: none; }
         .admin-edit-mode .image-url-input { display: block; }
@@ -40,6 +40,7 @@
             border: 2px solid rgba(0,0,0,0.1); border-left-color: #4f46e5;
             border-radius: 50%; width: 16px; height: 16px; animation: spin 1s linear infinite;
         }
+        /* Ensure admin controls are visible in edit mode */
         .admin-edit-mode .admin-controls { display: flex; }
 
         @keyframes fade-in-up {
@@ -54,6 +55,7 @@
         }
         .feature-card {
             animation: fade-in-up 0.6s ease-out forwards;
+            opacity: 0; /* Start hidden for animation */
         }
     </style>
 </head>
@@ -89,8 +91,9 @@
             <p id="feature-count" class="mt-4 text-lg text-gray-500">Memuatkan ciri-ciri terkini...</p>
             <p id="feature-titles" class="mt-2 text-sm text-indigo-500 font-medium truncate"></p>
         </div>
-        <div id="features-container" class="space-y-20"></div>
-        <div class="mt-20 text-center admin-controls">
+        <div id="features-container" class="space-y-20">
+             </div>
+        <div class="mt-20 text-center add-feature-control" style="display: none;"> {/* Tambah style="display: none;" */}
             <button onclick="addNewFeature()" class="btn bg-indigo-600 text-white font-bold py-3 px-6 rounded-lg shadow-md hover:bg-indigo-700 flex items-center gap-3 text-sm transition transform hover:scale-105 mx-auto">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd" /></svg>
                 Tambah Ciri Baharu
@@ -123,14 +126,19 @@
         import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-functions.js";
 
         const firebaseConfig = { apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM", authDomain: "myqrhadir.firebaseapp.com", projectId: "myqrhadir", storageBucket: "myqrhadir.appspot.com", messagingSenderId: "799691133747", appId: "1:799691133747:web:835a5e3e9413eace806446" };
-        
+
         const DEVELOPER_IC = "890522135381";
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         const auth = getAuth(app);
-        const functions = getFunctions(app, 'asia-southeast1');
+        const functions = getFunctions(app, 'asia-southeast1'); // Specify region if needed
 
-        const featuresCollectionRef = collection(db, "spark_features");
+        // =================================================================
+        // #### PEMBETULAN PATH KOLEKSI ####
+        // =================================================================
+        const appId = firebaseConfig.projectId; // Dapatkan projectId
+        const featuresCollectionRef = collection(db, `artifacts/${appId}/public/data/spark_features`);
+        // =================================================================
 
         onAuthStateChanged(auth, async (user) => {
             if (!user) {
@@ -148,22 +156,48 @@
 
         function renderFeatures() {
             const q = query(featuresCollectionRef, orderBy("order", "asc"));
-            onSnapshot(q, (snapshot) => {
+
+            // Tambah error handler dalam onSnapshot
+            const unsubscribe = onSnapshot(q, (snapshot) => {
                 const container = document.getElementById('features-container');
-                container.innerHTML = snapshot.empty ? `<p class="text-center text-gray-500">Tiada ciri untuk dipaparkan. Aktifkan mod penyuntingan untuk menambah.</p>` : snapshot.docs.map((doc, i) => createFeatureHtml(doc.id, doc.data(), i)).join('');
-                
-                updateHeader(snapshot.size, snapshot.docs.map(doc => doc.data().title));
-                
-                if (document.body.classList.contains('admin-edit-mode')) {
-                    setEditMode(true);
+                if (snapshot.empty) {
+                     container.innerHTML = `<p class="text-center text-gray-500">Tiada ciri untuk dipaparkan. Aktifkan mod penyuntingan untuk menambah.</p>`;
+                } else {
+                     // Reset opacity before adding new elements for animation
+                     container.innerHTML = '';
+                     snapshot.docs.forEach((doc, i) => {
+                        const featureHtml = createFeatureHtml(doc.id, doc.data(), i);
+                        // Append each feature individually for staggered animation
+                        const div = document.createElement('div');
+                        div.innerHTML = featureHtml;
+                        // Set delay based on index for staggered effect
+                        div.querySelector('.feature-card').style.animationDelay = `${i * 0.1}s`;
+                        container.appendChild(div.firstElementChild);
+                     });
                 }
+
+                updateHeader(snapshot.size, snapshot.docs.map(doc => doc.data().title));
+
+                // Re-apply edit mode if it was active
+                if (document.body.classList.contains('admin-edit-mode')) {
+                    setEditMode(true); // Ensures newly added items are editable
+                }
+            }, (error) => { // Error handler
+                console.error("Error fetching features:", error);
+                 const container = document.getElementById('features-container');
+                 container.innerHTML = `<p class="text-center text-red-500">Gagal memuatkan ciri-ciri baharu. Ralat: ${error.message}</p>`;
+                 // Log permission denied specifically
+                 if (error.code === 'permission-denied') {
+                    console.error("Firestore Permission Denied. Check your Security Rules and collection path.");
+                 }
             });
+            // Consider returning unsubscribe if needed elsewhere, e.g., for cleanup on component unmount
         }
-        
+
         function createFeatureHtml(id, data, index) {
             const isEven = index % 2 === 0;
             const aiGeneratorHtml = `
-                <div class="ai-generator mt-4 p-3 bg-indigo-50 rounded-lg border border-indigo-200">
+                <div class="ai-generator mt-4 p-3 bg-indigo-50 rounded-lg border border-indigo-200" style="display: none;"> {/* Add style */}
                     <label class="font-semibold text-indigo-800 text-sm">Perlukan Bantuan? Jana kandungan dengan AI.</label>
                     <div class="flex mt-2 gap-2">
                         <input type="text" id="ai-prompt-${id}" class="w-full p-2 border rounded-md text-sm" placeholder="Taip tajuk ciri di sini...">
@@ -173,38 +207,36 @@
                         </button>
                     </div>
                 </div>`;
-            
-            // ## PERUBAHAN DI SINI ##
+
             const imageSection = `
                 <div class="image-placeholder-editable relative w-full h-80 bg-gray-100 rounded-xl border-4 border-white shadow-lg overflow-hidden group">
                     ${data.imageUrl
-                        // 2. 'object-top' ditambah untuk mengutamakan bahagian atas gambar
-                        ? `<img src="${data.imageUrl}" class="w-full h-full object-cover object-top transition-transform duration-500 ease-in-out group-hover:scale-105" alt="Gambar Ciri ${data.title || ''}">`
+                        ? `<img src="${data.imageUrl}" class="w-full h-full object-cover object-top transition-transform duration-500 ease-in-out group-hover:scale-105" alt="Gambar Ciri ${escapeHtml(data.title || '')}">`
                         : `<div class="w-full h-full flex items-center justify-center"><span class="text-gray-400 font-medium text-lg p-4 text-center">[Tiada Gambar]</span></div>`
                     }
-                    <div class="absolute bottom-2 left-2 w-11/12 image-url-input">
-                        <input type="text" id="img-url-${id}" value="${data.imageUrl || ''}" placeholder="Tampal URL gambar..." class="w-full p-2 rounded-md border shadow-sm text-sm">
+                    <div class="absolute bottom-2 left-2 w-11/12 image-url-input" style="display: none;"> {/* Add style */}
+                        <input type="text" id="img-url-${id}" value="${escapeHtml(data.imageUrl || '')}" placeholder="Tampal URL gambar..." class="w-full p-2 rounded-md border shadow-sm text-sm">
                     </div>
                 </div>`;
-            
+
             const textSection = `
                 <div>
-                    <span id="badge-${id}" contenteditable="false" class="inline-block py-1 px-3 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-800">${data.badgeText||'BAHARU'}</span>
-                    <h2 id="title-${id}" contenteditable="false" class="mt-3 text-3xl font-bold text-gray-900">${data.title||'Tajuk Ciri'}</h2>
-                    <p id="desc-${id}" contenteditable="false" class="mt-4 text-gray-600">${data.description||'Penerangan ciri.'}</p>
+                    <span id="badge-${id}" contenteditable="false" class="inline-block py-1 px-3 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-800">${escapeHtml(data.badgeText||'BAHARU')}</span>
+                    <h2 id="title-${id}" contenteditable="false" class="mt-3 text-3xl font-bold text-gray-900">${escapeHtml(data.title||'Tajuk Ciri')}</h2>
+                    <p id="desc-${id}" contenteditable="false" class="mt-4 text-gray-600">${escapeHtml(data.description||'Penerangan ciri.')}</p>
                     <ul id="list-${id}" class="mt-6 space-y-3">
                         ${(data.features||['Kelebihan 1']).map(item =>`
                             <li class="flex items-center justify-between gap-2">
                                 <div class="flex items-start flex-grow">
                                     <svg class="flex-shrink-0 h-6 w-6 text-green-500 mt-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-                                    <span contenteditable="false" class="ml-3 text-gray-700 flex-grow">${item}</span>
+                                    <span contenteditable="false" class="ml-3 text-gray-700 flex-grow">${escapeHtml(item)}</span>
                                 </div>
-                                <button type="button" onclick="deleteFeatureListItem(this)" class="delete-item-btn items-center justify-center p-1 rounded-full hover:bg-red-100 flex-shrink-0">
+                                <button type="button" onclick="deleteFeatureListItem(this)" class="delete-item-btn items-center justify-center p-1 rounded-full hover:bg-red-100 flex-shrink-0" style="display: none;"> {/* Add style */}
                                     <svg class="h-4 w-4 text-red-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
                                 </button>
                             </li>`).join('')}
                     </ul>
-                    <div class="mt-4 add-feature-control">
+                    <div class="mt-4 add-feature-control" style="display: none;"> {/* Add style */}
                         <button type="button" onclick="addFeatureListItem('${id}')" class="btn bg-indigo-100 text-indigo-800 font-semibold py-1 px-3 rounded-lg text-xs flex items-center gap-2 hover:bg-indigo-200">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd" /></svg>
                             Tambah Butiran Ciri
@@ -212,9 +244,9 @@
                     </div>
                     ${aiGeneratorHtml}
                 </div>`;
-            
-            return `<div class="feature-card relative grid md:grid-cols-2 gap-12 items-center" data-id="${id}">
-                        <div class="absolute -top-4 right-0 z-10 admin-controls items-center gap-2">
+
+            return `<div class="feature-card relative grid md:grid-cols-2 gap-12 items-center opacity-0" data-id="${id}"> {/* Start with opacity-0 */}
+                        <div class="absolute -top-4 right-0 z-10 admin-controls items-center gap-2" style="display: none;"> {/* Add style */}
                             <input type="number" id="order-${id}" value="${data.order || 0}" title="Susunan" class="w-16 p-1 rounded-lg border text-center font-bold shadow-md">
                             <button onclick="saveFeature('${id}')" title="Simpan" class="btn bg-green-500 text-white p-2 rounded-lg shadow-md hover:bg-green-600"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M7.707 10.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V6h5a2 2 0 012 2v7a2 2 0 01-2 2H4a2 2 0 01-2-2V8a2 2 0 012-2h5v5.586l-1.293-1.293zM9 4a1 1 0 012 0v2H9V4z" /></svg></button>
                             <button onclick="deleteFeature('${id}')" title="Padam" class="btn bg-red-500 text-white p-2 rounded-lg shadow-md hover:bg-red-600"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd" /></svg></button>
@@ -224,90 +256,223 @@
                     </div>`;
         }
 
+        // Helper function to escape HTML special characters
+        function escapeHtml(unsafe) {
+            if (typeof unsafe !== 'string') return unsafe; // Return non-strings as is
+            return unsafe
+                 .replace(/&/g, "&amp;")
+                 .replace(/</g, "&lt;")
+                 .replace(/>/g, "&gt;")
+                 .replace(/"/g, "&quot;")
+                 .replace(/'/g, "&#039;");
+        }
+
+
         function updateHeader(count, titles) {
             document.getElementById('feature-count').textContent = `Menemui ${count} ciri baharu dan penambahbaikan terkini.`;
-            document.getElementById('feature-titles').textContent = titles.join(' • ');
+            document.getElementById('feature-titles').textContent = titles.map(escapeHtml).join(' • '); // Escape titles
         }
 
         function setEditMode(enable) {
             document.body.classList.toggle('admin-edit-mode', enable);
             document.getElementById('lock-icon').classList.toggle('hidden', enable);
             document.getElementById('unlock-icon').classList.toggle('hidden', !enable);
-            document.querySelectorAll('[contenteditable]').forEach(el => el.setAttribute('contenteditable', enable));
+            // Make sure all current and future contenteditables are set
+            document.querySelectorAll('#features-container [contenteditable]').forEach(el => {
+                 el.setAttribute('contenteditable', String(enable)); // Use String() for boolean attribute
+             });
+             // Also toggle visibility for elements controlled purely by CSS class
+             document.querySelectorAll('.add-feature-control, .admin-controls, .ai-generator, .delete-item-btn, .image-url-input').forEach(el => {
+                // Manually set display based on enable flag, respecting CSS initial state if needed
+                el.style.display = enable ? (el.classList.contains('ai-generator') || el.classList.contains('image-url-input') ? 'block' : 'flex') : 'none';
+             });
+
         }
+
 
         async function saveFeature(id) {
             if (!document.body.classList.contains('admin-edit-mode')) return;
 
-            const el = document.querySelector(`[data-id="${id}"]`);
+            const el = document.querySelector(`.feature-card[data-id="${id}"]`); // Target specific card
+            if (!el) {
+                console.error("Could not find feature card with ID:", id);
+                alert('Gagal mencari elemen ciri untuk disimpan.');
+                return;
+            }
+
+             // Show saving indicator (optional)
+            const saveButton = el.querySelector(`button[onclick="saveFeature('${id}')"]`);
+            const originalSaveIcon = saveButton.innerHTML;
+            saveButton.innerHTML = `<span class="spinner !h-5 !w-5"></span>`; // Use spinner class
+            saveButton.disabled = true;
+
             const data = {
-                imageUrl: el.querySelector(`#img-url-${id}`).value.trim(),
-                badgeText: el.querySelector(`#badge-${id}`).innerText.trim(),
-                title: el.querySelector(`#title-${id}`).innerText.trim(),
-                description: el.querySelector(`#desc-${id}`).innerText.trim(),
-                features: Array.from(el.querySelectorAll(`#list-${id} li span`)).map(s => s.innerText.trim()).filter(Boolean),
-                order: parseInt(el.querySelector(`#order-${id}`).value, 10) || 0
+                imageUrl: el.querySelector(`#img-url-${id}`)?.value.trim() || "", // Safer access
+                badgeText: el.querySelector(`#badge-${id}`)?.innerText.trim() || "BAHARU",
+                title: el.querySelector(`#title-${id}`)?.innerText.trim() || "Tajuk Ciri",
+                description: el.querySelector(`#desc-${id}`)?.innerText.trim() || "Penerangan ciri.",
+                features: Array.from(el.querySelectorAll(`#list-${id} li span[contenteditable="true"]`)) // Target only editable spans
+                             .map(s => s.innerText.trim())
+                             .filter(Boolean), // Ensure only non-empty strings are saved
+                order: parseInt(el.querySelector(`#order-${id}`)?.value, 10) || 0 // Safer access
             };
-            try { await updateDoc(doc(db, "spark_features", id), data); alert('Ciri disimpan!'); }
-            catch (e) { console.error("Error updating doc:", e); alert('Gagal menyimpan.'); }
+
+            // Basic validation
+            if (!data.title || !data.description || data.features.length === 0) {
+                 alert('Sila pastikan Tajuk, Penerangan, dan sekurang-kurangnya satu Butiran Ciri diisi.');
+                 saveButton.innerHTML = originalSaveIcon;
+                 saveButton.disabled = false;
+                 return;
+             }
+
+            try {
+                await updateDoc(doc(db, `artifacts/${appId}/public/data/spark_features`, id), data); // Use full path
+                alert('Ciri disimpan!');
+            }
+            catch (e) {
+                console.error("Error updating doc:", e);
+                alert('Gagal menyimpan ciri.');
+            } finally {
+                saveButton.innerHTML = originalSaveIcon;
+                saveButton.disabled = false;
+            }
         }
-        
+
         async function addNewFeature() {
             if (!document.body.classList.contains('admin-edit-mode')) return;
             if (!confirm('Tambah templat ciri baharu?')) return;
+
+            const addButton = document.querySelector('button[onclick="addNewFeature()"]');
+            const originalAddText = addButton.innerHTML;
+            addButton.disabled = true;
+            addButton.innerHTML = `<span class="spinner !h-5 !w-5 mr-2"></span> Menambah...`;
+
             try {
+                // Use the correct reference with the full path
                 const q = query(featuresCollectionRef, orderBy("order", "desc"), limit(1));
                 const snap = await getDocs(q);
-                const newOrder = snap.empty ? 1 : snap.docs[0].data().order + 1;
-                await addDoc(featuresCollectionRef, { title: "Ciri Baharu", description: "Penerangan di sini.", imageUrl: "", badgeText: "BAHARU", features: ["Kelebihan 1"], order: newOrder, createdAt: serverTimestamp() });
-            } catch (e) { console.error("Error adding doc:", e); alert("Gagal menambah ciri."); }
+                const newOrder = snap.empty ? 1 : (snap.docs[0].data().order || 0) + 1; // Safer order increment
+                await addDoc(featuresCollectionRef, { // Use correct reference
+                    title: "Ciri Baharu",
+                    description: "Penerangan di sini.",
+                    imageUrl: "",
+                    badgeText: "BAHARU",
+                    features: ["Kelebihan 1"],
+                    order: newOrder,
+                    createdAt: serverTimestamp()
+                 });
+                // No need for alert, onSnapshot will update the UI
+            } catch (e) {
+                console.error("Error adding doc:", e);
+                alert("Gagal menambah ciri.");
+            } finally {
+                 addButton.disabled = false;
+                 addButton.innerHTML = originalAddText;
+            }
         }
-        
+
         async function deleteFeature(id) {
             if (!document.body.classList.contains('admin-edit-mode')) return;
-            if (!confirm('Padam ciri ini?')) return;
-            try { await deleteDoc(doc(db, "spark_features", id)); alert('Ciri dipadam.'); }
-            catch (e) { console.error("Error deleting doc:", e); alert("Gagal memadam."); }
+            if (!confirm('Padam ciri ini? Operasi ini tidak boleh diundur!')) return;
+
+            const deleteButton = document.querySelector(`.feature-card[data-id="${id}"] button[onclick="deleteFeature('${id}')"]`);
+            deleteButton.disabled = true;
+            deleteButton.innerHTML = `<span class="spinner !h-5 !w-5"></span>`;
+
+            try {
+                await deleteDoc(doc(db, `artifacts/${appId}/public/data/spark_features`, id)); // Use full path
+                // UI will update via onSnapshot
+                // alert('Ciri dipadam.'); // Optional: remove alert if UI update is enough
+            }
+            catch (e) {
+                console.error("Error deleting doc:", e);
+                alert("Gagal memadam ciri.");
+                // Re-enable button on error (it might still be in the DOM briefly)
+                deleteButton.disabled = false;
+                deleteButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd" /></svg>`;
+            }
         }
+
 
         async function generateWithAI(id) {
             if (!document.body.classList.contains('admin-edit-mode')) return;
-            const prompt = document.getElementById(`ai-prompt-${id}`).value;
-            if (!prompt) { alert('Sila masukkan tajuk ciri untuk dijana.'); return; }
+            const promptInput = document.getElementById(`ai-prompt-${id}`);
+            const prompt = promptInput.value.trim(); // Trim prompt
+            if (!prompt) {
+                alert('Sila masukkan tajuk ciri untuk dijana.');
+                promptInput.focus(); // Focus input if empty
+                return;
+             }
 
             const btn = document.getElementById(`ai-btn-${id}`);
-            btn.querySelector('.btn-text').classList.add('hidden');
-            btn.querySelector('.spinner').classList.remove('hidden');
+            const btnText = btn.querySelector('.btn-text');
+            const spinner = btn.querySelector('.spinner');
+
+            btnText.classList.add('hidden');
+            spinner.classList.remove('hidden');
             btn.disabled = true;
 
             try {
+                // Ensure functions are initialized
+                if (!functions) {
+                     throw new Error("Firebase Functions not initialized.");
+                 }
                 const generateContent = httpsCallable(functions, 'generateFeatureContent');
                 const result = await generateContent({ prompt: prompt });
+
+                if (!result.data || !result.data.description || !result.data.features) {
+                     throw new Error("Invalid response format from AI function.");
+                 }
                 const content = result.data;
-                
-                document.getElementById(`title-${id}`).innerText = prompt;
-                document.getElementById(`desc-${id}`).innerText = content.description;
+
+                // Update UI elements safely
+                const titleEl = document.getElementById(`title-${id}`);
+                const descEl = document.getElementById(`desc-${id}`);
                 const listContainer = document.getElementById(`list-${id}`);
-                listContainer.innerHTML = content.features.map(item => `<li class="flex items-center justify-between gap-2"><div class="flex items-start flex-grow"><svg class="flex-shrink-0 h-6 w-6 text-green-500 mt-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg><span contenteditable="true" class="ml-3 text-gray-700 flex-grow">${item}</span></div><button type="button" onclick="deleteFeatureListItem(this)" class="delete-item-btn items-center justify-center p-1 rounded-full hover:bg-red-100 flex-shrink-0"><svg class="h-4 w-4 text-red-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" /></svg></button></li>`).join('');
+
+                if (titleEl) titleEl.innerText = prompt; // Use the original prompt as title
+                if (descEl) descEl.innerText = content.description;
+                if (listContainer) {
+                    listContainer.innerHTML = content.features.map(item =>
+                        `<li class="flex items-center justify-between gap-2">
+                            <div class="flex items-start flex-grow">
+                                <svg class="flex-shrink-0 h-6 w-6 text-green-500 mt-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                                <span contenteditable="true" class="ml-3 text-gray-700 flex-grow">${escapeHtml(item)}</span> {/* Escape HTML */}
+                            </div>
+                            <button type="button" onclick="deleteFeatureListItem(this)" class="delete-item-btn items-center justify-center p-1 rounded-full hover:bg-red-100 flex-shrink-0" style="display: flex;"> {/* Ensure delete button is visible */}
+                                <svg class="h-4 w-4 text-red-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+                            </button>
+                        </li>`
+                    ).join('');
+                }
+                 // Make sure newly added items are editable
+                 setEditMode(true);
+
 
             } catch (error) {
-                console.error('Firebase function error:', error);
-                alert('Gagal menjana kandungan. Sila pastikan Cloud Function telah di-deploy.');
+                console.error('Firebase function call error:', error);
+                alert(`Gagal menjana kandungan: ${error.message}. Pastikan Cloud Function 'generateFeatureContent' telah di-deploy dan berfungsi.`);
             } finally {
-                btn.querySelector('.btn-text').classList.remove('hidden');
-                btn.querySelector('.spinner').classList.add('hidden');
+                btnText.classList.remove('hidden');
+                spinner.classList.add('hidden');
                 btn.disabled = false;
             }
         }
 
+
         function promptAdminAuth() {
             if (document.body.classList.contains('admin-edit-mode')) {
-                if (confirm('Keluar mod penyuntingan?')) setEditMode(false);
+                if (confirm('Keluar mod penyuntingan? Perubahan yang belum disimpan akan hilang.')) {
+                     setEditMode(false);
+                     // Optional: Reload data to discard unsaved changes
+                     // renderFeatures();
+                 }
                 return;
             }
             document.getElementById('admin-auth-ic').value = '';
             document.getElementById('admin-auth-error').classList.add('hidden');
             document.getElementById('admin-auth-modal').classList.remove('hidden');
+            document.getElementById('admin-auth-ic').focus(); // Focus the input
         }
 
         function verifyAdminIc() {
@@ -316,11 +481,14 @@
                 setEditMode(true);
             } else {
                 document.getElementById('admin-auth-error').classList.remove('hidden');
+                // Shake animation or clear input on error (optional)
+                document.getElementById('admin-auth-ic').value = '';
+                document.getElementById('admin-auth-ic').focus();
             }
         }
 
         function closeModal(modalId) { document.getElementById(modalId)?.classList.add('hidden'); }
-        
+
         function addFeatureListItem(id) {
             if (!document.body.classList.contains('admin-edit-mode')) return;
             const list = document.getElementById(`list-${id}`);
@@ -335,15 +503,17 @@
                     </svg>
                     <span contenteditable="true" class="ml-3 text-gray-700 flex-grow">Butiran baharu...</span>
                 </div>
-                <button type="button" onclick="deleteFeatureListItem(this)" class="delete-item-btn items-center justify-center p-1 rounded-full hover:bg-red-100 flex-shrink-0">
+                <button type="button" onclick="deleteFeatureListItem(this)" class="delete-item-btn items-center justify-center p-1 rounded-full hover:bg-red-100 flex-shrink-0" style="display: flex;"> {/* Make sure button is visible */}
                     <svg class="h-4 w-4 text-red-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
                 </button>`;
-            
+
             list.appendChild(newItem);
-            
-            const newSpan = newItem.querySelector('span');
+
+            // Set focus and select text in the new span
+            const newSpan = newItem.querySelector('span[contenteditable="true"]');
             if (newSpan) {
                 newSpan.focus();
+                // Select the text for easy editing
                 const selection = window.getSelection();
                 const range = document.createRange();
                 range.selectNodeContents(newSpan);
@@ -351,18 +521,25 @@
                 selection.addRange(range);
             }
         }
-        
+
         function deleteFeatureListItem(buttonElement) {
             if (!document.body.classList.contains('admin-edit-mode')) return;
 
-            if (confirm('Anda pasti mahu padam butiran ini?')) {
-                const listItem = buttonElement.closest('li');
-                if (listItem) {
-                    listItem.remove();
-                }
+            const listItem = buttonElement.closest('li');
+            if (listItem) {
+                // Check if it's the last item before confirming deletion
+                const list = listItem.parentElement;
+                if (list && list.children.length <= 1) {
+                     alert("Tidak boleh padam butiran terakhir. Sila edit atau tambah yang baharu dahulu.");
+                     return;
+                 }
+                if (confirm('Anda pasti mahu padam butiran ini?')) {
+                     listItem.remove();
+                 }
             }
         }
-        
+
+        // Make functions accessible from HTML onclick attributes
         Object.assign(window, { promptAdminAuth, verifyAdminIc, closeModal, saveFeature, addNewFeature, deleteFeature, generateWithAI, addFeatureListItem, deleteFeatureListItem });
     </script>
 </body>
