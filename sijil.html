@@ -104,6 +104,8 @@
                     </div>
                 </div>
             </div>
+
+
             <div class="card overflow-x-auto shadow-lg">
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
@@ -137,7 +139,7 @@
                         <button id="next-page-btn" onclick="changePage(1)" class="btn bg-gray-200 text-gray-700 py-1 px-3 rounded-lg text-sm ml-2 hover:bg-gray-300" disabled>Nxt &gt;</button>
                     </div>
                 </div>
-                </div>
+            </div>
             
             <div id="no-results-message" class="text-center py-10 card hidden"><p class="text-gray-600 text-lg">Tiada rekod sijil ditemui.</p></div>
         </div>
@@ -161,9 +163,6 @@
         const certificatesTableBody = document.getElementById('certificates-table-body');
         let certificateResults = [];
         
-        // =================================================================
-        // #### PEMBOLEHUBAH (VARIABLES) PAGINASI & PENAPIS DITAMBAH ####
-        // =================================================================
         let currentPage = 1;
         let itemsPerPage = 10;
         
@@ -173,7 +172,6 @@
         const nextPageBtn = document.getElementById('next-page-btn');
         const itemsPerPageSelect = document.getElementById('items-per-page');
         const sijilOnlyFilter = document.getElementById('filter-sijil-sahaja');
-        // =================================================================
         
         const checkBtn = document.getElementById('check-btn');
         const icInput = document.getElementById('ic-input');
@@ -201,7 +199,7 @@
 
         // =================================================================
         // #### FUNGSI 'findCertificatesByIc' DIKEMAS KINI ####
-        // (Menambah penyusunan (sorting) dan memanggil 'resetPageAndFilter')
+        // (Menambah penyusunan (sorting) yang lebih selamat)
         // =================================================================
         async function findCertificatesByIc() {
             const icNumber = icInput.value.trim().replace(/[^0-9]/g, '');
@@ -227,11 +225,12 @@
                     }
                 });
                 
-                // --- PENYUSUNAN (SORTING) DITAMBAH DI SINI ---
-                // Susun program, yang paling terkini di atas
+                // --- PENYUSUNAN (SORTING) DI SINI ---
                 window.certificateResults.sort((a, b) => {
-                    const dateA = new Date(a.programData.startDate + 'T00:00:00');
-                    const dateB = new Date(b.programData.startDate + 'T00:00:00');
+                    // Gunakan tarikh 1970 jika 'startDate' tiada (null/undefined)
+                    // Ini memastikan program yang tiada tarikh akan diletak di bawah
+                    const dateA = a.programData.startDate ? new Date(a.programData.startDate + 'T00:00:00') : new Date(0); 
+                    const dateB = b.programData.startDate ? new Date(b.programData.startDate + 'T00:00:00') : new Date(0);
                     return dateB - dateA; // dateB - dateA untuk susunan menurun (terkini dulu)
                 });
                 // --- TAMAT PENYUSUNAN ---
@@ -244,7 +243,6 @@
                 } else {
                     displayParticipantInfo(results[0].participantData, maskIc(icNumber));
                     populateYearFilter(results);
-                    // Panggil 'resetPageAndFilter' untuk memaparkan halaman 1
                     resetPageAndFilter(); 
                     resultsSection.classList.remove('hidden');
                 }
@@ -270,18 +268,13 @@
             });
         }
 
-        // =================================================================
-        // #### FUNGSI 'filterAndDisplayResults' DIKEMAS KINI ####
-        // (Menambah logik penapis 'sijilOnly' dan logik paginasi)
-        // =================================================================
+        // (Fungsi 'filterAndDisplayResults' kekal sama, logik sudah betul)
         function filterAndDisplayResults() {
-            // 1. Dapatkan Nilai Penapis
             const searchTerm = searchInput.value.toLowerCase();
             const selectedMonth = monthFilter.value;
             const selectedYear = yearFilter.value;
-            const sijilOnly = sijilOnlyFilter.checked; // Dapatkan status checkbox
+            const sijilOnly = sijilOnlyFilter.checked; 
 
-            // 2. Tapis Senarai Penuh
             const filteredList = window.certificateResults.filter(result => {
                 const program = result.programData;
                 const programDate = program.startDate ? new Date(program.startDate + 'T00:00:00') : null;
@@ -289,7 +282,6 @@
                 const nameMatch = !searchTerm || (program.name && program.name.toLowerCase().includes(searchTerm));
                 const yearMatch = !selectedYear || (programDate && programDate.getFullYear() == selectedYear);
                 const monthMatch = !selectedMonth || (programDate && (programDate.getMonth() + 1) == selectedMonth);
-                // Semakan penapis 'sijilOnly'
                 const sijilMatch = !sijilOnly || program.eCertificateNeeded === true; 
 
                 return nameMatch && yearMatch && monthMatch && sijilMatch;
@@ -298,7 +290,6 @@
             certificatesTableBody.innerHTML = "";
             noFilterResults.classList.add('hidden');
             
-            // 3. Logik Paginasi
             itemsPerPage = parseInt(itemsPerPageSelect.value, 10);
             const totalItems = filteredList.length;
             const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
@@ -310,10 +301,9 @@
             const endIndex = startIndex + itemsPerPage;
             const paginatedList = filteredList.slice(startIndex, endIndex);
 
-            // 4. Papar Hasil (Render)
             if (paginatedList.length > 0) {
                 paginatedList.forEach((result, index) => {
-                    const overallIndex = startIndex + index; // Index untuk 'Bil.'
+                    const overallIndex = startIndex + index; 
                     const rowHTML = createCertificateRow(result, overallIndex);
                     certificatesTableBody.innerHTML += rowHTML;
                 });
@@ -325,13 +315,12 @@
                 }
             }
             
-            // 5. Kemas Kini UI Paginasi
-            paginationInfo.textContent = \`Halaman ${currentPage} dari ${totalPages}\`;
+            paginationInfo.textContent = `Halaman ${currentPage} dari ${totalPages}`;
             prevPageBtn.disabled = (currentPage === 1);
             nextPageBtn.disabled = (currentPage === totalPages || totalItems === 0);
         }
 
-        // (Fungsi 'createCertificateRow' adalah sama seperti kod anda sebelum ini, sudah betul)
+        // (Fungsi 'createCertificateRow' kekal sama, logik sudah betul)
         function createCertificateRow(result, bilIndex) {
             const { programData, participantData } = result;
 
@@ -352,13 +341,13 @@
                 if (programData.evaluationNeeded === true) {
                     
                     if (!hasEvaluated) {
-                        statusHTML = \`<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">Perlu Penilaian</span>\`;
-                        const evalUrl = \`penilaianprogram.html?kod=${programData.evaluationKey}\`;
-                        actionHTML = \`<a href="${evalUrl}" target="_blank" class="btn bg-blue-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-600 text-sm">Isi Penilaian</a>\`;
+                        statusHTML = `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">Perlu Penilaian</span>`;
+                        const evalUrl = `penilaianprogram.html?kod=${programData.evaluationKey}`;
+                        actionHTML = `<a href="${evalUrl}" target="_blank" class="btn bg-blue-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-600 text-sm">Isi Penilaian</a>`;
                     
                     } else {
                         isCertificateAvailable = true;
-                        statusHTML = \`<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Tersedia</span>\`;
+                        statusHTML = `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Tersedia</span>`;
                     }
 
                 } else {
@@ -369,26 +358,26 @@
                         isCertificateAvailable = today > programEndDate;
                         
                         if (isCertificateAvailable) {
-                            statusHTML = \`<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Tersedia</span>\`;
+                            statusHTML = `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Tersedia</span>`;
                         } else {
                             const endDateString = programEndDate.toLocaleDateString('ms-MY', { day: 'numeric', month: 'long' });
-                            unavailableMessage = \`Tersedia selepas ${endDateString}\`;
-                            statusHTML = \`<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">Belum Sedia</span>\`;
-                            actionHTML = \`<p class="text-sm text-gray-500 italic px-4">${unavailableMessage}</p>\`;
+                            unavailableMessage = `Tersedia selepas ${endDateString}`;
+                            statusHTML = `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">Belum Sedia</span>`;
+                            actionHTML = `<p class="text-sm text-gray-500 italic px-4">${unavailableMessage}</p>`;
                         }
                     } else {
                         unavailableMessage = "Tarikh tamat tidak ditetapkan.";
-                        statusHTML = \`<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-700">Ralat</span>\`;
-                        actionHTML = \`<p class="text-sm text-gray-500 italic px-4">${unavailableMessage}</p>\`;
+                        statusHTML = `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-700">Ralat</span>`;
+                        actionHTML = `<p class="text-sm text-gray-500 italic px-4">${unavailableMessage}</p>`;
                     }
                 }
             } else {
-                statusHTML = \`<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-700">Tiada Sijil</span>\`;
-                actionHTML = \`<p class="text-sm text-gray-500 italic px-4">-</p>\`;
+                statusHTML = `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-700">Tiada Sijil</span>`;
+                actionHTML = `<p class="text-sm text-gray-500 italic px-4">-</p>`;
             }
 
             if (isCertificateAvailable) {
-                 actionHTML = \`
+                 actionHTML = `
                     <div class="flex justify-center items-center gap-2">
                         <button onclick="printCertificate('${programData.key}')" title="Cetak Sijil" class="btn bg-green-500 text-white font-bold p-2 rounded-lg hover:bg-green-600 text-sm flex items-center">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v3a2 2 0 002 2h6a2 2 0 002-2v-3h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z" clip-rule="evenodd" /></svg>
@@ -399,10 +388,10 @@
                             <span class="ml-1 hidden md:inline">PDF</span>
                         </button>
                     </div>
-                \`;
+                `;
             }
 
-            return \`
+            return `
                 <tr class="hover:bg-gray-50">
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${bilIndex + 1}.</td>
                     <td class="px-6 py-4">
@@ -412,10 +401,10 @@
                     <td class="px-6 py-4 whitespace-nowrap text-sm">${statusHTML}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-center text-sm">${actionHTML}</td>
                 </tr>
-            \`;
+            `;
         }
         
-        // (Fungsi getCertificateData dan getCertificateHTML kekal sama)
+        // (Fungsi 'getCertificateData', 'getCertificateHTML', 'printCertificate', 'downloadCertificatePDF' kekal sama)
         function getCertificateData(programKey) {
             const result = window.certificateResults.find(r => r.programData.key === programKey);
             if (result === undefined) {
@@ -433,16 +422,16 @@
             let dateString;
             
             if (startDate.getTime() === endDate.getTime()) {
-                dateString = \`pada ${startDate.toLocaleDateString('ms-MY', { day: '2-digit', month: 'long', year: 'numeric' }).toUpperCase()}\`;
+                dateString = `pada ${startDate.toLocaleDateString('ms-MY', { day: '2-digit', month: 'long', year: 'numeric' }).toUpperCase()}`;
             } else {
-                dateString = \`pada ${startDate.toLocaleDateString('ms-MY', { day: '2-digit' })} hingga ${endDate.toLocaleDateString('ms-MY', { day: '2-digit', month: 'long', year: 'numeric' }).toUpperCase()}\`;
+                dateString = `pada ${startDate.toLocaleDateString('ms-MY', { day: '2-digit' })} hingga ${endDate.toLocaleDateString('ms-MY', { day: '2-digit', month: 'long', year: 'numeric' }).toUpperCase()}`;
             }
 
             const programIdentifier = programData.key || 'SPARK'; 
-            const serialNumber = \`SPK/${programIdentifier}/${participantIC.slice(-4)}\`;
+            const serialNumber = `SPK/${programIdentifier}/${participantIC.slice(-4)}`;
             
-            const validationUrl = \`${window.location.origin}${window.location.pathname}\`;
-            const qrCodeUrl = \`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(validationUrl)}\`;
+            const validationUrl = `${window.location.origin}${window.location.pathname}`;
+            const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(validationUrl)}`;
 
             return {
                 participantName, participantIC, courseName, dateString, serialNumber, qrCodeUrl
@@ -450,7 +439,7 @@
         }
 
         function getCertificateHTML(data) {
-            return \`
+            return `
                 <!DOCTYPE html>
                 <html lang="ms">
                 <head>
@@ -524,7 +513,7 @@
                     </div>
                 </body>
                 </html>
-            \`;
+            `;
         }
         
         function printCertificate(programKey) {
@@ -573,7 +562,7 @@
             }
             const originalButtonContent = buttonElement.innerHTML;
             buttonElement.disabled = true;
-            buttonElement.innerHTML = \`<svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>\`;
+            buttonElement.innerHTML = `<svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>`;
             const data = getCertificateData(programKey);
             if (!data) {
                 buttonElement.disabled = false;
@@ -621,7 +610,7 @@
                 const pdfWidth = 210; 
                 const pdfHeight = 297;
                 pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, pdfWidth, pdfHeight);
-                pdf.save(\`sijil_${data.participantName.replace(/ /g, '_')}_${programKey}.pdf\`);
+                pdf.save(`sijil_${data.participantName.replace(/ /g, '_')}_${programKey}.pdf`);
             } catch (error) {
                 console.error("Gagal menjana PDF:", error);
                 alert("Berlaku ralat semasa menjana PDF. Imej luaran mungkin disekat.");
@@ -636,32 +625,21 @@
         function maskIc(ic){if(ic&&ic.length>4){return ic.slice(0,-4).replace(/./g,"*")+ic.slice(-4)}return"****"}
         function setLoading(isLoading){checkBtn.disabled=isLoading;document.getElementById("search-icon").classList.toggle("hidden",isLoading);document.getElementById("loading-spinner").classList.toggle("hidden",!isLoading);buttonText.textContent=isLoading?"Menyemak...":"Semak"}
         
-        // =================================================================
-        // #### FUNGSI JAVASCRIPT BAHARU: Kawalan Paginasi & Penapis ####
-        // =================================================================
-        /** Dipanggil oleh penapis; menetapkan semula ke halaman 1 */
         function resetPageAndFilter() {
             currentPage = 1;
             filterAndDisplayResults();
         }
         
-        /** Dipanggil oleh dropdown 'Papar:' */
         function changeItemsPerPage() {
-            itemsPerPage = parseInt(itemsPerPageSelect.value, 10);
+            // itemsPerPage = parseInt(itemsPerPageSelect.value, 10); // Ini sudah ada dalam filterAndDisplayResults
             resetPageAndFilter();
         }
 
-        /** Dipanggil oleh butang 'Sblm' / 'Nxt' */
         function changePage(direction) {
             currentPage += direction;
-            filterAndDisplayResults(); // Papar halaman baharu
+            filterAndDisplayResults(); 
         }
-        // =================================================================
 
-        // =================================================================
-        // #### FUNGSI 'resetDisplay' DIKEMAS KINI ####
-        // (Untuk menetapkan semula (reset) paginasi dan penapis)
-        // =================================================================
         function resetDisplay(){
             resultsSection.classList.add("hidden");
             certificatesTableBody.innerHTML=""; 
@@ -670,20 +648,16 @@
             noFilterResults.classList.add('hidden');
             window.certificateResults = [];
             
-            // Reset penapis
             searchInput.value = "";
             monthFilter.value = "";
             yearFilter.innerHTML = '<option value="">Semua Tahun</option>';
-            sijilOnlyFilter.checked = true; // Set semula ke default
+            sijilOnlyFilter.checked = true; 
 
-            // Reset paginasi
             currentPage = 1;
             itemsPerPageSelect.value = "10";
             paginationControls.style.display = 'none';
         }
-        // =================================================================
 
-        // Dedahkan fungsi kepada 'window'
         window.printCertificate = printCertificate;
         window.downloadCertificatePDF = downloadCertificatePDF;
         window.resetPageAndFilter = resetPageAndFilter;
