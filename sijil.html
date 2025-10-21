@@ -14,7 +14,6 @@
         .btn { transition: all 0.3s; }
         .btn:hover:not(:disabled) { transform: translateY(-3px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
         .btn:disabled { opacity: 0.6; cursor: not-allowed; }
-        /* Pad input untuk ikon */
         .input-with-icon { position: relative; }
         .input-with-icon svg { position: absolute; left: 0.75rem; top: 50%; transform: translateY(-50%); pointer-events: none; color: #9ca3af; }
         .input-with-icon input { padding-left: 2.5rem; }
@@ -92,10 +91,11 @@
                         <label for="filter-year-select" class="block text-sm font-medium text-gray-700">Pilih Tahun</label>
                          <select id="filter-year-select" onchange="filterAndDisplayResults()" class="mt-1 block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
                             <option value="">Semua Tahun</option>
-                            </select>
+                         </select>
                     </div>
                 </div>
             </div>
+
             <div class="card overflow-x-auto shadow-lg">
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
@@ -108,9 +108,9 @@
                         </tr>
                     </thead>
                     <tbody id="certificates-table-body" class="bg-white divide-y divide-gray-200">
-                        </tbody>
+                    </tbody>
                 </table>
-                 <div id="no-filter-results" class="text-center py-10 hidden">
+                <div id="no-filter-results" class="text-center py-10 hidden">
                     <p class="text-gray-600 text-lg">Tiada program ditemui yang sepadan dengan carian anda.</p>
                 </div>
             </div>
@@ -128,14 +128,14 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
     
     <script>
-        const firebaseConfig = { apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM", authDomain: "myqrhadir.firebaseapp.com", projectId: "myqrhadir", storageBucket: "myqrhadir.appspot.com", messagingSenderId: "79969113747", appId: "1:799691133747:web:835a5e3e9413eace806446" };
+        const firebaseConfig = { apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM", authDomain: "myqrhadir.firebaseapp.com", projectId: "myqrhadir", storageBucket: "myqrhadir.appspot.com", messagingSenderId: "799691133747", appId: "1:799691133747:web:835a5e3e9413eace806446" };
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
         const auth = firebase.auth();
         const appId = firebaseConfig.projectId;
         
         const certificatesTableBody = document.getElementById('certificates-table-body');
-        let certificateResults = []; // Data mentah (Raw data) disimpan di sini
+        let certificateResults = []; 
         
         const checkBtn = document.getElementById('check-btn');
         const icInput = document.getElementById('ic-input');
@@ -146,7 +146,6 @@
         const loadingSpinner = document.getElementById('loading-spinner');
         const buttonText = document.getElementById('button-text');
         
-        // Pembolehubah (Variables) untuk penapis
         const searchInput = document.getElementById('search-program-input');
         const monthFilter = document.getElementById('filter-month-select');
         const yearFilter = document.getElementById('filter-year-select');
@@ -193,14 +192,8 @@
                     resultsSection.classList.remove('hidden');
                 } else {
                     displayParticipantInfo(results[0].participantData, maskIc(icNumber));
-                    
-                    // =================================================================
-                    // #### JAVASCRIPT DIUBAH SUAI: Panggil Penapis ####
-                    // =================================================================
-                    populateYearFilter(results); // Jana pilihan tahun
-                    filterAndDisplayResults();   // Papar semua hasil (tanpa penapis)
-                    // =================================================================
-                    
+                    populateYearFilter(results);
+                    filterAndDisplayResults();
                     resultsSection.classList.remove('hidden');
                 }
             } catch (error) {
@@ -211,81 +204,56 @@
             }
         }
         
-        // =================================================================
-        // #### FUNGSI JAVASCRIPT BAHARU: populateYearFilter ####
-        // =================================================================
-        /** Mengisi dropdown tahun secara dinamik berdasarkan hasil carian */
         function populateYearFilter(results) {
             const yearSelect = document.getElementById('filter-year-select');
-            // Dapatkan semua tahun unik dari data program
             const years = [...new Set(results.map(r => 
                 r.programData.startDate ? new Date(r.programData.startDate + 'T00:00:00').getFullYear() : null
-            ))].filter(Boolean); // 'filter(Boolean)' membuang nilai 'null'
+            ))].filter(Boolean);
             
-            // Isikan dropdown
-            years.sort((a, b) => b - a).forEach(year => { // Susun dari tahun terkini
+            years.sort((a, b) => b - a).forEach(year => {
                 const option = document.createElement('option');
                 option.value = year;
                 option.textContent = year;
                 yearSelect.appendChild(option);
             });
         }
-        // =================================================================
 
-        // =================================================================
-        // #### FUNGSI JAVASCRIPT BAHARU: filterAndDisplayResults ####
-        // =================================================================
-        /** Menapis hasil berdasarkan input pengguna dan memaparkan dalam jadual */
         function filterAndDisplayResults() {
-            // Dapatkan semua nilai penapis
             const searchTerm = searchInput.value.toLowerCase();
             const selectedMonth = monthFilter.value;
             const selectedYear = yearFilter.value;
 
-            // Tapis senarai penuh dari 'certificateResults'
             const filteredList = window.certificateResults.filter(result => {
                 const program = result.programData;
                 const programDate = program.startDate ? new Date(program.startDate + 'T00:00:00') : null;
 
-                // 1. Semak Carian Nama
                 const nameMatch = !searchTerm || (program.name && program.name.toLowerCase().includes(searchTerm));
-                
-                // 2. Semak Penapis Tahun
                 const yearMatch = !selectedYear || (programDate && programDate.getFullYear() == selectedYear);
-                
-                // 3. Semak Penapis Bulan (getMonth() adalah 0-11, jadi +1)
                 const monthMatch = !selectedMonth || (programDate && (programDate.getMonth() + 1) == selectedMonth);
 
                 return nameMatch && yearMatch && monthMatch;
             });
 
-            // Kosongkan jadual sedia ada
             certificatesTableBody.innerHTML = "";
             noFilterResults.classList.add('hidden');
 
-            // Paparkan hasil yang ditapis
             if (filteredList.length > 0) {
                 filteredList.forEach((result, index) => {
-                    // 'result' ialah objek penuh { programData, participantData }
-                    // 'index' ialah untuk lajur "Bil."
                     const rowHTML = createCertificateRow(result, index);
                     certificatesTableBody.innerHTML += rowHTML;
                 });
             } else {
-                // Tunjukkan mesej jika tiada padanan
                 noFilterResults.classList.remove('hidden');
             }
         }
-        // =================================================================
 
         // =================================================================
         // #### FUNGSI JAVASCRIPT DIUBAH SUAI: createCertificateRow ####
-        // (Logik untuk Status dan Tindakan dikemas kini)
+        // (Logik semakan penilaian ditukar di sini)
         // =================================================================
         function createCertificateRow(result, bilIndex) {
             const { programData, participantData } = result;
 
-            // Logik paparan tarikh (kekal sama)
             const startDateStr = programData.startDate ? new Date(programData.startDate + 'T00:00:00').toLocaleDateString('ms-MY', { day: 'numeric', month: 'long', year: 'numeric' }) : '-';
             const endDateStr = programData.endDate ? new Date(programData.endDate + 'T00:00:00').toLocaleDateString('ms-MY', { day: 'numeric', month: 'long', year: 'numeric' }) : '-';
             const dateDisplay = (startDateStr === endDateStr) ? startDateStr : `${startDateStr} - ${endDateStr}`;
@@ -298,8 +266,16 @@
             // 1. Semak jika sijil DISEDIAKAN
             if (programData.eCertificateNeeded === true) {
                 
+                // #### PERUBAHAN UTAMA: Semak Array Penilaian ####
+                // Dapatkan array 'evaluations', atau array kosong jika tiada
+                const evaluations = programData.evaluations || [];
+                // Semak jika IC peserta wujud dalam array 'evaluations'
+                const hasEvaluated = evaluations.some(eval => eval.ic === participantData.ic);
+                // #### TAMAT PERUBAHAN UTAMA ####
+
                 // 2. Semak jika perlu PENILAIAN
-                if (programData.evaluationNeeded === true && participantData.certificateUnlocked !== true) {
+                // Logik diubah: `participantData.certificateUnlocked !== true` ditukar kepada `!hasEvaluated`
+                if (programData.evaluationNeeded === true && !hasEvaluated) {
                     // PERLU PENILAIAN & BELUM ISI
                     statusHTML = `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">Perlu Penilaian</span>`;
                     
@@ -307,7 +283,7 @@
                     actionHTML = `<a href="${evalUrl}" target="_blank" class="btn bg-blue-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-600 text-sm">Isi Penilaian</a>`;
 
                 } else {
-                    // TIDAK PERLU PENILAIAN (atau sudah isi)
+                    // TIDAK PERLU PENILAIAN (atau SUDAH ISI)
                     // 3. Semak jika tarikh program sudah TAMAT
                     if (programData.endDate) {
                         const today = new Date();
@@ -318,7 +294,6 @@
                         if (isCertificateAvailable) {
                             // SIJIL TERSEDIA
                             statusHTML = `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Tersedia</span>`;
-                            // 'programData.key' ialah ID unik dari semak.html
                             actionHTML = `<button onclick="printCertificate('${programData.key}')" class="btn bg-green-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-600 text-sm">Muat Turun</button>`;
                         } else {
                             // BELUM TERSEDIA (tarikh)
@@ -335,12 +310,11 @@
                     }
                 }
             } else {
-                // TIADA SIJIL DISEDIAKAN (Request 3)
+                // TIADA SIJIL DISEDIAKAN
                 statusHTML = `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-700">Tiada Sijil</span>`;
                 actionHTML = `<p class="text-sm text-gray-500 italic px-4">-</p>`;
             }
 
-            // Mengembalikan (Return) format <tr> (Table Row)
             return `
                 <tr class="hover:bg-gray-50">
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${bilIndex + 1}.</td>
@@ -358,12 +332,7 @@
         // =================================================================
         
         
-        // =================================================================
-        // #### FUNGSI JAVASCRIPT DIUBAH SUAI: printCertificate ####
-        // (Kini mencari data menggunakan 'programKey' yang unik)
-        // =================================================================
         function printCertificate(programKey) {
-            // Dapatkan data dari tatasusunan (array) global menggunakan 'programKey'
             const result = window.certificateResults.find(r => r.programData.key === programKey);
 
             if (result === undefined) {
@@ -474,10 +443,7 @@
                 printWindow.print();
             };
         }
-        // =================================================================
         
-
-        // Fungsi Bantuan (Sebahagian diubah suai)
         function displayParticipantInfo(data,maskedIc){const pName=document.getElementById("participant-name"),pIc=document.getElementById("participant-ic"),pPos=document.getElementById("participant-position"),pSta=document.getElementById("participant-station");pName.textContent=data.name||"-";pIc.textContent=maskedIc;pPos.textContent=data.position||"-";pSta.textContent=data.station||"-";document.getElementById("participant-info").classList.remove("hidden")}
         function maskIc(ic){if(ic&&ic.length>4){return ic.slice(0,-4).replace(/./g,"*")+ic.slice(-4)}return"****"}
         function setLoading(isLoading){checkBtn.disabled=isLoading;document.getElementById("search-icon").classList.toggle("hidden",isLoading);document.getElementById("loading-spinner").classList.toggle("hidden",!isLoading);buttonText.textContent=isLoading?"Menyemak...":"Semak"}
@@ -489,13 +455,11 @@
             noFilterResults.classList.add('hidden');
             window.certificateResults = [];
             
-            // Reset penapis
             searchInput.value = "";
             monthFilter.value = "";
             yearFilter.innerHTML = '<option value="">Semua Tahun</option>';
         }
 
-        // Mendedahkan fungsi ke 'window' supaya 'oninput' dan 'onclick' HTML boleh memanggilnya
         window.printCertificate = printCertificate;
         window.filterAndDisplayResults = filterAndDisplayResults;
     </script>
