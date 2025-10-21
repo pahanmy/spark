@@ -12,11 +12,13 @@
         body { font-family: 'Poppins', sans-serif; background-color: #f8f9fa; }
         .card { background-color: white; border-radius: 0.75rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); }
         .btn { transition: background-color 0.3s, transform 0.2s; }
-        .btn:hover { transform: translateY(-2px); }
+        .btn:hover:not(:disabled) { transform: translateY(-2px); } /* Disabled hover effect only when not disabled */
         .btn:disabled { opacity: 0.5; cursor: not-allowed; }
         .modal-backdrop { background-color: rgba(0,0,0,0.5); }
         @keyframes pulse-animation { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
         .logo-pulse { animation: pulse-animation 2s infinite; }
+        /* Style select agar nampak lebih moden sedikit */
+        select:disabled { background-color: #f3f4f6; cursor: not-allowed; }
     </style>
 </head>
 <body class="bg-gray-50 flex flex-col min-h-screen">
@@ -53,7 +55,7 @@
         </div>
         
         <div id="main-content" class="hidden space-y-8">
-            <div class="card max-w-5xl mx-auto p-6 md-p-8">
+            <div class="card max-w-5xl mx-auto p-6 md:p-8">
                 <div class="flex items-center gap-3 mb-6">
                     <div class="bg-indigo-100 p-2 rounded-lg">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -64,7 +66,26 @@
                 </div>
                 
                 <p class="text-sm text-gray-600 mb-6">Halaman ini membenarkan pentadbir untuk menaik taraf pengguna biasa kepada pengguna "Pro". Pengguna Pro mungkin mempunyai akses kepada ciri-ciri khas pada masa hadapan.</p>
-                
+
+                <div class="flex flex-col md:flex-row items-end gap-4 mb-6 bg-gray-50 p-4 rounded-lg border">
+                    <div class="flex-grow w-full md:w-auto">
+                        <label for="user-search-input" class="block text-sm font-medium text-gray-700">Cari Nama Pengguna</label>
+                        <div class="relative mt-1">
+                            <input type="text" id="user-search-input" placeholder="Taip nama..." oninput="filterAndRenderTable()" class="block w-full pl-10 pr-3 py-2 border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <svg class="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" /></svg>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="w-full md:w-auto md:flex-shrink-0">
+                        <label for="items-per-page-select" class="block text-sm font-medium text-gray-700">Papar Per Halaman</label>
+                        <select id="items-per-page-select" onchange="changeUsersPerPage()" class="mt-1 block w-full md:w-24 pl-3 pr-8 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                            <option value="10" selected>10</option>
+                            <option value="20">20</option>
+                            <option value="30">30</option>
+                        </select>
+                    </div>
+                </div>
                 <div class="overflow-x-auto">
                     <table class="min-w-full divide-y divide-gray-200">
                         <thead class="bg-gray-50">
@@ -73,15 +94,15 @@
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nama Pengguna</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stesyen</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status Pro</th>
-                                <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Tindakan</th>
-                            </tr>
+                                <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Tukar Peranan</th> </tr>
                         </thead>
                         <tbody id="user-list-body" class="bg-white divide-y divide-gray-200">
                             <tr><td colspan="5" class="px-6 py-4 text-center text-sm text-gray-500">Memuatkan data pengguna...</td></tr>
                         </tbody>
                     </table>
                 </div>
-            </div>
+                 <div id="user-pagination-controls" class="flex justify-between items-center mt-4"></div>
+                 </div>
         </div>
     </main>
 
@@ -133,6 +154,11 @@
         const appId = firebaseConfig.projectId;
         const adminIC = "890522135381"; // IC Pentadbir
         let currentAdmin = null; // Data admin yang disahkan
+
+        // Pembolehubah untuk Paginasi
+        let usersPerPage = 10;
+        let currentUserPage = 1;
+        let filteredUsers = []; // Cache untuk pengguna yang telah ditapis
 
         try {
             const app = initializeApp(firebaseConfig);
@@ -202,7 +228,8 @@
             const q = query(collection(db, `artifacts/${appId}/public/data/spark_participants`), orderBy("name", "asc"));
             onSnapshot(q, (snapshot) => {
                 allUsersCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                renderUserTable();
+                currentUserPage = 1; // Reset ke halaman pertama setiap kali data berubah
+                filterAndRenderTable(); // Panggil fungsi penapisan dan paparan
             }, (error) => {
                 console.error("Error listening for user updates:", error);
                 document.getElementById('user-list-body').innerHTML = `<tr><td colspan="5" class="px-6 py-4 text-center text-sm text-red-500">Gagal memuatkan data. Sila semak Security Rules anda.</td></tr>`;
@@ -211,73 +238,141 @@
                 }
             });
         }
-        
+
+        // ## FUNGSI BARU: Mengurus penapisan dan paginasi ##
+        function filterAndRenderTable() {
+            const searchTerm = document.getElementById('user-search-input').value.toLowerCase();
+            
+            filteredUsers = allUsersCache.filter(user => 
+                user.name.toLowerCase().includes(searchTerm)
+            );
+
+            // Hitung jumlah halaman
+            const totalPages = Math.ceil(filteredUsers.length / usersPerPage);
+            if (currentUserPage > totalPages && totalPages > 0) {
+                 currentUserPage = totalPages; // Betulkan jika halaman semasa > jumlah halaman baru
+            } else if (totalPages === 0) {
+                currentUserPage = 1; // Jika tiada hasil, kembali ke halaman 1
+            }
+
+
+            // Tentukan pengguna yang akan dipaparkan di halaman semasa
+            const startIndex = (currentUserPage - 1) * usersPerPage;
+            const paginatedUsers = filteredUsers.slice(startIndex, startIndex + usersPerPage);
+
+            renderUserTable(paginatedUsers, startIndex); // Hantar senarai terhad & indeks mula
+            renderUserPaginationControls(filteredUsers.length); // Hantar jumlah selepas ditapis
+        }
+
         // ## FUNGSI renderUserTable DIKEMASKINI ##
-        function renderUserTable() {
+        function renderUserTable(usersToDisplay, startIndex) { // Terima senarai pengguna & indeks mula
             const tableBody = document.getElementById('user-list-body');
-            if (allUsersCache.length === 0) {
-                tableBody.innerHTML = `<tr><td colspan="5" class="px-6 py-4 text-center text-sm text-gray-500">Tiada pengguna ditemui.</td></tr>`;
+            if (usersToDisplay.length === 0) {
+                tableBody.innerHTML = `<tr><td colspan="5" class="px-6 py-4 text-center text-sm text-gray-500">Tiada pengguna ditemui ${document.getElementById('user-search-input').value ? 'untuk carian ini' : ''}.</td></tr>`;
                 return;
             }
             
-            tableBody.innerHTML = allUsersCache.map((user, index) => {
+            tableBody.innerHTML = usersToDisplay.map((user, index) => {
+                const globalIndex = startIndex + index + 1; // Kira nombor bil global
                 const isPro = user.isPro === true;
                 const statusBadge = isPro 
                     ? `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">PRO</span>`
                     : `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">Standard</span>`;
                 
-                // Jangan benarkan admin menyah-pro diri sendiri
+                // Jangan benarkan admin menukar peranannya sendiri
                 const isDisabled = user.ic === adminIC;
 
-                // Guna Toggle Switch
-                const toggleSwitchHtml = `
-                    <label class="relative inline-flex items-center cursor-pointer ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}">
-                      <input 
-                        type="checkbox" 
-                        value="" 
-                        class="sr-only peer" 
-                        ${isPro ? 'checked' : ''} 
-                        ${isDisabled ? 'disabled' : ''} 
-                        onclick="toggleProStatus('${user.id}', this.checked)"
-                      >
-                      <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-offset-1 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
-                      ${isDisabled ? '<span class="ml-3 text-xs font-medium text-gray-400">Pentadbir</span>' : ''}
-                    </label>
+                // ## PERUBAHAN DI SINI: Guna Dropdown ##
+                const roleSelectorHtml = `
+                    <select 
+                        class="block w-full text-xs border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 rounded-md py-1 px-2 ${isDisabled ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : ''}"
+                        onchange="toggleProStatus('${user.id}', event.target.value === 'true')"
+                        ${isDisabled ? 'disabled' : ''}
+                    >
+                        <option value="false" ${!isPro ? 'selected' : ''}>Standard</option>
+                        <option value="true" ${isPro ? 'selected' : ''}>Pro</option>
+                    </select>
                 `;
+                // ## AKHIR PERUBAHAN ##
                 
                 return `
                     <tr class="hover:bg-gray-50">
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${index + 1}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${globalIndex}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${user.name.toUpperCase()}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${user.station || 'N/A'}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm">${statusBadge}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-center">
-                            ${toggleSwitchHtml}
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-center" style="min-width: 120px;"> ${isDisabled ? '<span class="text-xs font-medium text-gray-400">Pentadbir</span>' : roleSelectorHtml}
                         </td>
                     </tr>
                 `;
             }).join('');
         }
-        // ## AKHIR KEMASKINI ##
         
-        async function toggleProStatus(userIdToUpdate, newStatus) {
-            // Semakan keselamatan kedua di sisi klien
+        // ## FUNGSI BARU: Papar kawalan paginasi ##
+        function renderUserPaginationControls(totalFilteredUsers) {
+            const paginationControls = document.getElementById('user-pagination-controls');
+            const totalPages = Math.ceil(totalFilteredUsers / usersPerPage);
+
+            if (totalPages <= 1) { 
+                paginationControls.innerHTML = ''; // Sembunyikan jika hanya 1 halaman atau tiada hasil
+                return; 
+            }
+
+            const prevDisabled = currentUserPage === 1 ? 'disabled' : '';
+            const nextDisabled = currentUserPage === totalPages ? 'disabled' : '';
+
+            paginationControls.innerHTML = `
+                <button onclick="prevUserPage()" ${prevDisabled} class="btn bg-gray-300 text-gray-800 font-semibold py-1 px-3 text-sm rounded-lg">Sebelumnya</button>
+                <span class="text-sm text-gray-700">Halaman ${currentUserPage} dari ${totalPages} (${totalFilteredUsers} rekod)</span>
+                <button onclick="nextUserPage()" ${nextDisabled} class="btn bg-gray-300 text-gray-800 font-semibold py-1 px-3 text-sm rounded-lg">Seterusnya</button>
+            `;
+        }
+
+        // ## FUNGSI BARU: Tukar halaman ##
+        function nextUserPage() { 
+            const totalPages = Math.ceil(filteredUsers.length / usersPerPage);
+            if (currentUserPage < totalPages) { 
+                currentUserPage++; 
+                filterAndRenderTable(); 
+            } 
+        }
+        function prevUserPage() { 
+            if (currentUserPage > 1) { 
+                currentUserPage--; 
+                filterAndRenderTable(); 
+            } 
+        }
+
+        // ## FUNGSI BARU: Tukar item per halaman ##
+        function changeUsersPerPage() {
+            usersPerPage = parseInt(document.getElementById('items-per-page-select').value, 10);
+            currentUserPage = 1; // Kembali ke halaman pertama
+            filterAndRenderTable();
+        }
+
+        async function toggleProStatus(userIdToUpdate, newStatus) { // Terima boolean
             if (!currentAdmin || currentAdmin.ic !== adminIC) {
                 alert('Ralat: Anda tiada kebenaran untuk melakukan tindakan ini.');
+                // Kembalikan dropdown ke nilai asal jika gagal? (Pilihan)
+                const selectElement = event.target; 
+                if(selectElement) selectElement.value = !newStatus; 
                 return;
             }
             
             const userRef = doc(db, `artifacts/${appId}/public/data/spark_participants`, userIdToUpdate);
             try {
                 await updateDoc(userRef, {
-                    isPro: newStatus
+                    isPro: newStatus // Hantar boolean terus
                 });
-                // Tidak perlu alert, onSnapshot akan mengemas kini jadual secara automatik
                 console.log(`Status pengguna ${userIdToUpdate} dikemas kini kepada ${newStatus}`);
             } catch (error) {
                 console.error("Error updating user status:", error);
+                // Kembalikan dropdown ke nilai asal jika gagal
+                const selectElement = event.target; 
+                if(selectElement) selectElement.value = !newStatus; 
+
                 if (error.code === 'permission-denied') {
-                    alert('Tindakan Gagal! Sila pastikan Firebase Security Rules anda telah dikemas kini untuk membenarkan "update" pada koleksi "spark_participants".');
+                    alert('Tindakan Gagal! Sila pastikan Firebase Security Rules anda telah dikemas kini.');
                     showPermissionErrorModal();
                 } else {
                     alert("Gagal mengemas kini status pengguna.");
@@ -297,7 +392,11 @@
         Object.assign(window, { 
             verifyAdmin, 
             toggleProStatus, 
-            closeModal 
+            closeModal,
+            filterAndRenderTable, // Dedahkan fungsi filter
+            changeUsersPerPage,   // Dedahkan fungsi tukar paparan
+            nextUserPage,         // Dedahkan fungsi paginasi
+            prevUserPage          // Dedahkan fungsi paginasi
         });
     </script>
 </body>
