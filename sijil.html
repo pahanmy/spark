@@ -96,30 +96,47 @@
         });
         if (!auth.currentUser) { auth.signInAnonymously().catch(e => console.error(e)); }
 
+        // =================================================================
+        // #### FUNGSI INI TELAH DIKEMAS KINI ####
+        // =================================================================
         async function findCertificatesByIc() {
-            const icNumber = icInput.value.trim();
+            const icNumber = icInput.value.trim().replace(/[^0-9]/g, ''); // Membersihkan input IC
             if (!icNumber) { alert("Sila masukkan Nombor Kad Pengenalan."); return; }
             setLoading(true);
             resetDisplay();
             try {
                 const programsRef = db.collection(`artifacts/${appId}/public/data/spark_programs`);
                 const programsSnapshot = await programsRef.get();
-                const participantPromises = programsSnapshot.docs.map(async (programDoc) => {
-                    const participantsRef = programDoc.ref.collection('spark_participants');
-                    const q = participantsRef.where('ic', '==', icNumber);
-                    const participantSnapshot = await q.get();
-                    if (!participantSnapshot.empty) {
-                        const participantDoc = participantSnapshot.docs[0];
-                        return { programData: programDoc.data(), participantData: participantDoc.data() };
+
+                const results = [];
+                
+                // 1. Ulang melalui setiap program yang wujud
+                programsSnapshot.docs.forEach(programDoc => {
+                    const programData = programDoc.data();
+                    // 2. Dapatkan array 'attendance' dari program tersebut
+                    const attendanceArray = programData.attendance || [];
+                    
+                    // 3. Cari peserta dalam array 'attendance' menggunakan IC
+                    const participantData = attendanceArray.find(p => p.ic === icNumber); 
+                    
+                    // 4. Jika peserta ditemui dalam array kehadiran program ini
+                    if (participantData) {
+                        // 5. Tambah data program dan data peserta itu ke dalam 'results'
+                        results.push({ 
+                            programData: programData, 
+                            participantData: participantData 
+                        });
                     }
-                    return null;
                 });
-                const results = (await Promise.all(participantPromises)).filter(r => r !== null);
+
                 if (results.length === 0) {
                     noResultsMessage.classList.remove('hidden');
                     resultsSection.classList.remove('hidden');
                 } else {
+                    // 6. Papar maklumat peserta (berdasarkan rekod pertama yang ditemui)
                     displayParticipantInfo(results[0].participantData, maskIc(icNumber));
+                    
+                    // 7. Cipta kad sijil untuk setiap program yang disertai
                     results.forEach(result => {
                         const cardHTML = createCertificateCard(result.programData, result.participantData);
                         certificatesContainer.innerHTML += cardHTML;
@@ -133,10 +150,15 @@
                 setLoading(false);
             }
         }
+        // =================================================================
+        // #### FUNGSI ASAL (TIADA PERUBAHAN) ####
+        // =================================================================
         
         function createCertificateCard(programData, participantData) {
             const date = programData.date ? new Date(programData.date.seconds * 1000).toLocaleDateString('ms-MY', { day: 'numeric', month: 'long', year: 'numeric' }) : '-';
             
+            // Kod asal anda bermula di sini...
+            // (Kod ini sudah betul berdasarkan logik yang anda terangkan)
             let isCertificateAvailable = false;
             let unavailableMessage = "Sijil tidak disediakan untuk program ini."; 
 
@@ -165,10 +187,26 @@
                             unavailableMessage = `Sijil akan tersedia secara automatik selepas ${endDateString}.`;
                         }
                     } else {
-                        unavailableMessage = "Admin belum menetapkan tarikh tamat program.";
+                         // Fallback jika 'endDate' (dari semak.html) tiada, guna 'date' (lama)
+                         // Anda mungkin mahu membuang ini jika 'endDate' kini sentiasa wujud
+                        if (programData.date && programData.date.seconds) {
+                            const today = new Date();
+                            today.setHours(0, 0, 0, 0);
+                            const programEndDate = new Date(programData.date.seconds * 1000);
+                            
+                            isCertificateAvailable = today > programEndDate;
+                            
+                            if (!isCertificateAvailable) {
+                                const endDateString = programEndDate.toLocaleDateString('ms-MY', { day: 'numeric', month: 'long', year: 'numeric' });
+                                unavailableMessage = `Sijil akan tersedia secara automatik selepas ${endDateString}.`;
+                            }
+                        } else {
+                            unavailableMessage = "Admin belum menetapkan tarikh tamat program.";
+                        }
                     }
                 }
             }
+            // ...Kod asal anda tamat di sini.
 
             let actionHTML = '';
             if (isCertificateAvailable) {
@@ -180,7 +218,7 @@
             return `
                 <div class="card flex flex-col p-6">
                     <div class="flex-grow">
-                        <h3 class="text-lg font-semibold text-gray-800">${programData.programName || 'Nama Program Tidak Ditemui'}</h3>
+                        <h3 class="text-lg font-semibold text-gray-800">${programData.programName || programData.name || 'Nama Program Tidak Ditemui'}</h3>
                         <p class="text-sm text-gray-500">${date}</p>
                     </div>
                     <div class="mt-auto pt-6 text-right">
