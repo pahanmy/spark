@@ -62,6 +62,23 @@
                     <div class="flex items-center gap-3 text-gray-700 bg-gray-50 p-3 rounded-lg"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-500 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd" /></svg><span id="program-time" class="font-semibold text-sm uppercase"></span></div>
                     <div class="flex items-center gap-3 text-gray-700 bg-gray-50 p-3 rounded-lg"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-500 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd" /></svg><span id="program-location" class="font-semibold text-sm uppercase"></span></div>
                 </div>
+
+                <div id="attendance-stats" class="mb-8 hidden">
+                    <h3 class="text-sm font-semibold text-gray-700 mb-2 text-center uppercase tracking-wide">Statistik Semasa</h3>
+                    <div id="progress-bar-container" class="w-full bg-gray-200 rounded-full h-4 relative overflow-hidden hidden">
+                        <div id="progress-bar-fill" class="bg-indigo-600 h-4 rounded-full transition-all duration-500" style="width: 0%;"></div>
+                        <span id="progress-bar-text" class="absolute inset-0 flex items-center justify-center text-xs font-bold text-white shadow-sm">
+                            0%
+                        </span>
+                    </div>
+                    <div class="text-center text-sm text-gray-600 mt-2">
+                        <span id="stats-hadir" class="font-bold text-lg text-indigo-700">0</span> 
+                        <span id="stats-kuota-wrapper" class="hidden">
+                            / <span id="stats-kuota" class="font-bold text-lg">0</span>
+                        </span>
+                        <span class="font-medium">peserta telah hadir.</span>
+                    </div>
+                </div>
                 <form id="ic-form" onsubmit="checkParticipant(event)">
                     <label for="participant-ic" class="block text-sm font-medium text-gray-700 mb-2">No. Kad Pengenalan</label>
                     <input type="tel" id="participant-ic" required placeholder="900101131234" maxlength="12" oninput="validateIcInput(this)" class="block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-lg tracking-wider">
@@ -146,7 +163,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, updateDoc, arrayUnion, collection, query, where, getDocs, addDoc, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, setDoc, updateDoc, arrayUnion, collection, query, where, getDocs, addDoc, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"; // <-- Import onSnapshot
 
         const firebaseConfig = {
             apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM",
@@ -159,6 +176,7 @@
         
         let db, auth;
         let currentProgram = null;
+        let unsubscribeProgramListener = null; // <-- Pembolehubah baru
         const appId = firebaseConfig.projectId;
 
         try {
@@ -188,6 +206,64 @@
         }
         function formatTimeRange(start, end) { return `${formatTimeMalay(start)} - ${formatTimeMalay(end)}`; }
 
+        // ### FUNGSI BARU UNTUK KEMAS KINI STATISTIK ===
+        function updateAttendanceStats(programData) {
+            try {
+                const kuota = parseInt(programData.quota, 10);
+                const attendance = programData.attendance || [];
+                const jumlahHadir = attendance.length;
+                
+                const statsContainer = document.getElementById('attendance-stats');
+                const progressBarContainer = document.getElementById('progress-bar-container');
+                const progressBarFill = document.getElementById('progress-bar-fill');
+                
+                if (kuota > 0) {
+                    // Jika ada kuota, paparkan peratusan
+                    const peratus = Math.min(100, Math.round((jumlahHadir / kuota) * 100)); // Hadkan pada 100%
+                    
+                    progressBarFill.style.width = `${peratus}%`;
+                    document.getElementById('progress-bar-text').textContent = `${peratus}%`;
+                    
+                    document.getElementById('stats-hadir').textContent = jumlahHadir;
+                    document.getElementById('stats-kuota').textContent = kuota;
+                    document.getElementById('stats-kuota-wrapper').classList.remove('hidden');
+                    progressBarContainer.classList.remove('hidden');
+
+                    // Tukar warna jika melebihi kuota
+                    if (jumlahHadir > kuota) {
+                        progressBarFill.classList.remove('bg-indigo-600');
+                        progressBarFill.classList.add('bg-red-600');
+                        document.getElementById('progress-bar-text').textContent = `100%+`;
+                    } else {
+                        progressBarFill.classList.add('bg-indigo-600');
+                        progressBarFill.classList.remove('bg-red-600');
+                    }
+                    
+                    statsContainer.classList.remove('hidden');
+
+                } else if (jumlahHadir > 0) {
+                    // Jika tiada kuota, hanya papar jumlah hadir
+                    document.getElementById('stats-hadir').textContent = jumlahHadir;
+                    document.getElementById('stats-kuota-wrapper').classList.add('hidden');
+                    progressBarContainer.classList.add('hidden');
+                    
+                    document.querySelector('#attendance-stats .text-center.text-sm').innerHTML = `
+                        <span id="stats-hadir" class="font-bold text-lg text-indigo-700">${jumlahHadir}</span> 
+                        <span class="font-medium">peserta telah hadir.</span>
+                    `;
+                    
+                    statsContainer.classList.remove('hidden');
+                } else {
+                    // Tiada kuota dan tiada kehadiran, sembunyikan
+                    statsContainer.classList.add('hidden');
+                }
+            } catch (e) {
+                console.error("Error rendering attendance stats: ", e);
+                document.getElementById('attendance-stats').classList.add('hidden');
+            }
+        }
+        // ### AKHIR FUNGSI BARU ===
+
         async function main() {
             const urlParams = new URLSearchParams(window.location.search);
             const programKey = urlParams.get('kod');
@@ -206,26 +282,47 @@
             loadSchoolsIntoDropdowns();
             loadPositionsIntoDropdown();
 
-            const programRef = doc(db, `artifacts/${appId}/public/data/spark_programs`, programKey);
-            const docSnap = await getDoc(programRef);
-            
-            if (docSnap.exists()) {
-                currentProgram = { id: docSnap.id, ...docSnap.data() };
-                
-                if(currentProgram.expiryTimestamp && new Date() > new Date(currentProgram.expiryTimestamp)) {
-                    return showMessage('error', 'Pendaftaran Ditutup', 'Pendaftaran untuk program ini telah tamat tempoh.');
-                }
-                
-                document.getElementById('program-name').textContent = currentProgram.name;
-                document.getElementById('program-date').textContent = new Date(currentProgram.startDate).toLocaleDateString('ms-MY', { day: 'numeric', month: 'long', year: 'numeric' });
-                document.getElementById('program-time').textContent = formatTimeRange(currentProgram.startTime, currentProgram.endTime);
-                document.getElementById('program-location').textContent = currentProgram.location;
+            // ### DIKEMAS KINI: Tukar getDoc kepada onSnapshot ###
+            if (unsubscribeProgramListener) unsubscribeProgramListener(); // Hentikan listener lama jika ada
 
-                document.getElementById('loading-state').classList.add('hidden');
-                document.getElementById('check-in-card').classList.remove('hidden');
-            } else {
-                showMessage('error', 'Program Tidak Ditemui', 'Sila pastikan anda menggunakan pautan kod QR yang betul.');
-            }
+            const programRef = doc(db, `artifacts/${appId}/public/data/spark_programs`, programKey);
+            
+            unsubscribeProgramListener = onSnapshot(programRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    currentProgram = { id: docSnap.id, ...docSnap.data() };
+                    
+                    // Semak jika ini kali pertama data dimuatkan
+                    const isLoading = document.getElementById('loading-state').classList.contains('hidden') === false;
+
+                    if (isLoading) {
+                        // Ini adalah muatan pertama, tetapkan maklumat program
+                        if(currentProgram.expiryTimestamp && new Date() > new Date(currentProgram.expiryTimestamp)) {
+                            return showMessage('error', 'Pendaftaran Ditutup', 'Pendaftaran untuk program ini telah tamat tempoh.');
+                        }
+                        
+                        document.getElementById('program-name').textContent = currentProgram.name;
+                        document.getElementById('program-date').textContent = new Date(currentProgram.startDate).toLocaleDateString('ms-MY', { day: 'numeric', month: 'long', year: 'numeric' });
+                        document.getElementById('program-time').textContent = formatTimeRange(currentProgram.startTime, currentProgram.endTime);
+                        document.getElementById('program-location').textContent = currentProgram.location;
+                    }
+
+                    // Panggil fungsi kemas kini statistik (berjalan pada muatan pertama DAN setiap kemas kini)
+                    updateAttendanceStats(currentProgram); 
+
+                    if (isLoading) {
+                        // Paparkan kad daftar masuk hanya pada muatan pertama
+                        document.getElementById('loading-state').classList.add('hidden');
+                        document.getElementById('check-in-card').classList.remove('hidden');
+                    }
+                } else {
+                    if (unsubscribeProgramListener) unsubscribeProgramListener(); // Hentikan pendengaran
+                    showMessage('error', 'Program Tidak Ditemui', 'Sila pastikan anda menggunakan pautan kod QR yang betul.');
+                }
+            }, (error) => {
+                console.error("Error listening to program updates: ", error);
+                showMessage('error', 'Gagal Sambungan', 'Tidak dapat memuatkan maklumat program secara langsung.');
+            });
+            // ### AKHIR KEMAS KINI onSnapshot ###
         }
         
         function validateIcInput(input) {
@@ -335,6 +432,12 @@
         }
 
         function showMessage(type, title, body) {
+            // ### DIKEMAS KINI: Hentikan listener apabila mesej dipaparkan ###
+            if (unsubscribeProgramListener) {
+                unsubscribeProgramListener();
+                unsubscribeProgramListener = null;
+            }
+
             document.getElementById('loading-state').classList.add('hidden');
             const checkInCard = document.getElementById('check-in-card');
             if (checkInCard) checkInCard.classList.add('hidden');
