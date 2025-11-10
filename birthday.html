@@ -24,13 +24,49 @@
             color: #6b7280;
             cursor: not-allowed;
         }
+        
+        /* --- GAYA BARU UNTUK EMOJI & HADIAH --- */
+        .emoji-btn {
+            padding: 4px 8px;
+            border-radius: 6px;
+            background-color: #f3f4f6;
+            border: 1px solid #d1d5db;
+            transition: all 0.2s;
+            font-size: 1.25rem; /* Besarkan emoji */
+            cursor: pointer;
+        }
+        .emoji-btn:hover {
+            background-color: #e5e7eb;
+            transform: scale(1.1);
+        }
+        .gift-btn {
+            padding: 6px 12px;
+            border-radius: 8px;
+            background-color: #f3f4f6;
+            border: 1px solid #d1d5db;
+            color: #374151;
+            font-size: 0.875rem;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+        .gift-btn:hover {
+            background-color: #e5e7eb;
+        }
+        .gift-btn.gift-selected {
+            background-color: #4f46e5; /* Indigo */
+            color: white;
+            border-color: #4f46e5;
+            font-weight: 600;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen flex flex-col items-center pt-10 pb-20 px-4">
 
-    <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-md">
+    <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-xl">
         <h1 class="text-2xl font-bold text-indigo-600 text-center mb-6">
-            Selamat Hari Jadi kepada <br> <span id="recipient-name-display" class="uppercase text-3xl">...</span>
+            Selamat Hari Jadi kepada <br> 
+            <span id="recipient-name-display" class="uppercase text-5xl">...</span>
         </h1>
         
         <form id="wish-form" class="space-y-4">
@@ -76,8 +112,33 @@
             </div>
             
             <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Pilih Emoji:</label>
+                <div id="emoji-picker" class="flex space-x-2 mb-2">
+                    <button type="button" class="emoji-btn">🎉</button>
+                    <button type="button" class="emoji-btn">🎂</button>
+                    <button type="button" class="emoji-btn">🥳</button>
+                    <button type="button" class="emoji-btn">🎁</button>
+                    <button type="button" class="emoji-btn">😊</button>
+                    <button type="button" class="emoji-btn">❤️</button>
+                </div>
+
                 <label for="wish-message" class="block text-sm font-medium text-gray-700">Ucapan Anda</label>
                 <textarea id="wish-message" rows="4" placeholder="Sila semak No. IC anda dahulu..." required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" disabled></textarea>
+                
+                <div class="mt-4">
+                    <label class="block text-sm font-medium text-gray-700">Hantar Hadiah Visual:</label>
+                    <div id="gift-selector" class="flex flex-wrap gap-2 mt-2">
+                        <button type="button" class="gift-btn" data-gift="iPhone">📱 iPhone</button>
+                        <button type="button" class="gift-btn" data-gift="Apple Watch">⌚️ Apple Watch</button>
+                        <button type="button" class="gift-btn" data-gift="Samsung Watch">⌚️ Samsung Watch</button>
+                        <button type="button" class="gift-btn" data-gift="Percutian">✈️ Percutian</button>
+                        <button type="button" class="gift-btn" data-gift="Kopi Setahun">☕️ Kopi Setahun</button>
+                        <button type="button" class="gift-btn" data-gift="Makan Malam Mewah">🍽️ Makan Malam</button>
+                        <button type="button" class="gift-btn" data-gift="Tiket Konsert">🎟️ Tiket Konsert</button>
+                        <button type="button" class="gift-btn" data-gift="Baucar Beli-belah">🛍️ Baucar</button>
+                    </div>
+                    <input type="hidden" id="selected-gift" value="">
+                </div>
             </div>
             
             <button type="submit" id="submit-btn" class="w-full btn bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-indigo-700" disabled>
@@ -91,7 +152,7 @@
          </div>
     </div>
 
-    <div id="wishes-container" class="mt-12 w-full max-w-4xl">
+    <div id="wishes-container" class="mt-12 w-full max-w-6xl">
         <h2 class="text-2xl font-bold text-center text-gray-800 mb-6">Kad Ucapan Daripada Rakan-rakan</h2>
         <div id="wishes-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             <p id="loading-wishes" class="text-center text-gray-500 col-span-3">Memuatkan ucapan...</p>
@@ -111,7 +172,7 @@
             where,
             orderBy,
             getDocs,
-            limit // Import 'limit'
+            limit
         } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- Konfigurasi Firebase ---
@@ -125,10 +186,9 @@
         let dbReady = false;
         let recipientNameFromUrl = null;
         let recipientDobFromUrl = null;
-        let foundUserData = null; // DIUBAH: Untuk simpan data jika IC ditemui
+        let foundUserData = null;
         
         const wishesRef = collection(db, `artifacts/${appId}/public/data/spark_wishes`);
-        // DIUBAH: Rujukan kini ke 'spark_participants' untuk sepadan dengan data (2).html
         const staffRef = collection(db, `artifacts/${appId}/public/data/spark_participants`);
 
         // --- Pengesahan Firebase (Anonymous) ---
@@ -162,23 +222,57 @@
             document.getElementById('check-ic-btn').addEventListener('click', checkUserIc);
             document.getElementById('wish-form').addEventListener('submit', handleFormSubmit);
             
-            // DIUBAH: Listener untuk input IC
             document.getElementById('sender-ic').addEventListener('input', () => {
-                document.getElementById('manual-info-section').classList.add('hidden'); // Sembunyikan borang manual
-                document.getElementById('user-info-display').classList.add('hidden'); // Sembunyikan info auto
-                toggleWishFields(false); // Nyahaktifkan medan ucapan
+                document.getElementById('manual-info-section').classList.add('hidden');
+                document.getElementById('user-info-display').classList.add('hidden');
+                toggleWishFields(false);
                 document.getElementById('ic-check-status').textContent = '';
                 document.getElementById('wish-message').placeholder = "Sila semak No. IC anda dahulu...";
-                foundUserData = null; // Kosongkan data pengguna yang disimpan
+                foundUserData = null;
             });
             
-            // Set keadaan awal borang semasa muat
-            document.getElementById('manual-info-section').classList.add('hidden'); // Pastikan sembunyi semasa muat
-            toggleWishFields(false); // Medan ucapan dinyahaktifkan
+            document.getElementById('manual-info-section').classList.add('hidden');
+            toggleWishFields(false);
+
+            // --- BARU: Logik Pemilih Emoji ---
+            document.querySelectorAll('.emoji-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const textarea = document.getElementById('wish-message');
+                    if (!textarea.disabled) {
+                        const start = textarea.selectionStart;
+                        const end = textarea.selectionEnd;
+                        const text = textarea.value;
+                        textarea.value = text.substring(0, start) + btn.textContent + text.substring(end);
+                        textarea.selectionStart = textarea.selectionEnd = start + btn.textContent.length;
+                        textarea.focus();
+                    }
+                });
+            });
+
+            // --- BARU: Logik Pemilih Hadiah ---
+            const giftSelector = document.getElementById('gift-selector');
+            const selectedGiftInput = document.getElementById('selected-gift');
+            
+            giftSelector.addEventListener('click', (e) => {
+                if (e.target.classList.contains('gift-btn')) {
+                    // Jika butang yang sama diklik, nyahpilih
+                    if (e.target.classList.contains('gift-selected')) {
+                        e.target.classList.remove('gift-selected');
+                        selectedGiftInput.value = '';
+                    } else {
+                        // Nyahpilih semua butang lain
+                        giftSelector.querySelectorAll('.gift-btn').forEach(btn => {
+                            btn.classList.remove('gift-selected');
+                        });
+                        // Pilih butang ini
+                        e.target.classList.add('gift-selected');
+                        selectedGiftInput.value = e.target.dataset.gift;
+                    }
+                }
+            });
         });
 
-        // --- KOD DIKEMAS KINI ---
-        // --- Fungsi Semak IC Pengguna ---
+        // --- Fungsi Semak IC Pengguna (Dengan Pembetulan 'required') ---
         async function checkUserIc() {
             const icInput = document.getElementById('sender-ic');
             const statusEl = document.getElementById('ic-check-status');
@@ -186,12 +280,10 @@
             const enteredIc = icInput.value.trim().replace(/[^0-9]/g, '');
             icInput.value = enteredIc;
 
-            // Rujukan ke medan manual
             const manualName = document.getElementById('sender-name');
             const manualPosition = document.getElementById('sender-position');
             const manualStation = document.getElementById('sender-station');
 
-            // Set semula keadaan
             toggleWishFields(false);
             document.getElementById('wish-message').placeholder = "Sila semak No. IC anda dahulu...";
             document.getElementById('manual-info-section').classList.add('hidden');
@@ -215,7 +307,6 @@
                 if (!querySnapshot.empty) {
                     // --- IC DITEMUI ---
                     const userData = querySnapshot.docs[0].data();
-                    
                     foundUserData = {
                         name: userData.name || '',
                         position: userData.position || 'N/A',
@@ -226,11 +317,8 @@
                     document.getElementById('user-info-position').textContent = foundUserData.position;
                     document.getElementById('user-info-station').textContent = foundUserData.station;
                     document.getElementById('user-info-display').classList.remove('hidden');
-                    
                     document.getElementById('manual-info-section').classList.add('hidden');
                     
-                    // --- PEMBETULAN ---
-                    // Buang 'required' kerana kita tidak perlukan medan manual
                     manualName.required = false;
                     manualPosition.required = false;
                     manualStation.required = false;
@@ -240,14 +328,11 @@
                     
                 } else {
                     // --- IC TIDAK DITEMUI ---
-                    
                     document.getElementById('manual-info-section').classList.remove('hidden');
-                    toggleSenderInfoFields(true); // 'true' = enable & clear
+                    toggleSenderInfoFields(true);
                     document.getElementById('user-info-display').classList.add('hidden');
                     foundUserData = null; 
                     
-                    // --- PEMBETULAN ---
-                    // Tambah 'required' kerana pengguna mesti isi secara manual
                     manualName.required = true;
                     manualPosition.required = true;
                     manualStation.required = true;
@@ -268,8 +353,6 @@
             }
         }
         
-        // --- Fungsi Kawal Medan Maklumat Penghantar ---
-        // (Fungsi ini kini hanya digunakan jika IC tidak ditemui)
         function toggleSenderInfoFields(enabled) {
             document.getElementById('sender-name').disabled = !enabled;
             document.getElementById('sender-position').disabled = !enabled;
@@ -282,13 +365,12 @@
             }
         }
 
-        // --- Fungsi Kawal Medan Ucapan & Butang Hantar ---
         function toggleWishFields(enabled) {
             document.getElementById('wish-message').disabled = !enabled;
             document.getElementById('submit-btn').disabled = !enabled;
         }
 
-        // --- Fungsi Hantar Borang Ucapan ---
+        // --- Fungsi Hantar Borang Ucapan (Dikemas kini) ---
         async function handleFormSubmit(e) {
             e.preventDefault();
             if (!dbReady) {
@@ -302,32 +384,28 @@
             
             let senderName, senderPosition, senderStation;
             
-            // --- DIUBAH: Tentukan sumber data ---
             if (foundUserData) {
-                // Sumber 1: Data dari IC yang ditemui
                 senderName = foundUserData.name;
                 senderPosition = foundUserData.position;
                 senderStation = foundUserData.station;
             } else {
-                // Sumber 2: Data dari borang manual
                 senderName = document.getElementById('sender-name').value;
                 senderPosition = document.getElementById('sender-position').value;
                 senderStation = document.getElementById('sender-station').value;
             }
             
             const message = document.getElementById('wish-message').value;
+            // BARU: Dapatkan nilai hadiah
+            const selectedGift = document.getElementById('selected-gift').value; 
             
-            // Validasi medan wajib
-            // Nota: Ralat 'not focusable' telah dibetulkan, jadi validasi ini kini sepatutnya berfungsi
             if (!senderName || !senderPosition || !senderStation || !message) {
                 if (!message) {
                     errorMsg.textContent = "Sila tulis ucapan anda.";
-                } else if (!foundUserData) { // Hanya tunjuk ralat ini jika borang manual aktif
+                } else if (!foundUserData) {
                     errorMsg.textContent = "Sila pastikan maklumat penghantar (Nama, Jawatan, Stesen) lengkap.";
                 }
                 errorMsg.classList.remove('hidden');
                 
-                // Cuba fokus pada medan pertama yang mungkin kosong
                 if (!message) {
                      document.getElementById('wish-message').focus();
                 } else if (!senderName) {
@@ -350,7 +428,6 @@
                 const recipientName = document.getElementById('recipient-name-hidden').value;
                 const recipientDob = document.getElementById('recipient-dob').value;
                 
-                // Simpan ucapan ke Firestore
                 await addDoc(wishesRef, {
                     recipientName: recipientName,
                     recipientDob: recipientDob,
@@ -358,19 +435,24 @@
                     senderPosition: senderPosition.toUpperCase(),
                     senderStation: senderStation.toUpperCase(),
                     message: message,
+                    gift: selectedGift || '', // BARU: Simpan hadiah
                     sentAt: serverTimestamp(),
                     year: new Date().getFullYear()
                 });
 
-                // Berjaya dihantar
                 successMsg.classList.remove('hidden');
-                document.getElementById('wish-form').reset(); // Reset keseluruhan borang
+                document.getElementById('wish-form').reset();
                 
-                // --- DIUBAH: Set semula borang ke keadaan awal ---
-                document.getElementById('manual-info-section').classList.add('hidden'); // Sembunyikan borang manual
-                document.getElementById('user-info-display').classList.add('hidden'); // Sembunyikan info auto
-                toggleWishFields(false); // Nyahaktifkan medan ucapan
-                foundUserData = null; // Kosongkan data
+                // BARU: Reset pemilih hadiah
+                document.getElementById('selected-gift').value = '';
+                document.querySelectorAll('.gift-btn').forEach(btn => {
+                    btn.classList.remove('gift-selected');
+                });
+                
+                document.getElementById('manual-info-section').classList.add('hidden');
+                document.getElementById('user-info-display').classList.add('hidden');
+                toggleWishFields(false);
+                foundUserData = null;
                 
                 document.getElementById('ic-check-status').textContent = '';
                 document.getElementById('wish-message').placeholder = "Sila semak No. IC anda dahulu...";
@@ -382,12 +464,11 @@
             } finally {
                 submitBtn.disabled = false; 
                 submitBtn.textContent = "Hantar Ucapan";
-                // Pastikan keadaan akhir borang adalah betul selepas hantar
                 toggleWishFields(false); 
             }
         }
         
-        // --- Fungsi Muatkan Senarai Ucapan ---
+        // --- Fungsi Muatkan Senarai Ucapan (Dikemas kini) ---
         function loadWishes(name, dob) {
             const q = query(wishesRef, 
                             where("recipientName", "==", name), 
@@ -401,7 +482,7 @@
                 if (snapshot.empty) {
                     loadingMsg.textContent = "Belum ada ucapan. Jadilah yang pertama!";
                 } else {
-                    grid.innerHTML = ''; // Kosongkan grid sebelum isi
+                    grid.innerHTML = '';
                     let colorIndex = 0;
                     snapshot.docs.forEach(doc => {
                         const wish = doc.data();
@@ -410,13 +491,34 @@
                         const card = document.createElement('div');
                         card.className = `wish-card rounded-lg shadow-lg p-5 ${cardStyle} flex flex-col`;
                         
+                        // --- BARU: Bahagian Hadiah Visual ---
+                        if (wish.gift) {
+                            const giftEl = document.createElement('div');
+                            giftEl.className = "text-center mb-4 pb-4 border-b border-gray-200";
+                            
+                            const giftEmojis = {
+                                "iPhone": "📱", "Apple Watch": "⌚️", "Samsung Watch": "⌚️",
+                                "Percutian": "✈️", "Kopi Setahun": "☕️", "Makan Malam Mewah": "🍽️",
+                                "Tiket Konsert": "🎟️", "Baucar Beli-belah": "🛍️"
+                            };
+                            
+                            const emoji = giftEmojis[wish.gift] || '🎁';
+                            
+                            giftEl.innerHTML = `
+                                <span class="text-4xl">${emoji}</span>
+                                <p class="text-xs font-semibold text-gray-600 mt-1">Hadih Visual: ${wish.gift}</p>
+                            `;
+                            card.appendChild(giftEl);
+                        }
+
                         const messageEl = document.createElement('p');
                         messageEl.className = "text-gray-700 text-base italic flex-grow";
                         messageEl.textContent = `"${wish.message}"`;
                         
                         const senderEl = document.createElement('p');
                         senderEl.className = "text-right font-semibold text-sm text-gray-800 mt-4";
-                        senderEl.textContent = `- ${wish.senderName}`;
+                        // --- BARU: Tambah ikon ❤️ ---
+                        senderEl.innerHTML = `- ${wish.senderName} ❤️`; 
                         
                         const detailsEl = document.createElement('p');
                         detailsEl.className = "text-right text-xs text-gray-500 mt-1";
