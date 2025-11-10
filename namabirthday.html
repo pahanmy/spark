@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SPARK - Pengurusan Hari Jadi</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn/tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Poppins', sans-serif; }
@@ -35,15 +35,16 @@
             <div class="lg:col-span-1 space-y-6">
                 
                 <div class="bg-white p-6 rounded-xl shadow-lg">
-                    <h2 class="text-lg font-bold text-gray-800 mb-4">Kemasukan Manual</h2>
+                    <h2 class="text-lg font-bold text-gray-800 mb-4">Kemasukan Manual (Guna IC)</h2>
                     <form id="manual-form" class="space-y-4">
                         <div>
                             <label for="name" class="block text-sm font-medium text-gray-700">Nama Penuh Staf</label>
                             <input type="text" id="name" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
                         </div>
                         <div>
-                            <label for="dob" class="block text-sm font-medium text-gray-700">Tarikh Lahir</label>
-                            <input type="date" id="dob" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                            <label for="ic" class="block text-sm font-medium text-gray-700">No. IC (12 Digit)</label>
+                            <input type="text" id="ic" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" placeholder="Cth: 900515011234" maxlength="14">
+                            <p class="mt-1 text-xs text-gray-500">Tarikh lahir akan diekstrak secara automatik.</p>
                         </div>
                         
                         <button type="submit" id="manual-submit-btn" class="w-full btn bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-indigo-700">
@@ -53,7 +54,6 @@
                         <p id="manual-error-msg" class="text-red-600 text-center text-sm hidden">Gagal menyimpan.</p>
                     </form>
                 </div>
-
                 <div class="bg-white p-6 rounded-xl shadow-lg">
                     <h2 class="text-lg font-bold text-gray-800 mb-4">Kemasukan Pukal (Copy-Paste)</h2>
                     <form id="paste-form" class="space-y-4">
@@ -162,17 +162,15 @@
         const auth = getAuth(app);
         const appId = firebaseConfig.projectId;
         
-        // Tentukan laluan koleksi (collection path) sekali sahaja
         const collectionPath = `artifacts/${appId}/public/data/spark_birthdays`;
         const birthdaysRef = collection(db, collectionPath);
 
         onAuthStateChanged(auth, async (user) => {
             if (user) {
-                main(); // Panggil fungsi utama selepas berjaya login
+                main();
             } else {
                 try {
                     await signInAnonymously(auth);
-                    // main() akan dipanggil oleh 'onAuthStateChanged' selepas ini
                 } catch (error) {
                     console.error("Gagal daftar masuk:", error);
                     alert("Gagal menyambung ke pangkalan data.");
@@ -180,7 +178,6 @@
             }
         });
 
-        // Fungsi utama untuk setup event listeners
         function main() {
             listenForBirthdayList();
             document.getElementById('manual-form').addEventListener('submit', handleManualSubmit);
@@ -191,6 +188,7 @@
         }
 
         // --- 1. FUNGSI READ (BACA & PAPAR JADUAL) ---
+        // Tiada Perubahan
         function listenForBirthdayList() {
             const q = query(birthdaysRef, orderBy("name", "asc"));
             onSnapshot(q, (snapshot) => {
@@ -232,7 +230,7 @@
             });
         }
 
-        // --- 2. FUNGSI CREATE (BORANG MANUAL) ---
+        // --- 2. FUNGSI CREATE (BORANG MANUAL) - DIUBAH ---
         async function handleManualSubmit(e) {
             e.preventDefault();
             const submitBtn = document.getElementById('manual-submit-btn');
@@ -240,23 +238,65 @@
             const errorMsg = document.getElementById('manual-error-msg');
 
             const name = document.getElementById('name').value;
-            const dob = document.getElementById('dob').value;
+            const ic = document.getElementById('ic').value; // Ambil nilai IC
+            const cleanedIc = ic.replace(/[-\s]/g, ''); // Bersihkan IC (buang - atau ruang)
 
             submitBtn.disabled = true;
             submitBtn.textContent = "Menyimpan...";
             successMsg.classList.add('hidden');
             errorMsg.classList.add('hidden');
 
+            // --- BAHAGIAN EKSTRAK TARIKH LAHIR ---
+            let extractedDob = '';
             try {
+                // 1. Validasi format asas IC (perlu sekurang-kurangnya 6 digit)
+                if (!/^\d{6,}/.test(cleanedIc)) {
+                    throw new Error('Format IC tidak sah. Perlu sekurang-kurangnya 6 digit pertama.');
+                }
+
+                const currentYearLastTwo = new Date().getFullYear() % 100; // cth: 25 (untuk 2025)
+                const icYearStr = cleanedIc.substring(0, 2); // cth: "90" atau "05"
+                const icYear = parseInt(icYearStr, 10);
+                const mm = cleanedIc.substring(2, 4);
+                const dd = cleanedIc.substring(4, 6);
+
+                // 2. Tentukan abad (19xx atau 20xx)
+                // Jika tahun IC (cth: 90) > tahun semasa (cth: 25), ia adalah 19xx
+                // Jika tahun IC (cth: 05) <= tahun semasa (cth: 25), ia adalah 20xx
+                const yearPrefix = (icYear > currentYearLastTwo && icYear <= 99) ? '19' : '20';
+                
+                extractedDob = `${yearPrefix}${icYearStr}-${mm}-${dd}`; // cth: "1990-05-15"
+
+                // 3. Sahkan tarikh yang diekstrak itu wujud
+                const testDate = new Date(extractedDob);
+                if (isNaN(testDate.getTime()) || testDate.getDate() !== parseInt(dd, 10)) {
+                    // Cek ini akan gagal untuk tarikh seperti '...-02-30'
+                    throw new Error('Tarikh lahir tidak wujud (cth: 30 Feb).');
+                }
+
+            } catch (err) {
+                console.error("Ralat ekstrak tarikh:", err.message);
+                errorMsg.textContent = `Gagal ekstrak tarikh: ${err.message}`;
+                errorMsg.classList.remove('hidden');
+                submitBtn.disabled = false;
+                submitBtn.textContent = "Simpan Maklumat";
+                return;
+            }
+            // --- TAMAT BAHAGIAN EKSTRAK ---
+
+            try {
+                // Simpan NAMA, TARIKH LAHIR (diextract), dan IC (dibersihkan)
                 await addDoc(birthdaysRef, {
                     name: name.toUpperCase(),
-                    dob: dob,
+                    dob: extractedDob,
+                    ic: cleanedIc, 
                     createdAt: serverTimestamp()
                 });
                 successMsg.classList.remove('hidden');
                 document.getElementById('manual-form').reset();
             } catch (error) {
                 console.error("Ralat menyimpan (manual):", error);
+                errorMsg.textContent = "Gagal menyimpan ke pangkalan data.";
                 errorMsg.classList.remove('hidden');
             } finally {
                 submitBtn.disabled = false;
@@ -265,6 +305,7 @@
         }
 
         // --- 3. FUNGSI CREATE (BORANG PUKAL/PASTE) ---
+        // Tiada Perubahan
         async function handlePasteSubmit(e) {
             e.preventDefault();
             const submitBtn = document.getElementById('paste-submit-btn');
@@ -297,7 +338,7 @@
                         const name = parts[0].trim().toUpperCase();
                         const dob = parts[1].trim();
                         
-                        const newDocRef = doc(birthdaysRef); // Cipta rujukan dokumen baharu
+                        const newDocRef = doc(birthdaysRef); 
                         batch.set(newDocRef, {
                             name: name,
                             dob: dob,
@@ -305,12 +346,12 @@
                         });
                         processedCount++;
                     } else {
-                        errorLines.push(index + 1); // Simpan nombor baris yang gagal
+                        errorLines.push(index + 1); 
                     }
                 });
 
                 if (processedCount > 0) {
-                    await batch.commit(); // Hantar semua data sekaligus
+                    await batch.commit(); 
                     successMsg.textContent = `Berjaya menyimpan ${processedCount} rekod.`;
                     successMsg.classList.remove('hidden');
                     document.getElementById('paste-form').reset();
@@ -332,10 +373,10 @@
         }
 
         // --- 4. FUNGSI EVENT DELEGATION UNTUK JADUAL ---
+        // Tiada Perubahan
         function handleTableClick(e) {
             const target = e.target;
             
-            // Semak jika butang EDIT diklik
             if (target.classList.contains('btn-edit')) {
                 const id = target.dataset.id;
                 const name = target.dataset.name;
@@ -343,7 +384,6 @@
                 showEditModal(id, name, dob);
             }
             
-            // Semak jika butang PADAM diklik
             if (target.classList.contains('btn-delete')) {
                 const id = target.dataset.id;
                 const name = target.dataset.name;
@@ -352,6 +392,7 @@
         }
 
         // --- 5. FUNGSI UPDATE (EDIT) ---
+        // Tiada Perubahan
         function showEditModal(id, name, dob) {
             document.getElementById('edit-doc-id').value = id;
             document.getElementById('edit-name').value = name;
@@ -391,6 +432,7 @@
         }
 
         // --- 6. FUNGSI DELETE (PADAM) ---
+        // Tiada Perubahan
         function showDeleteModal(id, name) {
             document.getElementById('delete-doc-id').value = id;
             document.getElementById('delete-name').textContent = name;
@@ -426,7 +468,6 @@
             document.getElementById(modalId).classList.remove('hidden');
         }
         
-        // Pasang fungsi closeModal ke window supaya HTML (onclick) boleh mencapainya
         window.closeModal = (modalId) => {
             document.getElementById(modalId).classList.add('hidden');
         };
