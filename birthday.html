@@ -10,9 +10,18 @@
         body { font-family: 'Poppins', sans-serif; }
         .btn { transition: background-color 0.3s, transform 0.2s; }
         .btn:hover { transform: translateY(-2px); }
+        /* --- KAD UCAPAN --- */
+        .wish-card {
+            border-left-width: 4px;
+            transition: all 0.3s ease;
+        }
+        .wish-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+        }
     </style>
 </head>
-<body class="bg-gray-100 min-h-screen flex items-center justify-center">
+<body class="bg-gray-100 min-h-screen flex flex-col items-center pt-10 pb-20 px-4">
 
     <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-md">
         <h1 class="text-2xl font-bold text-indigo-600 text-center mb-2">Hantar Ucapan Anda</h1>
@@ -25,11 +34,20 @@
                 <label for="sender-name" class="block text-sm font-medium text-gray-700">Nama Anda</label>
                 <input type="text" id="sender-name" placeholder="Nama penuh anda" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
             </div>
+            
             <div>
                 <label for="wish-message" class="block text-sm font-medium text-gray-700">Ucapan Anda</label>
-                <textarea id="wish-message" rows="4" placeholder="Tulis ucapan anda di sini..." required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"></textarea>
+                <textarea id="wish-message" rows="4" placeholder="Cth: Selamat Hari Jadi! Semoga sentiasa dalam rahmat-Nya dan berjaya selalu..." required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"></textarea>
+                
+                <div class="mt-2 text-xs text-gray-500">
+                    <p class="font-medium">Idea ucapan:</p>
+                    <ul class="list-disc list-inside">
+                        <li>Semoga dipanjangkan umur, dimurahkan rezeki, dan diberkati dunia akhirat.</li>
+                        <li>Happy Birthday! Semoga tahun ini membawa lebih banyak kejayaan dan kebahagiaan.</li>
+                        <li>Sanah Helwah! Semoga sentiasa sihat dan ceria di samping keluarga tercinta.</li>
+                    </ul>
+                </div>
             </div>
-            
             <button type="submit" id="submit-btn" class="w-full btn bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-indigo-700">
                 Hantar Ucapan
             </button>
@@ -37,14 +55,33 @@
             <p id="error-msg" class="text-red-600 text-center text-sm hidden">Gagal menghantar. Sila cuba lagi.</p>
         </form>
          <div class="mt-4 text-center">
-             <a href="jadual (2).html" class="text-sm text-indigo-600 hover:underline">Kembali ke Kalendar</a>
+             <a href="kalander.html" class="text-sm text-indigo-600 hover:underline">Kembali ke Kalendar</a>
          </div>
     </div>
 
+    <div id="wishes-container" class="mt-12 w-full max-w-4xl">
+        <h2 class="text-2xl font-bold text-center text-gray-800 mb-6">Kad Ucapan Daripada Rakan-rakan</h2>
+        <div id="wishes-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            <p id="loading-wishes" class="text-center text-gray-500 col-span-3">Memuatkan ucapan...</p>
+        </div>
+    </div>
     <script type="module">
+        // ---
+        // PERUBAHAN 5: Import fungsi baharu dari Firebase
+        // ---
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { 
+            getFirestore, 
+            collection, 
+            addDoc, 
+            serverTimestamp,
+            onSnapshot,  // <- BAHARU
+            query,       // <- BAHARU
+            where,       // <- BAHARU
+            orderBy      // <- BAHARU
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        // --- TAMAT PERUBAHAN 5 ---
 
         // GUNA KONFIGURASI FIREBASE YANG SAMA
         const firebaseConfig = { apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM", authDomain: "myqrhadir.firebaseapp.com", projectId: "myqrhadir", storageBucket: "myqrhadir.appspot.com", messagingSenderId: "799691133747", appId: "1:799691133747:web:835a5e3e9413eace806446" };
@@ -54,11 +91,25 @@
         const auth = getAuth(app);
         const appId = firebaseConfig.projectId;
 
+        // ---
+        // PERUBAHAN 6: Struktur logik diubah suai untuk memuatkan data
+        // ---
         let dbReady = false;
+        let recipientNameFromUrl = null;
+        let recipientDobFromUrl = null;
+        const collectionPath = `artifacts/${appId}/public/data/spark_wishes`;
+        const wishesRef = collection(db, collectionPath);
 
         onAuthStateChanged(auth, async (user) => {
-            if (user) dbReady = true;
-            else { try { await signInAnonymously(auth); dbReady = true; } catch (error) { console.error("Gagal daftar masuk:", error); } }
+            if (!user) {
+                try { await signInAnonymously(auth); } catch (error) { console.error("Gagal daftar masuk:", error); }
+            }
+            // Dijalankan untuk user sedia ada ATAU selepas login anonymous
+            dbReady = true; 
+            // Jika URL sudah dibaca, muatkan ucapan
+            if (recipientNameFromUrl && recipientDobFromUrl) {
+                loadWishes(recipientNameFromUrl, recipientDobFromUrl);
+            }
         });
 
         // Baca nama penerima dari URL
@@ -67,11 +118,22 @@
             const name = params.get('name') || 'Penerima';
             const dob = params.get('dob') || '';
             
-            document.getElementById('recipient-name').textContent = `UNTUK ${name}`;
+            document.getElementById('recipient-name').textContent = `UNTUK ${name.toUpperCase()}`;
             document.getElementById('recipient-name-hidden').value = name;
             document.getElementById('recipient-dob').value = dob;
-        });
 
+            // Simpan ke global var
+            recipientNameFromUrl = name;
+            recipientDobFromUrl = dob;
+
+            // Jika DB sudah sedia, muatkan ucapan
+            if (dbReady) {
+                loadWishes(recipientNameFromUrl, recipientDobFromUrl);
+            }
+        });
+        // --- TAMAT PERUBAHAN 6 ---
+
+        // Logik borang submit (tiada perubahan)
         document.getElementById('wish-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             if (!dbReady) {
@@ -95,14 +157,13 @@
 
             try {
                 // Simpan ucapan dalam koleksi 'spark_wishes'
-                const collectionPath = `artifacts/${appId}/public/data/spark_wishes`;
-                await addDoc(collection(db, collectionPath), {
+                await addDoc(wishesRef, {
                     recipientName: recipientName,
                     recipientDob: recipientDob,
                     senderName: senderName,
                     message: message,
                     sentAt: serverTimestamp(),
-                    year: new Date().getFullYear() // Simpan tahun ucapan dihantar
+                    year: new Date().getFullYear()
                 });
 
                 successMsg.classList.remove('hidden');
@@ -116,6 +177,70 @@
                 submitBtn.textContent = "Hantar Ucapan";
             }
         });
+
+        // ---
+        // PERUBAHAN 7: Fungsi baharu untuk memuatkan dan memaparkan ucapan
+        // ---
+        function loadWishes(name, dob) {
+            // Query untuk dapatkan ucapan bagi orang ini & tarikh lahir ini,
+            // disusun dari yang terbaru
+            const q = query(wishesRef, 
+                            where("recipientName", "==", name), 
+                            where("recipientDob", "==", dob), 
+                            orderBy("sentAt", "desc"));
+
+            const grid = document.getElementById('wishes-grid');
+            const loadingMsg = document.getElementById('loading-wishes');
+            
+            // Senarai warna untuk kad ucapan
+            const cardStyles = [
+                "bg-white border-l-blue-400",
+                "bg-white border-l-pink-400",
+                "bg-white border-l-green-400",
+                "bg-white border-l-yellow-400",
+                "bg-white border-l-indigo-400",
+                "bg-white border-l-purple-400"
+            ];
+
+            onSnapshot(q, (snapshot) => {
+                if (snapshot.empty) {
+                    loadingMsg.textContent = "Belum ada ucapan. Jadilah yang pertama!";
+                } else {
+                    grid.innerHTML = ''; // Kosongkan grid (buang mesej 'loading')
+                    let colorIndex = 0;
+                    
+                    snapshot.docs.forEach(doc => {
+                        const wish = doc.data();
+                        const cardStyle = cardStyles[colorIndex % cardStyles.length];
+                        
+                        // Cipta elemen kad
+                        const card = document.createElement('div');
+                        card.className = `wish-card rounded-lg shadow-lg p-5 ${cardStyle}`;
+                        
+                        // Cipta elemen mesej (untuk elak suntikan HTML)
+                        const messageEl = document.createElement('p');
+                        messageEl.className = "text-gray-700 text-base italic";
+                        messageEl.textContent = `"${wish.message}"`; // Guna textContent
+                        
+                        // Cipta elemen nama pengirim
+                        const senderEl = document.createElement('p');
+s                        senderEl.className = "text-right font-semibold text-sm text-gray-800 mt-4";
+                        senderEl.textContent = `- ${wish.senderName.toUpperCase()}`; // Guna textContent
+                        
+                        card.appendChild(messageEl);
+                        card.appendChild(senderEl);
+                        grid.appendChild(card);
+                        
+                        colorIndex++;
+                    });
+                }
+            }, (error) => {
+                console.error("Ralat memuatkan ucapan: ", error);
+                loadingMsg.textContent = "Gagal memuatkan ucapan. Pastikan anda telah kemas kini Firebase Rules anda (benarkan 'read: if true').";
+            });
+        }
+        // --- TAMAT PERUBAHAN 7 ---
+
     </script>
 </body>
 </html>
