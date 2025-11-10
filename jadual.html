@@ -2,7 +2,7 @@
 <html lang="ms">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale-1.0">
     <title>SPARK – Kalendar Program</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -132,6 +132,23 @@
             </div>
         </div>
     </div>
+    
+    <div id="bday-verify-modal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop hidden">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-sm p-6 text-center">
+            <h3 class="text-xl font-semibold mb-2 uppercase">Pengesahan Khas</h3>
+            <p class="text-sm text-gray-600 mb-4 uppercase">Ini adalah halaman peribadi. Sila masukkan No. IC anda (pemilik hari jadi) untuk membaca ucapan.</p>
+            <input type="hidden" id="bday-verify-url">
+            <input type="hidden" id="bday-verify-ic">
+            
+            <input type="text" id="bday-ic-input" placeholder="No. IC (tanpa sengkang)" class="block w-full text-center px-4 py-2 border border-gray-300 rounded-md mb-2">
+            <p id="bday-verify-error" class="text-red-500 text-sm hidden mb-4 uppercase">No. IC tidak sepadan.</p>
+            
+            <div class="mt-4 flex justify-center space-x-3">
+                <button type="button" onclick="closeModal('bday-verify-modal')" class="btn bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg uppercase">Batal</button>
+                <button type="button" onclick="handleBdayVerification()" class="btn bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg uppercase">Sahkan & Baca</button>
+            </div>
+        </div>
+    </div>
 
 
     <script type="module">
@@ -217,6 +234,7 @@
             const q = query(birthdaysRef, orderBy("dob", "asc"));
 
             onSnapshot(q, (snapshot) => {
+                // SINI: Pastikan data 'spark_birthdays' anda ada medan 'ic'
                 allBirthdays = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 renderCalendar(currentDate.getFullYear(), currentDate.getMonth());
                 if (selectedDateElement) {
@@ -342,7 +360,7 @@
             }
         }
 
-        // --- KOD INI TELAH DIKEMAS KINI DENGAN LOGIK "WISHING WINDOW" ---
+        // --- KOD DIKEMAS KINI DENGAN BUTANG "BACA" (GRID-COLS-3) ---
         function displayProgramsForDate(date, element) {
             if (selectedDateElement) {
                 selectedDateElement.classList.remove('selected');
@@ -364,50 +382,56 @@
                     
                     const encodedDob = btoa(b.dob); // Sulitkan DOB
 
-                    // --- LOGIK "WISHING WINDOW" BERMULA DI SINI ---
+                    // Logik "Wishing Window"
                     const today = new Date();
                     today.setHours(0, 0, 0, 0); 
-
                     const birthdayDate = parseDateString(b.dob); 
                     const currentYear = today.getFullYear(); 
-
                     const thisYearBirthday = new Date(currentYear, birthdayDate.getMonth(), birthdayDate.getDate());
-                    
                     const wishStartDate = new Date(thisYearBirthday);
-                    wishStartDate.setDate(wishStartDate.getDate() - 1); // 1 hari sebelum
-
+                    wishStartDate.setDate(wishStartDate.getDate() - 1); 
                     const isWindowOpen = (today >= wishStartDate && today <= thisYearBirthday);
                     
                     let ucapButtonHtml = '';
                     let kongsiButtonHtml = '';
+                    let bacaButtonHtml = ''; // <-- BARU
                     
+                    // Data pautan
+                    const birthdayLink = `birthday.html?name=${encodeURIComponent(b.name)}&dob=${encodedDob}`;
+                    // Andaian: data 'b.ic' wujud dari Firestore
+                    const birthdayPersonIc = b.ic || ''; 
+
                     if (isWindowOpen) {
                         // Jendela dibuka: Butang aktif
                         ucapButtonHtml = `
-                            <a href="birthday.html?name=${encodeURIComponent(b.name)}&dob=${encodedDob}" target="_blank" class="btn bg-pink-500 hover:bg-pink-600 text-white font-semibold py-2 px-3 rounded-lg text-xs uppercase text-center">
+                            <a href="${birthdayLink}" target="_blank" class="btn bg-pink-500 hover:bg-pink-600 text-white font-semibold py-2 px-3 rounded-lg text-xs uppercase text-center">
                                 Ucap
                             </a>`;
                         kongsiButtonHtml = `
                             <button type="button" onclick="openShareModal('${b.name}', '${encodedDob}')" class="btn bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-3 rounded-lg text-xs uppercase">
                                 Kongsi
                             </button>`;
+                        bacaButtonHtml = `
+                            <button type="button" onclick="openBdayVerifyModal('${birthdayPersonIc}', '${birthdayLink}')" class="btn bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-3 rounded-lg text-xs uppercase">
+                                Baca
+                            </button>`;
                     } else {
                         // Jendela ditutup: Butang dinyahaktifkan
-                        let statusText = "Telah Lepas";
-                        if (today < wishStartDate) {
-                            statusText = "Akan Datang";
-                        }
+                        let statusText = (today < wishStartDate) ? "Akan Datang" : "Telah Lepas";
                         
                         ucapButtonHtml = `
-                            <a aria-disabled="true" class="btn bg-gray-400 text-white font-semibold py-2 px-3 rounded-lg text-xs uppercase text-center cursor-not-allowed" title="Boleh ucap sehari sebelum hari jadi.">
+                            <a aria-disabled="true" class="btn bg-gray-400 text-white font-semibold py-2 px-3 rounded-lg text-xs uppercase text-center cursor-not-allowed" title="Boleh ucap sehari before hari jadi.">
                                 Ucap (${statusText})
                             </a>`;
                         kongsiButtonHtml = `
-                            <button type="button" class="btn bg-gray-400 text-white font-semibold py-2 px-3 rounded-lg text-xs uppercase" disabled title="Boleh kongsi sehari sebelum hari jadi.">
+                            <button type="button" class="btn bg-gray-400 text-white font-semibold py-2 px-3 rounded-lg text-xs uppercase" disabled title="Boleh kongsi sehari before hari jadi.">
                                 Kongsi (${statusText})
                             </button>`;
+                        bacaButtonHtml = `
+                            <button type="button" class="btn bg-gray-400 text-white font-semibold py-2 px-3 rounded-lg text-xs uppercase" disabled title="Boleh baca sehari before hari jadi.">
+                                Baca (${statusText})
+                            </button>`;
                     }
-                    // --- LOGIK "WISHING WINDOW" TAMAT ---
 
                     return `
                     <div class="bg-pink-50 border border-pink-200 rounded-xl p-4 text-gray-800 flex flex-col">
@@ -418,9 +442,10 @@
                                 <p class="text-xs text-pink-500">Selamat Hari Jadi!</p>
                             </div>
                         </div>
-                        <div class="grid grid-cols-2 gap-3 mt-4">
+                        <div class="grid grid-cols-3 gap-2 mt-4">
                             ${ucapButtonHtml}
                             ${kongsiButtonHtml}
+                            ${bacaButtonHtml}
                         </div>
                     </div>
                     `
@@ -499,7 +524,7 @@
 
         function updateCalendarView() {
             const year = parseInt(document.getElementById('year-select').value, 10);
-            const month = parseInt(document.getElementById('month-select').value, 10);
+            const month = parseInt(document.getElementById('year-select').value, 10);
             currentDate = new Date(year, month, 1);
             renderCalendar(year, month);
         }
@@ -532,11 +557,21 @@
             }
         };
 
+        // DIKEMAS KINI: closeModal kini menguruskan 3 modal
         window.closeModal = (modalId) => {
             document.getElementById(modalId).classList.add('hidden');
+            
             if (modalId === 'share-modal') {
                 document.getElementById('copy-success').classList.add('hidden');
                 document.getElementById('copy-btn').textContent = "Salin Teks";
+            }
+            if (modalId === 'bday-verify-modal') {
+                 document.getElementById('bday-verify-error').classList.add('hidden');
+                 document.getElementById('bday-ic-input').value = '';
+            }
+            if (modalId === 'ic-verify-modal') {
+                document.getElementById('verify-error').classList.add('hidden');
+                document.getElementById('ic-input').value = '';
             }
         };
         
@@ -587,6 +622,33 @@ Ucapkan sekali lagi, happy birthday! 🥳
             } catch (err) {
                 console.error('Gagal menyalin teks: ', err);
                 alert('Gagal menyalin. Sila salin secara manual.');
+            }
+        };
+
+        // --- FUNGSI BARU UNTUK MODAL IC HARI JADI ---
+        window.openBdayVerifyModal = (correctIc, url) => {
+            if (!correctIc) {
+                alert("Ralat: Tiada data IC ditemui untuk pemilik hari jadi ini. Sila hubungi pentadbir.");
+                return;
+            }
+            const modal = document.getElementById('bday-verify-modal');
+            modal.classList.remove('hidden');
+            document.getElementById('bday-verify-url').value = url;
+            document.getElementById('bday-verify-ic').value = correctIc;
+            document.getElementById('bday-ic-input').value = '';
+            document.getElementById('bday-verify-error').classList.add('hidden');
+        };
+
+        window.handleBdayVerification = () => {
+            const url = document.getElementById('bday-verify-url').value;
+            const correctIc = document.getElementById('bday-verify-ic').value;
+            const enteredIc = document.getElementById('bday-ic-input').value.trim();
+
+            if (enteredIc === correctIc) {
+                window.open(url, '_blank'); // Buka di tab baru
+                closeModal('bday-verify-modal');
+            } else {
+                document.getElementById('bday-verify-error').classList.remove('hidden');
             }
         };
 
