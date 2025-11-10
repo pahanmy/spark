@@ -342,7 +342,7 @@
             }
         }
 
-        // --- KOD DIKEMAS KINI DENGAN ENCODING (btoa) ---
+        // --- KOD INI TELAH DIKEMAS KINI DENGAN LOGIK "WISHING WINDOW" ---
         function displayProgramsForDate(date, element) {
             if (selectedDateElement) {
                 selectedDateElement.classList.remove('selected');
@@ -362,10 +362,53 @@
                     <div class="space-y-3 mb-4">
                 ` + birthdays.map(b => {
                     
-                    // --- PERUBAHAN DI SINI ---
-                    // 'b.dob' (e.g., "1990-11-10") disulitkan ke Base64
-                    const encodedDob = btoa(b.dob); 
+                    const encodedDob = btoa(b.dob); // Sulitkan DOB
+
+                    // --- LOGIK "WISHING WINDOW" BERMULA DI SINI ---
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0); 
+
+                    const birthdayDate = parseDateString(b.dob); 
+                    const currentYear = today.getFullYear(); 
+
+                    const thisYearBirthday = new Date(currentYear, birthdayDate.getMonth(), birthdayDate.getDate());
                     
+                    const wishStartDate = new Date(thisYearBirthday);
+                    wishStartDate.setDate(wishStartDate.getDate() - 1); // 1 hari sebelum
+
+                    const isWindowOpen = (today >= wishStartDate && today <= thisYearBirthday);
+                    
+                    let ucapButtonHtml = '';
+                    let kongsiButtonHtml = '';
+                    
+                    if (isWindowOpen) {
+                        // Jendela dibuka: Butang aktif
+                        ucapButtonHtml = `
+                            <a href="birthday.html?name=${encodeURIComponent(b.name)}&dob=${encodedDob}" target="_blank" class="btn bg-pink-500 hover:bg-pink-600 text-white font-semibold py-2 px-3 rounded-lg text-xs uppercase text-center">
+                                Ucap
+                            </a>`;
+                        kongsiButtonHtml = `
+                            <button type="button" onclick="openShareModal('${b.name}', '${encodedDob}')" class="btn bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-3 rounded-lg text-xs uppercase">
+                                Kongsi
+                            </button>`;
+                    } else {
+                        // Jendela ditutup: Butang dinyahaktifkan
+                        let statusText = "Telah Lepas";
+                        if (today < wishStartDate) {
+                            statusText = "Akan Datang";
+                        }
+                        
+                        ucapButtonHtml = `
+                            <a aria-disabled="true" class="btn bg-gray-400 text-white font-semibold py-2 px-3 rounded-lg text-xs uppercase text-center cursor-not-allowed" title="Boleh ucap sehari sebelum hari jadi.">
+                                Ucap (${statusText})
+                            </a>`;
+                        kongsiButtonHtml = `
+                            <button type="button" class="btn bg-gray-400 text-white font-semibold py-2 px-3 rounded-lg text-xs uppercase" disabled title="Boleh kongsi sehari sebelum hari jadi.">
+                                Kongsi (${statusText})
+                            </button>`;
+                    }
+                    // --- LOGIK "WISHING WINDOW" TAMAT ---
+
                     return `
                     <div class="bg-pink-50 border border-pink-200 rounded-xl p-4 text-gray-800 flex flex-col">
                         <div class="flex items-center gap-3">
@@ -376,19 +419,15 @@
                             </div>
                         </div>
                         <div class="grid grid-cols-2 gap-3 mt-4">
-                            <a href="birthday.html?name=${encodeURIComponent(b.name)}&dob=${encodedDob}" target="_blank" class="btn bg-pink-500 hover:bg-pink-600 text-white font-semibold py-2 px-3 rounded-lg text-xs uppercase text-center">
-                                Ucap
-                            </a>
-                            <button type="button" onclick="openShareModal('${b.name}', '${encodedDob}')" class="btn bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-3 rounded-lg text-xs uppercase">
-                                Kongsi
-                            </button>
+                            ${ucapButtonHtml}
+                            ${kongsiButtonHtml}
                         </div>
                     </div>
                     `
                 }).join('') + '</div><hr class="my-4">';
             }
 
-            // Bahagian Program (Tiada perubahan di sini)
+            // Bahagian Program
             const programs = getProgramsForDate(date).filter(p => p.name.toLowerCase().includes(searchTerm));
             let programsHtml = '';
             if (programs.length > 0) {
@@ -501,10 +540,8 @@
             }
         };
         
-        // Tiada perubahan di sini. 'dob' yang diterima sudah 'encoded'.
         window.openShareModal = (name, dob) => { 
             const nameUpper = name.toUpperCase();
-            // 'dob' di sini adalah 'encoded'
             const url = `birthday.html?name=${encodeURIComponent(name)}&dob=${dob}`;
             const fullUrl = new URL(url, window.location.href).href;
 
