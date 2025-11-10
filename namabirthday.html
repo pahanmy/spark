@@ -4,8 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SPARK - Pengurusan Hari Jadi</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script> <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Poppins', sans-serif; }
         .btn { transition: background-color 0.3s, transform 0.2s; }
@@ -25,7 +24,7 @@
                     <p class="text-sm text-gray-500">Pengurusan Senarai Hari Jadi</p>
                 </div>
             </div>
-             <a href="jadual (2).html" class="text-sm text-indigo-600 hover:underline font-medium">Kembali ke Kalendar</a>
+             <a href="kalander.html" class="text-sm text-indigo-600 hover:underline font-medium">Kembali ke Kalendar</a>
         </div>
     </header>
 
@@ -54,13 +53,14 @@
                         <p id="manual-error-msg" class="text-red-600 text-center text-sm hidden">Gagal menyimpan.</p>
                     </form>
                 </div>
+
                 <div class="bg-white p-6 rounded-xl shadow-lg">
                     <h2 class="text-lg font-bold text-gray-800 mb-4">Kemasukan Pukal (Copy-Paste)</h2>
                     <form id="paste-form" class="space-y-4">
                         <div>
                             <label for="paste-data" class="block text-sm font-medium text-gray-700">Tampal Data Dari Excel</label>
-                            <textarea id="paste-data" rows="8" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" placeholder="Contoh (Nama <Tab> Tarikh Lahir):&#10;ALI BIN ABU <Tab> 1990-05-15&#10;SITI BINTI AMINAH <Tab> 1988-11-30"></textarea>
-                            <p class="mt-1 text-xs text-gray-500">Format: <strong>NAMA</strong> [Tab] <strong>YYYY-MM-DD</strong>. Setiap baris untuk satu nama.</p>
+                            <textarea id="paste-data" rows="8" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" placeholder="Contoh (Nama <Tab> No. IC):&#10;ALI BIN ABU <Tab> 900515011234&#10;SITI BINTI AMINAH <Tab> 881130015678"></textarea>
+                            <p class="mt-1 text-xs text-gray-500">Format: <strong>NAMA</strong> [Tab] <strong>NO_IC</strong>. Setiap baris untuk satu nama.</p>
                         </div>
                         
                         <button type="submit" id="paste-submit-btn" class="w-full btn bg-green-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-green-700">
@@ -70,7 +70,7 @@
                         <p id="paste-error-msg" class="text-red-600 text-center text-sm hidden">Gagal menyimpan.</p>
                     </form>
                 </div>
-            </div>
+                </div>
 
             <div class="lg:col-span-2">
                 <div class="bg-white rounded-xl shadow-lg overflow-hidden">
@@ -230,7 +230,45 @@
             });
         }
 
-        // --- 2. FUNGSI CREATE (BORANG MANUAL) - DIUBAH ---
+        // --- 
+        // PERUBAHAN 3: Logik ekstrak IC diasingkan ke fungsi sendiri
+        // ---
+        function extractDobFromIc(icString) {
+            const cleanedIc = icString.replace(/[-\s]/g, ''); // Bersihkan IC
+
+            // 1. Validasi format asas IC (perlu sekurang-kurangnya 6 digit)
+            if (!/^\d{6,}/.test(cleanedIc)) {
+                throw new Error('Format IC tidak sah. Perlu sekurang-kurangnya 6 digit pertama.');
+            }
+
+            const currentYearLastTwo = new Date().getFullYear() % 100; // cth: 25 (untuk 2025)
+            const icYearStr = cleanedIc.substring(0, 2); // cth: "90" atau "05"
+            const icYear = parseInt(icYearStr, 10);
+            const mm = cleanedIc.substring(2, 4);
+            const dd = cleanedIc.substring(4, 6);
+
+            // 2. Tentukan abad (19xx atau 20xx)
+            const yearPrefix = (icYear > currentYearLastTwo && icYear <= 99) ? '19' : '20';
+            
+            const extractedDob = `${yearPrefix}${icYearStr}-${mm}-${dd}`; // cth: "1990-05-15"
+
+            // 3. Sahkan tarikh yang diekstrak itu wujud
+            const testDate = new Date(extractedDob);
+            if (isNaN(testDate.getTime()) || testDate.getDate() !== parseInt(dd, 10)) {
+                // Cek ini akan gagal untuk tarikh seperti '...-02-30'
+                throw new Error('Tarikh lahir tidak wujud (cth: 30 Feb).');
+            }
+            
+            // Pulangkan tarikh lahir dan ic yang telah dibersihkan
+            return {
+                dob: extractedDob,
+                ic: cleanedIc
+            };
+        }
+
+
+        // --- 2. FUNGSI CREATE (BORANG MANUAL) ---
+        // DIKEMASKINI untuk guna fungsi 'extractDobFromIc'
         async function handleManualSubmit(e) {
             e.preventDefault();
             const submitBtn = document.getElementById('manual-submit-btn');
@@ -238,42 +276,16 @@
             const errorMsg = document.getElementById('manual-error-msg');
 
             const name = document.getElementById('name').value;
-            const ic = document.getElementById('ic').value; // Ambil nilai IC
-            const cleanedIc = ic.replace(/[-\s]/g, ''); // Bersihkan IC (buang - atau ruang)
+            const icInput = document.getElementById('ic').value; 
 
             submitBtn.disabled = true;
             submitBtn.textContent = "Menyimpan...";
             successMsg.classList.add('hidden');
             errorMsg.classList.add('hidden');
 
-            // --- BAHAGIAN EKSTRAK TARIKH LAHIR ---
-            let extractedDob = '';
+            let extractedData;
             try {
-                // 1. Validasi format asas IC (perlu sekurang-kurangnya 6 digit)
-                if (!/^\d{6,}/.test(cleanedIc)) {
-                    throw new Error('Format IC tidak sah. Perlu sekurang-kurangnya 6 digit pertama.');
-                }
-
-                const currentYearLastTwo = new Date().getFullYear() % 100; // cth: 25 (untuk 2025)
-                const icYearStr = cleanedIc.substring(0, 2); // cth: "90" atau "05"
-                const icYear = parseInt(icYearStr, 10);
-                const mm = cleanedIc.substring(2, 4);
-                const dd = cleanedIc.substring(4, 6);
-
-                // 2. Tentukan abad (19xx atau 20xx)
-                // Jika tahun IC (cth: 90) > tahun semasa (cth: 25), ia adalah 19xx
-                // Jika tahun IC (cth: 05) <= tahun semasa (cth: 25), ia adalah 20xx
-                const yearPrefix = (icYear > currentYearLastTwo && icYear <= 99) ? '19' : '20';
-                
-                extractedDob = `${yearPrefix}${icYearStr}-${mm}-${dd}`; // cth: "1990-05-15"
-
-                // 3. Sahkan tarikh yang diekstrak itu wujud
-                const testDate = new Date(extractedDob);
-                if (isNaN(testDate.getTime()) || testDate.getDate() !== parseInt(dd, 10)) {
-                    // Cek ini akan gagal untuk tarikh seperti '...-02-30'
-                    throw new Error('Tarikh lahir tidak wujud (cth: 30 Feb).');
-                }
-
+                extractedData = extractDobFromIc(icInput);
             } catch (err) {
                 console.error("Ralat ekstrak tarikh:", err.message);
                 errorMsg.textContent = `Gagal ekstrak tarikh: ${err.message}`;
@@ -282,14 +294,13 @@
                 submitBtn.textContent = "Simpan Maklumat";
                 return;
             }
-            // --- TAMAT BAHAGIAN EKSTRAK ---
-
+            
             try {
                 // Simpan NAMA, TARIKH LAHIR (diextract), dan IC (dibersihkan)
                 await addDoc(birthdaysRef, {
                     name: name.toUpperCase(),
-                    dob: extractedDob,
-                    ic: cleanedIc, 
+                    dob: extractedData.dob,
+                    ic: extractedData.ic, 
                     createdAt: serverTimestamp()
                 });
                 successMsg.classList.remove('hidden');
@@ -304,8 +315,9 @@
             }
         }
 
-        // --- 3. FUNGSI CREATE (BORANG PUKAL/PASTE) ---
-        // Tiada Perubahan
+        // --- 
+        // PERUBAHAN 4: FUNGSI CREATE (BORANG PUKAL/PASTE)
+        // ---
         async function handlePasteSubmit(e) {
             e.preventDefault();
             const submitBtn = document.getElementById('paste-submit-btn');
@@ -334,18 +346,33 @@
 
                 lines.forEach((line, index) => {
                     const parts = line.split('\t'); // Pecah berdasarkan Tab
-                    if (parts.length === 2 && parts[0].trim() !== '' && parts[1].trim().match(/^\d{4}-\d{2}-\d{2}$/)) {
+                    
+                    // Semak jika ada 2 bahagian (Nama dan IC)
+                    if (parts.length === 2 && parts[0].trim() !== '' && parts[1].trim() !== '') {
                         const name = parts[0].trim().toUpperCase();
-                        const dob = parts[1].trim();
+                        const icInput = parts[1].trim();
                         
-                        const newDocRef = doc(birthdaysRef); 
-                        batch.set(newDocRef, {
-                            name: name,
-                            dob: dob,
-                            createdAt: serverTimestamp()
-                        });
-                        processedCount++;
+                        try {
+                            // Cuba ekstrak tarikh lahir dari IC
+                            const extractedData = extractDobFromIc(icInput);
+                            
+                            // Jika berjaya, tambah ke batch
+                            const newDocRef = doc(birthdaysRef); 
+                            batch.set(newDocRef, {
+                                name: name,
+                                dob: extractedData.dob,
+                                ic: extractedData.ic,
+                                createdAt: serverTimestamp()
+                            });
+                            processedCount++;
+
+                        } catch (err) {
+                            // Jika gagal ekstrak (cth: IC salah format), catat baris yang gagal
+                            console.warn(`Gagal proses baris ${index + 1}: ${err.message}`);
+                            errorLines.push(index + 1); 
+                        }
                     } else {
+                        // Gagal jika format bukan "NAMA <Tab> IC"
                         errorLines.push(index + 1); 
                     }
                 });
@@ -358,7 +385,7 @@
                 }
 
                 if (errorLines.length > 0) {
-                    errorMsg.textContent = `Gagal proses baris: ${errorLines.join(', ')}. Pastikan format betul (NAMA <Tab> YYYY-MM-DD).`;
+                    errorMsg.textContent = `Gagal proses baris: ${errorLines.join(', ')}. Pastikan format betul (NAMA <Tab> NO_IC).`;
                     errorMsg.classList.remove('hidden');
                 }
 
@@ -371,6 +398,8 @@
                 submitBtn.textContent = "Proses & Simpan Pukal";
             }
         }
+        // --- TAMAT PERUBAHAN 4 ---
+
 
         // --- 4. FUNGSI EVENT DELEGATION UNTUK JADUAL ---
         // Tiada Perubahan
