@@ -176,12 +176,7 @@
                     </div>
                 </div>
 
-                <div id="message-action-btn-container" class="mt-8 hidden">
-                    <a id="view-attendance-btn" href="#" target="_blank" class="btn bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-indigo-700">
-                        Semak Senarai Kehadiran
-                    </a>
                 </div>
-            </div>
         </div>
     </main>
 
@@ -397,7 +392,6 @@
             submitSurveyResponse(status, reason, repInfo);
         }
 
-        // ▼▼▼ FUNGSI INI TELAH DIKEMAS KINI (FORMAT MESEJ BARU & BUANG 'userNumber') ▼▼▼
         async function submitSurveyResponse(status, reason = null, repInfo = {}) {
             if (!participantInfo) return showMessage('error', 'Ralat', 'Maklumat peserta tidak ditemui.');
             
@@ -427,10 +421,8 @@
             const programRef = doc(db, `artifacts/${appId}/public/data/spark_programs`, currentProgram.id);
 
             try {
-                // 1. Simpan maklum balas pengguna
                 await updateDoc(programRef, { surveyResponses: arrayUnion(newResponse) });
 
-                // 2. Dapatkan data program yang terkini (selepas kita update)
                 const programsRef = collection(db, `artifacts/${appId}/public/data/spark_programs`);
                 const q = query(programsRef, where("surveyKey", "==", currentProgram.surveyKey));
                 const querySnapshot = await getDocs(q);
@@ -450,7 +442,6 @@
                     }
                 }
                 
-                // 3. Paparkan mesej kejayaan yang telah dikemas kini
                 if (status === 'Akan Hadir') {
                     
                     const submissionTime = new Date(newResponse.time);
@@ -459,17 +450,17 @@
                     });
                     const formattedTime = submissionTime.toLocaleTimeString('ms-MY', {
                         hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kuala_Lumpur'
-                    });
+                    }).toUpperCase(); // Tukar 'am/pm' kepada 'AM/PM'
 
                     const programDate = new Date(currentProgram.startDate);
                     const formattedProgramDate = programDate.toLocaleDateString('ms-MY', {
                         day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kuala_Lumpur'
                     });
 
-                    // --- FORMAT MESEJ BARU ---
+                    // --- FORMAT MESEJ BARU (DENGAN .toUpperCase()) ---
                     let messageBody = `<div class="text-sm text-gray-700 bg-gray-50 p-4 rounded-md border border-gray-200">`;
-                    messageBody += `<b class="text-indigo-600" style="font-size: 1.05em;">${currentProgram.name}</b><br>`;
-                    messageBody += `${formattedProgramDate} | ${currentProgram.location}`;
+                    messageBody += `<b class="text-indigo-600" style="font-size: 1.05em;">${currentProgram.name.toUpperCase()}</b><br>`;
+                    messageBody += `${formattedProgramDate.toUpperCase()} | ${currentProgram.location.toUpperCase()}`;
                     messageBody += `</div>`;
                     
                     messageBody += `<br><br>Terima kasih,<br>`;
@@ -480,12 +471,11 @@
                     
                     messageBody += `<br><br><div class="text-sm text-gray-500">`;
                     messageBody += `Pengesahan kehadiran anda telah direkodkan pada:<br>`;
-                    messageBody += `<b>${formattedDate} | ${formattedTime}</b>`;
+                    messageBody += `<b>${formattedDate.toUpperCase()} | ${formattedTime}</b>`;
                     messageBody += `</div>`;
-
-                    // Baris "Anda adalah pengesah ke-..." telah dibuang
                     
-                    showMessage('success', 'Kehadiran Disahkan bagi', messageBody, true, { current: totalConfirmed, total: totalExpected });
+                    // ▼▼▼ PERUBAHAN: 'false' dihantar untuk 'showActionButton' ▼▼▼
+                    showMessage('success', 'Kehadiran Disahkan bagi', messageBody, false, { current: totalConfirmed, total: totalExpected });
                 
                 } else {
                      showMessage('success', 'Maklum Balas Diterima', `Terima kasih, ${participantInfo.name}. Maklum balas anda telah direkodkan.`);
@@ -496,10 +486,8 @@
                 showMessage('error', 'Gagal', 'Gagal menyimpan maklum balas. Sila cuba lagi.');
             }
         }
-        // ▲▲▲ AKHIR FUNGSI YANG DIKEMAS KINI ▲▲▲
 
-
-        // ▼▼▼ FUNGSI INI TELAH DIKEMAS KINI (MENGGUNAKAN .innerHTML) ▼▼▼
+        // ▼▼▼ FUNGSI INI TELAH DIKEMAS KINI (Logik Butang Dibuang) ▼▼▼
         function showMessage(type, title, body, showActionButton = false, stats = null) {
             document.getElementById('loading-state').classList.add('hidden');
             document.getElementById('survey-card').classList.add('hidden');
@@ -507,10 +495,11 @@
             document.getElementById('absence-form-card').classList.add('hidden');
             document.getElementById('new-participant-card').classList.add('hidden');
 
-            const msgBtnContainer = document.getElementById('message-action-btn-container');
+            // --- Logik butang telah dibuang ---
+            // const msgBtnContainer = document.getElementById('message-action-btn-container');
+            // if (msgBtnContainer) msgBtnContainer.classList.add('hidden');
+            
             const statsContainer = document.getElementById('confirmation-stats');
-
-            if (msgBtnContainer) msgBtnContainer.classList.add('hidden');
             if (statsContainer) statsContainer.classList.add('hidden');
 
             const msgCard = document.getElementById('message-card');
@@ -519,7 +508,6 @@
             const msgBody = document.getElementById('message-body');
 
             msgTitle.textContent = title;
-            // Guna .innerHTML untuk memaparkan format HTML
             msgBody.innerHTML = body; 
             
             let icon, color;
@@ -537,13 +525,8 @@
             msgIcon.className = `w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${color}`;
             msgIcon.innerHTML = icon;
 
-            if (showActionButton && currentProgram && currentProgram.id) {
-                const msgBtnLink = document.getElementById('view-attendance-btn');
-                if(msgBtnContainer && msgBtnLink) {
-                    msgBtnLink.href = `program.html?kod=${currentProgram.id}`;
-                    msgBtnContainer.classList.remove('hidden');
-                }
-            }
+            // --- Logik butang telah dibuang ---
+            // if (showActionButton && currentProgram && currentProgram.id) { ... }
             
             if (type === 'success' && stats && stats.total > 0) {
                 document.getElementById('stats-current').textContent = stats.current;
@@ -561,7 +544,6 @@
 
             msgCard.classList.remove('hidden');
         }
-        // ▲▲▲ AKHIR FUNGSI YANG DIKEMAS KINI ▲▲▲
         
         window.validateIcInput = validateIcInput;
     </script>
