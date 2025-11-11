@@ -33,7 +33,6 @@
         /* Memastikan input nama sentiasa uppercase */
         input#new-name, textarea { text-transform: uppercase; }
 
-        /* === GAYA BARU UNTUK INFOGRAFIK === */
         .progress-bar {
             background-color: #e5e7eb; /* bg-gray-200 */
             border-radius: 9999px; /* rounded-full */
@@ -47,7 +46,6 @@
             border-radius: 9999px;
             transition: width 0.5s ease-in-out;
         }
-        /* === TAMAT GAYA BARU === */
     </style>
 </head>
 <body class="flex flex-col min-h-screen">
@@ -164,7 +162,7 @@
             <div id="message-card" class="card p-8 text-center hidden">
                  <div id="message-icon" class="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4"></div>
                 <h2 id="message-title" class="text-2xl font-bold"></h2>
-                <p id="message-body" class="text-gray-600 mt-2"></p>
+                <p id="message-body" class="text-gray-600 mt-2 text-left"></p>
                 
                 <div id="confirmation-stats" class="hidden mt-6 text-left">
                     <div class="flex justify-between items-center mb-1">
@@ -177,13 +175,14 @@
                         <div id="progress-bar-inner" class="progress-bar-inner" style="width: 0%;"></div>
                     </div>
                 </div>
+
                 <div id="message-action-btn-container" class="mt-8 hidden">
                     <a id="view-attendance-btn" href="#" target="_blank" class="btn bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-indigo-700">
                         Semak Senarai Kehadiran
                     </a>
                 </div>
             </div>
-            </div>
+        </div>
     </main>
 
     <footer class="text-center py-4 w-full">
@@ -398,7 +397,7 @@
             submitSurveyResponse(status, reason, repInfo);
         }
 
-        // ▼▼▼ FUNGSI INI TELAH DIKEMAS KINI (FORMAT MESEJ BARU & HANTAR DATA INFOGRAFIK) ▼▼▼
+        // ▼▼▼ FUNGSI INI TELAH DIKEMAS KINI (FORMAT MESEJ BARU & BUANG 'userNumber') ▼▼▼
         async function submitSurveyResponse(status, reason = null, repInfo = {}) {
             if (!participantInfo) return showMessage('error', 'Ralat', 'Maklumat peserta tidak ditemui.');
             
@@ -436,7 +435,6 @@
                 const q = query(programsRef, where("surveyKey", "==", currentProgram.surveyKey));
                 const querySnapshot = await getDocs(q);
 
-                let userNumber = 0;       
                 let totalConfirmed = 0;   
                 let totalExpected = 0;    
 
@@ -448,14 +446,7 @@
                     
                     if (status === 'Akan Hadir') {
                         const hadirResponses = allResponses.filter(r => r.status === 'Akan Hadir');
-                        totalConfirmed = hadirResponses.length; // Jumlah yang telah sahkan
-                        
-                        const sortedHadir = hadirResponses.sort((a, b) => new Date(a.time) - new Date(b.time));
-                        const userIndex = sortedHadir.findIndex(r => r.ic === participantInfo.ic);
-                        
-                        if (userIndex !== -1) {
-                            userNumber = userIndex + 1; // Nombor giliran
-                        }
+                        totalConfirmed = hadirResponses.length; 
                     }
                 }
                 
@@ -470,22 +461,31 @@
                         hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kuala_Lumpur'
                     });
 
-                    // --- FORMAT MESEJ BARU (SETIAP SATU BARIS) ---
-                    let messageBody = `Terima kasih, ${participantInfo.name}.`;
-                    messageBody += `\nJawatan: ${participantInfo.position || 'Tiada Jawatan'}`;
-                    messageBody += `\nStesen: ${participantInfo.station || 'Tiada Stesen'}`;
-                    messageBody += `\n\nPengesahan kehadiran anda telah direkodkan pada:`;
-                    messageBody += `\nTarikh: ${formattedDate}`;
-                    messageBody += `\nMasa: ${formattedTime}`;
+                    const programDate = new Date(currentProgram.startDate);
+                    const formattedProgramDate = programDate.toLocaleDateString('ms-MY', {
+                        day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kuala_Lumpur'
+                    });
 
-                    if (userNumber > 0 && totalExpected > 0) {
-                        messageBody += `\n\nAnda adalah pengesah ke-${userNumber} daripada ${totalExpected} yang dijangka hadir.`;
-                    } else if (userNumber > 0) {
-                        messageBody += `\n\nAnda adalah pengesah ke-${userNumber}.`;
-                    }
+                    // --- FORMAT MESEJ BARU ---
+                    let messageBody = `<div class="text-sm text-gray-700 bg-gray-50 p-4 rounded-md border border-gray-200">`;
+                    messageBody += `<b class="text-indigo-600" style="font-size: 1.05em;">${currentProgram.name}</b><br>`;
+                    messageBody += `${formattedProgramDate} | ${currentProgram.location}`;
+                    messageBody += `</div>`;
                     
-                    // Hantar data untuk infografik: { current: (jumlah disahkan), total: (jumlah kuota) }
-                    showMessage('success', 'Kehadiran Disahkan!', messageBody, true, { current: totalConfirmed, total: totalExpected });
+                    messageBody += `<br><br>Terima kasih,<br>`;
+                    
+                    messageBody += `<b class="text-lg text-gray-900">${participantInfo.name}</b><br>`;
+                    messageBody += `${participantInfo.position || 'Tiada Jawatan'}<br>`;
+                    messageBody += `${participantInfo.station || 'Tiada Stesen'}`;
+                    
+                    messageBody += `<br><br><div class="text-sm text-gray-500">`;
+                    messageBody += `Pengesahan kehadiran anda telah direkodkan pada:<br>`;
+                    messageBody += `<b>${formattedDate} | ${formattedTime}</b>`;
+                    messageBody += `</div>`;
+
+                    // Baris "Anda adalah pengesah ke-..." telah dibuang
+                    
+                    showMessage('success', 'Kehadiran Disahkan bagi', messageBody, true, { current: totalConfirmed, total: totalExpected });
                 
                 } else {
                      showMessage('success', 'Maklum Balas Diterima', `Terima kasih, ${participantInfo.name}. Maklum balas anda telah direkodkan.`);
@@ -499,7 +499,7 @@
         // ▲▲▲ AKHIR FUNGSI YANG DIKEMAS KINI ▲▲▲
 
 
-        // ▼▼▼ FUNGSI INI TELAH DIKEMAS KINI (MENERIMA 'stats' UNTUK INFOGRAFIK) ▼▼▼
+        // ▼▼▼ FUNGSI INI TELAH DIKEMAS KINI (MENGGUNAKAN .innerHTML) ▼▼▼
         function showMessage(type, title, body, showActionButton = false, stats = null) {
             document.getElementById('loading-state').classList.add('hidden');
             document.getElementById('survey-card').classList.add('hidden');
@@ -510,7 +510,6 @@
             const msgBtnContainer = document.getElementById('message-action-btn-container');
             const statsContainer = document.getElementById('confirmation-stats');
 
-            // Sembunyikan elemen opsyenal secara lalai
             if (msgBtnContainer) msgBtnContainer.classList.add('hidden');
             if (statsContainer) statsContainer.classList.add('hidden');
 
@@ -520,7 +519,8 @@
             const msgBody = document.getElementById('message-body');
 
             msgTitle.textContent = title;
-            msgBody.innerText = body; 
+            // Guna .innerHTML untuk memaparkan format HTML
+            msgBody.innerHTML = body; 
             
             let icon, color;
             if (type === 'success') {
@@ -537,7 +537,6 @@
             msgIcon.className = `w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${color}`;
             msgIcon.innerHTML = icon;
 
-            // Paparkan butang tindakan (Semak Kehadiran)
             if (showActionButton && currentProgram && currentProgram.id) {
                 const msgBtnLink = document.getElementById('view-attendance-btn');
                 if(msgBtnContainer && msgBtnLink) {
@@ -546,19 +545,19 @@
                 }
             }
             
-            // === LOGIK BARU: Paparkan Infografik ===
             if (type === 'success' && stats && stats.total > 0) {
                 document.getElementById('stats-current').textContent = stats.current;
                 document.getElementById('stats-total').textContent = stats.total;
                 
                 let percentage = (stats.current / stats.total) * 100;
-                if (percentage > 100) percentage = 100; // Elak bar terlebih jika data pelik
+                if (percentage > 100) percentage = 100; 
                 
-                document.getElementById('progress-bar-inner').style.width = percentage + '%';
+                setTimeout(() => {
+                    document.getElementById('progress-bar-inner').style.width = percentage + '%';
+                }, 100); 
                 
                 statsContainer.classList.remove('hidden');
             }
-            // === TAMAT LOGIK BARU ===
 
             msgCard.classList.remove('hidden');
         }
