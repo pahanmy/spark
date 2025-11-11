@@ -149,8 +149,14 @@
                  <div id="message-icon" class="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4"></div>
                 <h2 id="message-title" class="text-2xl font-bold"></h2>
                 <p id="message-body" class="text-gray-600 mt-2"></p>
+                
+                <div id="message-action-btn-container" class="mt-6 hidden">
+                    <a id="view-attendance-btn" href="#" target="_blank" class="btn bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-indigo-700">
+                        Semak Senarai Kehadiran
+                    </a>
+                </div>
             </div>
-        </div>
+            </div>
     </main>
 
     <footer class="text-center py-4 w-full">
@@ -370,6 +376,7 @@
             submitSurveyResponse(status, reason, repInfo);
         }
 
+        // ▼▼▼ FUNGSI INI TELAH DIKEMAS KINI (LOGIK KIRAAN & HANTAR 'true') ▼▼▼
         async function submitSurveyResponse(status, reason = null, repInfo = {}) {
             if (!participantInfo) return showMessage('error', 'Ralat', 'Maklumat peserta tidak ditemui.');
             
@@ -399,24 +406,74 @@
             const programRef = doc(db, `artifacts/${appId}/public/data/spark_programs`, currentProgram.id);
 
             try {
+                // 1. Simpan maklum balas pengguna
                 await updateDoc(programRef, { surveyResponses: arrayUnion(newResponse) });
+
+                // 2. Dapatkan data program yang terkini untuk mendapatkan kiraan yang tepat
+                //    Kita perlu jalankan semula query untuk dapatkan data baru selepas 'updateDoc'
+                const programsRef = collection(db, `artifacts/${appId}/public/data/spark_programs`);
+                const q = query(programsRef, where("surveyKey", "==", currentProgram.surveyKey));
+                const querySnapshot = await getDocs(q);
+
+                let totalHadir = 0;
+                let userNumber = 0;
+
+                if (!querySnapshot.empty) {
+                    const updatedProgramData = querySnapshot.docs[0].data();
+                    const allResponses = updatedProgramData.surveyResponses || [];
+                    
+                    if (status === 'Akan Hadir') {
+                        // Tapis semua yang akan hadir
+                        const hadirResponses = allResponses.filter(r => r.status === 'Akan Hadir');
+                        totalHadir = hadirResponses.length;
+                        
+                        // Susun ikut masa untuk cari giliran pengguna
+                        const sortedHadir = hadirResponses.sort((a, b) => new Date(a.time) - new Date(b.time));
+                        // Cari indeks pengguna dalam senarai yang telah disusun
+                        const userIndex = sortedHadir.findIndex(r => r.ic === participantInfo.ic);
+                        
+                        if (userIndex !== -1) {
+                            userNumber = userIndex + 1; // Tukar 0-indeks kepada 1-indeks
+                        }
+                    }
+                }
+                
+                // 3. Paparkan mesej kejayaan yang telah dikemas kini
                 if (status === 'Akan Hadir') {
-                    showMessage('success', 'Kehadiran Disahkan!', `Terima kasih, ${participantInfo.name}. Pengesahan kehadiran anda telah direkodkan.`);
+                    let messageBody = `Terima kasih, ${participantInfo.name}. Pengesahan kehadiran anda telah direkodkan.`;
+                    
+                    // Tambah maklumat kiraan jika berjaya ditemui
+                    if (userNumber > 0 && totalHadir > 0) {
+                        // \n akan mencipta baris baharu kerana kita akan guna innerText
+                        messageBody += `\n\nAnda adalah pengesah ke-${userNumber} daripada ${totalHadir} yang akan hadir.`;
+                    }
+                    
+                    showMessage('success', 'Kehadiran Disahkan!', messageBody, true);
                 } else {
                      showMessage('success', 'Maklum Balas Diterima', `Terima kasih, ${participantInfo.name}. Maklum balas anda telah direkodkan.`);
                 }
+
             } catch(error) {
                 console.error("Error saving survey response: ", error);
                 showMessage('error', 'Gagal', 'Gagal menyimpan maklum balas. Sila cuba lagi.');
             }
         }
+        // ▲▲▲ AKHIR FUNGSI YANG DIKEMAS KINI ▲▲▲
 
-        function showMessage(type, title, body) {
+
+        // ▼▼▼ FUNGSI INI TELAH DIKEMAS KINI (MENERIMA 'showActionButton' & GUNA 'innerText') ▼▼▼
+        function showMessage(type, title, body, showActionButton = false) {
             document.getElementById('loading-state').classList.add('hidden');
             document.getElementById('survey-card').classList.add('hidden');
             document.getElementById('survey-options-card').classList.add('hidden');
             document.getElementById('absence-form-card').classList.add('hidden');
             document.getElementById('new-participant-card').classList.add('hidden');
+
+            // Sembunyikan butang tindakan secara lalai
+            const msgBtnContainer = document.getElementById('message-action-btn-container');
+            if (msgBtnContainer) {
+                msgBtnContainer.classList.add('hidden');
+            }
 
             const msgCard = document.getElementById('message-card');
             const msgIcon = document.getElementById('message-icon');
@@ -424,7 +481,9 @@
             const msgBody = document.getElementById('message-body');
 
             msgTitle.textContent = title;
-            msgBody.textContent = body;
+            // Guna innerText dan bukan textContent
+            // Ini membolehkan watak \n berfungsi untuk mencipta baris baharu
+            msgBody.innerText = body; 
             
             let icon, color;
             if (type === 'success') {
@@ -441,8 +500,19 @@
             msgIcon.className = `w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${color}`;
             msgIcon.innerHTML = icon;
 
+            // Logik untuk tunjukkan butang tindakan (semak kehadiran)
+            if (showActionButton && currentProgram && currentProgram.id) {
+                const msgBtnLink = document.getElementById('view-attendance-btn');
+                if(msgBtnContainer && msgBtnLink) {
+                    // Pautkan ke program.html menggunakan ID program (bukan surveyKey)
+                    msgBtnLink.href = `program.html?kod=${currentProgram.id}`;
+                    msgBtnContainer.classList.remove('hidden');
+                }
+            }
+            
             msgCard.classList.remove('hidden');
         }
+        // ▲▲▲ AKHIR FUNGSI YANG DIKEMAS KINI ▲▲▲
         
         window.validateIcInput = validateIcInput;
     </script>
