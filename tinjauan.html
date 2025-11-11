@@ -32,6 +32,22 @@
         }
         /* Memastikan input nama sentiasa uppercase */
         input#new-name, textarea { text-transform: uppercase; }
+
+        /* === GAYA BARU UNTUK INFOGRAFIK === */
+        .progress-bar {
+            background-color: #e5e7eb; /* bg-gray-200 */
+            border-radius: 9999px; /* rounded-full */
+            height: 10px; /* h-2.5 */
+            overflow: hidden;
+            border: 1px solid #d1d5db; /* border-gray-300 */
+        }
+        .progress-bar-inner {
+            background-color: #22c55e; /* bg-green-500 */
+            height: 100%;
+            border-radius: 9999px;
+            transition: width 0.5s ease-in-out;
+        }
+        /* === TAMAT GAYA BARU === */
     </style>
 </head>
 <body class="flex flex-col min-h-screen">
@@ -150,7 +166,18 @@
                 <h2 id="message-title" class="text-2xl font-bold"></h2>
                 <p id="message-body" class="text-gray-600 mt-2"></p>
                 
-                <div id="message-action-btn-container" class="mt-6 hidden">
+                <div id="confirmation-stats" class="hidden mt-6 text-left">
+                    <div class="flex justify-between items-center mb-1">
+                        <span class="text-sm font-medium text-gray-700">Peratus Pengesahan Diterima:</span>
+                        <span class="text-sm font-bold text-gray-900">
+                            <span id="stats-current">0</span> / <span id="stats-total">0</span>
+                        </span>
+                    </div>
+                    <div class="progress-bar">
+                        <div id="progress-bar-inner" class="progress-bar-inner" style="width: 0%;"></div>
+                    </div>
+                </div>
+                <div id="message-action-btn-container" class="mt-8 hidden">
                     <a id="view-attendance-btn" href="#" target="_blank" class="btn bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-indigo-700">
                         Semak Senarai Kehadiran
                     </a>
@@ -191,7 +218,6 @@
 
             if (!surveyKey) { return showMessage('error', 'Pautan Tidak Sah', 'Kod pengesahan tidak ditemui dalam pautan.'); }
 
-            // Memuatkan data untuk dropdown serentak dengan data program
             loadDropdownData();
 
             const programsRef = collection(db, `artifacts/${appId}/public/data/spark_programs`);
@@ -216,10 +242,8 @@
             }
         }
 
-        // FUNGSI BARU untuk memuatkan data Sekolah & Jawatan
         async function loadDropdownData() {
             try {
-                // Muatkan Senarai Sekolah
                 const schoolSelect = document.getElementById('new-station');
                 schoolSelect.innerHTML = '<option value="" disabled selected>Pilih Stesen Kerja...</option>';
                 const schoolsRef = collection(db, `artifacts/${appId}/public/data/spark_schools`);
@@ -232,7 +256,6 @@
                     schoolSelect.appendChild(option);
                 });
 
-                // Muatkan Senarai Jawatan
                 const positionSelect = document.getElementById('new-position');
                 positionSelect.innerHTML = '<option value="" disabled selected>Pilih Jawatan...</option>';
                 const positionsRef = collection(db, `artifacts/${appId}/public/data/spark_positions`);
@@ -247,7 +270,6 @@
 
             } catch (error) {
                 console.error("Gagal memuatkan data dropdown: ", error);
-                // Maklumkan kepada pengguna jika gagal
                 document.getElementById('new-station').innerHTML = '<option value="" disabled selected>Ralat memuatkan data</option>';
                 document.getElementById('new-position').innerHTML = '<option value="" disabled selected>Ralat memuatkan data</option>';
             }
@@ -308,8 +330,8 @@
             const newParticipantData = {
                 ic: document.getElementById('new-ic').value,
                 name: document.getElementById('new-name').value.toUpperCase(),
-                station: document.getElementById('new-station').value, // .value dari <select>
-                position: document.getElementById('new-position').value // .value dari <select>
+                station: document.getElementById('new-station').value, 
+                position: document.getElementById('new-position').value 
             };
 
             try {
@@ -376,7 +398,7 @@
             submitSurveyResponse(status, reason, repInfo);
         }
 
-        // ▼▼▼ FUNGSI INI TELAH DIKEMAS KINI (LOGIK KIRAAN & HANTAR 'true') ▼▼▼
+        // ▼▼▼ FUNGSI INI TELAH DIKEMAS KINI (FORMAT MESEJ BARU & HANTAR DATA INFOGRAFIK) ▼▼▼
         async function submitSurveyResponse(status, reason = null, repInfo = {}) {
             if (!participantInfo) return showMessage('error', 'Ralat', 'Maklumat peserta tidak ditemui.');
             
@@ -409,46 +431,62 @@
                 // 1. Simpan maklum balas pengguna
                 await updateDoc(programRef, { surveyResponses: arrayUnion(newResponse) });
 
-                // 2. Dapatkan data program yang terkini untuk mendapatkan kiraan yang tepat
-                //    Kita perlu jalankan semula query untuk dapatkan data baru selepas 'updateDoc'
+                // 2. Dapatkan data program yang terkini (selepas kita update)
                 const programsRef = collection(db, `artifacts/${appId}/public/data/spark_programs`);
                 const q = query(programsRef, where("surveyKey", "==", currentProgram.surveyKey));
                 const querySnapshot = await getDocs(q);
 
-                let totalHadir = 0;
-                let userNumber = 0;
+                let userNumber = 0;       
+                let totalConfirmed = 0;   
+                let totalExpected = 0;    
 
                 if (!querySnapshot.empty) {
                     const updatedProgramData = querySnapshot.docs[0].data();
                     const allResponses = updatedProgramData.surveyResponses || [];
                     
+                    totalExpected = parseInt(updatedProgramData.quota) || 0;
+                    
                     if (status === 'Akan Hadir') {
-                        // Tapis semua yang akan hadir
                         const hadirResponses = allResponses.filter(r => r.status === 'Akan Hadir');
-                        totalHadir = hadirResponses.length;
+                        totalConfirmed = hadirResponses.length; // Jumlah yang telah sahkan
                         
-                        // Susun ikut masa untuk cari giliran pengguna
                         const sortedHadir = hadirResponses.sort((a, b) => new Date(a.time) - new Date(b.time));
-                        // Cari indeks pengguna dalam senarai yang telah disusun
                         const userIndex = sortedHadir.findIndex(r => r.ic === participantInfo.ic);
                         
                         if (userIndex !== -1) {
-                            userNumber = userIndex + 1; // Tukar 0-indeks kepada 1-indeks
+                            userNumber = userIndex + 1; // Nombor giliran
                         }
                     }
                 }
                 
                 // 3. Paparkan mesej kejayaan yang telah dikemas kini
                 if (status === 'Akan Hadir') {
-                    let messageBody = `Terima kasih, ${participantInfo.name}. Pengesahan kehadiran anda telah direkodkan.`;
                     
-                    // Tambah maklumat kiraan jika berjaya ditemui
-                    if (userNumber > 0 && totalHadir > 0) {
-                        // \n akan mencipta baris baharu kerana kita akan guna innerText
-                        messageBody += `\n\nAnda adalah pengesah ke-${userNumber} daripada ${totalHadir} yang akan hadir.`;
+                    const submissionTime = new Date(newResponse.time);
+                    const formattedDate = submissionTime.toLocaleDateString('ms-MY', {
+                        day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kuala_Lumpur'
+                    });
+                    const formattedTime = submissionTime.toLocaleTimeString('ms-MY', {
+                        hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kuala_Lumpur'
+                    });
+
+                    // --- FORMAT MESEJ BARU (SETIAP SATU BARIS) ---
+                    let messageBody = `Terima kasih, ${participantInfo.name}.`;
+                    messageBody += `\nJawatan: ${participantInfo.position || 'Tiada Jawatan'}`;
+                    messageBody += `\nStesen: ${participantInfo.station || 'Tiada Stesen'}`;
+                    messageBody += `\n\nPengesahan kehadiran anda telah direkodkan pada:`;
+                    messageBody += `\nTarikh: ${formattedDate}`;
+                    messageBody += `\nMasa: ${formattedTime}`;
+
+                    if (userNumber > 0 && totalExpected > 0) {
+                        messageBody += `\n\nAnda adalah pengesah ke-${userNumber} daripada ${totalExpected} yang dijangka hadir.`;
+                    } else if (userNumber > 0) {
+                        messageBody += `\n\nAnda adalah pengesah ke-${userNumber}.`;
                     }
                     
-                    showMessage('success', 'Kehadiran Disahkan!', messageBody, true);
+                    // Hantar data untuk infografik: { current: (jumlah disahkan), total: (jumlah kuota) }
+                    showMessage('success', 'Kehadiran Disahkan!', messageBody, true, { current: totalConfirmed, total: totalExpected });
+                
                 } else {
                      showMessage('success', 'Maklum Balas Diterima', `Terima kasih, ${participantInfo.name}. Maklum balas anda telah direkodkan.`);
                 }
@@ -461,19 +499,20 @@
         // ▲▲▲ AKHIR FUNGSI YANG DIKEMAS KINI ▲▲▲
 
 
-        // ▼▼▼ FUNGSI INI TELAH DIKEMAS KINI (MENERIMA 'showActionButton' & GUNA 'innerText') ▼▼▼
-        function showMessage(type, title, body, showActionButton = false) {
+        // ▼▼▼ FUNGSI INI TELAH DIKEMAS KINI (MENERIMA 'stats' UNTUK INFOGRAFIK) ▼▼▼
+        function showMessage(type, title, body, showActionButton = false, stats = null) {
             document.getElementById('loading-state').classList.add('hidden');
             document.getElementById('survey-card').classList.add('hidden');
             document.getElementById('survey-options-card').classList.add('hidden');
             document.getElementById('absence-form-card').classList.add('hidden');
             document.getElementById('new-participant-card').classList.add('hidden');
 
-            // Sembunyikan butang tindakan secara lalai
             const msgBtnContainer = document.getElementById('message-action-btn-container');
-            if (msgBtnContainer) {
-                msgBtnContainer.classList.add('hidden');
-            }
+            const statsContainer = document.getElementById('confirmation-stats');
+
+            // Sembunyikan elemen opsyenal secara lalai
+            if (msgBtnContainer) msgBtnContainer.classList.add('hidden');
+            if (statsContainer) statsContainer.classList.add('hidden');
 
             const msgCard = document.getElementById('message-card');
             const msgIcon = document.getElementById('message-icon');
@@ -481,8 +520,6 @@
             const msgBody = document.getElementById('message-body');
 
             msgTitle.textContent = title;
-            // Guna innerText dan bukan textContent
-            // Ini membolehkan watak \n berfungsi untuk mencipta baris baharu
             msgBody.innerText = body; 
             
             let icon, color;
@@ -500,16 +537,29 @@
             msgIcon.className = `w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${color}`;
             msgIcon.innerHTML = icon;
 
-            // Logik untuk tunjukkan butang tindakan (semak kehadiran)
+            // Paparkan butang tindakan (Semak Kehadiran)
             if (showActionButton && currentProgram && currentProgram.id) {
                 const msgBtnLink = document.getElementById('view-attendance-btn');
                 if(msgBtnContainer && msgBtnLink) {
-                    // Pautkan ke program.html menggunakan ID program (bukan surveyKey)
                     msgBtnLink.href = `program.html?kod=${currentProgram.id}`;
                     msgBtnContainer.classList.remove('hidden');
                 }
             }
             
+            // === LOGIK BARU: Paparkan Infografik ===
+            if (type === 'success' && stats && stats.total > 0) {
+                document.getElementById('stats-current').textContent = stats.current;
+                document.getElementById('stats-total').textContent = stats.total;
+                
+                let percentage = (stats.current / stats.total) * 100;
+                if (percentage > 100) percentage = 100; // Elak bar terlebih jika data pelik
+                
+                document.getElementById('progress-bar-inner').style.width = percentage + '%';
+                
+                statsContainer.classList.remove('hidden');
+            }
+            // === TAMAT LOGIK BARU ===
+
             msgCard.classList.remove('hidden');
         }
         // ▲▲▲ AKHIR FUNGSI YANG DIKEMAS KINI ▲▲▲
