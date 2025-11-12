@@ -136,6 +136,12 @@
                         Sahkan Tugasan
                     </a>
                     
+                    <div class="text-center -mt-4">
+                        <button id="copy-link-btn" class="btn text-sm text-indigo-600 hover:text-indigo-800 font-medium flex items-center gap-1 mx-auto" style="transform: none; box-shadow: none;">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                            Salin Pautan (Kongsi)
+                        </button>
+                    </div>
                     <div class="card p-5">
                         <h3 class="text-lg font-semibold text-gray-800 flex items-center gap-2 mb-4">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -240,7 +246,6 @@
         let currentTask = null;
         const appId = firebaseConfig.projectId;
         let currentTaskId = null;
-        // let penyelarasDetails = null; // <-- (DIBAIKI) Dipadamkan
         let skopSelesaiList = [];
         let skopBelumList = [];
         let currentModalSkopList = [];
@@ -291,13 +296,29 @@
             document.getElementById('sahkan-selesai-btn').href = `selesai.html?id=${taskId}`;
             document.getElementById('admin-task-btn').href = `admintask.html?id=${taskId}`; 
 
+            // ▼▼▼ LOGIK BARU UNTUK BUTANG SALIN PAUTAN ▼▼▼
+            const copyBtn = document.getElementById('copy-link-btn');
+            if (copyBtn) {
+                copyBtn.onclick = function() {
+                    const linkToCopy = document.getElementById('sahkan-selesai-btn').href;
+                    // Tukar kepada pautan penuh (absolute) untuk clipboard
+                    const absoluteLink = new URL(linkToCopy, window.location.href).href;
+
+                    navigator.clipboard.writeText(absoluteLink).then(() => {
+                        alert('Pautan telah disalin ke clipboard!\n' + absoluteLink);
+                    }).catch(err => {
+                        console.error('Gagal menyalin: ', err);
+                        alert('Gagal menyalin pautan.');
+                    });
+                }
+            }
+            // ▲▲▲ LOGIK BARU TAMAT ▲▲▲
+
             const taskRef = doc(db, `artifacts/${appId}/public/data/spark_tasks`, taskId);
             
             unsubscribeTaskListener = onSnapshot(taskRef, (docSnap) => {
                 if (docSnap.exists()) {
                     currentTask = { id: docSnap.id, ...docSnap.data() };
-                    
-                    // (DIBAIKI) Panggilan ke loadPenyelarasDetails dipadamkan
                     
                     renderTaskDetails();
                     renderTaskProgress();
@@ -328,8 +349,6 @@
             });
         }
         
-        // (DIBAIKI) Fungsi 'loadPenyelarasDetails' dipadamkan sepenuhnya
-
         function renderTaskDetails() {
             document.getElementById('dashboard-task-name').textContent = currentTask.nama.toUpperCase();
             document.getElementById('dashboard-pegawai').textContent = currentTask.pegawai;
@@ -367,7 +386,6 @@
             document.getElementById('progress-circle').style.strokeDashoffset = 100 - peratus;
         }
 
-        // ▼▼▼ FUNGSI 'renderCompletionHistory' DIBAIKI SEPENUHNYA ▼▼▼
         function renderCompletionHistory() {
             const container = document.getElementById('completion-list');
             container.innerHTML = '';
@@ -378,7 +396,6 @@
                 return;
             }
 
-            // Isih senarai, yang terbaru di atas
             list.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
             
             list.forEach((rekod, index) => {
@@ -388,11 +405,8 @@
                 });
 
                 // (DIBAIKI) Baca data dari 'rekod' individu
-                // Guna nama_pengesah dari rekod. Jika tiada (data lama), guna 'currentTask.pegawai'
                 const nama = rekod.nama_pengesah || currentTask.pegawai || 'N/A';
-                // Guna jawatan_pengesah dari rekod
                 const jawatan = rekod.jawatan_pengesah || 'N/A';
-                // Guna stesen_pengesah dari rekod
                 const stesen = rekod.stesen_pengesah || 'N/A';
 
                 container.innerHTML += `
@@ -405,7 +419,6 @@
                 `;
             });
         }
-        // ▲▲▲ FUNGSI 'renderCompletionHistory' TAMAT ▲▲▲
 
         function renderSubTasks() {
             const container = document.getElementById('sub-task-list');
