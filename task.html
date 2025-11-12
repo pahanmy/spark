@@ -80,7 +80,8 @@
                             </div>
                     </div>
 
-                    <div id="lampiran-pautan-card" class="card p-6 hidden"> <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                    <div id="lampiran-pautan-card" class="card p-6 hidden">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.102 1.101" /></svg>
                             Lampiran & Pautan Berkaitan
                         </h3>
@@ -88,15 +89,16 @@
                         <div class="mb-4">
                              <h4 class="text-sm font-semibold text-gray-600 mb-2 uppercase">Pautan Berkaitan</h4>
                              <div id="link-list" class="space-y-2">
-                                 </div>
+                             </div>
                         </div>
 
                         <div>
                             <h4 class="text-sm font-semibold text-gray-600 mb-2 uppercase">Fail Lampiran</h4>
                             <div id="file-list" class="space-y-2">
-                                </div>
+                            </div>
                         </div>
                     </div>
+                    
                     <div class="card p-6">
                         <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -133,14 +135,21 @@
                             <div class="bg-teal-50 border border-teal-200 p-3 rounded-lg flex flex-col justify-between">
                                 <p class="text-xs font-semibold text-teal-700 capitalize">Selesai</p>
                                 <p id="info-selesai" class="text-3xl font-bold text-teal-800 mt-1">0</p>
+                                <button onclick="showSkopList('selesai')" class="btn bg-teal-200 text-teal-800 text-xs font-semibold py-1 px-2 rounded-md mt-2 hover:bg-teal-300" disabled>
+                                    Lihat Senarai
+                                </button>
                             </div>
                             <div class="bg-amber-50 border border-amber-200 p-3 rounded-lg flex flex-col justify-between">
                                 <p class="text-xs font-semibold text-amber-700 capitalize">Belum Selesai</p>
                                 <p id="info-belum" class="text-3xl font-bold text-amber-800 mt-1">0</p>
+                                <button onclick="showSkopList('belum')" class="btn bg-amber-200 text-amber-800 text-xs font-semibold py-1 px-2 rounded-md mt-2 hover:bg-amber-300" disabled>
+                                    Lihat Senarai
+                                </button>
                             </div>
                             <div class="bg-gray-100 border border-gray-200 p-3 rounded-lg flex flex-col justify-between">
                                 <p class="text-xs font-semibold text-gray-700 capitalize">Jumlah Total</p>
                                 <p id="info-total" class="text-3xl font-bold text-gray-800 mt-1">0</p>
+                                <div class="mt-2 py-1 px-2">&nbsp;</div>
                             </div>
                         </div>
                          <div class="flex items-center justify-center mt-6">
@@ -159,6 +168,20 @@
     </main>
 
     <footer class="text-center py-4 mt-8 border-t border-gray-200"><p class="text-sm text-gray-600">Projek Inovasi oleh <a href="https://pahanmy.github.io/works/" target="_blank" class="font-semibold text-indigo-500 hover:underline">Pahan</a></p><p id="version-info" class="text-xs text-gray-500"></p></footer>
+    
+    <div id="skop-list-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 hidden">
+        <div class="card bg-white rounded-lg shadow-xl w-full max-w-lg p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h3 id="skop-modal-title" class="text-xl font-semibold text-gray-800"></h3>
+                <button onclick="closeSkopModal()" class="text-gray-400 hover:text-gray-600 text-3xl font-bold">&times;</button>
+            </div>
+            <div id="skop-modal-content" class="max-h-96 overflow-y-auto space-y-2 bg-gray-50 p-4 rounded-md border">
+                </div>
+            <div class="mt-6 flex justify-end">
+                <button onclick="closeSkopModal()" class="btn bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg">Tutup</button>
+            </div>
+        </div>
+    </div>
     
     <script type="module">
         // (DIUBAH) Import getDocs, collection, query, where
@@ -180,7 +203,9 @@
         let currentTask = null;
         const appId = firebaseConfig.projectId;
         let currentTaskId = null;
-        let penyelarasDetails = null; // (BARU) Simpan data penyelaras
+        let penyelarasDetails = null;
+        let skopSelesaiList = []; // (BARU) Senarai sekolah selesai
+        let skopBelumList = []; // (BARU) Senarai sekolah belum selesai
 
         try {
             const app = initializeApp(firebaseConfig);
@@ -205,8 +230,8 @@
             if (!userId) return;
             
             const urlParams = new URLSearchParams(window.location.search);
-            const taskId = urlParams.get('id'); // Dapatkan 'id' dari URL
-            currentTaskId = taskId; // (BARU) Simpan ID
+            const taskId = urlParams.get('id');
+            currentTaskId = taskId;
 
             if (taskId) {
                 initializeDashboard(taskId);
@@ -224,7 +249,6 @@
         function initializeDashboard(taskId) {
             if (unsubscribeTaskListener) unsubscribeTaskListener();
             
-            // (BARU) Set pautan untuk butang
             document.getElementById('sahkan-selesai-btn').href = `selesai.html?id=${taskId}`;
 
             const taskRef = doc(db, `artifacts/${appId}/public/data/spark_tasks`, taskId);
@@ -233,30 +257,24 @@
                 if (docSnap.exists()) {
                     currentTask = { id: docSnap.id, ...docSnap.data() };
                     
-                    // (BARU) Muatkan data penyelaras
-                    if (!penyelarasDetails) { // Hanya muat sekali
+                    if (!penyelarasDetails) {
                         loadPenyelarasDetails(currentTask.penyelaras_ic);
                     }
                     
-                    // Panggil semua fungsi render
                     renderTaskDetails();
-                    renderTaskProgress();
-                    renderCompletionHistory(); // (BARU) Panggil fungsi ini
+                    renderTaskProgress(); // (DIUBAH) Kini mengira skopSelesaiList dan skopBelumList
+                    renderCompletionHistory();
                     renderSubTasks();
                     
-                    // (DIUBAH) Panggil renderLinks dan renderFiles
                     const hasLinks = renderLinks();
                     const hasFiles = renderFiles();
                     
-                    // (BARU) Tunjukkan kad gabungan jika ada pautan ATAU fail
                     const lampiranCard = document.getElementById('lampiran-pautan-card');
                     if (hasLinks || hasFiles) {
                         lampiranCard.classList.remove('hidden');
                     } else {
                         lampiranCard.classList.add('hidden');
                     }
-                    
-                    // (DIHILANGKAN) renderSkop();
                     
                     document.getElementById('loading-dashboard').classList.add('hidden');
                     document.getElementById('full-dashboard-content').classList.remove('hidden');
@@ -272,7 +290,6 @@
             });
         }
         
-        // (BARU) Fungsi untuk memuatkan data penyelaras
         async function loadPenyelarasDetails(ic) {
             try {
                 const participantsRef = collection(db, `artifacts/${appId}/public/data/spark_participants`);
@@ -281,7 +298,6 @@
                 
                 if (!querySnapshot.empty) {
                     penyelarasDetails = querySnapshot.docs[0].data();
-                    // Render semula senarai pengesahan selepas data dimuatkan
                     renderCompletionHistory(); 
                 } else {
                     console.warn("Data penyelaras tidak ditemui untuk IC:", ic);
@@ -299,18 +315,38 @@
             document.getElementById('dashboard-date-end').textContent = `Siap: ${formatTarikh(currentTask.tarikhSiap)}`;
         }
         
+        // (DIUBAH) Logik dikemaskini untuk mengira senarai Selesai/Belum
         function renderTaskProgress() {
-            let jumlahSelesai = currentTask.jumlahSelesai || 0;
-            let total;
-
-            if (Array.isArray(currentTask.skopSenaraiSekolah)) {
-                total = currentTask.skopSenaraiSekolah.length;
-            } else {
-                total = (currentTask.jumlahSelesai || 0) + (currentTask.jumlahBelum || 0);
-            }
+            const totalSkop = Array.isArray(currentTask.skopSenaraiSekolah) ? currentTask.skopSenaraiSekolah : [];
             
-            let jumlahBelum = total - jumlahSelesai;
-            if (jumlahBelum < 0) jumlahBelum = 0;
+            // (PENTING) Andaikan 'currentTask.skopSelesai' ialah ARRAY nama sekolah yg selesai
+            skopSelesaiList = Array.isArray(currentTask.skopSelesai) ? currentTask.skopSelesai : [];
+            
+            // (BARU) Kira senarai belum selesai
+            const selesaiSet = new Set(skopSelesaiList);
+            skopBelumList = totalSkop.filter(sekolah => !selesaiSet.has(sekolah));
+
+            let jumlahSelesai = skopSelesaiList.length;
+            let jumlahBelum = skopBelumList.length;
+            let total = totalSkop.length;
+
+            const selesaiBtn = document.querySelector('button[onclick="showSkopList(\'selesai\')"]');
+            const belumBtn = document.querySelector('button[onclick="showSkopList(\'belum\')"]');
+
+            // (DIUBAH) Jika tiada skop (tugasan manual), guna data sedia ada
+            if (total === 0) {
+                jumlahSelesai = currentTask.jumlahSelesai || 0;
+                total = (currentTask.jumlahSelesai || 0) + (currentTask.jumlahBelum || 0);
+                jumlahBelum = total - jumlahSelesai;
+                if (jumlahBelum < 0) jumlahBelum = 0;
+                
+                // (BARU) Matikan butang jika tiada skop
+                if (selesaiBtn) selesaiBtn.disabled = true;
+                if (belumBtn) belumBtn.disabled = true;
+            } else {
+                if (selesaiBtn) selesaiBtn.disabled = false;
+                if (belumBtn) belumBtn.disabled = false;
+            }
             
             const peratus = (total === 0) ? 0 : Math.round((jumlahSelesai / total) * 100);
 
@@ -321,7 +357,6 @@
             document.getElementById('progress-circle').style.strokeDashoffset = 100 - peratus;
         }
 
-        // (DIUBAH) Fungsi untuk memaparkan rekod penyelesaian
         function renderCompletionHistory() {
             const container = document.getElementById('completion-list');
             container.innerHTML = '';
@@ -332,10 +367,8 @@
                 return;
             }
             
-            // Susun dengan yang terkini di atas
             list.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
             
-            // Dapatkan butiran penyelaras (mungkin 'null' jika belum dimuatkan)
             const pegawaiName = currentTask.pegawai;
             const pegawaiJawatan = penyelarasDetails ? (penyelarasDetails.position || 'N/A') : 'Memuatkan...';
             const pegawaiStesen = penyelarasDetails ? (penyelarasDetails.station || 'N/A') : 'Memuatkan...';
@@ -346,7 +379,6 @@
                     hour: 'numeric', minute: '2-digit' 
                 });
                 
-                // (DIUBAH) Struktur HTML untuk jadual
                 container.innerHTML += `
                     <tr class="text-sm">
                         <td class="px-4 py-3 text-gray-800 font-medium">${pegawaiName}</td>
@@ -377,7 +409,6 @@
             });
         }
         
-        // (DIUBAH) Kembalikan 'true' jika ada kandungan, 'false' jika tiada
         function renderLinks() {
             const container = document.getElementById('link-list');
             container.innerHTML = '';
@@ -385,7 +416,7 @@
             
             if (list.length === 0) {
                 container.innerHTML = `<p class="text-sm text-gray-500 italic">Tiada pautan berkaitan.</p>`;
-                return false; // (BARU)
+                return false;
             }
             
             list.forEach((url, index) => {
@@ -396,10 +427,9 @@
                     </div>
                 `;
             });
-            return true; // (BARU)
+            return true;
         }
 
-        // (DIUBAH) Kembalikan 'true' jika ada kandungan, 'false' jika tiada
         function renderFiles() {
             const container = document.getElementById('file-list');
             container.innerHTML = '';
@@ -407,7 +437,7 @@
             
             if (!file || !file.data) {
                 container.innerHTML = `<p class="text-sm text-gray-500 italic">Tiada fail dilampirkan.</p>`;
-                return false; // (BARU)
+                return false;
             }
             
             container.innerHTML = `
@@ -418,16 +448,56 @@
                     </a>
                 </div>
             `;
-            return true; // (BARU)
+            return true;
         }
 
-        // (DIHILANGKAN) Fungsi renderSkop() telah dialih keluar
-        
         function formatTarikh(tarikhString) {
             if (!tarikhString) return 'N/A';
             const [tahun, bulan, hari] = tarikhString.split('-');
             return `${hari}/${bulan}/${tahun}`;
         }
+
+        // (BARU) Fungsi untuk tunjuk modal senarai skop
+        function showSkopList(status) {
+            const modal = document.getElementById('skop-list-modal');
+            const titleEl = document.getElementById('skop-modal-title');
+            const contentEl = document.getElementById('skop-modal-content');
+            
+            let list = [];
+            if (status === 'selesai') {
+                titleEl.textContent = 'Senarai Selesai';
+                list = skopSelesaiList;
+            } else {
+                titleEl.textContent = 'Senarai Belum Selesai';
+                list = skopBelumList;
+            }
+            
+            contentEl.innerHTML = ''; // Kosongkan
+            if (list.length === 0) {
+                contentEl.innerHTML = `<p class="text-sm text-gray-500 italic">Tiada data untuk dipaparkan.</p>`;
+            } else {
+                list.sort().forEach((item, index) => { // Susun ikut abjad
+                    contentEl.innerHTML += `
+                        <div class="text-sm text-gray-800 bg-white p-2 border-b last:border-b-0">
+                            ${index + 1}. ${item}
+                        </div>
+                    `;
+                });
+            }
+            
+            modal.classList.remove('hidden');
+        }
+
+        // (BARU) Fungsi untuk tutup modal senarai skop
+        function closeSkopModal() {
+            document.getElementById('skop-list-modal').classList.add('hidden');
+        }
+
+        // (BARU) Jadikan fungsi ini global supaya HTML 'onclick' boleh akses
+        Object.assign(window, {
+            showSkopList,
+            closeSkopModal
+        });
 
     </script>
 </body>
