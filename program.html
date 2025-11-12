@@ -168,10 +168,15 @@
                                     Lihat
                                 </button>
                             </div>
-                            <div class="bg-gray-100 p-3 rounded-lg flex flex-col items-center justify-center">
-                                 <p class="text-xs font-medium text-gray-600">Belum Respon</p>
-                                 <p id="survey-no-response" class="text-2xl font-bold text-gray-800">0</p>
-                            </div>
+                           <div class="bg-gray-100 p-3 rounded-lg flex flex-col justify-between">
+    <div>
+        <p class="text-xs font-medium text-gray-600">Belum Respon</p>
+        <p id="survey-no-response" class="text-2xl font-bold text-gray-800">0</p>
+    </div>
+    <button id="view-no-response-btn" onclick="showSurveyListModal('no response')" class="btn mt-2 bg-gray-200 text-gray-800 text-xs font-semibold py-1 px-3 rounded-full hover:bg-gray-300 w-full hidden">
+        Lihat
+    </button>
+</div>
                         </div>
                     </div>
                     
@@ -479,14 +484,49 @@
             renderAttendanceTable(filteredList);
         }
 
-        function updateSurveySummary(){
+       function updateSurveySummary(){
              const surveyCard = document.getElementById('survey-summary-card');
+             const noResponseBtn = document.getElementById('view-no-response-btn'); // Dapatkan butang baru
+             noResponseBtn.classList.add('hidden'); // Sembunyikan secara lalai
+
              if(currentLoadedProgram.surveyNeeded){
                 const surveyResponses = currentLoadedProgram.surveyResponses || [];
                 const hadirCount = surveyResponses.filter(r => r.status === 'Akan Hadir').length;
                 const tidakHadirCount = surveyResponses.filter(r => r.status.startsWith('Tidak Hadir')).length;
-                const totalResponded = hadirCount + tidakHadirCount;
-                const noResponseCount = (parseInt(currentLoadedProgram.quota) || totalResponded) - totalResponded;
+                
+                let noResponseCount = 0;
+                const hasReferenceList = currentLoadedProgram.referenceNeeded && currentLoadedProgram.referenceList && currentLoadedProgram.referenceList.length > 0;
+
+                if (hasReferenceList) {
+                    // LOGIK BARU: Kira berdasarkan senarai rujukan
+                    const referenceList = currentLoadedProgram.referenceList;
+                    const respondedStations = new Set(surveyResponses.map(r => (r.station || '').trim().toUpperCase()));
+                    const respondedIndividuals = new Set(surveyResponses.map(r => `${(r.name || '').trim().toUpperCase()}|${(r.station || '').trim().toUpperCase()}`));
+
+                    const filteredList = referenceList.filter(ref => {
+                        const refName = (ref.name || '').trim().toUpperCase();
+                        const refStation = (ref.station || '').trim().toUpperCase();
+                        let hasResponded = false;
+                        if (refName) { 
+                            const refKey = `${refName}|${refStation}`;
+                            if (respondedIndividuals.has(refKey)) hasResponded = true;
+                        } else if (refStation) { 
+                            if (respondedStations.has(refStation)) hasResponded = true;
+                        }
+                        return !hasResponded;
+                    });
+                    
+                    noResponseCount = filteredList.length;
+                    
+                    if (noResponseCount > 0) {
+                        noResponseBtn.classList.remove('hidden'); // Tunjukkan butang jika ada yg belum respon
+                    }
+
+                } else {
+                    // LOGIK ASAL: Kira berdasarkan kuota jika tiada senarai rujukan
+                    const totalResponded = hadirCount + tidakHadirCount;
+                    noResponseCount = (parseInt(currentLoadedProgram.quota) || totalResponded) - totalResponded;
+                }
 
                 document.getElementById('survey-hadir').textContent = hadirCount;
                 document.getElementById('survey-tidak-hadir').textContent = tidakHadirCount;
@@ -626,52 +666,93 @@
             }
         }
 
-        function showSurveyListModal(filterType) {
+      function showSurveyListModal(filterType) {
             const modal = document.getElementById('survey-list-modal');
             const modalTitle = modal.querySelector('h3');
             const surveyListBody = document.getElementById('survey-list-body');
             const allResponses = currentLoadedProgram.surveyResponses || [];
             let filteredList = [];
             
+            let htmlOutput = '';
+
             if (filterType === 'hadir') {
                 modalTitle.textContent = 'Pengesahan Kehadiran (Akan Hadir)';
                 filteredList = allResponses.filter(r => r.status === 'Akan Hadir');
+                
+                if (filteredList.length === 0) {
+                     htmlOutput = `<tr><td colspan="4" class="px-6 py-4 text-center text-gray-500">Tiada maklum balas untuk kategori ini.</td></tr>`;
+                } else {
+                     htmlOutput = filteredList.sort((a,b) => (a.name > b.name) ? 1 : -1).map(response => {
+                        const pegawaiDetails = `<div class="font-semibold text-gray-900">${(response.name || '-').toUpperCase()}</div><div class="text-xs text-gray-500">${(response.position || '-').toUpperCase()}</div><div class="text-xs text-gray-500">${(response.station || '-').toUpperCase()}</div>`;
+                        let penggantiDetails = '-';
+                        if (response.rep_name) {
+                            penggantiDetails = `<div class="font-semibold text-gray-900">${(response.rep_name).toUpperCase()}</div><div class="text-xs text-gray-500">${(response.rep_position || '-').toUpperCase()}</div>`;
+                        }
+                        return `<tr class="border-b"><td class="px-6 py-4 whitespace-nowrap text-sm">${pegawaiDetails}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-semibold">${(response.status || '-').toUpperCase()}</td><td class="px-6 py-4 text-sm text-gray-500">${(response.reason || '-').toUpperCase()}</td><td class="px-6 py-4 whitespace-nowrap text-sm">${penggantiDetails}</td></tr>`;
+                     }).join('');
+                }
+
             } else if (filterType === 'tidak hadir') {
                 modalTitle.textContent = 'Pengesahan Kehadiran (Tidak Hadir)';
                 filteredList = allResponses.filter(r => r.status.startsWith('Tidak Hadir'));
+                
+                if (filteredList.length === 0) {
+                     htmlOutput = `<tr><td colspan="4" class="px-6 py-4 text-center text-gray-500">Tiada maklum balas untuk kategori ini.</td></tr>`;
+                } else {
+                     htmlOutput = filteredList.sort((a,b) => (a.name > b.name) ? 1 : -1).map(response => {
+                        const pegawaiDetails = `<div class="font-semibold text-gray-900">${(response.name || '-').toUpperCase()}</div><div class="text-xs text-gray-500">${(response.position || '-').toUpperCase()}</div><div class="text-xs text-gray-500">${(response.station || '-').toUpperCase()}</div>`;
+                        let penggantiDetails = '-';
+                        if (response.rep_name) {
+                            penggantiDetails = `<div class="font-semibold text-gray-900">${(response.rep_name).toUpperCase()}</div><div class="text-xs text-gray-500">${(response.rep_position || '-').toUpperCase()}</div>`;
+                        }
+                        return `<tr class="border-b"><td class="px-6 py-4 whitespace-nowrap text-sm">${pegawaiDetails}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-red-600 font-semibold">${(response.status || '-').toUpperCase()}</td><td class="px-6 py-4 text-sm text-gray-500">${(response.reason || '-').toUpperCase()}</td><td class="px-6 py-4 whitespace-nowrap text-sm">${penggantiDetails}</td></tr>`;
+                     }).join('');
+                }
+
+            } else if (filterType === 'no response') {
+                // BLOK LOGIK BARU
+                modalTitle.textContent = 'Senarai Rujukan Belum Respon';
+                
+                const referenceList = currentLoadedProgram.referenceList || [];
+                const respondedStations = new Set(allResponses.map(r => (r.station || '').trim().toUpperCase()));
+                const respondedIndividuals = new Set(allResponses.map(r => `${(r.name || '').trim().toUpperCase()}|${(r.station || '').trim().toUpperCase()}`));
+
+                filteredList = referenceList.filter(ref => {
+                    const refName = (ref.name || '').trim().toUpperCase();
+                    const refStation = (ref.station || '').trim().toUpperCase();
+                    let hasResponded = false;
+                    if (refName) { 
+                        const refKey = `${refName}|${refStation}`;
+                        if (respondedIndividuals.has(refKey)) hasResponded = true;
+                    } else if (refStation) { 
+                        if (respondedStations.has(refStation)) hasResponded = true;
+                    }
+                    return !hasResponded; // Simpan jika BELUM respon
+                });
+
+                if (filteredList.length === 0) {
+                     htmlOutput = `<tr><td colspan="4" class="px-6 py-4 text-center text-gray-500">Semua rujukan telah memberi respon.</td></tr>`;
+                } else {
+                     htmlOutput = filteredList.sort((a,b) => (a.station > b.station) ? 1 : -1).map(ref => {
+                        const pegawaiDetails = `
+                            <div class="font-semibold text-gray-900">${(ref.name || 'WAKIL STESYEN').toUpperCase()}</div>
+                            <div class="text-xs text-gray-500">${(ref.station || '-').toUpperCase()}</div>
+                        `;
+                        // Papar untuk muat dalam modal sedia ada
+                        return `
+                            <tr class="border-b">
+                                <td class="px-6 py-4 whitespace-nowrap text-sm">${pegawaiDetails}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-medium">BELUM RESPON</td>
+                                <td class="px-6 py-4 text-sm text-gray-500">-</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm">-</td>
+                            </tr>
+                        `;
+                     }).join('');
+                }
             }
 
-             if (filteredList.length === 0) {
-                 surveyListBody.innerHTML = `<tr><td colspan="4" class="px-6 py-4 text-center text-gray-500">Tiada maklum balas untuk kategori ini.</td></tr>`;
-             } else {
-                 surveyListBody.innerHTML = filteredList.sort((a,b) => (a.name > b.name) ? 1 : -1).map(response => {
-                    const pegawaiDetails = `
-                        <div class="font-semibold text-gray-900">${(response.name || '-').toUpperCase()}</div>
-                        <div class="text-xs text-gray-500">${(response.position || '-').toUpperCase()}</div>
-                        <div class="text-xs text-gray-500">${(response.station || '-').toUpperCase()}</div>
-                    `;
-
-                    let penggantiDetails = '-';
-                    if (response.rep_name) {
-                        penggantiDetails = `
-                            <div class="font-semibold text-gray-900">${(response.rep_name).toUpperCase()}</div>
-                            <div class="text-xs text-gray-500">${(response.rep_position || '-').toUpperCase()}</div>
-                        `;
-                    }
-
-                    const statusClass = response.status === 'Akan Hadir' ? 'text-green-600 font-semibold' : 'text-red-600 font-semibold';
-
-                    return `
-                        <tr class="border-b">
-                            <td class="px-6 py-4 whitespace-nowrap text-sm">${pegawaiDetails}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm ${statusClass}">${(response.status || '-').toUpperCase()}</td>
-                            <td class="px-6 py-4 text-sm text-gray-500">${(response.reason || '-').toUpperCase()}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm">${penggantiDetails}</td>
-                        </tr>
-                    `;
-                 }).join('');
-             }
-            modal.classList.remove('hidden');
+            surveyListBody.innerHTML = htmlOutput; // Set kandungan jadual
+            modal.classList.remove('hidden'); // Papar modal
         }
 
         async function checkIn(){
