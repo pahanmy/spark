@@ -436,50 +436,78 @@
                     
                     totalExpected = parseInt(updatedProgramData.quota) || 0;
                     
-                    if (status === 'Akan Hadir') {
-                        const hadirResponses = allResponses.filter(r => r.status === 'Akan Hadir');
-                        totalConfirmed = hadirResponses.length; 
-                    }
+                    // Hanya kira 'Akan Hadir' untuk statistik progres bar
+                    const hadirResponses = allResponses.filter(r => r.status === 'Akan Hadir');
+                    totalConfirmed = hadirResponses.length; 
                 }
+
+                // ▼▼▼ BLOK LOGIK TELAH DIUBAH SUAI ▼▼▼
+
+                // Dapatkan pembolehubah masa & tarikh yang biasa digunakan
+                const submissionTime = new Date(newResponse.time);
+                const formattedDate = submissionTime.toLocaleDateString('ms-MY', {
+                    day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kuala_Lumpur'
+                });
+                const formattedTime = submissionTime.toLocaleTimeString('ms-MY', {
+                    hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kuala_Lumpur'
+                }).toUpperCase();
+
+                const programDate = new Date(currentProgram.startDate);
+                const formattedProgramDate = programDate.toLocaleDateString('ms-MY', {
+                    day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kuala_Lumpur'
+                });
+
+                // Bina badan mesej asas
+                let messageBody = `<div class="text-sm text-gray-700 bg-gray-50 p-4 rounded-md border border-gray-200">`;
+                messageBody += `<b class="text-indigo-600" style="font-size: 1.05em;">${currentProgram.name.toUpperCase()}</b><br>`;
+                messageBody += `${formattedProgramDate.toUpperCase()} | ${currentProgram.location.toUpperCase()}`;
+                messageBody += `</div>`;
+                
+                messageBody += `<br><br>Terima kasih,<br>`;
+                
+                messageBody += `<b class="text-lg text-gray-900">${participantInfo.name}</b><br>`;
+                messageBody += `${participantInfo.position || 'Tiada Jawatan'}<br>`;
+                messageBody += `${participantInfo.station || 'Tiada Stesen'}`;
+                
+                messageBody += `<br><br><div class="text-sm text-gray-500">`;
+                
                 
                 if (status === 'Akan Hadir') {
-                    
-                    const submissionTime = new Date(newResponse.time);
-                    const formattedDate = submissionTime.toLocaleDateString('ms-MY', {
-                        day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kuala_Lumpur'
-                    });
-                    const formattedTime = submissionTime.toLocaleTimeString('ms-MY', {
-                        hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kuala_Lumpur'
-                    }).toUpperCase(); // Tukar 'am/pm' kepada 'AM/PM'
-
-                    const programDate = new Date(currentProgram.startDate);
-                    const formattedProgramDate = programDate.toLocaleDateString('ms-MY', {
-                        day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kuala_Lumpur'
-                    });
-
-                    // --- FORMAT MESEJ BARU (DENGAN .toUpperCase()) ---
-                    let messageBody = `<div class="text-sm text-gray-700 bg-gray-50 p-4 rounded-md border border-gray-200">`;
-                    messageBody += `<b class="text-indigo-600" style="font-size: 1.05em;">${currentProgram.name.toUpperCase()}</b><br>`;
-                    messageBody += `${formattedProgramDate.toUpperCase()} | ${currentProgram.location.toUpperCase()}`;
-                    messageBody += `</div>`;
-                    
-                    messageBody += `<br><br>Terima kasih,<br>`;
-                    
-                    messageBody += `<b class="text-lg text-gray-900">${participantInfo.name}</b><br>`;
-                    messageBody += `${participantInfo.position || 'Tiada Jawatan'}<br>`;
-                    messageBody += `${participantInfo.station || 'Tiada Stesen'}`;
-                    
-                    messageBody += `<br><br><div class="text-sm text-gray-500">`;
                     messageBody += `Pengesahan kehadiran anda telah direkodkan pada:<br>`;
                     messageBody += `<b>${formattedDate.toUpperCase()} | ${formattedTime}</b>`;
                     messageBody += `</div>`;
                     
-                    // ▼▼▼ PERUBAHAN: 'false' dihantar untuk 'showActionButton' ▼▼▼
-                    showMessage('success', 'Kehadiran Disahkan !', messageBody, false, { current: totalConfirmed, total: totalExpected });
+                    showMessage(
+                        'success', 
+                        'Kehadiran Disahkan !', 
+                        messageBody, 
+                        false, 
+                        { current: totalConfirmed, total: totalExpected } // Hantar statistik
+                    );
                 
-                } else {
-                     showMessage('success', 'Maklum Balas Diterima', `Terima kasih, ${participantInfo.name}. Maklum balas anda telah direkodkan.`);
+                } else if (status === 'Tidak Hadir (Ada Wakil)') {
+                    messageBody += `Maklum balas <b class="text-yellow-600">TIDAK HADIR (BERWAKIL)</b> anda telah direkodkan pada:<br>`;
+                    messageBody += `<b>${formattedDate.toUpperCase()} | ${formattedTime}</b>`;
+                    
+                    // Tambah maklumat wakil
+                    messageBody += `<br><br><div class="text-xs bg-yellow-50 border border-yellow-200 p-3 rounded-md">`;
+                    messageBody += `<b>MAKLUMAT WAKIL:</b><br>`;
+                    messageBody += `NAMA: ${newResponse.rep_name.toUpperCase()}<br>`;
+                    messageBody += `NO. TEL: ${newResponse.rep_phone}`;
+                    messageBody += `</div>`;
+                    
+                    messageBody += `</div>`;
+                    
+                    showMessage('success', 'Maklum Balas Diterima', messageBody, false, null); // Tiada statistik
+
+                } else if (status === 'Tidak Hadir (Tiada Wakil)') {
+                    messageBody += `Maklum balas <b class="text-red-600">TIDAK HADIR (TIADA WAKIL)</b> anda telah direkodkan pada:<br>`;
+                    messageBody += `<b>${formattedDate.toUpperCase()} | ${formattedTime}</b>`;
+                    messageBody += `</div>`;
+
+                    showMessage('success', 'Maklum Balas Diterima', messageBody, false, null); // Tiada statistik
                 }
+                // ▲▲▲ BLOK LOGIK TAMAT ▲▲▲
 
             } catch(error) {
                 console.error("Error saving survey response: ", error);
@@ -487,17 +515,12 @@
             }
         }
 
-        // ▼▼▼ FUNGSI INI TELAH DIKEMAS KINI (Logik Butang Dibuang) ▼▼▼
         function showMessage(type, title, body, showActionButton = false, stats = null) {
             document.getElementById('loading-state').classList.add('hidden');
             document.getElementById('survey-card').classList.add('hidden');
             document.getElementById('survey-options-card').classList.add('hidden');
             document.getElementById('absence-form-card').classList.add('hidden');
             document.getElementById('new-participant-card').classList.add('hidden');
-
-            // --- Logik butang telah dibuang ---
-            // const msgBtnContainer = document.getElementById('message-action-btn-container');
-            // if (msgBtnContainer) msgBtnContainer.classList.add('hidden');
             
             const statsContainer = document.getElementById('confirmation-stats');
             if (statsContainer) statsContainer.classList.add('hidden');
@@ -524,9 +547,6 @@
             
             msgIcon.className = `w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${color}`;
             msgIcon.innerHTML = icon;
-
-            // --- Logik butang telah dibuang ---
-            // if (showActionButton && currentProgram && currentProgram.id) { ... }
             
             if (type === 'success' && stats && stats.total > 0) {
                 document.getElementById('stats-current').textContent = stats.current;
