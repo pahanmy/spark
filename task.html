@@ -240,7 +240,7 @@
         let currentTask = null;
         const appId = firebaseConfig.projectId;
         let currentTaskId = null;
-        let penyelarasDetails = null;
+        // let penyelarasDetails = null; // <-- (DIBAIKI) Dipadamkan
         let skopSelesaiList = [];
         let skopBelumList = [];
         let currentModalSkopList = [];
@@ -297,9 +297,7 @@
                 if (docSnap.exists()) {
                     currentTask = { id: docSnap.id, ...docSnap.data() };
                     
-                    if (!penyelarasDetails) {
-                        loadPenyelarasDetails(currentTask.penyelaras_ic);
-                    }
+                    // (DIBAIKI) Panggilan ke loadPenyelarasDetails dipadamkan
                     
                     renderTaskDetails();
                     renderTaskProgress();
@@ -330,30 +328,14 @@
             });
         }
         
-        async function loadPenyelarasDetails(ic) {
-            try {
-                const participantsRef = collection(db, `artifacts/${appId}/public/data/spark_participants`);
-                const q = query(participantsRef, where("ic", "==", ic));
-                const querySnapshot = await getDocs(q);
-                
-                if (!querySnapshot.empty) {
-                    penyelarasDetails = querySnapshot.docs[0].data();
-                    renderCompletionHistory(); 
-                } else {
-                    console.warn("Data penyelaras tidak ditemui untuk IC:", ic);
-                }
-            } catch (error) {
-                console.error("Error fetching participant details:", error);
-            }
-        }
+        // (DIBAIKI) Fungsi 'loadPenyelarasDetails' dipadamkan sepenuhnya
 
-        // (DIUBAH) Fungsi dikemas kini untuk membuang teks awalan
         function renderTaskDetails() {
             document.getElementById('dashboard-task-name').textContent = currentTask.nama.toUpperCase();
-            document.getElementById('dashboard-pegawai').textContent = currentTask.pegawai; // Dibuang "Pegawai: "
-            document.getElementById('dashboard-sektor').textContent = currentTask.sektor; // Dibuang "Sektor: "
-            document.getElementById('dashboard-date-start').textContent = formatTarikh(currentTask.tarikhMula); // Dibuang "Mula: "
-            document.getElementById('dashboard-date-end').textContent = formatTarikh(currentTask.tarikhSiap); // Dibuang "Siap: "
+            document.getElementById('dashboard-pegawai').textContent = currentTask.pegawai;
+            document.getElementById('dashboard-sektor').textContent = currentTask.sektor;
+            document.getElementById('dashboard-date-start').textContent = formatTarikh(currentTask.tarikhMula);
+            document.getElementById('dashboard-date-end').textContent = formatTarikh(currentTask.tarikhSiap);
         }
         
         function renderTaskProgress() {
@@ -385,33 +367,45 @@
             document.getElementById('progress-circle').style.strokeDashoffset = 100 - peratus;
         }
 
+        // ▼▼▼ FUNGSI 'renderCompletionHistory' DIBAIKI SEPENUHNYA ▼▼▼
         function renderCompletionHistory() {
             const container = document.getElementById('completion-list');
             container.innerHTML = '';
             const list = currentTask.rekodSelesai || [];
+            
             if (list.length === 0) {
                 container.innerHTML = `<tr><td colspan="4" class="px-4 py-4 text-center text-sm text-gray-500 italic">Tiada pengesahan selesai direkodkan.</td></tr>`;
                 return;
             }
+
+            // Isih senarai, yang terbaru di atas
             list.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-            const pegawaiName = currentTask.pegawai;
-            const pegawaiJawatan = penyelarasDetails ? (penyelarasDetails.position || 'N/A') : 'Memuatkan...';
-            const pegawaiStesen = penyelarasDetails ? (penyelarasDetails.station || 'N/A') : 'Memuatkan...';
+            
             list.forEach((rekod, index) => {
                 const timestamp = new Date(rekod.timestamp).toLocaleString('ms-MY', { 
                     day: 'numeric', month: 'long', year: 'numeric', 
                     hour: 'numeric', minute: '2-digit' 
                 });
+
+                // (DIBAIKI) Baca data dari 'rekod' individu
+                // Guna nama_pengesah dari rekod. Jika tiada (data lama), guna 'currentTask.pegawai'
+                const nama = rekod.nama_pengesah || currentTask.pegawai || 'N/A';
+                // Guna jawatan_pengesah dari rekod
+                const jawatan = rekod.jawatan_pengesah || 'N/A';
+                // Guna stesen_pengesah dari rekod
+                const stesen = rekod.stesen_pengesah || 'N/A';
+
                 container.innerHTML += `
                     <tr class="text-sm">
-                        <td class="px-4 py-3 text-gray-800 font-medium">${pegawaiName}</td>
-                        <td class="px-4 py-3 text-gray-600">${pegawaiJawatan}</td>
-                        <td class="px-4 py-3 text-gray-600">${pegawaiStesen}</td>
+                        <td class="px-4 py-3 text-gray-800 font-medium">${nama}</td>
+                        <td class="px-4 py-3 text-gray-600">${jawatan}</td>
+                        <td class="px-4 py-3 text-gray-600">${stesen}</td>
                         <td class="px-4 py-3 text-gray-600 whitespace-nowrap">${timestamp}</td>
                     </tr>
                 `;
             });
         }
+        // ▲▲▲ FUNGSI 'renderCompletionHistory' TAMAT ▲▲▲
 
         function renderSubTasks() {
             const container = document.getElementById('sub-task-list');
