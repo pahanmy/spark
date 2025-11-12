@@ -125,6 +125,18 @@
                     </div>
                     
                     <div class="card p-6">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            Rekod Pengesahan Selesai
+                        </h3>
+                        <div id="completion-list" class="space-y-3 max-h-64 overflow-y-auto">
+                            <p class="text-sm text-gray-500 italic">Tiada pengesahan selesai direkodkan.</p>
+                        </div>
+                    </div>
+
+                    <div class="card p-6">
                         <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m-1 4h1m4-8h1m-1 4h1m-1 4h1" /></svg>Skop Tugasan (Senarai Sekolah)</h3>
                         <textarea id="skop-textarea" rows="10" class="w-full mt-1 p-3 border border-gray-300 rounded-md bg-gray-100" readonly></textarea>
                     </div>
@@ -210,6 +222,7 @@
                     // Panggil semua fungsi render
                     renderTaskDetails();
                     renderTaskProgress();
+                    renderCompletionHistory(); // (BARU) Panggil fungsi ini
                     renderSubTasks();
                     renderLinks();
                     renderFiles();
@@ -257,6 +270,49 @@
             document.getElementById('info-total').textContent = total;
             document.getElementById('info-peratus').textContent = `${peratus}%`;
             document.getElementById('progress-circle').style.strokeDashoffset = 100 - peratus;
+        }
+
+        // (BARU) Fungsi untuk memaparkan rekod penyelesaian
+        function renderCompletionHistory() {
+            const container = document.getElementById('completion-list');
+            container.innerHTML = '';
+            const list = currentTask.rekodSelesai || [];
+            
+            if (list.length === 0) {
+                container.innerHTML = `<p class="text-sm text-gray-500 italic">Tiada pengesahan selesai direkodkan.</p>`;
+                return;
+            }
+            
+            // Susun dengan yang terkini di atas
+            list.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+            list.forEach((rekod, index) => {
+                // Nama pegawai adalah sama untuk semua, berdasarkan siapa penyelaras
+                const pegawaiName = currentTask.pegawai; 
+                const timestamp = new Date(rekod.timestamp).toLocaleString('ms-MY', { 
+                    day: 'numeric', month: 'long', year: 'numeric', 
+                    hour: 'numeric', minute: '2-digit' 
+                });
+                
+                // Papar pautan jika ada
+                let pautanHtml = '';
+                if (rekod.pautan && rekod.pautan.length > 0) {
+                    pautanHtml = rekod.pautan.map(url => 
+                        `<a href="${url}" target="_blank" class="text-xs text-blue-600 hover:underline break-all block">${url}</a>`
+                    ).join('');
+                }
+
+                container.innerHTML += `
+                    <div class="bg-gray-50 border border-gray-200 p-3 rounded-lg">
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm font-medium text-gray-800">${pegawaiName}</span>
+                            <span class="text-xs text-gray-500">${timestamp}</span>
+                        </div>
+                        <p class="text-sm text-gray-600 italic mt-1">"${rekod.catatan || 'Tiada catatan.'}"</p>
+                        ${pautanHtml ? `<div class="mt-2 border-t pt-2">${pautanHtml}</div>` : ''}
+                    </div>
+                `;
+            });
         }
 
         function renderSubTasks() {
