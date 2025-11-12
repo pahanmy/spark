@@ -64,6 +64,53 @@
                 Senarai Tugasan
             </h1>
         </div>
+        
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div class="card p-4 flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-gray-500">Jumlah Tugasan</p>
+                    <p id="total-tugasan" class="text-3xl font-bold text-indigo-600">0</p>
+                </div>
+                <div class="bg-indigo-100 p-3 rounded-full">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+                </div>
+            </div>
+            <div class="card p-4 flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-gray-500">Telah Selesai</p>
+                    <p id="total-selesai" class="text-3xl font-bold text-green-600">0</p>
+                </div>
+                <div class="bg-green-100 p-3 rounded-full">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                </div>
+            </div>
+            <div class="card p-4 flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-gray-500">Belum Selesai</p>
+                    <p id="total-belum" class="text-3xl font-bold text-amber-600">0</p>
+                </div>
+                <div class="bg-amber-100 p-3 rounded-full">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mb-6 p-4">
+            <div class="flex flex-col md:flex-row justify-between items-center gap-4">
+                <div class="w-full md:w-2/3">
+                    <label for="carian-tugasan" class="sr-only">Cari Tugasan</label>
+                    <input type="text" id="carian-tugasan" class="block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Cari nama tugasan...">
+                </div>
+                <div class="w-full md:w-auto flex items-center gap-2">
+                    <label for="items-per-page" class="text-sm font-medium text-gray-700">Papar:</label>
+                    <select id="items-per-page" class="block w-full md:w-auto rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                        <option value="10">10</option>
+                        <option value="15">15</option>
+                        <option value="30">30</option>
+                    </select>
+                </div>
+            </div>
+        </div>
 
         <div class="bg-white rounded-xl shadow-lg overflow-hidden">
             <div class="overflow-x-auto">
@@ -83,6 +130,8 @@
                     </tbody>
                 </table>
             </div>
+            <div id="pagination-controls" class="p-4 flex justify-between items-center">
+                </div>
         </div>
     </main>
 
@@ -365,6 +414,16 @@
         const errorPengesahanIc = document.getElementById('error-pengesahan-ic');
         const inputPengesahanIc = document.getElementById('input-pengesahan-ic');
 
+        // (BARU) Carian & Paginasi
+        const carianInput = document.getElementById('carian-tugasan');
+        const itemsPerPageSelect = document.getElementById('items-per-page');
+        const paginationControls = document.getElementById('pagination-controls');
+        
+        // (BARU) Kad Rumusan
+        const totalTugasanEl = document.getElementById('total-tugasan');
+        const totalSelesaiEl = document.getElementById('total-selesai');
+        const totalBelumEl = document.getElementById('total-belum');
+
 
         // --- State (Data) ---
         let senaraiTugasan = []; // Cache data dari Firestore
@@ -373,6 +432,8 @@
         let currentEditId = null; // ID tugasan yang sedang diedit
         let currentDeleteId = null; // ID tugasan yang akan dipadam
         let currentActionIntent = null; // (BARU) Simpan niat 'edit' atau 'delete'
+        let currentPage = 1; // (BARU)
+        let itemsPerPage = 10; // (BARU)
 
         // --- FUNCTIONS ---
 
@@ -391,7 +452,7 @@
                     id: doc.id,
                     ...doc.data()
                 }));
-                paparkanTugasan();
+                paparkanTugasan(); // Panggil paparan
             }, (error) => {
                 console.error("Error mendengar data: ", error);
                 badanJadual.innerHTML = `<tr><td colspan="6" class="px-6 py-4 text-center text-red-500">Gagal memuatkan data.</td></tr>`;
@@ -403,13 +464,60 @@
          */
         function paparkanTugasan() {
             badanJadual.innerHTML = '';
+            
+            // (BARU) 1. Dapatkan nilai carian dan tapisan
+            const searchTerm = carianInput.value.toLowerCase();
+            itemsPerPage = parseInt(itemsPerPageSelect.value, 10);
 
-            if (senaraiTugasan.length === 0) {
-                badanJadual.innerHTML = `<tr><td colspan="6" class="px-6 py-4 text-center text-gray-500">Tiada tugasan ditemui. Sila tambah tugasan baru.</td></tr>`;
+            // (BARU) 2. Tapis senarai penuh
+            const filteredList = senaraiTugasan.filter(tugasan => 
+                tugasan.nama.toLowerCase().includes(searchTerm)
+            );
+            
+            // (BARU) 3. Kira rumusan
+            let totalSelesai = 0;
+            let totalBelum = 0;
+
+            filteredList.forEach(tugasan => {
+                let jumlahSelesai = tugasan.jumlahSelesai || 0;
+                let total;
+                if (Array.isArray(tugasan.skopSenaraiSekolah)) {
+                    total = tugasan.skopSenaraiSekolah.length;
+                } else {
+                    total = (tugasan.jumlahSelesai || 0) + (tugasan.jumlahBelum || 0);
+                }
+                const peratus = (total === 0) ? 0 : Math.round((jumlahSelesai / total) * 100);
+                
+                if (peratus === 100) {
+                    totalSelesai++;
+                } else {
+                    totalBelum++;
+                }
+            });
+            
+            totalTugasanEl.textContent = filteredList.length;
+            totalSelesaiEl.textContent = totalSelesai;
+            totalBelumEl.textContent = totalBelum;
+
+
+            // (BARU) 4. Lakukan Paginasi
+            const totalItems = filteredList.length;
+            const totalPages = Math.ceil(totalItems / itemsPerPage);
+            if (currentPage > totalPages) currentPage = totalPages;
+            if (currentPage < 1) currentPage = 1;
+            
+            const startIndex = (currentPage - 1) * itemsPerPage;
+            const endIndex = startIndex + itemsPerPage;
+            const paginatedList = filteredList.slice(startIndex, endIndex);
+            
+            
+            if (paginatedList.length === 0) {
+                badanJadual.innerHTML = `<tr><td colspan="6" class="px-6 py-4 text-center text-gray-500">Tiada tugasan ditemui.</td></tr>`;
+                renderPaginationControls(0, 0); // (BARU)
                 return;
             }
 
-            senaraiTugasan.forEach((tugasan, index) => {
+            paginatedList.forEach((tugasan, index) => {
                 const baris = document.createElement('tr');
                 
                 let jumlahSelesai = tugasan.jumlahSelesai || 0;
@@ -432,7 +540,7 @@
                 const bakiHariInfo = kiraBakiHari(tugasan.tarikhSiap, peratus);
 
                 baris.innerHTML = `
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${index + 1}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${startIndex + index + 1}</td>
                     
                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                         <div>${tugasan.nama}</div>
@@ -464,7 +572,7 @@
                             <button class="text-green-600 hover:text-green-900 butang-edit" data-id="${tugasan.id}" title="Edit Tugasan">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd" /></svg>
                             </button>
-                            <a href="task.html?id=${tugasan.id}" target="_blank" class="text-purple-600 hover:text-purple-900" title="Lihat Papan Pemuka">
+                            <a href="task.html?id=${tugasan.id}" class="text-purple-600 hover:text-purple-900" title="Lihat Papan Pemuka">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10 12a2 2 0 100-4 2 2 0 000 4z" /><path fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd" /></svg>
                             </a>
                             <button class="text-blue-600 hover:text-blue-900 butang-kongsi" data-id="${tugasan.id}" title="Kongsi">
@@ -478,6 +586,45 @@
                 `;
                 badanJadual.appendChild(baris);
             });
+            
+            // (BARU) 5. Lukis kawalan paginasi
+            renderPaginationControls(totalItems, totalPages);
+        }
+        
+        // (BARU) Fungsi untuk melukis kawalan paginasi
+        function renderPaginationControls(totalItems, totalPages) {
+            if (totalItems === 0) {
+                paginationControls.innerHTML = '';
+                return;
+            }
+
+            const prevDisabled = currentPage === 1 ? 'disabled' : '';
+            const nextDisabled = currentPage === totalPages ? 'disabled' : '';
+
+            paginationControls.innerHTML = `
+                <span class="text-sm text-gray-700">
+                    Menunjukkan <span class="font-medium">${(currentPage - 1) * itemsPerPage + 1}</span> 
+                    hingga <span class="font-medium">${Math.min(currentPage * itemsPerPage, totalItems)}</span> 
+                    dari <span class="font-medium">${totalItems}</span> tugasan
+                </span>
+                <div class="flex gap-2">
+                    <button onclick="goToPage(${currentPage - 1})" ${prevDisabled} class="btn bg-gray-200 text-gray-700 text-sm py-1 px-3 rounded-lg">Sebelumnya</button>
+                    <button onclick="goToPage(${currentPage + 1})" ${nextDisabled} class="btn bg-gray-200 text-gray-700 text-sm py-1 px-3 rounded-lg">Seterusnya</button>
+                </div>
+            `;
+        }
+
+        // (BARU) Fungsi untuk navigasi halaman
+        function goToPage(page) {
+            currentPage = page;
+            paparkanTugasan();
+        }
+
+        // (BARU) Fungsi untuk tukar item per halaman
+        function changeItemsPerPage() {
+            itemsPerPage = parseInt(itemsPerPageSelect.value, 10);
+            currentPage = 1;
+            paparkanTugasan();
         }
 
         /**
@@ -766,8 +913,9 @@
             if (!targetButton) return;
 
             // Semak jika ia pautan 'Lihat'
-            if (targetButton.tagName === 'A' && targetButton.target === '_blank') {
-                return; // Biarkan pautan berfungsi seperti biasa
+            if (targetButton.tagName === 'A' && targetButton.href.includes('task.html')) {
+                // (DIUBAH) Biarkan pautan berfungsi seperti biasa (tiada target="_blank")
+                return; 
             }
             
             const id = targetButton.dataset.id;
@@ -947,6 +1095,13 @@ ${subTugasanTeks}
                 currentEditId = null; // Reset ID
                 currentActionIntent = null; // Reset niat
             });
+            
+            // (BARU) Listeners for Search and Pagination
+            carianInput.addEventListener('input', () => {
+                currentPage = 1; // Reset ke halaman 1 setiap kali carian baru
+                paparkanTugasan();
+            });
+            itemsPerPageSelect.addEventListener('change', changeItemsPerPage);
         });
 
         // Modal Edit
@@ -965,6 +1120,9 @@ ${subTugasanTeks}
 
         // Jadual
         badanJadual.addEventListener('click', handleTindakanJadual);
+        
+        // (BARU) Jadikan fungsi paginasi global
+        window.goToPage = goToPage;
 
     </script>
 </body>
