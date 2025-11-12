@@ -119,24 +119,13 @@
                             </div>
 
                             <div class="md:col-span-2">
-                                <label class="block text-sm font-medium text-gray-700">Skop Tugasan (Auto-kira 'Jumlah Belum')</label>
-                                <div class="mt-2 flex flex-wrap gap-x-6 gap-y-2">
-                                    <div class="flex items-center">
-                                        <input id="skop-sr" name="skop-tugasan" type="radio" value="sr" class="h-4 w-4 text-indigo-600 border-gray-300">
-                                        <label for="skop-sr" class="ml-2 text-sm text-gray-900">Sekolah Rendah Sahaja (<span id="count-sr">0</span>)</label>
-                                    </div>
-                                    <div class="flex items-center">
-                                        <input id="skop-sm" name="skop-tugasan" type="radio" value="sm" class="h-4 w-4 text-indigo-600 border-gray-300">
-                                        <label for="skop-sm" class="ml-2 text-sm text-gray-900">Sekolah Menengah Sahaja (<span id="count-sm">0</span>)</label>
-                                    </div>
-                                    <div class="flex items-center">
-                                        <input id="skop-all" name="skop-tugasan" type="radio" value="all" class="h-4 w-4 text-indigo-600 border-gray-300">
-                                        <label for="skop-all" class="ml-2 text-sm text-gray-900">Kedua-dua (SR & SM) (<span id="count-all">0</span>)</label>
-                                    </div>
-                                    <div class="flex items-center">
-                                        <input id="skop-custom" name="skop-tugasan" type="radio" value="custom" checked class="h-4 w-4 text-indigo-600 border-gray-300">
-                                        <label for="skop-custom" class="ml-2 text-sm text-gray-900">Lain-lain / Manual (0)</label>
-                                    </div>
+                                <label for="skop-list-textarea" class="block text-sm font-medium text-gray-700">Skop Tugasan (Senarai Sekolah)</label>
+                                <p class="text-xs text-gray-500">Tampal senarai (Nama Sekolah sahaja, 1 per baris) atau gunakan butang untuk memuatkan senarai. 'Jumlah Belum' akan dikira dari sini.</p>
+                                <textarea id="skop-list-textarea" rows="4" class="w-full mt-1 p-3 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" placeholder="SK MIRI...&#10;SMK LUTONG..."></textarea>
+                                <div class="flex flex-wrap gap-2 mt-2">
+                                    <button type="button" id="load-sr-btn" class="btn bg-gray-100 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-blue-100 hover:text-blue-800 text-sm">Muat Senarai SR</button>
+                                    <button type="button" id="load-sm-btn" class="btn bg-gray-100 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-blue-100 hover:text-blue-800 text-sm">Muat Senarai SM</button>
+                                    <button type="button" id="load-all-btn" class="btn bg-gray-100 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-blue-100 hover:text-blue-800 text-sm">Muat Senarai SR & SM</button>
                                 </div>
                             </div>
                             
@@ -296,13 +285,11 @@
 
         // Borang Inputs
         const namaModal = document.getElementById('nama-modal');
-        // DIBUANG: pegawaiModal
         const sektorModal = document.getElementById('sektor-modal');
         const tarikhMulaModal = document.getElementById('tarikh-mula-modal');
         const tarikhSiapModal = document.getElementById('tarikh-siap-modal');
         const failInput = document.getElementById('fail-input');
         const failInfo = document.getElementById('fail-info');
-        // DIBUANG: jumlahSelesaiModal, jumlahBelumModal
 
         // Sub-Tugasan Inputs
         const subTugasanInput = document.getElementById('sub-tugasan-input');
@@ -367,17 +354,13 @@
                 }
             }
 
-            // (BARU) Logik untuk skop dan jumlah
-            const skopTugasan = document.querySelector('input[name="skop-tugasan"]:checked').value;
-            let jumlahBelum = 0;
-            if (skopTugasan === 'sr') {
-                jumlahBelum = srSchools.length;
-            } else if (skopTugasan === 'sm') {
-                jumlahBelum = smSchools.length;
-            } else if (skopTugasan === 'all') {
-                jumlahBelum = srSchools.length + smSchools.length;
-            }
-            // jika 'custom', jumlahBelum kekal 0
+            // (DIKEMAS KINI) Logik untuk skop dan jumlah
+            const textareaValue = document.getElementById('skop-list-textarea').value;
+            const skopSenaraiSekolah = textareaValue.split('\n')
+                                                  .map(line => line.trim())
+                                                  .filter(line => line.length > 0);
+
+            const jumlahBelum = skopSenaraiSekolah.length;
 
             const dataTugasan = {
                 nama: namaModal.value,
@@ -386,8 +369,8 @@
                 tarikhMula: tarikhMulaModal.value,
                 tarikhSiap: tarikhSiapModal.value,
                 jumlahSelesai: 0, // (DIUBAH) Lalai ke 0
-                jumlahBelum: jumlahBelum, // (DIUBAH) Dikira dari skop
-                skop: skopTugasan, // (BARU) Simpan skop
+                jumlahBelum: jumlahBelum, // (DIUBAH) Dikira dari senarai
+                skopSenaraiSekolah: skopSenaraiSekolah, // (BARU) Simpan senarai sekolah
                 senaraiSubTugasan: subTugasanList,
                 fail: failData,
                 createdAt: serverTimestamp(), // Tambah cap masa
@@ -602,10 +585,8 @@
                     }
                 });
 
-                // (BARU) Update UI counts for task scope
-                document.getElementById('count-sr').textContent = srSchools.length;
-                document.getElementById('count-sm').textContent = smSchools.length;
-                document.getElementById('count-all').textContent = srSchools.length + smSchools.length;
+                // (DIKEMAS KINI) Update UI counts for task scope dibuang dari sini
+                // Ia akan dipaparkan oleh loadReferenceSchools
 
             } catch (error) {
                 console.error("Error loading schools: ", error);
@@ -664,6 +645,40 @@
 
         // --- (TAMAT) FUNGSI PENGESAHAN ---
 
+
+        /**
+         * (BARU) Memuatkan senarai sekolah ke textarea skop
+         * Menggunakan data 'srSchools' & 'smSchools' yang dimuatkan oleh loadSchoolsIntoDropdown()
+         */
+        function loadReferenceSchools(type) {
+            const textarea = document.getElementById('skop-list-textarea');
+            textarea.value = 'Memuatkan...';
+            
+            let filteredSchools = [];
+            
+            if (type === 'sr') { 
+                filteredSchools = srSchools.map(school => school.name); // Ambil nama sahaja
+            } else if (type === 'sm') { 
+                filteredSchools = smSchools.map(school => school.name); 
+            } else if (type === 'all') { 
+                // Gabung dan susun
+                filteredSchools = [...srSchools, ...smSchools]
+                                    .map(school => school.name)
+                                    .sort();
+            }
+            
+            if (filteredSchools.length === 0) { 
+                // Ini mungkin berlaku jika data sekolah belum dimuatkan, atau tiada sekolah
+                if (allSchools.length === 0) {
+                     textarea.value = 'Data sekolah belum sedia. Sila tunggu sebentar dan cuba lagi.';
+                } else {
+                     textarea.value = `Tiada sekolah jenis '${type}' ditemui.`; 
+                }
+            } else { 
+                const formattedList = filteredSchools.join('\n'); 
+                textarea.value = formattedList; 
+            }
+        }
 
         /**
          * Menambah sub-tugasan ke senarai sementara
@@ -747,7 +762,11 @@
             if(versionInfo) {
                 versionInfo.textContent = `Versi 2.1 (2025)`;
             }
-            // Listener pengesahan akan dipasang oleh onAuthStateChanged
+
+            // (BARU) Event listeners for skop buttons
+            document.getElementById('load-sr-btn').addEventListener('click', () => loadReferenceSchools('sr'));
+            document.getElementById('load-sm-btn').addEventListener('click', () => loadReferenceSchools('sm'));
+            document.getElementById('load-all-btn').addEventListener('click', () => loadReferenceSchools('all'));
         });
 
         // Borang
