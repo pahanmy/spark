@@ -21,7 +21,7 @@
             animation: fadeIn 0.5s ease-out forwards;
         }
         .btn { transition: all 0.3s; }
-        .btn:hover:not(:disabled) { transform: translateY(-3px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        .btn:hover { transform: translateY(-3px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
         .btn:disabled { cursor: not-allowed; opacity: 0.7; transform: none; box-shadow: none; }
         
         @keyframes pulse-animation { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
@@ -78,21 +78,24 @@
 
                 <form id="completion-form" onsubmit="sahkanSelesai(event)" class="hidden">
                     <hr class="my-6">
-                    <label for="catatan-selesai" class="block text-sm font-medium text-gray-700 mt-4 mb-2">Catatan (Pilihan)</label>
-                    <textarea id="catatan-selesai" rows="3" class="block w-full rounded-lg border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 sm:text-sm" placeholder="cth: Selesai dengan jayanya."></textarea>
-
-                    <label class="block text-sm font-medium text-gray-700 mt-4 mb-2">Muat Naik Fail Bukti (Pilihan)</label>
-                    <div id="fail-info" class="text-sm text-gray-600 mb-1"></div>
-                    <label class="mt-1 block w-full cursor-pointer text-sm">
-                        <span class="py-2 px-3 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 shadow-sm">
-                            Pilih Fail (Max 5MB)
-                        </span>
-                        <input type="file" id="fail-input" class="absolute w-0 h-0 overflow-hidden">
-                    </label>
-                    <p id="fail-error" class="text-red-500 text-sm hidden mt-1">Fail terlalu besar (Melebihi 5MB).</p>
+                    
+                    <div id="pautan-section">
+                        <label class="block text-sm font-medium text-gray-700">Pautan Bukti (Pilihan)</label>
+                        <div class="flex mt-1 gap-2">
+                            <input type="url" id="pautan-input" class="block w-full rounded-lg border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 sm:text-sm" placeholder="https://www.example.com">
+                            <button type="button" id="tambah-pautan-btn" class="rounded-lg border border-transparent bg-gray-600 px-4 text-sm font-medium text-white shadow-sm hover:bg-gray-700">Tambah</button>
+                        </div>
+                        <div id="senarai-pautan-container" class="mt-2 space-y-2 max-h-32 overflow-y-auto p-2 border rounded-lg bg-gray-50">
+                            <p class="text-xs text-gray-500 italic text-center">Tiada pautan ditambah.</p>
+                        </div>
+                    </div>
+                    
+                    <p class="text-sm text-gray-700 font-medium text-center mt-6 italic">
+                        "Saya dengan ini mengesahkan perkara di atas adalah telah diambil tindakan."
+                    </p>
 
                     <button type="submit" id="submit-completion-btn" class="btn w-full mt-6 bg-green-600 text-white font-bold py-3 px-4 rounded-lg text-base hover:bg-green-700">
-                        Mengesahkan pengisian adalah telah disahkan
+                        Hantar Pengesahan
                     </button>
                 </form>
             </div>
@@ -101,6 +104,7 @@
                  <div id="message-icon" class="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4"></div>
                 <h2 id="message-title" class="text-2xl font-bold"></h2>
                 <p id="message-body" class="text-gray-600 mt-2"></p>
+                <p id="message-timestamp" class="text-sm text-gray-500 mt-4 font-medium"></p>
                 <button onclick="window.location.href='sparktask.html'" class="btn w-full mt-6 bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg">Kembali ke Senarai</button>
             </div>
         </div>
@@ -129,6 +133,7 @@
         let currentTask = null;
         let currentTaskId = null;
         let validatedIc = null; // (BARU) Simpan IC yang sah
+        let pautanList = []; // (BARU) Simpan senarai pautan
         const appId = firebaseConfig.projectId;
         
         // (BARU) DOM Elemen
@@ -141,9 +146,11 @@
         const confirmationDetails = document.getElementById('confirmation-details');
         const completionForm = document.getElementById('completion-form');
         const completionSubmitBtn = document.getElementById('submit-completion-btn');
-        const failInput = document.getElementById('fail-input');
-        const failInfo = document.getElementById('fail-info');
-        const failError = document.getElementById('fail-error');
+        
+        // (BARU) Pautan DOM
+        const pautanInput = document.getElementById('pautan-input');
+        const tambahPautanBtn = document.getElementById('tambah-pautan-btn');
+        const senaraiPautanContainer = document.getElementById('senarai-pautan-container');
 
 
         try {
@@ -175,22 +182,9 @@
                 return showMessage('error', 'Pautan Tidak Sah', 'ID tugasan tidak ditemui dalam pautan.');
             }
 
-            // Pasang listener pada input fail
-            failInput.addEventListener('change', () => {
-                if (failInput.files.length > 0) {
-                    const file = failInput.files[0];
-                    if (file.size > 5 * 1024 * 1024) { // Had 5MB
-                        failInfo.textContent = '';
-                        failError.classList.remove('hidden');
-                        failInput.value = ''; // Kosongkan input
-                    } else {
-                        failInfo.textContent = file.name;
-                        failError.classList.add('hidden');
-                    }
-                } else {
-                    failInfo.textContent = '';
-                }
-            });
+            // (BARU) Pasang listener untuk pautan
+            tambahPautanBtn.addEventListener('click', tambahPautan);
+            senaraiPautanContainer.addEventListener('click', handlePautanKlik);
 
             try {
                 const taskRef = doc(db, `artifacts/${appId}/public/data/spark_tasks`, currentTaskId);
@@ -199,7 +193,10 @@
                 if (docSnap.exists()) {
                     currentTask = { id: docSnap.id, ...docSnap.data() };
                     
-                    // (DIUBAH) Jangan semak userId, hanya papar data
+                    // (DIUBAH) Semak jika *pengguna semasa* adalah penyelaras
+                    if (currentTask.userId !== userId) {
+                         return showMessage('error', 'Akses Dihalang', 'Hanya penyelaras tugasan ini (yang mencipta tugasan) boleh membuat pengesahan.');
+                    }
                     
                     // Isi data (tapi ia tersembunyi)
                     document.getElementById('program-name').textContent = currentTask.nama;
@@ -260,42 +257,32 @@
                 alert("Sila sahkan IC anda dahulu.");
                 return;
             }
-
-            const catatanInput = document.getElementById('catatan-selesai');
             
             completionSubmitBtn.disabled = true;
             completionSubmitBtn.innerHTML = `<svg class="animate-spin h-5 w-5 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>`;
 
-            // Proses fail jika ada
-            let fileData = null;
-            const file = failInput.files[0];
-            if (file) {
-                try {
-                    fileData = await bacaFail(file);
-                } catch (err) {
-                    showMessage('error', 'Gagal!', 'Gagal membaca fail yang dimuat naik.');
-                    completionSubmitBtn.disabled = false;
-                    completionSubmitBtn.textContent = "Mengesahkan pengisian adalah telah disahkan";
-                    return;
-                }
-            }
+            // (DIUBAH) Tiada lagi fail, hanya pautan
+            const timestamp = new Date().toISOString();
 
             // Cipta rekod penyelesaian
             const completionRecord = {
                 ic_pengesah: validatedIc, // Guna IC yang disahkan
-                catatan: catatanInput.value.trim() || null,
-                fail: fileData, // Ini akan jadi null jika tiada fail, atau objek jika ada
-                timestamp: new Date().toISOString()
+                catatan: "Saya dengan ini mengesahkan perkara di atas adalah telah diambil tindakan.",
+                pautan: pautanList, // (DIUBAH) Guna pautanList
+                timestamp: timestamp
             };
 
             const taskRef = doc(db, `artifacts/${appId}/public/data/spark_tasks`, currentTaskId);
             try {
                 // Guna arrayUnion untuk menambah rekod baru ke array 'rekodSelesai'
-                // (Firebase akan cipta array itu jika belum wujud)
                 await updateDoc(taskRef, {
                     rekodSelesai: arrayUnion(completionRecord)
                 });
-                showMessage('success', 'Tugasan Disahkan Selesai!', `Catatan anda telah direkodkan. Sila kemas kini status kemajuan di halaman senarai.`);
+                
+                // (DIUBAH) Tunjuk masa dalam mesej
+                const displayTime = new Date(timestamp).toLocaleString('ms-MY', { dateStyle: 'long', timeStyle: 'short' });
+                showMessage('success', 'Tugasan Disahkan Selesai!', `Pengesahan anda telah direkodkan pada ${displayTime}.`);
+                
             } catch (error) {
                 console.error("Error saving completion record: ", error);
                 showMessage('error', 'Gagal!', 'Gagal menyimpan rekod. Sila cuba lagi.');
@@ -304,7 +291,7 @@
             }
         }
         
-        function showMessage(type, title, body) {
+        function showMessage(type, title, body, timestamp = null) {
             loadingState.classList.add('hidden');
             if (checkInCard) checkInCard.classList.add('hidden');
             
@@ -312,9 +299,17 @@
             const msgIcon = document.getElementById('message-icon');
             const msgTitle = document.getElementById('message-title');
             const msgBody = document.getElementById('message-body');
+            const msgTimestamp = document.getElementById('message-timestamp'); // (BARU)
 
             msgTitle.textContent = title;
             msgBody.textContent = body;
+            
+            // (BARU) Tunjuk timestamp jika ada
+            if (timestamp) {
+                msgTimestamp.textContent = `Direkodkan pada: ${timestamp}`;
+            } else {
+                msgTimestamp.textContent = '';
+            }
             
             let icon, color;
             if (type === 'success') {
@@ -356,6 +351,47 @@
                 reader.onerror = (error) => reject(error);
                 reader.readAsDataURL(file);
             });
+        }
+        
+        // (BARU) Fungsi untuk Pautan
+        function tambahPautan() {
+            const url = pautanInput.value.trim();
+            if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
+                pautanList.push(url);
+                paparSenaraiPautan();
+                pautanInput.value = 'https://';
+                pautanInput.focus();
+            } else if (url) {
+                alert("Pautan tidak sah. Sila pastikan ia bermula dengan 'http://' atau 'https://'.");
+                pautanInput.focus();
+            }
+        }
+
+        function paparSenaraiPautan() {
+            senaraiPautanContainer.innerHTML = '';
+            if (pautanList.length === 0) {
+                senaraiPautanContainer.innerHTML = `<p class="text-xs text-gray-500 italic text-center">Tiada pautan ditambah.</p>`;
+                return;
+            }
+            pautanList.forEach((url, index) => {
+                senaraiPautanContainer.innerHTML += `
+                    <div class="flex justify-between items-center bg-white p-2 rounded">
+                        <a href="${url}" target="_blank" class="text-sm text-blue-600 hover:underline truncate" style="max-width: 90%;">${index + 1}. ${url}</a>
+                        <button type="button" class="text-red-500 hover:text-red-700 padam-pautan-btn ml-2 flex-shrink-0" data-index="${index}">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                        </button>
+                    </div>
+                `;
+            });
+        }
+        
+        function handlePautanKlik(event) {
+            const target = event.target.closest('.padam-pautan-btn');
+            if (target) {
+                const index = parseInt(target.dataset.index);
+                pautanList.splice(index, 1);
+                paparSenaraiPautan();
+            }
         }
 
         window.validateIcInput = validateIcInput;
