@@ -233,13 +233,9 @@
             icSubmitBtn.disabled = true;
             icSubmitBtn.innerHTML = `<svg class="animate-spin h-5 w-5 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>`;
 
-            const isAlreadyCompleted = (currentTask.rekodSelesai || []).some(p => p.ic_pengesah === ic);
-            if (isAlreadyCompleted) {
-                showMessage('warning', 'Telah Disahkan', 'Anda telah pun membuat pengesahan selesai untuk tugasan ini.');
-                icSubmitBtn.disabled = false;
-                icSubmitBtn.textContent = "Seterusnya";
-                return;
-            }
+            // (DIUBAH) Semak jika STESEN orang ini telah pun mengesahkan
+            // Ini menghalang 2 orang dari sekolah yang sama membuat pengesahan
+            let stesenPengesah = null;
 
             try {
                 const participantsRef = collection(db, `artifacts/${appId}/public/data/spark_participants`);
@@ -251,25 +247,38 @@
                     icInput.focus();
                     icSubmitBtn.disabled = false;
                     icSubmitBtn.textContent = "Seterusnya";
-                } else {
-                    const docData = querySnapshot.docs[0].data();
-                    participantInfo = {
-                        ic: ic,
-                        name: docData.name,
-                        position: docData.position,
-                        station: docData.station
-                    };
-                    validatedIc = ic;
-                    
-                    document.getElementById('participant-name').textContent = docData.name || 'N/A';
-                    document.getElementById('participant-position').textContent = docData.position || 'TIADA JAWATAN';
-                    document.getElementById('participant-station').textContent = docData.station || 'TIADA STESEN';
-
-                    icForm.classList.add('hidden');
-                    confirmationDetails.classList.remove('hidden');
-                    participantDetails.classList.remove('hidden');
-                    completionForm.classList.remove('hidden');
+                    return;
                 }
+                
+                // IC ditemui, dapatkan maklumat peserta
+                const docData = querySnapshot.docs[0].data();
+                participantInfo = {
+                    ic: ic,
+                    name: docData.name,
+                    position: docData.position,
+                    station: docData.station
+                };
+                validatedIc = ic;
+                stesenPengesah = docData.station || null;
+
+                // Semak jika STESEN ini telah ada dalam skopSelesai
+                if (stesenPengesah && (currentTask.skopSelesai || []).includes(stesenPengesah)) {
+                     showMessage('warning', 'Telah Disahkan', `Seseorang dari stesen anda (${stesenPengesah}) telah pun membuat pengesahan untuk tugasan ini.`);
+                     icSubmitBtn.disabled = false;
+                     icSubmitBtn.textContent = "Seterusnya";
+                     return;
+                }
+
+                // Jika stesen tiada, atau stesen belum sahkan, teruskan
+                document.getElementById('participant-name').textContent = docData.name || 'N/A';
+                document.getElementById('participant-position').textContent = docData.position || 'TIADA JAWATAN';
+                document.getElementById('participant-station').textContent = docData.station || 'TIADA STESEN';
+
+                icForm.classList.add('hidden');
+                confirmationDetails.classList.remove('hidden');
+                participantDetails.classList.remove('hidden');
+                completionForm.classList.remove('hidden');
+                
             } catch (error) {
                 console.error("Error verifying participant IC: ", error);
                 showMessage('error', 'Gagal!', 'Berlaku ralat semasa mengesahkan IC anda. Sila cuba lagi.');
@@ -279,7 +288,7 @@
         }
         
         
-        // ▼▼▼ FUNGSI INI WAJIB DIKEMAS KINI ▼▼▼
+        // ▼▼▼ FUNGSI INI TELAH DIUBAH SUAI UNTUK MENGEMAS KINI KEDUA-DUA SISTEM ▼▼▼
         window.sahkanSelesai = async function(event) {
             event.preventDefault();
             
@@ -299,21 +308,38 @@
                 }
             });
 
+            // 1. Cipta 'resit' untuk jadual log
             const completionRecord = {
                 ic_pengesah: validatedIc,
                 nama_pengesah: participantInfo ? participantInfo.name : 'N/A',
-                jawatan_pengesah: participantInfo ? participantInfo.position : 'N/A', // <-- WAJIB ADA
-                stesen_pengesah: participantInfo ? participantInfo.station : 'N/A',   // <-- WAJIB ADA
+                jawatan_pengesah: participantInfo ? participantInfo.position : 'N/A',
+                stesen_pengesah: participantInfo ? participantInfo.station : 'N/A',
                 pautan: pautanLinks,
                 timestamp: new Date().toISOString()
             };
 
+            // 2. Sediakan data untuk dikemas kini
+            const stesenPengesah = participantInfo ? participantInfo.station : null;
+            let dataToUpdate = {
+                rekodSelesai: arrayUnion(completionRecord) // Kemas kini jadual log
+            };
+
+            // 3. Jika pengesah ada stesen, kemas kini carta pai juga!
+            if (stesenPengesah) {
+                dataToUpdate.skopSelesai = arrayUnion(stesenPengesah); // Kemas kini carta pai
+            }
+
+            // 4. Hantar kedua-dua kemas kini ke Firebase
             const taskRef = doc(db, `artifacts/${appId}/public/data/spark_tasks`, currentTaskId);
             try {
-                await updateDoc(taskRef, {
-                    rekodSelesai: arrayUnion(completionRecord)
-                });
-                showMessage('success', 'Tugasan Disahkan Selesai!', `Maklumat pautan anda telah direkodkan.`);
+                await updateDoc(taskRef, dataToUpdate);
+                
+                let msg = 'Maklumat pautan anda telah direkodkan.';
+                if (stesenPengesah) {
+                    msg += ` Kemajuan untuk ${stesenPengesah} telah dikemas kini.`;
+                }
+                showMessage('success', 'Tugasan Disahkan Selesai!', msg);
+
             } catch (error) {
                 console.error("Error saving completion record: ", error);
                 showMessage('error', 'Gagal!', 'Gagal menyimpan rekod. Sila cuba lagi.');
