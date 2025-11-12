@@ -334,7 +334,7 @@
         const senaraiSubTugasanContainer = document.getElementById('senarai-sub-tugasan-container');
 
         // --- State ---
-        let subTugasanList = []; // Senarai sementara untuk borang
+        let subTugasanList = []; // (DIUBAH) Kini array of objects {title, instruction}
         let allSchools = [], srSchools = [], smSchools = []; // (BARU) Untuk skop
 
         // --- FUNCTIONS ---
@@ -408,7 +408,7 @@
                 jumlahSelesai: 0, // (DIUBAH) Lalai ke 0
                 jumlahBelum: jumlahBelum, // (DIUBAH) Dikira dari senarai
                 skopSenaraiSekolah: skopSenaraiSekolah, // (BARU) Simpan senarai sekolah
-                senaraiSubTugasan: subTugasanList,
+                senaraiSubTugasan: subTugasanList, // (DIUBAH) Kini simpan array of objects
                 fail: failData,
                 createdAt: serverTimestamp(), // Tambah cap masa
                 userId: userId, // Tanda siapa yang cipta
@@ -482,6 +482,20 @@
                  const label = el.closest('label') || document.querySelector(`label[for="${el.id}"]`);
                  if(label) label.classList.remove('disabled-label');
             });
+
+            // (BARU) Set default dates once form is enabled
+            const today = new Date().toISOString().split('T')[0];
+            const futureDate = new Date();
+            futureDate.setDate(futureDate.getDate() + 14);
+            const futureDateString = futureDate.toISOString().split('T')[0];
+            
+            // Hanya set jika kosong (supaya tidak override jika user set dulu)
+            if (!tarikhMulaModal.value) {
+                tarikhMulaModal.value = today;
+            }
+            if (!tarikhSiapModal.value) {
+                tarikhSiapModal.value = futureDateString;
+            }
         }
 
         async function validateAndFetchApplicantName() {
@@ -622,9 +636,6 @@
                     }
                 });
 
-                // (DIKEMAS KINI) Update UI counts for task scope dibuang dari sini
-                // Ia akan dipaparkan oleh loadReferenceSchools
-
             } catch (error) {
                 console.error("Error loading schools: ", error);
                 errorElement.classList.remove('hidden');
@@ -718,12 +729,17 @@
         }
 
         /**
-         * Menambah sub-tugasan ke senarai sementara
+         * (DIUBAH) Menambah sub-tugasan ke senarai sementara (sebagai objek)
          */
         function tambahSubTugasan() {
             const teks = subTugasanInput.value.trim();
             if (teks) {
-                subTugasanList.push(teks);
+                // (BARU) Paparkan prompt untuk arahan tambahan
+                const arahan = prompt(`Arahan tambahan untuk: "${teks}"\n(Biarkan kosong jika tiada)`);
+                const instructionText = (arahan && arahan.trim().length > 0) ? arahan.trim() : null;
+                
+                subTugasanList.push({ title: teks, instruction: instructionText });
+                
                 paparSenaraiSubTugasan();
                 subTugasanInput.value = '';
                 subTugasanInput.focus();
@@ -731,7 +747,7 @@
         }
 
         /**
-         * Memaparkan senarai sub-tugasan dalam borang
+         * (DIUBAH) Memaparkan senarai sub-tugasan (dari objek)
          */
         function paparSenaraiSubTugasan() {
             senaraiSubTugasanContainer.innerHTML = '';
@@ -739,11 +755,20 @@
                 senaraiSubTugasanContainer.innerHTML = `<p class="text-xs text-gray-500 italic text-center">Tiada sub-tugasan ditambah.</p>`;
                 return;
             }
-            subTugasanList.forEach((teks, index) => {
+            subTugasanList.forEach((tugasan, index) => {
+                // (BARU) Cipta HTML untuk tajuk dan arahan
+                let htmlArahan = '';
+                if (tugasan.instruction) {
+                    htmlArahan = `<p class="text-xs text-gray-600 pl-4 mt-1 italic">Arahan: ${tugasan.instruction}</p>`;
+                }
+
                 senaraiSubTugasanContainer.innerHTML += `
-                    <div class="flex justify-between items-center bg-white p-2 rounded">
-                        <span class="text-sm">${index + 1}. ${teks}</span>
-                        <button type="button" class="text-red-500 hover:text-red-700 padam-sub-tugasan-btn" data-index="${index}">
+                    <div class="flex justify-between items-start bg-white p-2 rounded">
+                        <div class="flex-1">
+                            <span class="text-sm font-medium">${index + 1}. ${tugasan.title}</span>
+                            ${htmlArahan}
+                        </div>
+                        <button type="button" class="text-red-500 hover:text-red-700 padam-sub-tugasan-btn ml-2 flex-shrink-0" data-index="${index}">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                         </button>
                     </div>
@@ -753,6 +778,7 @@
 
         /**
          * Mengendalikan klik dalam kontena sub-tugasan (untuk memadam)
+         * (Tiada perubahan diperlukan, 'splice' berfungsi pada array objek)
          */
         function handleSubTugasanKlik(event) {
             const target = event.target.closest('.padam-sub-tugasan-btn');
@@ -804,6 +830,25 @@
             document.getElementById('load-sr-btn').addEventListener('click', () => loadReferenceSchools('sr'));
             document.getElementById('load-sm-btn').addEventListener('click', () => loadReferenceSchools('sm'));
             document.getElementById('load-all-btn').addEventListener('click', () => loadReferenceSchools('all'));
+            
+            // (BARU) Listener untuk tarikh mula -> tarikh siap
+            tarikhMulaModal.addEventListener('change', () => {
+                try {
+                    // Ambil tarikh mula, tambah 14 hari
+                    const startDate = new Date(tarikhMulaModal.value);
+                    startDate.setDate(startDate.getDate() + 14);
+                    // Tukar ke format YYYY-MM-DD
+                    tarikhSiapModal.value = startDate.toISOString().split('T')[0];
+                } catch (e) {
+                    console.error("Invalid start date");
+                    tarikhSiapModal.value = '';
+                }
+            });
+
+            // (BARU) Listener untuk auto-uppercase Nama Tugasan
+            namaModal.addEventListener('input', (e) => {
+                e.target.value = e.target.value.toUpperCase();
+            });
         });
 
         // Borang
