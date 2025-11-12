@@ -54,7 +54,7 @@
                 </div>
             </div>
             <div id="header-buttons" class="flex w-full sm:w-auto justify-center sm:justify-end items-center gap-4">
-                 <a href="senarai.html" class="btn bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-gray-300 flex items-center gap-2" style="opacity: 1; cursor: pointer; background-color: #e5e7eb;">
+                 <a href="sparktask.html" class="btn bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-gray-300 flex items-center gap-2" style="opacity: 1; cursor: pointer; background-color: #e5e7eb;">
                     Kembali ke Senarai
                  </a>
             </div>
@@ -163,6 +163,28 @@
                                     <button type="button" id="load-sr-btn" class="btn bg-gray-100 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-blue-100 hover:text-blue-800 text-sm">Muat Senarai SR</button>
                                     <button type="button" id="load-sm-btn" class="btn bg-gray-100 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-blue-100 hover:text-blue-800 text-sm">Muat Senarai SM</button>
                                     <button type="button" id="load-all-btn" class="btn bg-gray-100 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-blue-100 hover:text-blue-800 text-sm">Muat Senarai SR & SM</button>
+                                </div>
+                            </div>
+                            
+                            <div class="md:col-span-2">
+                                <div class="relative flex items-start">
+                                    <div class="flex h-5 items-center">
+                                        <input id="perlu-pautan-checkbox" name="perlu-pautan" type="checkbox" class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                    </div>
+                                    <div class="ml-3 text-sm">
+                                        <label for="perlu-pautan-checkbox" class="font-medium text-gray-700">Tambah Pautan Laman Web (Jika Perlu)</label>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div id="pautan-section" class="md:col-span-2 hidden">
+                                <label class="block text-sm font-medium text-gray-700">Senarai Pautan</label>
+                                <div class="flex mt-1 gap-2">
+                                    <input type="url" id="pautan-input" class="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" placeholder="https://www.example.com">
+                                    <button type="button" id="tambah-pautan-btn" class="rounded-lg border border-transparent bg-gray-600 px-4 text-sm font-medium text-white shadow-sm hover:bg-gray-700">Tambah</button>
+                                </div>
+                                <div id="senarai-pautan-container" class="mt-2 space-y-2 max-h-32 overflow-y-auto p-2 border rounded-lg bg-gray-50">
+                                    <p class="text-xs text-gray-500 italic text-center">Tiada pautan ditambah.</p>
                                 </div>
                             </div>
                             
@@ -334,9 +356,18 @@
         const subTugasanInput = document.getElementById('sub-tugasan-input');
         const tambahSubTugasanBtn = document.getElementById('tambah-sub-tugasan-btn');
         const senaraiSubTugasanContainer = document.getElementById('senarai-sub-tugasan-container');
+        
+        // (BARU) Pautan Inputs
+        const perluPautanCheckbox = document.getElementById('perlu-pautan-checkbox');
+        const pautanSection = document.getElementById('pautan-section');
+        const pautanInput = document.getElementById('pautan-input');
+        const tambahPautanBtn = document.getElementById('tambah-pautan-btn');
+        const senaraiPautanContainer = document.getElementById('senarai-pautan-container');
+
 
         // --- State ---
         let subTugasanList = []; // (DIUBAH) Kini array of strings
+        let pautanList = []; // (BARU) Senarai pautan
         let allSchools = [], srSchools = [], smSchools = []; // (BARU) Untuk skop
 
         // --- FUNCTIONS ---
@@ -411,6 +442,7 @@
                 jumlahBelum: jumlahBelum, // (DIUBAH) Dikira dari senarai
                 skopSenaraiSekolah: skopSenaraiSekolah, // (BARU) Simpan senarai sekolah
                 senaraiSubTugasan: subTugasanList, // (DIUBAH) Kini simpan array of strings
+                senaraiPautan: pautanList, // (BARU) Simpan senarai pautan
                 fail: failData,
                 createdAt: serverTimestamp(), // Tambah cap masa
                 userId: userId, // Tanda siapa yang cipta
@@ -425,7 +457,7 @@
                 await addDoc(koleksiTugasan, dataTugasan);
                 
                 // Berjaya, kembali ke senarai
-                window.location.href = 'senarai.html';
+                window.location.href = 'sparktask.html'; // (DIUBAH) Hala ke sparktask.html
 
             } catch (error) {
                 console.error("Error menambah dokumen: ", error);
@@ -498,6 +530,13 @@
             if (!tarikhSiapModal.value) {
                 tarikhSiapModal.value = futureDateString;
             }
+            
+            // (BARU) Reset pautan section
+            perluPautanCheckbox.checked = false;
+            pautanSection.classList.add('hidden');
+            pautanList = [];
+            paparSenaraiPautan();
+            pautanInput.value = '';
         }
 
         async function validateAndFetchApplicantName() {
@@ -758,7 +797,7 @@
                 // (DIUBAH) Papar sebagai string biasa, tiada arahan
                 senaraiSubTugasanContainer.innerHTML += `
                     <div class="flex justify-between items-center bg-white p-2 rounded">
-                        <span class="text-sm flex-1">${index + 1}. ${teks}</span>
+                        <span class="text-sm flex-1" style="white-space: pre-wrap; word-break: break-word;">${index + 1}. ${teks}</span>
                         <button type="button" class="text-red-500 hover:text-red-700 padam-sub-tugasan-btn ml-2 flex-shrink-0" data-index="${index}">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                         </button>
@@ -776,6 +815,47 @@
                 const index = parseInt(target.dataset.index);
                 subTugasanList.splice(index, 1); // Buang dari senarai
                 paparSenaraiSubTugasan(); // Papar semula
+            }
+        }
+        
+        // (BARU) Fungsi untuk Pautan
+        function tambahPautan() {
+            const url = pautanInput.value.trim();
+            if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
+                pautanList.push(url);
+                paparSenaraiPautan();
+                pautanInput.value = 'https://';
+                pautanInput.focus();
+            } else if (url) {
+                alert("Pautan tidak sah. Sila pastikan ia bermula dengan 'http://' atau 'https://'.");
+                pautanInput.focus();
+            }
+        }
+
+        function paparSenaraiPautan() {
+            senaraiPautanContainer.innerHTML = '';
+            if (pautanList.length === 0) {
+                senaraiPautanContainer.innerHTML = `<p class="text-xs text-gray-500 italic text-center">Tiada pautan ditambah.</p>`;
+                return;
+            }
+            pautanList.forEach((url, index) => {
+                senaraiPautanContainer.innerHTML += `
+                    <div class="flex justify-between items-center bg-white p-2 rounded">
+                        <a href="${url}" target="_blank" class="text-sm text-blue-600 hover:underline truncate" style="max-width: 90%;">${index + 1}. ${url}</a>
+                        <button type="button" class="text-red-500 hover:text-red-700 padam-pautan-btn ml-2 flex-shrink-0" data-index="${index}">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                        </button>
+                    </div>
+                `;
+            });
+        }
+        
+        function handlePautanKlik(event) {
+            const target = event.target.closest('.padam-pautan-btn');
+            if (target) {
+                const index = parseInt(target.dataset.index);
+                pautanList.splice(index, 1);
+                paparSenaraiPautan();
             }
         }
 
@@ -839,6 +919,15 @@
             namaModal.addEventListener('input', (e) => {
                 e.target.value = e.target.value.toUpperCase();
             });
+            
+            // (BARU) Listener for the new checkbox
+            perluPautanCheckbox.addEventListener('change', () => {
+                pautanSection.classList.toggle('hidden', !perluPautanCheckbox.checked);
+            });
+
+            // (BARU) Listeners for the new link section
+            tambahPautanBtn.addEventListener('click', tambahPautan);
+            senaraiPautanContainer.addEventListener('click', handlePautanKlik);
         });
 
         // Borang
@@ -846,7 +935,7 @@
         batalBtn.addEventListener('click', () => {
             // Guna 'confirm' di sini ok untuk borang, tapi JANGAN guna dalam senarai.html
             if (confirm("Anda pasti mahu batal? Perubahan tidak akan disimpan.")) {
-                window.location.href = 'senarai.html';
+                window.location.href = 'sparktask.html'; // (DIUBAH) Hala ke sparktask.html
             }
         });
 
