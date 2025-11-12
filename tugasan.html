@@ -106,10 +106,6 @@
                                 <input type="text" id="nama-modal" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" required>
                             </div>
                             <div>
-                                <label for="pegawai-modal" class="block text-sm font-medium text-gray-700">Nama Pegawai</label>
-                                <input type="text" id="pegawai-modal" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" required>
-                            </div>
-                            <div>
                                 <label for="sektor-modal" class="block text-sm font-medium text-gray-700">Sektor</label>
                                 <input type="text" id="sektor-modal" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" required>
                             </div>
@@ -122,17 +118,29 @@
                                 <input type="date" id="tarikh-siap-modal" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" required>
                             </div>
 
-                            <div>
-                                <label for="jumlah-selesai-modal" class="block text-sm font-medium text-gray-700">Jumlah Sekolah Selesai</label>
-                                <input type="number" id="jumlah-selesai-modal" min="0" value="0" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" required>
-                            </div>
-
-                            <div>
-                                <label for="jumlah-belum-modal" class="block text-sm font-medium text-gray-700">Jumlah Sekolah Belum</label>
-                                <input type="number" id="jumlah-belum-modal" min="0" value="0" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" required>
+                            <div class="md:col-span-2">
+                                <label class="block text-sm font-medium text-gray-700">Skop Tugasan (Auto-kira 'Jumlah Belum')</label>
+                                <div class="mt-2 flex flex-wrap gap-x-6 gap-y-2">
+                                    <div class="flex items-center">
+                                        <input id="skop-sr" name="skop-tugasan" type="radio" value="sr" class="h-4 w-4 text-indigo-600 border-gray-300">
+                                        <label for="skop-sr" class="ml-2 text-sm text-gray-900">Sekolah Rendah Sahaja (<span id="count-sr">0</span>)</label>
+                                    </div>
+                                    <div class="flex items-center">
+                                        <input id="skop-sm" name="skop-tugasan" type="radio" value="sm" class="h-4 w-4 text-indigo-600 border-gray-300">
+                                        <label for="skop-sm" class="ml-2 text-sm text-gray-900">Sekolah Menengah Sahaja (<span id="count-sm">0</span>)</label>
+                                    </div>
+                                    <div class="flex items-center">
+                                        <input id="skop-all" name="skop-tugasan" type="radio" value="all" class="h-4 w-4 text-indigo-600 border-gray-300">
+                                        <label for="skop-all" class="ml-2 text-sm text-gray-900">Kedua-dua (SR & SM) (<span id="count-all">0</span>)</label>
+                                    </div>
+                                    <div class="flex items-center">
+                                        <input id="skop-custom" name="skop-tugasan" type="radio" value="custom" checked class="h-4 w-4 text-indigo-600 border-gray-300">
+                                        <label for="skop-custom" class="ml-2 text-sm text-gray-900">Lain-lain / Manual (0)</label>
+                                    </div>
+                                </div>
                             </div>
                             
-                            <div>
+                            <div class="md:col-span-2">
                                 <label class="block text-sm font-medium text-gray-700">Muat Naik Fail (Max 5MB)</label>
                                 <div id="fail-info" class="text-sm text-gray-600 mb-1"></div>
                                 <label class="mt-1 block w-full cursor-pointer text-sm">
@@ -285,20 +293,16 @@
         const newApplicantModal = document.getElementById('new-applicant-modal');
         const newApplicantForm = document.getElementById('new-applicant-form');
         const newApplicantBatalBtn = document.getElementById('new-applicant-batal-btn');
-        // DIBUANG: const permissionErrorModal = ...
-        // DIBUANG: const permissionErrorCloseBtn = ...
-
 
         // Borang Inputs
         const namaModal = document.getElementById('nama-modal');
-        const pegawaiModal = document.getElementById('pegawai-modal');
+        // DIBUANG: pegawaiModal
         const sektorModal = document.getElementById('sektor-modal');
         const tarikhMulaModal = document.getElementById('tarikh-mula-modal');
         const tarikhSiapModal = document.getElementById('tarikh-siap-modal');
         const failInput = document.getElementById('fail-input');
         const failInfo = document.getElementById('fail-info');
-        const jumlahSelesaiModal = document.getElementById('jumlah-selesai-modal');
-        const jumlahBelumModal = document.getElementById('jumlah-belum-modal');
+        // DIBUANG: jumlahSelesaiModal, jumlahBelumModal
 
         // Sub-Tugasan Inputs
         const subTugasanInput = document.getElementById('sub-tugasan-input');
@@ -307,6 +311,7 @@
 
         // --- State ---
         let subTugasanList = []; // Senarai sementara untuk borang
+        let allSchools = [], srSchools = [], smSchools = []; // (BARU) Untuk skop
 
         // --- FUNCTIONS ---
 
@@ -362,14 +367,27 @@
                 }
             }
 
+            // (BARU) Logik untuk skop dan jumlah
+            const skopTugasan = document.querySelector('input[name="skop-tugasan"]:checked').value;
+            let jumlahBelum = 0;
+            if (skopTugasan === 'sr') {
+                jumlahBelum = srSchools.length;
+            } else if (skopTugasan === 'sm') {
+                jumlahBelum = smSchools.length;
+            } else if (skopTugasan === 'all') {
+                jumlahBelum = srSchools.length + smSchools.length;
+            }
+            // jika 'custom', jumlahBelum kekal 0
+
             const dataTugasan = {
                 nama: namaModal.value,
-                pegawai: pegawaiModal.value,
+                pegawai: currentApplicant.name, // (DIUBAH) Ambil dari IC
                 sektor: sektorModal.value,
                 tarikhMula: tarikhMulaModal.value,
                 tarikhSiap: tarikhSiapModal.value,
-                jumlahSelesai: parseInt(jumlahSelesaiModal.value) || 0,
-                jumlahBelum: parseInt(jumlahBelumModal.value) || 0,
+                jumlahSelesai: 0, // (DIUBAH) Lalai ke 0
+                jumlahBelum: jumlahBelum, // (DIUBAH) Dikira dari skop
+                skop: skopTugasan, // (BARU) Simpan skop
                 senaraiSubTugasan: subTugasanList,
                 fail: failData,
                 createdAt: serverTimestamp(), // Tambah cap masa
@@ -406,7 +424,6 @@
 
             newApplicantForm.addEventListener('submit', registerNewApplicant);
             newApplicantBatalBtn.addEventListener('click', () => closeModal('new-applicant-modal'));
-            // DIBUANG: permissionErrorCloseBtn.addEventListener(...)
             
             setupCategoryListeners(); // Pasang listener untuk modal
             loadSchoolsIntoDropdown(); // Muat data sekolah untuk modal
@@ -457,12 +474,9 @@
             disableTaskForm(); 
             applicantNameDisplay.classList.add('hidden');
             currentApplicant = null;
-            // applicantIcError.classList.add('hidden'); // validateIcFormat() dah uruskan ni
 
             // HANYA teruskan jika IC = 12 digit
             if (ic.length !== 12) {
-                // Jangan buat apa-apa jika IC tak cukup (0 atau 1-11), 
-                // mesej ralat (jika ada) dah dipaparkan oleh validateIcFormat()
                 return; 
             }
             
@@ -486,7 +500,6 @@
                 }
             } catch(error) {
                 console.error("Error fetching applicant:", error);
-                // DIBUANG: if (error.code === 'permission-denied') { showPermissionErrorModal(); }
                 applicantIcError.textContent = "Gagal menghubungi pangkalan data.";
                 applicantIcError.classList.remove('hidden');
             }
@@ -540,7 +553,6 @@
                 closeModal('new-applicant-modal');
             } catch(error) {
                 console.error("Error registering new applicant:", error);
-                 // DIBUANG: if (error.code === 'permission-denied') { showPermissionErrorModal(); } 
                  alert("Gagal mendaftar pemohon baru.");
             }
         }
@@ -550,9 +562,7 @@
             if(modal) modal.classList.remove('buka');
         }
 
-        // DIBUANG: function showPermissionErrorModal() { ... }
-        
-        // (BARU) Fungsi untuk modal pendaftaran
+        // (DIKEMAS KINI) Fungsi untuk modal pendaftaran DAN skop tugasan
         async function loadSchoolsIntoDropdown() {
             const selectElement = document.getElementById('new-applicant-station-select');
             const errorElement = document.getElementById('schools-loading-error');
@@ -568,16 +578,37 @@
 
                 if (querySnapshot.empty) { console.warn("No schools found."); return; }
                 
+                // Reset arrays
+                allSchools = []; srSchools = []; smSchools = [];
+                const primaryPrefixes = ['SK', 'SJK', 'SJK(C)'];
+                const secondaryPrefixes = ['SMK', 'KOLEJ', 'KV'];
+
                 querySnapshot.forEach(doc => {
                     const school = doc.data();
+                    const schoolName = school.name.toUpperCase();
+                    allSchools.push(school); // Store full object
+
+                    // Add to dropdown
                     const option = document.createElement('option');
                     option.value = school.name;
                     option.textContent = school.name;
                     selectElement.appendChild(option);
+
+                    // Sort into lists for task scope
+                    if (primaryPrefixes.some(prefix => schoolName.startsWith(prefix))) {
+                        srSchools.push(school);
+                    } else if (secondaryPrefixes.some(prefix => schoolName.startsWith(prefix))) {
+                        smSchools.push(school);
+                    }
                 });
+
+                // (BARU) Update UI counts for task scope
+                document.getElementById('count-sr').textContent = srSchools.length;
+                document.getElementById('count-sm').textContent = smSchools.length;
+                document.getElementById('count-all').textContent = srSchools.length + smSchools.length;
+
             } catch (error) {
                 console.error("Error loading schools: ", error);
-                // DIBUANG: if (error.code === 'permission-denied') { showPermissionErrorModal(); }
                 errorElement.classList.remove('hidden');
                 selectElement.disabled = true;
             }
