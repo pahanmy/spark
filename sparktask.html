@@ -74,15 +74,12 @@
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tugasan & Tarikh Mula</th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pegawai & Sektor</th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tarikh Siap (Baki Hari)</th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Peratus Selesai</th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Jumlah Selesai</th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Jumlah Belum</th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Jumlah Total</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Kemajuan (Selesai/Total)</th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tindakan</th>
                         </tr>
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-200">
-                        <tr><td colspan="9" class="px-6 py-4 text-center text-gray-500">Memuatkan data tugasan...</td></tr>
+                        <tr><td colspan="6" class="px-6 py-4 text-center text-gray-500">Memuatkan data tugasan...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -248,7 +245,7 @@
     <div id="modal-pengesahan-ic" class="modal fixed inset-0 z-50 overflow-auto bg-black bg-opacity-50 justify-center items-center p-4">
         <div class="bg-white w-full max-w-sm rounded-xl shadow-lg p-6">
             <h3 class="text-lg font-medium text-gray-900 mb-4">Sahkan Identiti</h3>
-            <p class="text-sm text-gray-600 mb-4">Sila masukkan No. IC Penyelaras (Pegawai) untuk mengedit tugasan ini.</p>
+            <p class="text-sm text-gray-600 mb-4">Sila masukkan No. IC Penyelaras (Pegawai) untuk meneruskan.</p>
             <form id="borang-pengesahan-ic">
                 <input type="password" id="input-pengesahan-ic" placeholder="Masukkan No. IC Penyelaras" class="block w-full px-4 py-2 border border-gray-300 rounded-md mb-2">
                 <p id="error-pengesahan-ic" class="text-red-500 text-sm hidden mb-4">No. IC tidak sepadan.</p>
@@ -313,7 +310,7 @@
                     await signInAnonymously(auth); 
                 } catch (error) { 
                     console.error("Error signing in:", error); 
-                    badanJadual.innerHTML = `<tr><td colspan="9" class="px-6 py-4 text-center text-red-500">Gagal menyambung ke pangkalan data.</td></tr>`;
+                    badanJadual.innerHTML = `<tr><td colspan="6" class="px-6 py-4 text-center text-red-500">Gagal menyambung ke pangkalan data.</td></tr>`;
                 } 
             }
         });
@@ -360,6 +357,14 @@
         const modalPadam = document.getElementById('modal-padam');
         const padamBatalBtn = document.getElementById('padam-batal-btn');
         const padamSahBtn = document.getElementById('padam-sah-btn');
+        
+        // (BARU) Modal Pengesahan IC
+        const modalPengesahanIc = document.getElementById('modal-pengesahan-ic');
+        const borangPengesahanIc = document.getElementById('borang-pengesahan-ic');
+        const batalPengesahanIcBtn = document.getElementById('batal-pengesahan-ic');
+        const errorPengesahanIc = document.getElementById('error-pengesahan-ic');
+        const inputPengesahanIc = document.getElementById('input-pengesahan-ic');
+
 
         // --- State (Data) ---
         let senaraiTugasan = []; // Cache data dari Firestore
@@ -367,6 +372,7 @@
         let pautanList = []; // (BARU) Senarai pautan untuk modal
         let currentEditId = null; // ID tugasan yang sedang diedit
         let currentDeleteId = null; // ID tugasan yang akan dipadam
+        let currentActionIntent = null; // (BARU) Simpan niat 'edit' atau 'delete'
 
         // --- FUNCTIONS ---
 
@@ -388,51 +394,41 @@
                 paparkanTugasan();
             }, (error) => {
                 console.error("Error mendengar data: ", error);
-                badanJadual.innerHTML = `<tr><td colspan="9" class="px-6 py-4 text-center text-red-500">Gagal memuatkan data.</td></tr>`;
+                badanJadual.innerHTML = `<tr><td colspan="6" class="px-6 py-4 text-center text-red-500">Gagal memuatkan data.</td></tr>`;
             });
         }
 
         /**
-         * Memaparkan semua tugasan dalam jadual
+         * (DIUBAH) Memaparkan semua tugasan dalam jadual
          */
         function paparkanTugasan() {
             badanJadual.innerHTML = '';
 
             if (senaraiTugasan.length === 0) {
-                badanJadual.innerHTML = `<tr><td colspan="9" class="px-6 py-4 text-center text-gray-500">Tiada tugasan ditemui. Sila tambah tugasan baru.</td></tr>`;
+                badanJadual.innerHTML = `<tr><td colspan="6" class="px-6 py-4 text-center text-gray-500">Tiada tugasan ditemui. Sila tambah tugasan baru.</td></tr>`;
                 return;
             }
 
             senaraiTugasan.forEach((tugasan, index) => {
                 const baris = document.createElement('tr');
                 
-                // (DIKEMAS KINI) Logik pengiraan peratus
-                // Jika skopSenaraiSekolah wujud, guna kiraan berasaskan itu.
-                // Jika tidak, guna kiraan lama (jumlahSelesai + jumlahBelum)
-                
                 let jumlahSelesai = tugasan.jumlahSelesai || 0;
                 let jumlahBelum = tugasan.jumlahBelum || 0;
                 let total;
                 
-                // Semak jika ia data format baru (ada skopSenaraiSekolah)
                 if (Array.isArray(tugasan.skopSenaraiSekolah)) {
                     total = tugasan.skopSenaraiSekolah.length;
-                    // Jika jumlahBelum tidak dikemas kini secara manual, kira baki
-                    // Ini membenarkan 'jumlahBelum' dari borang edit diguna
                     if (jumlahBelum === total && jumlahSelesai === 0) {
                          // Ini adalah data baru, kekalkan
                     } else if (jumlahSelesai + jumlahBelum !== total) {
-                        // Jika data lama, atau data baru yang dikira auto
                         jumlahBelum = total - jumlahSelesai;
                         if (jumlahBelum < 0) jumlahBelum = 0;
                     }
                 } else {
-                    // Data format lama
                     total = jumlahSelesai + jumlahBelum;
                 }
                 
                 const peratus = (total === 0) ? 0 : Math.round((jumlahSelesai / total) * 100);
-
                 const bakiHariInfo = kiraBakiHari(tugasan.tarikhSiap, peratus);
 
                 baris.innerHTML = `
@@ -457,18 +453,27 @@
                         <div class="w-full bg-gray-200 rounded-full h-2.5">
                             <div class="bg-indigo-600 h-2.5 rounded-full" style="width: ${peratus}%"></div>
                         </div>
-                        <div class="text-center text-xs mt-1">${peratus}%</div>
+                        <div class="text-center text-xs mt-1">
+                            <span class="font-medium">${peratus}%</span> 
+                            (${jumlahSelesai} / ${total})
+                        </div>
                     </td>
-
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${jumlahSelesai}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${jumlahBelum}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700 font-medium">${total}</td>
                     
                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <button class="text-green-600 hover:text-green-900 butang-edit" data-id="${tugasan.id}">Edit</button>
-                        <a href="task.html?id=${tugasan.id}" target="_blank" class="text-purple-600 hover:text-purple-900 ml-4">Lihat</a>
-                        <button class="text-blue-600 hover:text-blue-900 ml-4 butang-kongsi" data-id="${tugasan.id}">Kongsi</button>
-                        <button class="text-red-600 hover:text-red-900 ml-4 butang-padam" data-id="${tugasan.id}">Padam</button>
+                        <div class="flex items-center gap-4">
+                            <button class="text-green-600 hover:text-green-900 butang-edit" data-id="${tugasan.id}" title="Edit Tugasan">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd" /></svg>
+                            </button>
+                            <a href="task.html?id=${tugasan.id}" target="_blank" class="text-purple-600 hover:text-purple-900" title="Lihat Papan Pemuka">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10 12a2 2 0 100-4 2 2 0 000 4z" /><path fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd" /></svg>
+                            </a>
+                            <button class="text-blue-600 hover:text-blue-900 butang-kongsi" data-id="${tugasan.id}" title="Kongsi">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" /></svg>
+                            </button>
+                            <button class="text-red-600 hover:text-red-900 butang-padam" data-id="${tugasan.id}" title="Padam Tugasan">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>
+                            </button>
+                        </div>
                     </td>
                 `;
                 badanJadual.appendChild(baris);
@@ -551,21 +556,30 @@
          */
         function sahkanEditIC(event) {
             event.preventDefault();
-            if (!currentEditId) return;
+            if (!currentEditId) return; // Guna ID utama (ditetapkan oleh handleTindakanJadual)
 
-            const inputIC = document.getElementById('input-pengesahan-ic').value;
-            const errorMsg = document.getElementById('error-pengesahan-ic');
-
+            const inputIC = inputPengesahanIc.value;
             const tugasan = senaraiTugasan.find(t => t.id === currentEditId);
 
             if (tugasan && tugasan.penyelaras_ic === inputIC) {
                 // Berjaya
-                errorMsg.classList.add('hidden');
-                document.getElementById('modal-pengesahan-ic').classList.remove('buka');
-                bukaModalEdit(currentEditId); // Buka modal edit sebenar
+                errorPengesahanIc.classList.add('hidden');
+                modalPengesahanIc.classList.remove('buka');
+                
+                // (BARU) Semak niat (intent)
+                if (currentActionIntent === 'edit') {
+                    bukaModalEdit(currentEditId); // Buka modal edit sebenar
+                } else if (currentActionIntent === 'delete') {
+                    currentDeleteId = currentEditId; // Set ID untuk dipadam
+                    modalPadam.classList.add('buka'); // Buka modal padam
+                }
+                
+                currentActionIntent = null; // Reset niat
+                // currentEditId akan di-reset oleh modal yang ditutup
+
             } else {
                 // Gagal
-                errorMsg.classList.remove('hidden');
+                errorPengesahanIc.classList.remove('hidden');
             }
         }
         
@@ -746,30 +760,40 @@
          * (DIKEMAS KINI) Mengendalikan klik pada butang tindakan jadual
          */
         function handleTindakanJadual(event) {
-            const target = event.target;
+            // (BARU) Guna .closest() untuk pastikan kita dapat data-id 
+            // walaupun pengguna klik SVG
+            const targetButton = event.target.closest('button, a');
+            if (!targetButton) return;
+
             // Semak jika ia pautan 'Lihat'
-            if (target.tagName === 'A' && target.target === '_blank') {
+            if (targetButton.tagName === 'A' && targetButton.target === '_blank') {
                 return; // Biarkan pautan berfungsi seperti biasa
             }
             
-            const id = target.dataset.id;
+            const id = targetButton.dataset.id;
             if (!id) return;
 
-            if (target.classList.contains('butang-padam')) {
-                currentDeleteId = id;
-                modalPadam.classList.add('buka');
+            if (targetButton.classList.contains('butang-padam')) {
+                // (DIUBAH) Buka modal pengesahan
+                currentEditId = id; // Guna ID utama
+                currentActionIntent = 'delete'; // Set niat
+                inputPengesahanIc.value = ''; 
+                errorPengesahanIc.classList.add('hidden');
+                modalPengesahanIc.classList.add('buka');
+                inputPengesahanIc.focus();
             }
             
-            if (target.classList.contains('butang-edit')) {
-                // (DIUBAH) Buka modal pengesahan dahulu
-                currentEditId = id; // Simpan ID
-                document.getElementById('input-pengesahan-ic').value = ''; // Kosongkan input
-                document.getElementById('error-pengesahan-ic').classList.add('hidden'); // Sembunyi ralat
-                document.getElementById('modal-pengesahan-ic').classList.add('buka');
-                document.getElementById('input-pengesahan-ic').focus();
+            if (targetButton.classList.contains('butang-edit')) {
+                // (DIUBAH) Buka modal pengesahan
+                currentEditId = id; 
+                currentActionIntent = 'edit'; // Set niat
+                inputPengesahanIc.value = ''; 
+                errorPengesahanIc.classList.add('hidden');
+                modalPengesahanIc.classList.add('buka');
+                inputPengesahanIc.focus();
             }
 
-            if (target.classList.contains('butang-kongsi')) {
+            if (targetButton.classList.contains('butang-kongsi')) {
                 const tugasan = senaraiTugasan.find(t => t.id === id);
                 if (tugasan) {
                     // (Logik kiraan peratus disalin dari 'paparkanTugasan')
@@ -917,9 +941,11 @@ ${subTugasanTeks}
             senaraiPautanContainer.addEventListener('click', handlePautanKlik);
 
             // (BARU) Listeners for IC verification modal
-            document.getElementById('borang-pengesahan-ic').addEventListener('submit', sahkanEditIC);
-            document.getElementById('batal-pengesahan-ic').addEventListener('click', () => {
-                document.getElementById('modal-pengesahan-ic').classList.remove('buka');
+            borangPengesahanIc.addEventListener('submit', sahkanEditIC);
+            batalPengesahanIcBtn.addEventListener('click', () => {
+                modalPengesahanIc.classList.remove('buka');
+                currentEditId = null; // Reset ID
+                currentActionIntent = null; // Reset niat
             });
         });
 
