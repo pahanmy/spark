@@ -21,7 +21,7 @@
             animation: fadeIn 0.5s ease-out forwards;
         }
         .btn { transition: all 0.3s; }
-        .btn:hover { transform: translateY(-3px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        .btn:hover:not(:disabled) { transform: translateY(-3px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
         .btn:disabled { cursor: not-allowed; opacity: 0.7; transform: none; box-shadow: none; }
         
         @keyframes pulse-animation { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
@@ -30,6 +30,13 @@
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(20px); }
             to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* Sembunyikan file input asal */
+        input[type="file"]::-webkit-file-upload-button {
+            visibility: hidden;
+            width: 0;
+            position: absolute;
         }
     </style>
 </head>
@@ -53,18 +60,24 @@
                     <p class="text-sm text-gray-500">Sahkan Penyelesaian Tugasan</p>
                 </div>
                 <hr class="my-6"/>
-                <div class="text-center mb-6">
-                    <h2 id="program-name" class="text-xl font-bold text-gray-800 uppercase"></h2>
-                </div>
-                <div class="space-y-2 mb-8">
-                    <div class="flex items-center gap-3 text-gray-700 bg-gray-50 p-3 rounded-lg"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-500 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd" /></svg><span id="program-pegawai" class="font-semibold text-sm uppercase"></span></div>
-                    <div class="flex items-center gap-3 text-gray-700 bg-gray-50 p-3 rounded-lg"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-500 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd" /></svg><span id="program-date-end" class="font-semibold text-sm uppercase"></span></div>
-                </div>
 
-                <form id="ic-form" onsubmit="sahkanSelesai(event)">
+                <div id="confirmation-details" class="hidden text-center mb-8">
+                    <h2 id="program-name" class="text-xl font-bold text-gray-800 uppercase">NAMA TUGASAN</h2>
+                    <div class="space-y-2 mt-4">
+                        <div class="flex items-center gap-3 text-gray-700 bg-gray-50 p-3 rounded-lg"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-500 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd" /></svg><span id="program-pegawai" class="font-semibold text-sm uppercase">PEGAWAI</span></div>
+                        <div class="flex items-center gap-3 text-gray-700 bg-gray-50 p-3 rounded-lg"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-500 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd" /></svg><span id="program-date-end" class="font-semibold text-sm uppercase">TARIKH SIAP</span></div>
+                    </div>
+                </div>
+                
+                <form id="ic-form" onsubmit="checkIc(event)">
                     <label for="participant-ic" class="block text-sm font-medium text-gray-700 mb-2">Pengesahan No. IC Penyelaras</label>
                     <input type="password" id="participant-ic" required placeholder="Masukkan No. IC anda" maxlength="12" oninput="validateIcInput(this)" class="block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 text-lg tracking-wider">
-                    
+                    <p id="ic-error" class="text-red-500 text-sm hidden mt-1">No. IC tidak sepadan.</p>
+                    <button type="submit" id="submit-ic-btn" class="btn w-full mt-4 bg-indigo-600 text-white font-bold py-3 px-4 rounded-lg text-base hover:bg-indigo-700">Sahkan IC Penyelaras</button>
+                </form>
+
+                <form id="completion-form" onsubmit="sahkanSelesai(event)" class="hidden">
+                    <hr class="my-6">
                     <label for="catatan-selesai" class="block text-sm font-medium text-gray-700 mt-4 mb-2">Catatan (Pilihan)</label>
                     <textarea id="catatan-selesai" rows="3" class="block w-full rounded-lg border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 sm:text-sm" placeholder="cth: Selesai dengan jayanya."></textarea>
 
@@ -78,8 +91,9 @@
                     </label>
                     <p id="fail-error" class="text-red-500 text-sm hidden mt-1">Fail terlalu besar (Melebihi 5MB).</p>
 
-
-                    <button type="submit" id="submit-ic-btn" class="btn w-full mt-6 bg-green-600 text-white font-bold py-3 px-4 rounded-lg text-base hover:bg-green-700">Sahkan Penyelesaian</button>
+                    <button type="submit" id="submit-completion-btn" class="btn w-full mt-6 bg-green-600 text-white font-bold py-3 px-4 rounded-lg text-base hover:bg-green-700">
+                        Mengesahkan pengisian adalah telah disahkan
+                    </button>
                 </form>
             </div>
             
@@ -114,7 +128,23 @@
         let db, auth, userId;
         let currentTask = null;
         let currentTaskId = null;
+        let validatedIc = null; // (BARU) Simpan IC yang sah
         const appId = firebaseConfig.projectId;
+        
+        // (BARU) DOM Elemen
+        const loadingState = document.getElementById('loading-state');
+        const checkInCard = document.getElementById('check-in-card');
+        const icForm = document.getElementById('ic-form');
+        const icInput = document.getElementById('participant-ic');
+        const icError = document.getElementById('ic-error');
+        const icSubmitBtn = document.getElementById('submit-ic-btn');
+        const confirmationDetails = document.getElementById('confirmation-details');
+        const completionForm = document.getElementById('completion-form');
+        const completionSubmitBtn = document.getElementById('submit-completion-btn');
+        const failInput = document.getElementById('fail-input');
+        const failInfo = document.getElementById('fail-info');
+        const failError = document.getElementById('fail-error');
+
 
         try {
             const app = initializeApp(firebaseConfig);
@@ -146,10 +176,7 @@
             }
 
             // Pasang listener pada input fail
-            document.getElementById('fail-input').addEventListener('change', () => {
-                const failInput = document.getElementById('fail-input');
-                const failInfo = document.getElementById('fail-info');
-                const failError = document.getElementById('fail-error');
+            failInput.addEventListener('change', () => {
                 if (failInput.files.length > 0) {
                     const file = failInput.files[0];
                     if (file.size > 5 * 1024 * 1024) { // Had 5MB
@@ -172,17 +199,16 @@
                 if (docSnap.exists()) {
                     currentTask = { id: docSnap.id, ...docSnap.data() };
                     
-                    // Semak jika userId semasa sepadan dengan userId pencipta
-                    if (currentTask.userId !== userId) {
-                         return showMessage('error', 'Akses Dihalang', 'Hanya penyelaras tugasan ini boleh membuat pengesahan.');
-                    }
+                    // (DIUBAH) Jangan semak userId, hanya papar data
                     
+                    // Isi data (tapi ia tersembunyi)
                     document.getElementById('program-name').textContent = currentTask.nama;
                     document.getElementById('program-pegawai').textContent = `Pegawai: ${currentTask.pegawai}`;
                     document.getElementById('program-date-end').textContent = `Tarikh Siap: ${formatTarikh(currentTask.tarikhSiap)}`;
                     
-                    document.getElementById('loading-state').classList.add('hidden');
-                    document.getElementById('check-in-card').classList.remove('hidden');
+                    // Paparkan kad (hanya IC form kelihatan)
+                    loadingState.classList.add('hidden');
+                    checkInCard.classList.remove('hidden');
 
                 } else {
                     showMessage('error', 'Tugasan Tidak Ditemui', 'Sila pastikan anda menggunakan pautan yang betul.');
@@ -197,27 +223,48 @@
             input.value = input.value.replace(/[^0-9]/g, '');
         }
         
-        window.sahkanSelesai = async function(event) {
+        // (BARU) Langkah 1: Semak IC
+        window.checkIc = function(event) {
             event.preventDefault();
-            const icInput = document.getElementById('participant-ic');
+            icError.classList.add('hidden');
             const ic = icInput.value.trim();
-            const catatanInput = document.getElementById('catatan-selesai');
-            const failInput = document.getElementById('fail-input');
 
             if (!ic || ic.length !== 12) {
                 alert("Sila masukkan No. IC Penyelaras yang sah (12 digit).");
                 return;
             }
-            
+
             // Sahkan IC
-            if (ic !== currentTask.penyelaras_ic) {
-                alert("No. IC pengesahan tidak sepadan dengan penyelaras tugasan.");
+            if (ic === currentTask.penyelaras_ic) {
+                // Berjaya
+                validatedIc = ic; // Simpan IC yang disahkan
+                
+                // Tunjukkan Bahagian 2 & 3
+                icForm.classList.add('hidden');
+                confirmationDetails.classList.remove('hidden');
+                completionForm.classList.remove('hidden');
+
+            } else {
+                // Gagal
+                icError.classList.remove('hidden');
+                icInput.focus();
+            }
+        }
+        
+        // (DIUBAH) Langkah 2: Hantar Borang Selesai
+        window.sahkanSelesai = async function(event) {
+            event.preventDefault();
+            
+            // Semak jika IC telah disahkan
+            if (!validatedIc) {
+                alert("Sila sahkan IC anda dahulu.");
                 return;
             }
 
-            const submitBtn = document.getElementById('submit-ic-btn');
-            submitBtn.disabled = true;
-            submitBtn.innerHTML = `<svg class="animate-spin h-5 w-5 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>`;
+            const catatanInput = document.getElementById('catatan-selesai');
+            
+            completionSubmitBtn.disabled = true;
+            completionSubmitBtn.innerHTML = `<svg class="animate-spin h-5 w-5 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>`;
 
             // Proses fail jika ada
             let fileData = null;
@@ -227,15 +274,15 @@
                     fileData = await bacaFail(file);
                 } catch (err) {
                     showMessage('error', 'Gagal!', 'Gagal membaca fail yang dimuat naik.');
-                    submitBtn.disabled = false;
-                    submitBtn.textContent = "Sahkan Penyelesaian";
+                    completionSubmitBtn.disabled = false;
+                    completionSubmitBtn.textContent = "Mengesahkan pengisian adalah telah disahkan";
                     return;
                 }
             }
 
             // Cipta rekod penyelesaian
             const completionRecord = {
-                ic_pengesah: ic,
+                ic_pengesah: validatedIc, // Guna IC yang disahkan
                 catatan: catatanInput.value.trim() || null,
                 fail: fileData, // Ini akan jadi null jika tiada fail, atau objek jika ada
                 timestamp: new Date().toISOString()
@@ -252,14 +299,13 @@
             } catch (error) {
                 console.error("Error saving completion record: ", error);
                 showMessage('error', 'Gagal!', 'Gagal menyimpan rekod. Sila cuba lagi.');
-                submitBtn.disabled = false;
-                submitBtn.textContent = "Sahkan Penyelesaian";
+                completionSubmitBtn.disabled = false;
+                completionSubmitBtn.textContent = "Mengesahkan pengisian adalah telah disahkan";
             }
         }
         
         function showMessage(type, title, body) {
-            document.getElementById('loading-state').classList.add('hidden');
-            const checkInCard = document.getElementById('check-in-card');
+            loadingState.classList.add('hidden');
             if (checkInCard) checkInCard.classList.add('hidden');
             
             const msgCard = document.getElementById('message-card');
