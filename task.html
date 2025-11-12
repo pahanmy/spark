@@ -17,6 +17,54 @@
         #progress-circle { transition: stroke-dashoffset 0.5s ease-in-out; transform: rotate(-90deg); transform-origin: center; }
         @keyframes pulse-animation { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
         .logo-pulse { animation: pulse-animation 2s infinite; }
+
+        /* (BARU) Gaya untuk Cetakan Modal */
+        @media print {
+            /* Sembunyikan semua elemen di 'body' apabila kelas 'is-printing-modal' ada */
+            body.is-printing-modal > * {
+                display: none;
+            }
+            /* Tunjukkan HANYA modal dan kandungannya */
+            body.is-printing-modal #skop-list-modal {
+                display: block !important;
+                position: static !important;
+                width: 100% !important;
+                max-width: 100% !important;
+                box-shadow: none !important;
+                border: none !important;
+                background: white !important;
+                inset: 0 !important;
+                height: auto !important;
+                padding: 0 !important;
+            }
+            /* Kembangkan senarai yang boleh-skrol */
+            body.is-printing-modal #skop-modal-content {
+                max-height: none !important;
+                overflow: visible !important;
+                border: none !important;
+                padding: 0 !important;
+                background: white !important;
+            }
+            /* Sembunyikan butang 'Tutup', 'Cetak', 'Salin' */
+            body.is-printing-modal .no-print {
+                display: none !important;
+            }
+            /* Tunjukkan tajuk */
+            body.is-printing-modal #skop-modal-title {
+                display: block;
+                font-size: 1.5rem;
+                font-weight: bold;
+                margin-bottom: 1rem;
+                color: black;
+            }
+             /* Pastikan senarai dalaman kelihatan */
+            body.is-printing-modal #skop-modal-content div {
+                color: black;
+                background: white;
+                border-bottom: 1px solid #ccc;
+                padding: 4px;
+            }
+        }
     </style>
 </head>
 <body class="bg-gray-50 flex flex-col min-h-screen pt-32 sm:pt-24"> 
@@ -162,7 +210,7 @@
                         </div>
                     </div>
 
-                    </div>
+                </div>
             </div>
         </div>
     </main>
@@ -173,18 +221,27 @@
         <div class="card bg-white rounded-lg shadow-xl w-full max-w-lg p-6">
             <div class="flex justify-between items-center mb-4">
                 <h3 id="skop-modal-title" class="text-xl font-semibold text-gray-800"></h3>
-                <button onclick="closeSkopModal()" class="text-gray-400 hover:text-gray-600 text-3xl font-bold">&times;</button>
+                <button onclick="closeSkopModal()" class="text-gray-400 hover:text-gray-600 text-3xl font-bold no-print">&times;</button>
             </div>
             <div id="skop-modal-content" class="max-h-96 overflow-y-auto space-y-2 bg-gray-50 p-4 rounded-md border">
                 </div>
-            <div class="mt-6 flex justify-end">
-                <button onclick="closeSkopModal()" class="btn bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg">Tutup</button>
+            <div class="mt-6 flex flex-col sm:flex-row justify-between items-center gap-4 no-print">
+                <div class="flex gap-2">
+                    <button onclick="copySkopList()" class="btn bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg flex items-center gap-2 text-sm">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" /><path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z" /></svg>
+                        Salin Senarai
+                    </button>
+                    <button onclick="printSkopList()" class="btn bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg flex items-center gap-2 text-sm">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v6a2 2 0 002 2h1v-4a1 1 0 011-1h10a1 1 0 011 1v4h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z" clip-rule="evenodd" /></svg>
+                        Cetak (PDF/Screenshot)
+                    </button>
+                </div>
+                <button onclick="closeSkopModal()" class="btn bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg w-full sm:w-auto">Tutup</button>
             </div>
         </div>
     </div>
     
     <script type="module">
-        // (DIUBAH) Import getDocs, collection, query, where
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, onSnapshot, getDocs, collection, query, where } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
@@ -204,8 +261,10 @@
         const appId = firebaseConfig.projectId;
         let currentTaskId = null;
         let penyelarasDetails = null;
-        let skopSelesaiList = []; // (BARU) Senarai sekolah selesai
-        let skopBelumList = []; // (BARU) Senarai sekolah belum selesai
+        let skopSelesaiList = [];
+        let skopBelumList = [];
+        let currentModalSkopList = []; // (BARU) Simpan senarai semasa untuk disalin/cetak
+        let currentModalSkopTitle = ""; // (BARU) Simpan tajuk semasa
 
         try {
             const app = initializeApp(firebaseConfig);
@@ -262,7 +321,7 @@
                     }
                     
                     renderTaskDetails();
-                    renderTaskProgress(); // (DIUBAH) Kini mengira skopSelesaiList dan skopBelumList
+                    renderTaskProgress();
                     renderCompletionHistory();
                     renderSubTasks();
                     
@@ -315,14 +374,12 @@
             document.getElementById('dashboard-date-end').textContent = `Siap: ${formatTarikh(currentTask.tarikhSiap)}`;
         }
         
-        // (DIUBAH) Logik dikemaskini untuk mengira senarai Selesai/Belum
         function renderTaskProgress() {
             const totalSkop = Array.isArray(currentTask.skopSenaraiSekolah) ? currentTask.skopSenaraiSekolah : [];
             
             // (PENTING) Andaikan 'currentTask.skopSelesai' ialah ARRAY nama sekolah yg selesai
             skopSelesaiList = Array.isArray(currentTask.skopSelesai) ? currentTask.skopSelesai : [];
             
-            // (BARU) Kira senarai belum selesai
             const selesaiSet = new Set(skopSelesaiList);
             skopBelumList = totalSkop.filter(sekolah => !selesaiSet.has(sekolah));
 
@@ -333,19 +390,17 @@
             const selesaiBtn = document.querySelector('button[onclick="showSkopList(\'selesai\')"]');
             const belumBtn = document.querySelector('button[onclick="showSkopList(\'belum\')"]');
 
-            // (DIUBAH) Jika tiada skop (tugasan manual), guna data sedia ada
             if (total === 0) {
                 jumlahSelesai = currentTask.jumlahSelesai || 0;
                 total = (currentTask.jumlahSelesai || 0) + (currentTask.jumlahBelum || 0);
                 jumlahBelum = total - jumlahSelesai;
                 if (jumlahBelum < 0) jumlahBelum = 0;
                 
-                // (BARU) Matikan butang jika tiada skop
                 if (selesaiBtn) selesaiBtn.disabled = true;
                 if (belumBtn) belumBtn.disabled = true;
             } else {
-                if (selesaiBtn) selesaiBtn.disabled = false;
-                if (belumBtn) belumBtn.disabled = false;
+                if (selesaiBtn) selesaiBtn.disabled = (jumlahSelesai === 0); // (DIUBAH) Matikan jika 0
+                if (belumBtn) belumBtn.disabled = (jumlahBelum === 0); // (DIUBAH) Matikan jika 0
             }
             
             const peratus = (total === 0) ? 0 : Math.round((jumlahSelesai / total) * 100);
@@ -457,7 +512,6 @@
             return `${hari}/${bulan}/${tahun}`;
         }
 
-        // (BARU) Fungsi untuk tunjuk modal senarai skop
         function showSkopList(status) {
             const modal = document.getElementById('skop-list-modal');
             const titleEl = document.getElementById('skop-modal-title');
@@ -472,11 +526,15 @@
                 list = skopBelumList;
             }
             
-            contentEl.innerHTML = ''; // Kosongkan
+            // (BARU) Simpan untuk fungsi Salin/Cetak
+            currentModalSkopList = list;
+            currentModalSkopTitle = titleEl.textContent;
+
+            contentEl.innerHTML = '';
             if (list.length === 0) {
                 contentEl.innerHTML = `<p class="text-sm text-gray-500 italic">Tiada data untuk dipaparkan.</p>`;
             } else {
-                list.sort().forEach((item, index) => { // Susun ikut abjad
+                list.sort().forEach((item, index) => {
                     contentEl.innerHTML += `
                         <div class="text-sm text-gray-800 bg-white p-2 border-b last:border-b-0">
                             ${index + 1}. ${item}
@@ -488,15 +546,51 @@
             modal.classList.remove('hidden');
         }
 
-        // (BARU) Fungsi untuk tutup modal senarai skop
         function closeSkopModal() {
             document.getElementById('skop-list-modal').classList.add('hidden');
+            // (BARU) Pastikan kelas cetakan dialih keluar jika ditutup secara manual
+            document.body.classList.remove('is-printing-modal');
         }
 
-        // (BARU) Jadikan fungsi ini global supaya HTML 'onclick' boleh akses
+        // (BARU) Fungsi untuk salin senarai
+        function copySkopList() {
+            if (currentModalSkopList.length === 0) {
+                alert("Senarai kosong, tiada apa untuk disalin.");
+                return;
+            }
+
+            // Bina senarai teks
+            let textToCopy = `${currentModalSkopTitle} (Tugasan: ${currentTask.nama.toUpperCase() || 'N/A'}):\n\n`;
+            currentModalSkopList.forEach((item, index) => {
+                textToCopy += `${index + 1}. ${item}\n`;
+            });
+
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                alert("Senarai telah disalin ke clipboard!");
+            }).catch(err => {
+                console.error("Gagal menyalin:", err);
+                alert("Gagal menyalin. Sila cuba lagi.");
+            });
+        }
+
+        // (BARU) Fungsi untuk cetak senarai
+        function printSkopList() {
+            document.body.classList.add('is-printing-modal');
+            
+            setTimeout(() => {
+                window.print();
+                
+                // Alih keluar kelas selepas cetakan (atau jika dibatalkan)
+                document.body.classList.remove('is-printing-modal');
+            }, 250);
+        }
+
+        // (DIUBAH) Jadikan fungsi ini global
         Object.assign(window, {
             showSkopList,
-            closeSkopModal
+            closeSkopModal,
+            copySkopList,  // (BARU)
+            printSkopList  // (BARU)
         });
 
     </script>
