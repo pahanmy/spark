@@ -91,6 +91,30 @@
                         <div id="file-list" class="space-y-2">
                             </div>
                     </div>
+                    
+                    <div class="card p-6">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            Rekod Pengesahan Selesai
+                        </h3>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nama</th>
+                                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Jawatan</th>
+                                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stesen</th>
+                                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tarikh & Masa</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="completion-list" class="bg-white divide-y divide-gray-200">
+                                    <tr><td colspan="4" class="px-4 py-4 text-center text-sm text-gray-500 italic">Tiada pengesahan selesai direkodkan.</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
 
                 </div>
                 
@@ -123,18 +147,6 @@
                             </div>
                         </div>
                     </div>
-                    
-                    <div class="card p-6">
-                        <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            Rekod Pengesahan Selesai
-                        </h3>
-                        <div id="completion-list" class="space-y-3 max-h-64 overflow-y-auto">
-                            <p class="text-sm text-gray-500 italic">Tiada pengesahan selesai direkodkan.</p>
-                        </div>
-                    </div>
 
                     <div class="card p-6">
                         <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m-1 4h1m4-8h1m-1 4h1m-1 4h1" /></svg>Skop Tugasan (Senarai Sekolah)</h3>
@@ -149,9 +161,10 @@
     <footer class="text-center py-4 mt-8 border-t border-gray-200"><p class="text-sm text-gray-600">Projek Inovasi oleh <a href="https://pahanmy.github.io/works/" target="_blank" class="font-semibold text-indigo-500 hover:underline">Pahan</a></p><p id="version-info" class="text-xs text-gray-500"></p></footer>
     
     <script type="module">
+        // (DIUBAH) Import getDocs, collection, query, where
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, onSnapshot, getDocs, collection, query, where } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM",
@@ -166,7 +179,8 @@
         let unsubscribeTaskListener = null;
         let currentTask = null;
         const appId = firebaseConfig.projectId;
-        let currentTaskId = null; // (BARU)
+        let currentTaskId = null;
+        let penyelarasDetails = null; // (BARU) Simpan data penyelaras
 
         try {
             const app = initializeApp(firebaseConfig);
@@ -219,6 +233,11 @@
                 if (docSnap.exists()) {
                     currentTask = { id: docSnap.id, ...docSnap.data() };
                     
+                    // (BARU) Muatkan data penyelaras
+                    if (!penyelarasDetails) { // Hanya muat sekali
+                        loadPenyelarasDetails(currentTask.penyelaras_ic);
+                    }
+                    
                     // Panggil semua fungsi render
                     renderTaskDetails();
                     renderTaskProgress();
@@ -242,6 +261,25 @@
             });
         }
         
+        // (BARU) Fungsi untuk memuatkan data penyelaras
+        async function loadPenyelarasDetails(ic) {
+            try {
+                const participantsRef = collection(db, `artifacts/${appId}/public/data/spark_participants`);
+                const q = query(participantsRef, where("ic", "==", ic));
+                const querySnapshot = await getDocs(q);
+                
+                if (!querySnapshot.empty) {
+                    penyelarasDetails = querySnapshot.docs[0].data();
+                    // Render semula senarai pengesahan selepas data dimuatkan
+                    renderCompletionHistory(); 
+                } else {
+                    console.warn("Data penyelaras tidak ditemui untuk IC:", ic);
+                }
+            } catch (error) {
+                console.error("Error fetching participant details:", error);
+            }
+        }
+
         function renderTaskDetails() {
             document.getElementById('dashboard-task-name').textContent = currentTask.nama.toUpperCase();
             document.getElementById('dashboard-pegawai').textContent = `Pegawai: ${currentTask.pegawai}`;
@@ -272,45 +310,39 @@
             document.getElementById('progress-circle').style.strokeDashoffset = 100 - peratus;
         }
 
-        // (BARU) Fungsi untuk memaparkan rekod penyelesaian
+        // (DIUBAH) Fungsi untuk memaparkan rekod penyelesaian
         function renderCompletionHistory() {
             const container = document.getElementById('completion-list');
             container.innerHTML = '';
             const list = currentTask.rekodSelesai || [];
             
             if (list.length === 0) {
-                container.innerHTML = `<p class="text-sm text-gray-500 italic">Tiada pengesahan selesai direkodkan.</p>`;
+                container.innerHTML = `<tr><td colspan="4" class="px-4 py-4 text-center text-sm text-gray-500 italic">Tiada pengesahan selesai direkodkan.</td></tr>`;
                 return;
             }
             
             // Susun dengan yang terkini di atas
             list.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+            
+            // Dapatkan butiran penyelaras (mungkin 'null' jika belum dimuatkan)
+            const pegawaiName = currentTask.pegawai;
+            const pegawaiJawatan = penyelarasDetails ? (penyelarasDetails.position || 'N/A') : 'Memuatkan...';
+            const pegawaiStesen = penyelarasDetails ? (penyelarasDetails.station || 'N/A') : 'Memuatkan...';
 
             list.forEach((rekod, index) => {
-                // Nama pegawai adalah sama untuk semua, berdasarkan siapa penyelaras
-                const pegawaiName = currentTask.pegawai; 
                 const timestamp = new Date(rekod.timestamp).toLocaleString('ms-MY', { 
                     day: 'numeric', month: 'long', year: 'numeric', 
                     hour: 'numeric', minute: '2-digit' 
                 });
                 
-                // Papar pautan jika ada
-                let pautanHtml = '';
-                if (rekod.pautan && rekod.pautan.length > 0) {
-                    pautanHtml = rekod.pautan.map(url => 
-                        `<a href="${url}" target="_blank" class="text-xs text-blue-600 hover:underline break-all block">${url}</a>`
-                    ).join('');
-                }
-
+                // (DIUBAH) Struktur HTML untuk jadual
                 container.innerHTML += `
-                    <div class="bg-gray-50 border border-gray-200 p-3 rounded-lg">
-                        <div class="flex justify-between items-center">
-                            <span class="text-sm font-medium text-gray-800">${pegawaiName}</span>
-                            <span class="text-xs text-gray-500">${timestamp}</span>
-                        </div>
-                        <p class="text-sm text-gray-600 italic mt-1">"${rekod.catatan || 'Tiada catatan.'}"</p>
-                        ${pautanHtml ? `<div class="mt-2 border-t pt-2">${pautanHtml}</div>` : ''}
-                    </div>
+                    <tr class="text-sm">
+                        <td class="px-4 py-3 text-gray-800 font-medium">${pegawaiName}</td>
+                        <td class="px-4 py-3 text-gray-600">${pegawaiJawatan}</td>
+                        <td class="px-4 py-3 text-gray-600">${pegawaiStesen}</td>
+                        <td class="px-4 py-3 text-gray-600 whitespace-nowrap">${timestamp}</td>
+                    </tr>
                 `;
             });
         }
