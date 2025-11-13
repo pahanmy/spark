@@ -8,18 +8,43 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         body { font-family: 'Poppins', sans-serif; background-color: #f8f9fa; }
         .card { background-color: white; border-radius: 0.75rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); }
         .btn { transition: background-color 0.3s, transform 0.2s; }
         .btn:hover:not(:disabled) { transform: translateY(-2px); }
         .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        
+        /* (BARU) Stil untuk kad jawapan */
+        .submission-card {
+            background-color: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        .submission-header {
+            border-bottom: 1px solid #f3f4f6;
+            padding-bottom: 0.75rem;
+            margin-bottom: 0.75rem;
+        }
+        .submission-answer-item {
+            padding-top: 0.5rem;
+        }
+        .submission-answer-item:not(:first-child) {
+            border-top: 1px dashed #e5e7eb;
+            margin-top: 0.5rem;
+        }
+        .submission-answer-item p {
+             word-break: break-word; /* Memastikan teks panjang wrap */
+        }
     </style>
 </head>
 <body class="bg-gray-50 flex flex-col min-h-screen"> 
     
     <header id="page-header" class="bg-white shadow-sm w-full">
-        <div class="max-w-screen-2xl mx-auto py-4 px-4 sm:px-6 lg:px-8 flex justify-between items-center">
+        <div class="max-w-screen-2xl mx-auto py-4 px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row justify-between items-center gap-4">
             <div class="flex items-center gap-3">
                 <div class="bg-red-600 p-2 rounded-lg"><svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6.41-1.35a.37.37 0 01.52 0l1.72 1.72a.37.37 0 00.52 0l1.72-1.72a.37.37 0 01.52 0l1.72 1.72a.37.37 0 00.52 0l1.72-1.72a.37.37 0 01.52 0l1.72 1.72a.37.37 0 00.52 0l1.72-1.72a.37.37 0 01.52 0" /><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 0v4m0-4h4m-4 0H8m13-4.41a.37.37 0 00-.52 0L18.76 9.3a.37.37 0 01-.52 0l-1.72-1.72a.37.37 0 00-.52 0l-1.72 1.72a.37.37 0 01-.52 0L12 7.58l-1.72 1.72a.37.37 0 01-.52 0L8.04 7.58a.37.37 0 00-.52 0L5.8 9.3a.37.37 0 01-.52 0L3.56 7.58a.37.37 0 00-.52 0L1.32 9.3a.37.37 0 01-.52 0" /><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></div>
                 <div>
@@ -27,24 +52,30 @@
                     <p id="admin-task-name" class="text-sm text-gray-500">Memuatkan...</p>
                 </div>
             </div>
-             <a id="back-to-dashboard-btn" href="#" class="btn bg-gray-100 text-gray-800 font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-gray-200 flex items-center gap-2 text-sm">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.707-10.293a1 1 0 00-1.414-1.414l-3 3a1 1 0 001.414 1.414L9 9.414V13a1 1 0 102 0V9.414l1.293 1.293a1 1 0 001.414-1.414l-3-3z" clip-rule="evenodd" /></svg>
-                Kembali
-            </a>
+            <div class="flex items-center gap-2">
+                <button id="download-excel-btn" class="btn bg-green-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-green-700 flex items-center gap-2 text-sm" disabled>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                    Muat Turun Excel
+                </button>
+                 <a id="back-to-dashboard-btn" href="#" class="btn bg-gray-100 text-gray-800 font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-gray-200 flex items-center gap-2 text-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.707-10.293a1 1 0 00-1.414-1.414l-3 3a1 1 0 001.414 1.414L9 9.414V13a1 1 0 102 0V9.414l1.293 1.293a1 1 0 001.414-1.414l-3-3z" clip-rule="evenodd" /></svg>
+                    Kembali
+                </a>
+            </div>
         </div>
-    </header>
+        </header>
 
     <main id="admin-content" class="max-w-screen-2xl mx-auto py-6 sm:px-6 lg:px-8 flex-grow w-full hidden">
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
             
             <div class="card p-6">
                 <h3 class="text-lg font-semibold text-amber-800 mb-4 flex items-center gap-2">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                     Senarai Belum Selesai (<span id="count-belum">0</span>)
                 </h3>
-                <div class="max-h-96 overflow-y-auto border rounded-md">
+                <div class="max-h-[60vh] overflow-y-auto border rounded-md">
                     <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50">
+                        <thead class="bg-gray-50 sticky top-0">
                             <tr>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bil.</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nama Sekolah/Skop</th>
@@ -59,24 +90,15 @@
             <div class="card p-6">
                 <h3 class="text-lg font-semibold text-teal-800 mb-4 flex items-center gap-2">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                    Senarai Selesai (<span id="count-selesai">0</span>)
+                    Rekod Pengesahan Selesai (<span id="count-selesai">0</span>)
                 </h3>
-                <div class="max-h-96 overflow-y-auto border rounded-md">
-                    <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bil.</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nama Sekolah/Skop</th>
-                            </tr>
-                        </thead>
-                        <tbody id="table-selesai" class="bg-white divide-y divide-gray-200">
-                            </tbody>
-                    </table>
+                <div id="submissions-container" class="max-h-[60vh] overflow-y-auto space-y-4 pr-2">
+                    <p id="loading-selesai" class="text-sm text-gray-500 italic text-center">Memuatkan...</p>
                 </div>
             </div>
             
         </div>
-    </main>
+        </main>
     
     <div id="ic-verification-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70">
         <div class="card bg-white rounded-lg shadow-xl w-full max-w-sm p-6">
@@ -101,8 +123,11 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        // ▼▼▼ PERLU TAMBAH: updateDoc dan arrayRemove ▼▼▼
+        import { getFirestore, doc, getDoc, updateDoc, arrayRemove } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        // ▲▲▲ TAMAT TAMBAHAN ▲▲▲
 
+        // Konfigurasi Firebase (kekal sama)
         const firebaseConfig = {
             apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM",
             authDomain: "myqrhadir.firebaseapp.com",
@@ -116,6 +141,7 @@
         const appId = firebaseConfig.projectId;
         let currentTaskId = null;
         let correctPenyelarasIc = null;
+        let currentTaskData = null; // (BARU) Simpan data tugasan di sini
 
         try {
             const app = initializeApp(firebaseConfig);
@@ -147,16 +173,18 @@
                 return;
             }
             
-            // Tetapkan pautan kembali
             document.getElementById('back-to-dashboard-btn').href = `task.html?id=${currentTaskId}`;
             
-            // Tambah event listener pada butang pengesahan
             document.getElementById('ic-submit-btn').addEventListener('click', verifyIcAndLoad);
             document.getElementById('ic-input').addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') verifyIcAndLoad();
             });
+            
+            // (BARU) Pasang listener butang Excel
+            document.getElementById('download-excel-btn').addEventListener('click', downloadExcel);
         }
         
+        // ▼▼▼ DIUBAH SUAI: Untuk menyimpan data tugasan ▼▼▼
         async function verifyIcAndLoad() {
             const enteredIc = document.getElementById('ic-input').value;
             const errorEl = document.getElementById('ic-error');
@@ -174,7 +202,7 @@
             errorEl.classList.add('hidden');
 
             try {
-                // Jika kita belum ada IC, fetch
+                // Fetch data sekali sahaja untuk pengesahan
                 if (!correctPenyelarasIc) {
                     const taskRef = doc(db, `artifacts/${appId}/public/data/spark_tasks`, currentTaskId);
                     const docSnap = await getDoc(taskRef);
@@ -182,19 +210,18 @@
                     if (!docSnap.exists()) {
                         throw new Error("Tugasan tidak ditemui.");
                     }
-                    const taskData = docSnap.data();
-                    correctPenyelarasIc = taskData.penyelaras_ic; // Simpan IC yang betul
+                    currentTaskData = docSnap.data(); // Simpan data tugasan
+                    correctPenyelarasIc = currentTaskData.penyelaras_ic;
                     
-                    // Muatkan nama tugasan di header
-                    document.getElementById('admin-task-name').textContent = taskData.nama.toUpperCase();
+                    document.getElementById('admin-task-name').textContent = currentTaskData.nama.toUpperCase();
                 }
 
                 // Sahkan IC
                 if (enteredIc === correctPenyelarasIc) {
-                    // Berjaya! Muatkan data penuh
-                    await loadContentData();
+                    await loadContentData(); // Muatkan kandungan
                     document.getElementById('ic-verification-modal').classList.add('hidden');
                     document.getElementById('admin-content').classList.remove('hidden');
+                    document.getElementById('download-excel-btn').disabled = false; // Aktifkan butang Excel
                 } else {
                     throw new Error("No. IC tidak sepadan.");
                 }
@@ -207,10 +234,10 @@
                 loadingEl.classList.add('hidden');
             }
         }
-
+        
+        // ▼▼▼ DIUBAH SUAI: Untuk memuatkan semula data terkini & panggil fungsi paparan baharu ▼▼▼
         async function loadContentData() {
-            // Kita perlu fetch data sekali lagi untuk dapatkan senarai skop terkini
-            // (onSnapshot lebih rumit untuk disekat di belakang modal, jadi getDoc lebih mudah)
+            // Sentiasa fetch data terkini setiap kali fungsi ini dipanggil
             const taskRef = doc(db, `artifacts/${appId}/public/data/spark_tasks`, currentTaskId);
             const docSnap = await getDoc(taskRef);
             
@@ -218,24 +245,26 @@
                 throw new Error("Gagal memuatkan data tugasan.");
             }
             
-            const currentTask = docSnap.data();
+            currentTaskData = docSnap.data(); // Kemas kini data tugasan global
 
-            // Logik pengiraan senarai (sama seperti task.html)
-            const totalSkop = Array.isArray(currentTask.skopSenaraiSekolah) ? currentTask.skopSenaraiSekolah : [];
-            const skopSelesaiList = Array.isArray(currentTask.skopSelesai) ? currentTask.skopSelesai : [];
+            const totalSkop = Array.isArray(currentTaskData.skopSenaraiSekolah) ? currentTaskData.skopSenaraiSekolah : [];
+            const skopSelesaiList = Array.isArray(currentTaskData.skopSelesai) ? currentTaskData.skopSelesai : [];
             const selesaiSet = new Set(skopSelesaiList);
             const skopBelumList = totalSkop.filter(sekolah => !selesaiSet.has(sekolah));
             
-            // Masukkan data ke dalam jadual
+            // Masukkan data ke dalam jadual "Belum"
             populateTable('table-belum', 'count-belum', skopBelumList);
-            populateTable('table-selesai', 'count-selesai', skopSelesaiList);
+            
+            // (BARU) Masukkan data ke dalam kad "Selesai"
+            populateSubmissions(currentTaskData.rekodSelesai || []);
         }
 
+        // (KEKAL SAMA) Fungsi untuk mengisi jadual "Belum"
         function populateTable(tableId, countId, list) {
             const tableBody = document.getElementById(tableId);
             const countEl = document.getElementById(countId);
             
-            tableBody.innerHTML = ''; // Kosongkan
+            tableBody.innerHTML = '';
             countEl.textContent = list.length;
             
             if (list.length === 0) {
@@ -252,6 +281,173 @@
                 `;
             });
         }
+        
+        // ▼▼▼ (FUNGSI BAHARU) Untuk mengisi kad "Selesai" ▼▼▼
+        function populateSubmissions(rekodList) {
+            const container = document.getElementById('submissions-container');
+            const countEl = document.getElementById('count-selesai');
+            
+            container.innerHTML = ''; // Kosongkan
+            countEl.textContent = rekodList.length;
+
+            if (rekodList.length === 0) {
+                container.innerHTML = `<p class="text-sm text-gray-500 italic text-center">Tiada rekod pengesahan diterima.</p>`;
+                return;
+            }
+
+            // Papar yang terbaru dahulu
+            rekodList.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+            rekodList.forEach((rekod, index) => {
+                const card = document.createElement('div');
+                card.className = 'submission-card';
+
+                const timestamp = new Date(rekod.timestamp).toLocaleString('ms-MY', {
+                    dateStyle: 'medium', timeStyle: 'short'
+                });
+                
+                let answersHtml = '';
+                if (rekod.jawapan && rekod.jawapan.length > 0) {
+                    rekod.jawapan.forEach(j => {
+                        let answerText = j.jawapan;
+                        // Format pautan jika ia pautan
+                        if (j.jenis === 'pautan_url' && j.jawapan.startsWith('http')) {
+                            answerText = `<a href="${j.jawapan}" target="_blank" class="text-blue-600 hover:underline">${j.jawapan}</a>`;
+                        }
+                        
+                        // Tetapkan warna untuk Ya/Tidak
+                        let answerColor = "text-gray-800";
+                        if (j.jawapan === "Ya") answerColor = "text-green-700 font-semibold";
+                        if (j.jawapan === "Tidak") answerColor = "text-red-700 font-semibold";
+                        
+                        answersHtml += `
+                            <div class="submission-answer-item">
+                                <p class="text-sm font-semibold text-gray-600">${j.soalan}</p>
+                                <p class="text-base ${answerColor}" style="white-space: pre-wrap; word-break: break-word;">${answerText || " - "}</p>
+                            </div>
+                        `;
+                    });
+                } else {
+                    answersHtml = '<p class="text-sm italic text-gray-500">Tiada jawapan terperinci (rekod lama).</p>';
+                }
+
+                card.innerHTML = `
+                    <div class="submission-header flex justify-between items-start">
+                        <div>
+                            <p class="text-lg font-semibold text-indigo-800">${rekod.nama_pengesah || 'N/A'}</p>
+                            <p class="text-sm text-gray-600">${rekod.stesen_pengesah || 'N/A'}</p>
+                            <p class="text-xs text-gray-500">${timestamp}</p>
+                        </div>
+                        <button onclick="promptDeleteSubmission(${index})" class="btn text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-lg" title="Padam Rekod">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
+                            </svg>
+                        </button>
+                    </div>
+                    <div>
+                        ${answersHtml}
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        // ▼▼▼ (FUNGSI BAHARU) Untuk memadam rekod pengesahan ▼▼▼
+        async function promptDeleteSubmission(index) {
+            if (!currentTaskData || !currentTaskData.rekodSelesai) return;
+
+            // Dapatkan rekod asal berdasarkan index (kerana kita sort paparan)
+            const sortedList = [...currentTaskData.rekodSelesai].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+            const recordToRemove = sortedList[index];
+            const stationToRemove = recordToRemove.stesen_pengesah;
+
+            if (!recordToRemove) {
+                alert("Gagal mencari rekod untuk dipadam.");
+                return;
+            }
+
+            if (!confirm(`Anda pasti mahu memadam pengesahan oleh ${recordToRemove.nama_pengesah} (${recordToRemove.stesen_pengesah})?`)) {
+                return;
+            }
+            
+            try {
+                const taskRef = doc(db, `artifacts/${appId}/public/data/spark_tasks`, currentTaskId);
+                
+                // Kemas kini dokumen: Buang dari 'rekodSelesai' DAN 'skopSelesai'
+                await updateDoc(taskRef, {
+                    rekodSelesai: arrayRemove(recordToRemove),
+                    skopSelesai: arrayRemove(stationToRemove)
+                });
+                
+                // Muat semula data untuk paparan terkini
+                await loadContentData(); 
+
+            } catch (error) {
+                console.error("Gagal memadam rekod:", error);
+                alert("Berlaku ralat semasa memadam rekod.");
+            }
+        }
+
+        // ▼▼▼ (FUNGSI BAHARU) Untuk muat turun Excel ▼▼▼
+        function downloadExcel() {
+            if (!currentTaskData || !currentTaskData.rekodSelesai || currentTaskData.rekodSelesai.length === 0) {
+                alert("Tiada data untuk dimuat turun.");
+                return;
+            }
+
+            const dataToExport = [];
+            // Susun data (terbaru dahulu)
+            const sortedRecords = [...currentTaskData.rekodSelesai].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+            // Lakukan 'flatten' data
+            sortedRecords.forEach(rekod => {
+                const nama = rekod.nama_pengesah;
+                const stesen = rekod.stesen_pengesah;
+                const tarikh = new Date(rekod.timestamp).toLocaleString('ms-MY');
+                
+                if (rekod.jawapan && rekod.jawapan.length > 0) {
+                    rekod.jawapan.forEach(j => {
+                        dataToExport.push({
+                            "Nama Pengesah": nama,
+                            "Stesen": stesen,
+                            "Tarikh Pengesahan": tarikh,
+                            "Soalan": j.soalan,
+                            "Jawapan": j.jawapan
+                        });
+                    });
+                } else {
+                    // Kes untuk rekod lama yang tiada 'jawapan'
+                    dataToExport.push({
+                        "Nama Pengesah": nama,
+                        "Stesen": stesen,
+                        "Tarikh Pengesahan": tarikh,
+                        "Soalan": "N/A (Rekod Lama)",
+                        "Jawapan": "N/A"
+                    });
+                }
+            });
+
+            const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Jawapan Selesai");
+            
+            // Auto-lebar lajur
+            const wscols = [
+                { wch: 30 }, // Nama Pengesah
+                { wch: 40 }, // Stesen
+                { wch: 20 }, // Tarikh
+                { wch: 50 }, // Soalan
+                { wch: 50 }  // Jawapan
+            ];
+            worksheet['!cols'] = wscols;
+
+            // Cipta nama fail
+            const fileName = `SparkTask_${currentTaskData.nama.replace(/[^a-z0-9]/gi, '_')}.xlsx`;
+            XLSX.writeFile(workbook, fileName);
+        }
+
+        // Hantar fungsi ke 'window' supaya butang HTML boleh memanggilnya
+        window.promptDeleteSubmission = promptDeleteSubmission;
 
     </script>
 </body>
