@@ -2,18 +2,16 @@
 <html lang="ms">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale-1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SPARK – Pengesahan Selesai</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        /* ▼▼▼ UBAHSUAI 1: Besarkan fon asas ▼▼▼ */
         html {
-            font-size: 17px;
+            font-size: 17px; /* Saiz fon asas dibesarkan sedikit */
         }
-        /* ▲▲▲ TAMAT UBAHSUAI 1 ▲▲▲ */
 
         body { 
             font-family: 'Poppins', sans-serif;
@@ -233,29 +231,32 @@
                     
                     document.getElementById('program-name').textContent = currentTask.nama;
                     
-                    // ▼▼▼ UBAHSUAI 2: Sembunyi Pegawai & Tukar Tarikh Siap ▼▼▼
-                    // Sembunyikan maklumat pegawai
+                    // ▼▼▼ UBAHSUAI 2: Papar Penyelaras & Tarikh Akhir Formal ▼▼▼
+                    // Paparkan maklumat penyelaras (pegawai)
                     const pegawaiElement = document.getElementById('program-pegawai');
                     if (pegawaiElement) {
-                        pegawaiElement.closest('div').style.display = 'none';
+                        pegawaiElement.textContent = `Penyelaras: ${currentTask.pegawai}`;
+                        pegawaiElement.closest('div').style.display = 'flex'; // Pastikan ia dipaparkan
                     }
 
-                    // Tukar paparan tarikh siap kepada peringatan
+                    // Tukar paparan tarikh siap kepada formal (Tarikh Akhir)
                     const dateEndElement = document.getElementById('program-date-end');
                     if (dateEndElement) {
-                        dateEndElement.textContent = `PERINGATAN: TUGASAN INI PERLU DISELESAIKAN SEBELUM ${formatTarikh(currentTask.tarikhSiap)}`;
-                        dateEndElement.classList.remove('uppercase', 'font-semibold'); // Buang gaya lama
-                        dateEndElement.classList.add('font-normal'); // Jadikan teks biasa
+                        dateEndElement.textContent = `TARIKH AKHIR: ${formatTarikh(currentTask.tarikhSiap)}`;
+                        dateEndElement.classList.add('uppercase', 'font-semibold'); 
+                        dateEndElement.classList.remove('font-normal');
                         
-                        // Tukar gaya 'container' tarikh
+                        // Tukar gaya 'container' tarikh kepada merah (deadline)
                         const dateContainer = dateEndElement.closest('div');
-                        dateContainer.classList.remove('bg-gray-50', 'text-gray-700');
-                        dateContainer.classList.add('bg-yellow-50', 'text-yellow-800', 'border', 'border-yellow-200');
+                        dateContainer.classList.remove('bg-gray-50', 'text-gray-700'); // Buang gaya asal
+                        dateContainer.classList.remove('bg-yellow-50', 'text-yellow-800', 'border', 'border-yellow-200'); // Buang gaya 'peringatan'
+                        dateContainer.classList.add('bg-red-50', 'text-red-800', 'border', 'border-red-200');
                         
                         const dateIcon = dateContainer.querySelector('svg');
                         if (dateIcon) {
-                            dateIcon.classList.add('text-yellow-600');
-                            // Ganti ikon kalendar dengan ikon jam (peringatan)
+                            dateIcon.classList.remove('text-gray-500'); // Buang warna ikon asal
+                            dateIcon.classList.add('text-red-600');
+                            // Ganti ikon dengan ikon jam (peringatan deadline)
                             dateIcon.innerHTML = `<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd" />`;
                         }
                     }
@@ -325,7 +326,9 @@
                 validatedIc = ic;
                 stesenPengesah = docData.station || null;
 
-                if (stesenPengesah && (currentTask.skopSelesai || []).includes(stesenPengesah)) {
+                // Semak jika stesen ini SUDAH mengesahkan
+                const skopSelesai = (currentTask.skopSelesai || []).map(s => s.toUpperCase());
+                if (stesenPengesah && skopSelesai.includes(stesenPengesah.toUpperCase())) {
                      showMessage('warning', 'Telah Disahkan', `Seseorang dari stesen anda (${stesenPengesah}) telah pun membuat pengesahan untuk tugasan ini.`);
                      icSubmitBtn.disabled = false;
                      icSubmitBtn.textContent = "Seterusnya";
@@ -493,6 +496,7 @@
             };
 
             if (stesenPengesah) {
+                // Pastikan perbandingan tidak sensitif huruf besar/kecil
                 dataToUpdate.skopSelesai = arrayUnion(stesenPengesah);
             }
 
@@ -500,17 +504,19 @@
             try {
                 await updateDoc(taskRef, dataToUpdate);
                 
-                // ▼▼▼ UBAHSUAI 3: Kira Bilangan Pengesah & Kemas Kini Mesej ▼▼▼
+                // ▼▼▼ UBAHSUAI 3: Kira Bilangan Pengesah & Mesej Formal ▼▼▼
                 // 'currentTask' mempunyai data SEBELUM kemas kini ini
                 const bilanganSediaAda = (currentTask.rekodSelesai || []).length;
                 const bilanganBaru = bilanganSediaAda + 1; // Termasuk pengesah semasa
 
-                let msg = `Anda adalah pengesah ke-${bilanganBaru} untuk tugasan ini. Semua jawapan anda telah direkodkan.`;
+                let msgTitle = "Pengesahan Diterima";
+                let msgBody = `Terima kasih. Pengesahan anda sebagai penyerah ke-${bilanganBaru} telah berjaya direkodkan.`;
                 
                 if (stesenPengesah) {
-                    msg += ` Kemajuan untuk ${stesenPengesah} juga telah dikemas kini.`;
+                    msgBody += ` Kemajuan untuk stesen anda (${stesenPengesah}) telah dikemaskini.`;
                 }
-                showMessage('success', 'Tugasan Disahkan Selesai!', msg);
+                
+                showMessage('success', msgTitle, msgBody);
                 // ▲▲▲ TAMAT UBAHSUAI 3 ▲▲▲
 
             } catch (error) {
@@ -548,7 +554,6 @@
             msgIcon.className = `w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${color}`;
             msgIcon.innerHTML = icon;
 
-            // ▼▼▼ BAHAGIAN INI DIUBAH ▼▼▼
             // Tetapkan pautan butang kembali secara dinamik
             const returnButton = document.getElementById('return-button');
     		if (currentTaskId) {
@@ -561,7 +566,6 @@
             		window.location.href = 'sparktask.html';
         		};
     		}
-            // ▲▲▲ TAMAT PERUBAHAN ▲▲▲
 
             msgCard.classList.remove('hidden');
         }
