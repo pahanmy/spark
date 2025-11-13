@@ -2,7 +2,7 @@
 <html lang="ms">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale-1.0">
     <title>SparkTask - Sistem Pengurusan Tugasan</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -248,10 +248,10 @@
                     </div>
 
                     <div class="md:col-span-2">
-                        <label for="skop-list-textarea" class="block text-sm font-medium text-gray-700">Skop Tugasan (Rujukan Sahaja)</label>
-                        <textarea id="skop-list-textarea" rows="4" class="w-full mt-1 p-3 border border-gray-300 rounded-md bg-gray-100" readonly></textarea>
+                        <label for="skop-list-textarea" class="block text-sm font-medium text-gray-700">Skop Tugasan (Senarai Sekolah)</label>
+                        <p class="text-xs text-gray-500">Edit senarai sekolah di sini (satu nama per baris).</p>
+                        <textarea id="skop-list-textarea" rows="4" class="w-full mt-1 p-3 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" placeholder="SK MIRI...&#10;SMK LUTONG..."></textarea>
                     </div>
-
                     <div class="md:col-span-2">
                         <div class="relative flex items-start">
                             <div class="flex h-5 items-center">
@@ -637,6 +637,8 @@
             currentPage = 1;
             paparkanTugasan();
         }
+        
+        // ▼▼▼ FUNGSI INI TELAH DIKEMAS KINI ▼▼▼
         async function handleSimpanBorang(event) {
             event.preventDefault();
             if (isSubmitting || !currentEditId) return;
@@ -664,6 +666,13 @@
                 }
             }
             const tugasanLama = senaraiTugasan.find(t => t.id === currentEditId);
+            
+            // Baca senarai sekolah dari textarea
+            const skopText = skopListTextarea.value;
+            const skopSenaraiSekolah = skopText.split('\n')
+                                             .map(line => line.trim())
+                                             .filter(line => line.length > 0);
+
             const dataTugasanDikemaskini = {
                 nama: namaModal.value,
                 sektor: sektorModal.value,
@@ -671,9 +680,11 @@
                 tarikhSiap: tarikhSiapModal.value,
                 jumlahSelesai: parseInt(jumlahSelesaiModal.value) || 0,
                 jumlahBelum: parseInt(jumlahBelumModal.value) || 0,
+                skopSenaraiSekolah: skopSenaraiSekolah, // Simpan skop yang telah diedit
                 senaraiSubTugasan: subTugasanList,
                 senaraiPautan: pautanList
             };
+            
             if (failData) {
                 dataTugasanDikemaskini.fail = failData;
             } else {
@@ -690,6 +701,8 @@
                 isSubmitting = false;
             }
         }
+        // ▲▲▲ TAMAT PERUBAHAN JS ▲▲▲
+
         function sahkanEditIC(event) {
             event.preventDefault();
             if (!currentEditId) return;
@@ -709,6 +722,8 @@
                 errorPengesahanIc.classList.remove('hidden');
             }
         }
+
+        // ▼▼▼ FUNGSI INI TELAH DIKEMAS KINI ▼▼▼
         function bukaModalEdit(id) {
             const tugasan = senaraiTugasan.find(t => t.id === id);
             if (!tugasan) return;
@@ -719,22 +734,20 @@
             sektorModal.value = tugasan.sektor;
             tarikhMulaModal.value = tugasan.tarikhMula;
             tarikhSiapModal.value = tugasan.tarikhSiap;
-            if (Array.isArray(tugasan.skopSenaraiSekolah)) {
-                const total = tugasan.skopSenaraiSekolah.length;
-                jumlahSelesaiModal.value = tugasan.jumlahSelesai || 0;
-                const bakiBelum = total - (tugasan.jumlahSelesai || 0);
-                jumlahBelumModal.value = bakiBelum < 0 ? 0 : bakiBelum;
-                jumlahSelesaiModal.max = total;
-            } else {
-                jumlahSelesaiModal.value = tugasan.jumlahSelesai || 0;
-                jumlahBelumModal.value = tugasan.jumlahBelum || 0;
-                jumlahSelesaiModal.max = (tugasan.jumlahSelesai || 0) + (tugasan.jumlahBelum || 0);
-            }
+
+            // Logik diubah: Sentiasa muatkan nilai mentah dari DB
+            // Ini membenarkan pengguna mengedit kedua-dua mod (manual atau skop)
+            jumlahSelesaiModal.value = tugasan.jumlahSelesai || 0;
+            jumlahBelumModal.value = tugasan.jumlahBelum || 0;
+            
+            // Sentiasa paparkan senarai sekolah (jika ada)
             skopListTextarea.value = (tugasan.skopSenaraiSekolah || []).join('\n');
+            
             subTugasanList = [...(tugasan.senaraiSubTugasan || [])];
             paparSenaraiSubTugasan();
             pautanList = [...(tugasan.senaraiPautan || [])];
             paparSenaraiPautan();
+            
             if (pautanList.length > 0) {
                 perluPautanCheckbox.checked = true;
                 pautanSection.classList.remove('hidden');
@@ -754,6 +767,8 @@
             sembunyiModalError();
             modalTugasan.classList.add('buka');
         }
+        // ▲▲▲ TAMAT PERUBAHAN JS ▲▲▲
+        
         function tutupModalTugasan() {
             modalTugasan.classList.remove('buka');
             borangModal.reset();
