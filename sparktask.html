@@ -2,7 +2,7 @@
 <html lang="ms">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale-1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SparkTask - Sistem Pengurusan Tugasan</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -28,6 +28,10 @@
             visibility: hidden;
             width: 0;
             position: absolute;
+        }
+        /* Pastikan textarea edit menggunakan text-transform */
+        #skop-list-textarea {
+            text-transform: uppercase;
         }
     </style>
 </head>
@@ -638,7 +642,7 @@
             paparkanTugasan();
         }
         
-        // ▼▼▼ FUNGSI INI TELAH DIKEMAS KINI ▼▼▼
+        // ▼▼▼ FUNGSI INI TELAH DIKEMAS KINI (DIBETULKAN) ▼▼▼
         async function handleSimpanBorang(event) {
             event.preventDefault();
             if (isSubmitting || !currentEditId) return;
@@ -649,6 +653,7 @@
             }
             isSubmitting = true;
             sembunyiModalError();
+            
             let failData = null;
             const fail = failInput.files[0];
             if (fail) {
@@ -667,29 +672,55 @@
             }
             const tugasanLama = senaraiTugasan.find(t => t.id === currentEditId);
             
-            // Baca senarai sekolah dari textarea
+            // --- ▼▼▼ BLOK LOGIK BARU & DIPERBAIKI ▼▼▼ ---
+            
+            // 1. Baca senarai sekolah dari textarea
             const skopText = skopListTextarea.value;
             const skopSenaraiSekolah = skopText.split('\n')
-                                             .map(line => line.trim())
+                                             .map(line => line.trim().toUpperCase()) // Pastikan uppercase
                                              .filter(line => line.length > 0);
+            
+            let jumlahSelesai, jumlahBelum;
+
+            // 2. Tentukan 'selesai' dan 'belum'
+            if (skopSenaraiSekolah.length > 0) {
+                // Jika mod 'skop' digunakan (senarai tidak kosong), kira 'belum' secara automatik
+                jumlahSelesai = parseInt(jumlahSelesaiModal.value) || 0;
+                let totalSkop = skopSenaraiSekolah.length;
+                
+                // Pastikan 'selesai' tidak melebihi total baru
+                if (jumlahSelesai > totalSkop) {
+                    jumlahSelesai = totalSkop;
+                }
+                
+                jumlahBelum = totalSkop - jumlahSelesai;
+
+            } else {
+                // Jika mod 'manual' (senarai skop kosong), ambil terus dari input
+                jumlahSelesai = parseInt(jumlahSelesaiModal.value) || 0;
+                jumlahBelum = parseInt(jumlahBelumModal.value) || 0;
+            }
 
             const dataTugasanDikemaskini = {
                 nama: namaModal.value,
                 sektor: sektorModal.value,
                 tarikhMula: tarikhMulaModal.value,
                 tarikhSiap: tarikhSiapModal.value,
-                jumlahSelesai: parseInt(jumlahSelesaiModal.value) || 0,
-                jumlahBelum: parseInt(jumlahBelumModal.value) || 0,
+                jumlahSelesai: jumlahSelesai, // Guna nilai yang dikira/disahkan
+                jumlahBelum: jumlahBelum,     // Guna nilai yang dikira/disahkan
                 skopSenaraiSekolah: skopSenaraiSekolah, // Simpan skop yang telah diedit
                 senaraiSubTugasan: subTugasanList,
                 senaraiPautan: pautanList
             };
-            
+            // --- ▲▲▲ TAMAT BLOK LOGIK BARU ▲▲▲ ---
+
             if (failData) {
                 dataTugasanDikemaskini.fail = failData;
             } else {
+                // Kekalkan fail lama jika tiada fail baru dimuat naik
                 dataTugasanDikemaskini.fail = tugasanLama ? tugasanLama.fail : null;
             }
+            
             try {
                 const docRef = doc(db, `artifacts/${appId}/public/data/spark_tasks`, currentEditId);
                 await updateDoc(docRef, dataTugasanDikemaskini);
@@ -722,8 +753,8 @@
                 errorPengesahanIc.classList.remove('hidden');
             }
         }
-
-        // ▼▼▼ FUNGSI INI TELAH DIKEMAS KINI ▼▼▼
+        
+        // ▼▼▼ FUNGSI INI TELAH DIKEMAS KINI (DARI SEBELUM INI) ▼▼▼
         function bukaModalEdit(id) {
             const tugasan = senaraiTugasan.find(t => t.id === id);
             if (!tugasan) return;
@@ -735,12 +766,11 @@
             tarikhMulaModal.value = tugasan.tarikhMula;
             tarikhSiapModal.value = tugasan.tarikhSiap;
 
-            // Logik diubah: Sentiasa muatkan nilai mentah dari DB
-            // Ini membenarkan pengguna mengedit kedua-dua mod (manual atau skop)
+            // Sentiasa muatkan nilai mentah dari DB
             jumlahSelesaiModal.value = tugasan.jumlahSelesai || 0;
             jumlahBelumModal.value = tugasan.jumlahBelum || 0;
             
-            // Sentiasa paparkan senarai sekolah (jika ada)
+            // Sentiasa paparkan senarai sekolah (jika ada) untuk diedit
             skopListTextarea.value = (tugasan.skopSenaraiSekolah || []).join('\n');
             
             subTugasanList = [...(tugasan.senaraiSubTugasan || [])];
@@ -961,6 +991,10 @@
                 versionInfo.textContent = `Versi 2.1 (2025)`;
             }
             namaModal.addEventListener('input', (e) => {
+                e.target.value = e.target.value.toUpperCase();
+            });
+            // Pastikan textarea skop juga 'uppercase'
+            skopListTextarea.addEventListener('input', (e) => {
                 e.target.value = e.target.value.toUpperCase();
             });
             perluPautanCheckbox.addEventListener('change', () => {
