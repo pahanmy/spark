@@ -77,7 +77,12 @@
                     <p class="text-sm text-gray-600 uppercase" id="participant-station">STESEN KERJA</p>
                 </div>
 
-
+                <div id="sub-tugasan-section" class="hidden mb-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Arahan / Senarai Semak Tugasan:</label>
+                    <div id="sub-tugasan-list" class="space-y-3 p-4 bg-gray-50 rounded-lg border border-gray-200 text-sm text-gray-800">
+                        <p class="text-gray-500 italic">Memuatkan arahan...</p>
+                    </div>
+                </div>
                 <form id="completion-form" onsubmit="sahkanSelesai(event)" class="hidden">
                     
                     <label class="block text-sm font-medium text-gray-700 mb-2">Pautan Bukti (Pilihan)</label>
@@ -148,6 +153,10 @@
         const completionForm = document.getElementById('completion-form');
         const completionSubmitBtn = document.getElementById('submit-completion-btn');
 
+        // ▼▼▼ BAHAGIAN BAHARU ▼▼▼
+        const subTugasanSection = document.getElementById('sub-tugasan-section'); 
+        // ▲▲▲ TAMAT BAHAGIAN BAHARU ▲▲▲
+
         const originalButtonText = `
             <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -194,6 +203,25 @@
                     document.getElementById('program-pegawai').textContent = `Pegawai: ${currentTask.pegawai}`;
                     document.getElementById('program-date-end').textContent = `Tarikh Siap: ${formatTarikh(currentTask.tarikhSiap)}`;
                     
+                    // ▼▼▼ BAHAGIAN DIUBAH SUAI ▼▼▼
+                    // Paparkan Senarai Sub-Tugasan (Arahan)
+                    const subTugasanListContainer = document.getElementById('sub-tugasan-list');
+                    if (currentTask.senaraiSubTugasan && currentTask.senaraiSubTugasan.length > 0) {
+                        subTugasanListContainer.innerHTML = ''; // Kosongkan 'Memuatkan...'
+                        currentTask.senaraiSubTugasan.forEach((item, index) => {
+                            const itemDiv = document.createElement('div');
+                            itemDiv.className = "flex items-start gap-2.5";
+                            // Guna SVG 'check' ringkas untuk visual
+                            itemDiv.innerHTML = `<svg class="h-5 w-5 text-indigo-500 flex-shrink-0 mt-0.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" /></svg>
+                                            <span class="flex-1" style="white-space: pre-wrap; word-break: break-word;">${item}</span>`;
+                            subTugasanListContainer.appendChild(itemDiv);
+                        });
+                    } else {
+                        // Jika tiada sub-tugasan, paparkan mesej
+                        subTugasanListContainer.innerHTML = '<p class="text-gray-500 italic">Tiada arahan khusus atau senarai semak disediakan untuk tugasan ini.</p>';
+                    }
+                    // ▲▲▲ TAMAT BAHAGIAN DIUBAH SUAI ▲▲▲
+
                     loadingState.classList.add('hidden');
                     checkInCard.classList.remove('hidden');
 
@@ -233,8 +261,6 @@
             icSubmitBtn.disabled = true;
             icSubmitBtn.innerHTML = `<svg class="animate-spin h-5 w-5 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>`;
 
-            // (DIUBAH) Semak jika STESEN orang ini telah pun mengesahkan
-            // Ini menghalang 2 orang dari sekolah yang sama membuat pengesahan
             let stesenPengesah = null;
 
             try {
@@ -250,7 +276,6 @@
                     return;
                 }
                 
-                // IC ditemui, dapatkan maklumat peserta
                 const docData = querySnapshot.docs[0].data();
                 participantInfo = {
                     ic: ic,
@@ -261,7 +286,6 @@
                 validatedIc = ic;
                 stesenPengesah = docData.station || null;
 
-                // Semak jika STESEN ini telah ada dalam skopSelesai
                 if (stesenPengesah && (currentTask.skopSelesai || []).includes(stesenPengesah)) {
                      showMessage('warning', 'Telah Disahkan', `Seseorang dari stesen anda (${stesenPengesah}) telah pun membuat pengesahan untuk tugasan ini.`);
                      icSubmitBtn.disabled = false;
@@ -269,15 +293,17 @@
                      return;
                 }
 
-                // Jika stesen tiada, atau stesen belum sahkan, teruskan
                 document.getElementById('participant-name').textContent = docData.name || 'N/A';
                 document.getElementById('participant-position').textContent = docData.position || 'TIADA JAWATAN';
                 document.getElementById('participant-station').textContent = docData.station || 'TIADA STESEN';
 
+                // ▼▼▼ BAHAGIAN DIUBAH SUAI ▼▼▼
                 icForm.classList.add('hidden');
                 confirmationDetails.classList.remove('hidden');
                 participantDetails.classList.remove('hidden');
+                subTugasanSection.classList.remove('hidden'); // Tunjuk arahan
                 completionForm.classList.remove('hidden');
+                // ▲▲▲ TAMAT BAHAGIAN DIUBAH SUAI ▲▲▲
                 
             } catch (error) {
                 console.error("Error verifying participant IC: ", error);
@@ -288,7 +314,6 @@
         }
         
         
-        // ▼▼▼ FUNGSI INI TELAH DIUBAH SUAI UNTUK MENGEMAS KINI KEDUA-DUA SISTEM ▼▼▼
         window.sahkanSelesai = async function(event) {
             event.preventDefault();
             
@@ -308,7 +333,6 @@
                 }
             });
 
-            // 1. Cipta 'resit' untuk jadual log
             const completionRecord = {
                 ic_pengesah: validatedIc,
                 nama_pengesah: participantInfo ? participantInfo.name : 'N/A',
@@ -318,18 +342,15 @@
                 timestamp: new Date().toISOString()
             };
 
-            // 2. Sediakan data untuk dikemas kini
             const stesenPengesah = participantInfo ? participantInfo.station : null;
             let dataToUpdate = {
-                rekodSelesai: arrayUnion(completionRecord) // Kemas kini jadual log
+                rekodSelesai: arrayUnion(completionRecord) 
             };
 
-            // 3. Jika pengesah ada stesen, kemas kini carta pai juga!
             if (stesenPengesah) {
-                dataToUpdate.skopSelesai = arrayUnion(stesenPengesah); // Kemas kini carta pai
+                dataToUpdate.skopSelesai = arrayUnion(stesenPengesah); 
             }
 
-            // 4. Hantar kedua-dua kemas kini ke Firebase
             const taskRef = doc(db, `artifacts/${appId}/public/data/spark_tasks`, currentTaskId);
             try {
                 await updateDoc(taskRef, dataToUpdate);
@@ -347,7 +368,6 @@
                 completionSubmitBtn.innerHTML = originalButtonText;
             }
         }
-        // ▲▲▲ FUNGSI TAMAT ▲▲▲
 
         
         function showMessage(type, title, body) {
