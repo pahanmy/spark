@@ -54,6 +54,18 @@
                 <div class="bg-indigo-100 p-2 rounded-lg"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg></div>
                 <h2 class="text-xl font-bold text-gray-800">Senarai Sekolah</h2>
             </div>
+            
+            <div id="fix-missing-order-box" class="hidden p-4 bg-yellow-50 border border-yellow-300 rounded-lg">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="font-bold text-yellow-800">Data Lama Dikesan</h3>
+                        <p id="fix-count-text" class="text-sm text-yellow-700">Terdapat rekod sekolah lama yang tiada data susunan. Ini menyebabkan senarai tidak lengkap.</p>
+                    </div>
+                    <button id="fix-order-btn" class="btn bg-yellow-500 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-yellow-600">
+                        Klik untuk Baiki
+                    </button>
+                </div>
+            </div>
             <div class="bg-white p-4 rounded-lg border">
                 <label for="school-name-input" class="text-sm font-medium text-gray-600">Tambah Satu per Satu</label>
                 <div class="flex gap-2 mt-1">
@@ -95,6 +107,9 @@
         
         const ADMIN_IC = "890522135381";
         const schoolsCollectionRef = collection(db, `artifacts/${appId}/public/data/spark_schools`);
+        
+        // ▼▼▼ Variabel global untuk simpan senarai pembaikan ▼▼▼
+        let docsToFix = [];
 
         onAuthStateChanged(auth, async (user) => {
             if (!user) {
@@ -123,15 +138,17 @@
         }
 
         function initializePage() {
-            loadAndDisplaySchools();
+            loadAndDisplaySchools(); // Ini akan memaparkan senarai (yang mungkin pendek)
+            findAndFixMissingOrders(); // Ini akan menyemak data lama
             initSortable();
+            // Pasang listener pada butang pembaikan
+            document.getElementById('fix-order-btn').addEventListener('click', fixMissingOrders);
         }
 
         function confirmAdminAction(actionMessage) {
             return confirm(`Anda pasti mahu ${actionMessage}?`);
         }
         
-        // ▼▼▼ FUNGSI NORMALIZATION (DARI task.html) ▼▼▼
         function normalizeStationName(name) {
             if (typeof name !== 'string') return '';
             let normalized = name.toUpperCase();
@@ -141,31 +158,23 @@
             normalized = normalized.replace(/\s+/g, ' ').trim();
             return normalized;
         }
-        // ▲▲▲ TAMAT FUNGSI NORMALIZATION ▲▲▲
 
         async function addSchool() {
             const input = document.getElementById('school-name-input');
-            const name = input.value.trim().toUpperCase(); // Sentiasa simpan sebagai uppercase
+            const name = input.value.trim().toUpperCase(); 
             if (!name) return alert("Sila masukkan nama sekolah.");
-            
             if (!confirmAdminAction(`menambah sekolah "${name}"`)) return;
-
             try {
                 await addDoc(schoolsCollectionRef, { name: name, createdAt: serverTimestamp(), order: Date.now() }); 
                 input.value = '';
-            } catch (error) {
-                console.error("Ralat menambah sekolah: ", error);
-                alert("Gagal menambah sekolah.");
-            }
+            } catch (error) { console.error("Ralat menambah sekolah: ", error); alert("Gagal menambah sekolah."); }
         }
 
         async function addSchoolsFromList() {
             const textarea = document.getElementById('school-list-textarea');
             const lines = [...new Set(textarea.value.split('\n').map(l => l.trim().toUpperCase()).filter(l => l.length > 0))];
-            
             if (lines.length === 0) return alert("Tiada item sah untuk ditambah.");
             if (!confirmAdminAction(`menambah ${lines.length} sekolah dari senarai`)) return;
-
             try {
                 const batch = writeBatch(db);
                 let orderIndex = Date.now();
@@ -176,20 +185,14 @@
                 await batch.commit();
                 textarea.value = '';
                 alert(`${lines.length} sekolah berjaya ditambah!`);
-            } catch (error) {
-                console.error("Ralat menambah sekolah: ", error);
-                alert("Gagal menambah senarai sekolah.");
-            }
+            } catch (error) { console.error("Ralat menambah sekolah: ", error); alert("Gagal menambah senarai sekolah."); }
         }
 
         async function deleteSchool(id) {
             if (confirm("Anda pasti mahu memadam sekolah ini?")) {
                 try {
                     await deleteDoc(doc(schoolsCollectionRef, id));
-                } catch (error) {
-                    console.error("Ralat memadam sekolah: ", error);
-                    alert("Gagal memadam sekolah.");
-                }
+                } catch (error) { console.error("Ralat memadam sekolah: ", error); alert("Gagal memadam sekolah."); }
             }
         }
 
@@ -197,13 +200,13 @@
             const listBody = document.getElementById('school-list-body');
             const countEl = document.getElementById('school-count');
             
-            // Susun ikut 'order' dahulu, kemudian 'name'
+            // KEKALKAN query ini. Ia betul. Ia sengaja memaparkan senarai pendek (data baru sahaja).
             const q = query(schoolsCollectionRef, orderBy("order", "asc"), orderBy("name", "asc"));
             
             onSnapshot(q, (snapshot) => {
-                countEl.textContent = `(Jumlah: ${snapshot.size})`;
+                countEl.textContent = `(Jumlah Dipaparkan: ${snapshot.size})`;
                 if (snapshot.empty) {
-                    listBody.innerHTML = `<tr><td colspan="3" class="text-center text-gray-500 py-4">Tiada sekolah ditemui.</td></tr>`;
+                    listBody.innerHTML = `<tr><td colspan="3" class="text-center text-gray-500 py-4">Tiada sekolah (yang mempunyai data 'order') ditemui.</td></tr>`;
                     return;
                 }
                 listBody.innerHTML = snapshot.docs.map(doc => 
@@ -263,7 +266,6 @@
             }
         }
 
-        // ▼▼▼ FUNGSI 'removeDuplicates' DIKEMAS KINI ▼▼▼
         async function removeDuplicates() {
             if (!confirm("Ini akan mengimbas semua sekolah dan memadam rekod yang mempunyai nama yang sama (termasuk S.K. vs SK, dan SG. vs SUNGAI). Anda pasti?")) return;
 
@@ -279,18 +281,17 @@
             const docsSorted = snapshot.docs.sort((a, b) => {
                 const timeA = a.data().createdAt?.toMillis() || 0;
                 const timeB = b.data().createdAt?.toMillis() || 0;
-                return timeA - timeB; // Simpan yang paling lama (paling awal dicipta)
+                return timeA - timeB; 
             });
 
             docsSorted.forEach(doc => {
                 const originalName = doc.data().name;
-                // GUNA FUNGSI NORMALISASI DI SINI
                 const normalizedName = normalizeStationName(originalName); 
                 
                 if (seen.has(normalizedName)) {
-                    toDelete.push(doc.id); // Jika sudah wujud, tandakan untuk padam
+                    toDelete.push(doc.id); 
                 } else {
-                    seen.set(normalizedName, doc.id); // Jika belum, simpan ia
+                    seen.set(normalizedName, doc.id); 
                 }
             });
 
@@ -307,14 +308,79 @@
                 try {
                     await batch.commit();
                     alert(`${toDelete.length} item duplikat berjaya dibuang.`);
+                    findAndFixMissingOrders(); // Semak semula jika ada data lama yang perlu dibaiki
                 } catch (error) {
                     console.error("Ralat membuang duplikat: ", error);
                     alert("Gagal membuang item duplikat.");
                 }
             }
         }
-        // ▲▲▲ TAMAT KEMAS KINI ▲▲▲
         
+        // ▼▼▼ FUNGSI BARU UNTUK MEMBAIKI DATA LAMA ▼▼▼
+        async function findAndFixMissingOrders() {
+            const fixBox = document.getElementById('fix-missing-order-box');
+            const fixText = document.getElementById('fix-count-text');
+            const fixBtn = document.getElementById('fix-order-btn');
+            
+            fixBox.classList.add('hidden');
+            docsToFix = []; // Kosongkan senarai lama
+
+            try {
+                const snapshot = await getDocs(schoolsCollectionRef);
+                if (snapshot.empty) return;
+
+                let timestamp = Date.now();
+                snapshot.docs.forEach(doc => {
+                    if (doc.data().order === undefined) {
+                        // Jika 'order' tiada, tambah ke senarai untuk dibaiki
+                        docsToFix.push({ id: doc.id, newOrder: timestamp++ });
+                    }
+                });
+
+                if (docsToFix.length > 0) {
+                    fixText.textContent = `Amaran: Terdapat ${docsToFix.length} rekod sekolah lama yang tiada data susunan. Ini menyebabkan senarai tidak lengkap.`;
+                    fixBox.classList.remove('hidden');
+                    fixBtn.disabled = false;
+                    fixBtn.textContent = "Klik untuk Baiki";
+                }
+            } catch (error) {
+                console.error("Gagal menyemak data lama:", error);
+            }
+        }
+
+        async function fixMissingOrders() {
+            if (docsToFix.length === 0) {
+                alert("Semua data sudah dikemas kini.");
+                return;
+            }
+            if (!confirm(`Ini akan mengemas kini ${docsToFix.length} rekod lama dengan menambah medan 'order'. Teruskan?`)) {
+                return;
+            }
+
+            const fixBtn = document.getElementById('fix-order-btn');
+            fixBtn.disabled = true;
+            fixBtn.textContent = "Membaiki...";
+
+            try {
+                const batch = writeBatch(db);
+                docsToFix.forEach(item => {
+                    const docRef = doc(schoolsCollectionRef, item.id);
+                    batch.update(docRef, { order: item.newOrder });
+                });
+                await batch.commit();
+
+                alert("Semua rekod lama telah berjaya dikemas kini!");
+                document.getElementById('fix-missing-order-box').classList.add('hidden');
+                docsToFix = []; // Kosongkan senarai
+            } catch (error) {
+                console.error("Gagal membaiki data:", error);
+                alert("Gagal membaiki data. Sila cuba lagi.");
+                fixBtn.disabled = false;
+                fixBtn.textContent = "Klik untuk Baiki";
+            }
+        }
+        // ▲▲▲ TAMAT FUNGSI BARU ▲▲▲
+
         Object.assign(window, {
             checkAdminIc,
             addSchool,
