@@ -8,6 +8,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1/build/qrcode.min.js"></script>
     <style>
         body { font-family: 'Poppins', sans-serif; background-color: #f8f9fa; }
         .card { background-color: white; border-radius: 0.75rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); }
@@ -173,6 +175,26 @@
                             <span id="copy-link-text">Salin Pautan</span>
                         </button>
                     </div>
+
+                    <div class="card p-5">
+                        <h3 class="text-lg font-semibold text-gray-800 flex items-center gap-2 mb-4">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M4 4h6v6H4V4zm0 10h6v6H4v-6zM14 4h6v6h-6V4zm0 10h6v6h-6v-6z" />
+                            </svg>
+                            Imbas untuk Sahkan
+                        </h3>
+                        <div class="flex flex-col items-center justify-center">
+                            <div id="qr-code-container" class="p-2 border border-gray-300 rounded-lg bg-white">
+                                </div>
+                            
+                            <a id="download-qr-btn" href="#" download="SparkTask-QR.png" class="btn bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-indigo-700 flex items-center justify-center gap-2 text-sm w-full mt-4">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" />
+                                </svg>
+                                Muat Turun QR
+                            </a>
+                        </div>
+                    </div>
                     <div class="card p-5">
                         <h3 class="text-lg font-semibold text-gray-800 flex items-center gap-2 mb-4">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -291,9 +313,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        // ▼▼▼ UBAHSUAI: Tambah 'addDoc' dan 'orderBy' ▼▼▼
         import { getFirestore, doc, onSnapshot, getDocs, collection, query, where, addDoc, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        // ▲▲▲ TAMAT UBAHSUAI ▲▲▲
 
         const firebaseConfig = {
             apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM",
@@ -316,7 +336,7 @@
         
         let completionItemsToShow = 5; 
 
-        // ▼▼▼ TAMBAH FUNGSI INI ▼▼▼
+        // ▼▼▼ FUNGSI NORMALIZATION (SG. -> SUNGAI) ▼▼▼
         /**
          * Menyeragamkan nama stesen untuk perbandingan.
          * 1. Tukar ke huruf besar.
@@ -342,7 +362,61 @@
             
             return normalized;
         }
-        // ▲▲▲ TAMAT TAMBAHAN ▲▲▲
+        // ▲▲▲ TAMAT: FUNGSI NORMALIZATION ▲▲▲
+
+        // ▼▼▼ FUNGSI BARU UNTUK JANA QR CODE ▼▼▼
+        function generateQRCode(taskId) {
+            // Pastikan library QRCode telah dimuat
+            if (typeof QRCode === 'undefined') {
+                console.error("QR Code library (qrcode.min.js) not loaded.");
+                document.getElementById('qr-code-container').innerHTML = "<p class='text-xs text-red-500'>Gagal muat library QR.</p>";
+                return;
+            }
+
+            const qrContainer = document.getElementById('qr-code-container');
+            const downloadBtn = document.getElementById('download-qr-btn');
+            
+            if (!qrContainer || !downloadBtn) {
+                console.warn("Elemen QR Code tidak ditemui.");
+                return;
+            }
+
+            // 1. Dapatkan pautan absolut dari butang "Sahkan Tugasan"
+            const linkToEncode = new URL(document.getElementById('sahkan-selesai-btn').href, window.location.href).href;
+            
+            // 2. Kosongkan container lama
+            qrContainer.innerHTML = '';
+            
+            // 3. Cipta elemen img untuk QR Code
+            const img = document.createElement('img');
+            img.alt = `QR Code for Task ${taskId}`;
+            
+            // 4. Guna library QRCode untuk jana Data URL
+            QRCode.toDataURL(linkToEncode, { 
+                errorCorrectionLevel: 'H', // Kualiti tinggi
+                width: 256, // Saiz imej (lebar)
+                margin: 2
+            })
+            .then(url => {
+                // 5. Paparkan QR Code dalam <img>
+                img.src = url;
+                qrContainer.appendChild(img);
+                
+                // 6. Tetapkan pautan muat turun
+                downloadBtn.href = url;
+                
+                // 7. Tetapkan nama fail muat turun (guna nama tugasan)
+                const taskName = (currentTask && currentTask.nama) ? currentTask.nama : `Task_${taskId}`;
+                const safeTaskName = taskName.replace(/[^a-z0-9]/gi, '_').substring(0, 30);
+                downloadBtn.download = `SparkTask_QR_${safeTaskName}.png`;
+                
+            })
+            .catch(err => {
+                console.error("Failed to generate QR Code:", err);
+                qrContainer.innerHTML = "<p class='text-xs text-red-500'>Gagal jana QR Code.</p>";
+            });
+        }
+        // ▲▲▲ TAMAT FUNGSI BARU ▲▲▲
 
         try {
             const app = initializeApp(firebaseConfig);
@@ -437,6 +511,11 @@
                 if (docSnap.exists()) {
                     currentTask = { id: docSnap.id, ...docSnap.data() };
                     renderTaskDetails();
+                    
+                    // ▼▼▼ PANGGIL FUNGSI JANA QR CODE DI SINI ▼▼▼
+                    generateQRCode(taskId);
+                    // ▲▲▲ TAMAT PANGGILAN FUNGSI ▲▲▲
+
                     renderTaskProgress(); 
                     renderCompletionHistory();
                     renderSubTasks(); 
@@ -470,14 +549,14 @@
         }
 
         function renderTaskProgress() {
-            // ▼▼▼ UBAHSUAI BARIS INI ▼▼▼
+            // ▼▼▼ UBAHSUAI: Guna normalizeStationName ▼▼▼
             const totalSkop = Array.isArray(currentTask.skopSenaraiSekolah) 
                 ? currentTask.skopSenaraiSekolah.map(normalizeStationName) 
                 : [];
             // ▲▲▲ TAMAT UBAHSUAI ▲▲▲
             const totalSkopSet = new Set(totalSkop);
 
-            // ▼▼▼ UBAHSUAI BARIS INI ▼▼▼
+            // ▼▼▼ UBAHSUAI: Guna normalizeStationName ▼▼▼
             const allSelesai = Array.isArray(currentTask.skopSelesai) 
                 ? currentTask.skopSelesai.map(normalizeStationName) 
                 : [];
