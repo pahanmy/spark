@@ -145,8 +145,14 @@
                                 </label>
                                 
                                 <div id="booking-details-container" class="hidden pl-12 pr-4 pb-4 -mt-4 bg-gray-50 rounded-b-lg border border-t-0 border-purple-200">
-                                    <label for="booking-room-select" class="block text-sm font-medium text-gray-700 disabled-label">Bilik Untuk Ditempah</label>
-                                    <select id="booking-room-select" class="mt-1 block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" disabled>
+                                    <div class="flex justify-between items-center mb-1">
+                                        <label for="booking-room-select" class="block text-sm font-medium text-gray-700 disabled-label">Bilik Untuk Ditempah</label>
+                                        <button type="button" id="check-booking-btn" onclick="checkBookingAvailabilityOnClick(this)" class="btn bg-red-500 text-white font-semibold py-1 px-3 rounded-lg shadow-md hover:bg-red-600 text-xs flex items-center gap-1" disabled>
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd" /></svg>
+                                            Semak Jadual
+                                        </button>
+                                    </div>
+                                    <select id="booking-room-select" class="block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" disabled>
                                         <option value="">Sila Pilih Bilik</option>
                                         <option value="Bilik Mesyuarat Wisma Persekutuan" data-kapasiti="50">Bilik Mesyuarat Wisma Persekutuan (Kapasiti: 50)</option>
                                         <option value="Bilik Mesyuarat Sektor Perancangan" data-kapasiti="30">Bilik Mesyuarat Sektor Perancangan (Kapasiti: 30)</option>
@@ -330,7 +336,7 @@ service cloud.firestore {
             const versionInfo = document.getElementById('version-info');
             if(versionInfo) {
                 const year = new Date().getFullYear();
-                versionInfo.textContent = `Versi 2.2 (${year})`; // Versi dikemas kini
+                versionInfo.textContent = `Versi 2.3 (${year})`; // Versi dikemas kini
             }
         }
         
@@ -490,6 +496,43 @@ service cloud.firestore {
             } else {
                 warningEl.classList.add('hidden');
             }
+        }
+
+        // ===== FUNGSI BARU UNTUK BUTANG SEMAK JADUAL =====
+        async function checkBookingAvailabilityOnClick(buttonElement) {
+            const room = document.getElementById('booking-room-select').value;
+            if (!room) {
+                alert('Sila pilih bilik untuk disemak.');
+                return;
+            }
+
+            // Kumpul tarikh dan masa
+            const startDate = document.getElementById('start-date').value;
+            const startTime = document.getElementById('start-time').value; 
+            const startDateTime = new Date(`${startDate}T${startTime}`);
+            
+            const isMultiDay = document.getElementById('multi-day-checkbox').checked;
+            const endDateValue = isMultiDay ? document.getElementById('end-date').value : startDate;
+            const endTime = document.getElementById('end-time').value;
+            const endDateTimeFull = new Date(`${endDateValue}T${endTime}`);
+
+            // Simpan teks asal dan lumpuhkan butang
+            const originalText = buttonElement.innerHTML;
+            buttonElement.disabled = true;
+            buttonElement.innerHTML = 'Menyemak...';
+
+            // Panggil fungsi semakan sedia ada
+            const isAvailable = await checkBookingAvailability(room, startDateTime.toISOString(), endDateTimeFull.toISOString());
+
+            if (isAvailable) {
+                // 'checkBookingAvailability' hanya tunjuk alert jika GAGAL.
+                // Jadi, kita tunjuk alert BERJAYA di sini.
+                alert('Bilik ini tersedia pada tarikh dan masa yang dipilih.');
+            }
+
+            // Kembalikan butang ke keadaan asal
+            buttonElement.disabled = false;
+            buttonElement.innerHTML = originalText;
         }
         
         // ===== FUNGSI generateProgram (TERKINI) =====
@@ -895,7 +938,8 @@ service cloud.firestore {
             setSessionTime, 
             showPermissionErrorModal, 
             loadReferenceSchools,
-            goToEditPage 
+            goToEditPage,
+            checkBookingAvailabilityOnClick // <-- FUNGSI BARU DITAMBAH DI SINI
         });
     </script>
 </body>
