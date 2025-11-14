@@ -279,7 +279,7 @@ service cloud.firestore {
         </div>
     </div>
 
-<script typem="module">
+    <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, setDoc, addDoc, collection, query, where, onSnapshot, serverTimestamp, getDocs, updateDoc, orderBy, runTransaction, Timestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
@@ -326,16 +326,14 @@ service cloud.firestore {
             setupFormListeners();
             setupCategoryListeners();
             loadSchoolsIntoDropdown();
-            // Borang program dilumpuhkan secara lalai
             disableProgramForm(); 
             const versionInfo = document.getElementById('version-info');
             if(versionInfo) {
                 const year = new Date().getFullYear();
-                versionInfo.textContent = `Versi 2.1 (${year})`;
+                versionInfo.textContent = `Versi 2.2 (${year})`; // Versi dikemas kini
             }
         }
         
-        // ## FUNGSI BARU: Melumpuhkan borang program ##
         function disableProgramForm() {
              const form = document.getElementById('program-details-form');
              form.querySelectorAll('input, select, textarea, button[type=button]').forEach(el => {
@@ -347,7 +345,6 @@ service cloud.firestore {
              form.querySelector('button[type=submit]').disabled = true;
         }
 
-        // ## FUNGSI BARU: Mengaktifkan borang program ##
         function enableProgramForm() {
             const form = document.getElementById('program-details-form');
              form.querySelectorAll('input, select, textarea, button[type=button]').forEach(el => {
@@ -368,7 +365,7 @@ service cloud.firestore {
             const errorElement = document.getElementById('schools-loading-error');
             try {
                 errorElement.classList.add('hidden');
-                selectElement.disabled = false; // Pastikan ini aktif untuk modal
+                selectElement.disabled = false;
 
                 const schoolsRef = collection(db, `artifacts/${appId}/public/data/spark_schools`);
                 const q = query(schoolsRef, orderBy("name", "asc"));
@@ -401,7 +398,6 @@ service cloud.firestore {
                         document.getElementById(`${cat}-fields`).classList.toggle('hidden', cat !== category);
                         document.querySelectorAll(`#${cat}-fields [required]`).forEach(el => el.disabled = (cat !== category));
                     });
-                     // Pastikan dropdown sekolah/input manual diset dengan betul
                     const isWarga = category === 'warga';
                     if (isWarga) {
                          const isMiri = document.querySelector('input[name="work-location"]:checked').value === 'miri';
@@ -420,7 +416,6 @@ service cloud.firestore {
                     document.getElementById('new-applicant-station-manual').disabled = isMiri;
                 });
             });
-             // Trigger change awal untuk set state yang betul
             document.querySelector('input[name="applicant-category"]:checked').dispatchEvent(new Event('change'));
             document.querySelector('input[name="work-location"]:checked').dispatchEvent(new Event('change'));
         }
@@ -497,7 +492,7 @@ service cloud.firestore {
             }
         }
         
-        // ===== GANTIKAN FUNGSI INI SEPENUHNYA (generateProgram) =====
+        // ===== FUNGSI generateProgram (TERKINI) =====
         async function generateProgram(event) {
             event.preventDefault();
             if (isSubmitting) return; 
@@ -621,6 +616,7 @@ service cloud.firestore {
                     transaction.set(programRef, newProgram);
 
                     if (bookingNeeded) {
+                        // Guna programKey sebagai ID untuk booking Ref
                         const bookingRef = doc(db, `artifacts/${appId}/public/data/spark_bookings`, programKey);
                         transaction.set(bookingRef, newBooking);
                     }
@@ -661,14 +657,12 @@ service cloud.firestore {
             }
         }
         
-        // ===== FUNGSI VALIDATE KEKAL SAMA =====
         async function validateAndFetchApplicantName() { 
             const icInput = document.getElementById('applicant-ic');
             const nameDisplay = document.getElementById('applicant-name-display');
             let ic = icInput.value.replace(/[^0-9]/g, '');
             icInput.value = ic;
             
-            // Sentiasa lumpuhkan borang dahulu
             disableProgramForm(); 
             nameDisplay.classList.add('hidden');
             currentApplicant = null;
@@ -708,9 +702,9 @@ service cloud.firestore {
                     }
 
                     nameDisplay.classList.remove('hidden');
-                    enableProgramForm(); // Aktifkan borang program
+                    enableProgramForm();
                 } else {
-                    showNewApplicantModal(ic); // Pengguna baru, borang kekal lumpuh
+                    showNewApplicantModal(ic);
                 }
             } catch(error) {
                 console.error("Error fetching applicant:", error);
@@ -720,7 +714,6 @@ service cloud.firestore {
             }
         }
         
-        // ===== FUNGSI REGISTER KEKAL SAMA =====
         async function registerNewApplicant(event) {
             event.preventDefault();
             const category = document.querySelector('input[name="applicant-category"]:checked').value;
@@ -744,9 +737,8 @@ service cloud.firestore {
             try {
                 const docRef = await addDoc(collection(db, `artifacts/${appId}/public/data/spark_participants`), newApplicant);
                 currentApplicant = { id: docRef.id, ...newApplicant };
-                await validateAndFetchApplicantName(); // Panggil semula untuk papar & aktifkan borang
+                await validateAndFetchApplicantName();
                 closeModal('new-applicant-modal');
-                // enableProgramForm(); // Pastikan borang aktif selepas pendaftaran berjaya (dipanggil dalam validate)
             } catch(error) {
                 console.error("Error registering new applicant:", error);
                  if (error.code === 'permission-denied') { showPermissionErrorModal(); } 
@@ -754,12 +746,11 @@ service cloud.firestore {
             }
         }
         
-        // ===== FUNGSI LAIN KEKAL SAMA =====
         function listenForProgramUpdates() {
             const q = query(collection(db, `artifacts/${appId}/public/data/spark_programs`));
             onSnapshot(q, (snapshot) => {
                 userProgramsCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                if (currentApplicant) { validateAndFetchApplicantName(); } // Kemaskini stat jika perlu
+                if (currentApplicant) { validateAndFetchApplicantName(); }
             }, (error) => {
                 console.error("Error listening for program updates:", error);
             });
@@ -800,7 +791,7 @@ service cloud.firestore {
             if (session === 'pagi') { startTimeInput.value = '08:00'; endTimeInput.value = '12:00'; } else if (session === 'petang') { startTimeInput.value = '14:00'; endTimeInput.value = '17:00'; } else if (session === 'sepenuh-hari') { startTimeInput.value = '08:00'; endTimeInput.value = '17:00'; } 
         }
         
-        // ===== GANTIKAN FUNGSI INI SEPENUHNYA (setupFormListeners) =====
+        // ===== FUNGSI setupFormListeners (TERKINI) =====
         function setupFormListeners() { 
             const multiDayCheckbox = document.getElementById('multi-day-checkbox'); 
             const startDateInput = document.getElementById('start-date'); 
@@ -866,7 +857,7 @@ service cloud.firestore {
             document.getElementById('quota').addEventListener('input', checkCapacity);
         }
         
-        async function loadReferenceSchools(type) { /* ... (kekal sama) ... */
+        async function loadReferenceSchools(type) { 
             const textarea = document.getElementById('reference-list-textarea'); textarea.value = 'Memuatkan...';
             try {
                 const schoolsRef = collection(db, `artifacts/${appId}/public/data/spark_schools`);
@@ -891,6 +882,8 @@ service cloud.firestore {
             }
         }
 
+        // ===== PENTING: MENDEDAHKAN FUNGSI KE HTML =====
+        // Ini membetulkan ralat '... is not defined'
         Object.assign(window, { 
             generateProgram, 
             validateAndFetchApplicantName, 
