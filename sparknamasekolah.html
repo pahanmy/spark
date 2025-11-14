@@ -13,10 +13,8 @@
         .btn { transition: all 0.2s; }
         .btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 4px 8px rgb(0 0 0 / 0.1); }
         .btn:disabled { opacity: 0.7; cursor: not-allowed; }
-        /* ▼▼▼ TAMBAHAN: CSS untuk seret-dan-lepas ▼▼▼ */
         .drag-handle { cursor: move; }
         .sortable-ghost { background-color: #eef2ff; opacity: 0.7; }
-        /* ▲▲▲ TAMAT TAMBAHAN ▲▲▲ */
     </style>
 </head>
 <body class="bg-gray-50 flex flex-col min-h-screen">
@@ -81,14 +79,12 @@
                 </div>
             </div>
         </div>
-        </main>
+    </main>
     
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        // ▼▼▼ Import semua yang diperlukan ▼▼▼
         import { getFirestore, collection, addDoc, onSnapshot, doc, deleteDoc, query, orderBy, serverTimestamp, writeBatch, getDocs, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        // ▲▲▲ TAMAT Import ▲▲▲
 
         const firebaseConfig = { apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM", authDomain: "myqrhadir.firebaseapp.com", projectId: "myqrhadir", storageBucket: "myqrhadir.appspot.com", messagingSenderId: "799691133747", appId: "1:799691133747:web:835a5e3e9413eace806446" };
         
@@ -120,36 +116,42 @@
                 document.getElementById('auth-modal').classList.add('hidden');
                 document.getElementById('main-content').classList.remove('hidden');
                 errorEl.classList.add('hidden');
-                initializePage(); // Panggil fungsi utama
+                initializePage(); 
             } else {
                 errorEl.classList.remove('hidden');
             }
         }
 
-        // Fungsi ini dipanggil selepas IC disahkan
         function initializePage() {
             loadAndDisplaySchools();
             initSortable();
         }
 
-        // --- Fungsi Bantuan Pengesahan ---
         function confirmAdminAction(actionMessage) {
-            // Kita sudah sahkan sekali di pintu masuk,
-            // jadi untuk operasi individu kita boleh tanya soalan mudah.
             return confirm(`Anda pasti mahu ${actionMessage}?`);
         }
         
-        // --- Fungsi Tambah Sekolah (Satu per Satu) ---
+        // ▼▼▼ FUNGSI NORMALIZATION (DARI task.html) ▼▼▼
+        function normalizeStationName(name) {
+            if (typeof name !== 'string') return '';
+            let normalized = name.toUpperCase();
+            normalized = normalized.replace(/\bSG\./g, 'SUNGAI'); 
+            normalized = normalized.replace(/\bSG\b/g, 'SUNGAI'); 
+            normalized = normalized.replace(/\./g, '');
+            normalized = normalized.replace(/\s+/g, ' ').trim();
+            return normalized;
+        }
+        // ▲▲▲ TAMAT FUNGSI NORMALIZATION ▲▲▲
+
         async function addSchool() {
             const input = document.getElementById('school-name-input');
-            const name = input.value.trim().toUpperCase();
+            const name = input.value.trim().toUpperCase(); // Sentiasa simpan sebagai uppercase
             if (!name) return alert("Sila masukkan nama sekolah.");
             
             if (!confirmAdminAction(`menambah sekolah "${name}"`)) return;
 
             try {
-                // 'order' menggunakan Date.now() untuk pastikan ia diletak di bahagian bawah
-                await addDoc(schoolsCollectionRef, { name, createdAt: serverTimestamp(), order: Date.now() }); 
+                await addDoc(schoolsCollectionRef, { name: name, createdAt: serverTimestamp(), order: Date.now() }); 
                 input.value = '';
             } catch (error) {
                 console.error("Ralat menambah sekolah: ", error);
@@ -157,10 +159,8 @@
             }
         }
 
-        // --- Fungsi Tambah Sekolah (Pukal) ---
         async function addSchoolsFromList() {
             const textarea = document.getElementById('school-list-textarea');
-            // Cipta senarai unik (Set) untuk elak duplikasi dalam input
             const lines = [...new Set(textarea.value.split('\n').map(l => l.trim().toUpperCase()).filter(l => l.length > 0))];
             
             if (lines.length === 0) return alert("Tiada item sah untuk ditambah.");
@@ -168,10 +168,10 @@
 
             try {
                 const batch = writeBatch(db);
-                let orderIndex = Date.now(); // Gunakan timestamp untuk susunan
+                let orderIndex = Date.now();
                 lines.forEach(name => {
-                    const newDocRef = doc(schoolsCollectionRef); // Cipta rujukan dokumen baru
-                    batch.set(newDocRef, { name, createdAt: serverTimestamp(), order: orderIndex++ });
+                    const newDocRef = doc(schoolsCollectionRef); 
+                    batch.set(newDocRef, { name: name, createdAt: serverTimestamp(), order: orderIndex++ });
                 });
                 await batch.commit();
                 textarea.value = '';
@@ -182,12 +182,10 @@
             }
         }
 
-        // --- Fungsi Padam Sekolah (Individu) ---
         async function deleteSchool(id) {
             if (confirm("Anda pasti mahu memadam sekolah ini?")) {
                 try {
                     await deleteDoc(doc(schoolsCollectionRef, id));
-                    // Senarai akan dikemas kini secara automatik oleh onSnapshot
                 } catch (error) {
                     console.error("Ralat memadam sekolah: ", error);
                     alert("Gagal memadam sekolah.");
@@ -195,12 +193,11 @@
             }
         }
 
-        // --- Fungsi Muat & Papar Senarai Sekolah ---
         function loadAndDisplaySchools() {
             const listBody = document.getElementById('school-list-body');
             const countEl = document.getElementById('school-count');
             
-            // Susun ikut 'order'. Jika 'order' tiada, ia akan guna 'name'
+            // Susun ikut 'order' dahulu, kemudian 'name'
             const q = query(schoolsCollectionRef, orderBy("order", "asc"), orderBy("name", "asc"));
             
             onSnapshot(q, (snapshot) => {
@@ -218,7 +215,6 @@
             });
         }
         
-        // --- Fungsi Bantuan untuk Cipta Baris HTML ---
         const createRowHTML = (docId, name, deleteFnName) => `
             <tr data-id="${docId}" class="hover:bg-gray-50">
                 <td class="px-2 py-3 text-gray-400 drag-handle">
@@ -232,15 +228,14 @@
                 </td>
             </tr>`;
 
-        // --- Fungsi Susun Urutan (Drag-and-Drop) ---
         function initSortable() {
             const listBody = document.getElementById('school-list-body');
             if (listBody) {
                 new Sortable(listBody, {
                     animation: 150,
-                    handle: '.drag-handle', // Tetapkan pemegang seret
+                    handle: '.drag-handle', 
                     ghostClass: 'sortable-ghost',
-                    onEnd: () => updateOrderInFirestore() // Panggil fungsi simpan selepas seret
+                    onEnd: () => updateOrderInFirestore()
                 });
             }
         }
@@ -268,9 +263,9 @@
             }
         }
 
-        // --- Fungsi Buang Duplikat ---
+        // ▼▼▼ FUNGSI 'removeDuplicates' DIKEMAS KINI ▼▼▼
         async function removeDuplicates() {
-            if (!confirm("Ini akan mengimbas semua sekolah dan memadam rekod yang mempunyai nama yang sama. Anda pasti?")) return;
+            if (!confirm("Ini akan mengimbas semua sekolah dan memadam rekod yang mempunyai nama yang sama (termasuk S.K. vs SK, dan SG. vs SUNGAI). Anda pasti?")) return;
 
             const snapshot = await getDocs(schoolsCollectionRef);
             if (snapshot.empty) {
@@ -281,28 +276,30 @@
             const seen = new Map();
             const toDelete = [];
             
-            // Susun ikut 'createdAt' (tarikh dibuat) untuk pastikan kita simpan yang paling lama
             const docsSorted = snapshot.docs.sort((a, b) => {
                 const timeA = a.data().createdAt?.toMillis() || 0;
                 const timeB = b.data().createdAt?.toMillis() || 0;
-                return timeA - timeB;
+                return timeA - timeB; // Simpan yang paling lama (paling awal dicipta)
             });
 
             docsSorted.forEach(doc => {
-                const name = doc.data().name.trim().toUpperCase();
-                if (seen.has(name)) {
+                const originalName = doc.data().name;
+                // GUNA FUNGSI NORMALISASI DI SINI
+                const normalizedName = normalizeStationName(originalName); 
+                
+                if (seen.has(normalizedName)) {
                     toDelete.push(doc.id); // Jika sudah wujud, tandakan untuk padam
                 } else {
-                    seen.set(name, doc.id); // Jika belum, simpan ia
+                    seen.set(normalizedName, doc.id); // Jika belum, simpan ia
                 }
             });
 
             if (toDelete.length === 0) {
-                alert("Tiada item duplikat ditemui.");
+                alert("Tiada item duplikat (yang telah dinormalisasi) ditemui.");
                 return;
             }
 
-            if (confirm(`Menemui ${toDelete.length} item duplikat. Anda pasti mahu memadamnya sekarang?`)) {
+            if (confirm(`Menemui ${toDelete.length} item duplikat (termasuk variasi ejaan). Anda pasti mahu memadamnya sekarang?`)) {
                 const batch = writeBatch(db);
                 toDelete.forEach(id => {
                     batch.delete(doc(schoolsCollectionRef, id));
@@ -316,8 +313,8 @@
                 }
             }
         }
+        // ▲▲▲ TAMAT KEMAS KINI ▲▲▲
         
-        // Dedahkan fungsi kepada tetingkap (window)
         Object.assign(window, {
             checkAdminIc,
             addSchool,
