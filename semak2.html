@@ -136,6 +136,7 @@
                                         <div>
                                             <span class="font-semibold text-gray-800">Tempah Bilik Mesyuarat</span>
                                             <p class="text-xs text-gray-500">Sistem akan menyemak pertindihan & menempah bilik secara automatik.</p>
+                                            <p class="text-xs text-purple-400 italic mt-1">Nota: Sistem tempahan ini masih dalam proses percubaan.</p>
                                         </div>
                                     </div>
                                     <div class="relative">
@@ -273,6 +274,7 @@ service cloud.firestore {
      match /artifacts/{appId}/public/data/spark_schools/{schoolId} {
       allow read: if true;
     }
+    // Tambah rules lain jika perlu
   }
 }</code></pre>
                         </div>
@@ -285,7 +287,34 @@ service cloud.firestore {
         </div>
     </div>
 
-    <script type="module">
+    <div id="booking-status-modal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop hidden">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-lg p-6">
+            <div class="sm:flex sm:items-start">
+                <div id="booking-modal-icon" class="mx-auto flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-green-100 sm:mx-0 sm:h-10 sm:w-10">
+                    </div>
+                <div class="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left">
+                    <h3 class="text-base font-semibold leading-6 text-gray-900" id="booking-modal-title">
+                        </h3>
+                    <div class="mt-2">
+                        <p class="text-sm text-gray-500" id="booking-modal-description">
+                            </p>
+                        <div id="booking-modal-suggestions" class="hidden mt-4 p-3 bg-gray-50 rounded-md border border-gray-200">
+                            </div>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse sm:gap-x-3">
+                <button type="button" onclick="closeModal('booking-status-modal')" class="btn inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:mt-0 sm:w-auto">
+                    Tutup
+                </button>
+                <button type="button" onclick="window.open('tempahanbilik.html', '_blank')" class="btn inline-flex w-full justify-center rounded-md bg-blue-600 text-white px-3 py-2 text-sm font-semibold shadow-sm hover:bg-blue-700 sm:mt-0 sm:w-auto flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd" /></svg>
+                    Buka Kalendar Penuh
+                </button>
+            </div>
+        </div>
+    </div>
+   <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, setDoc, addDoc, collection, query, where, onSnapshot, serverTimestamp, getDocs, updateDoc, orderBy, runTransaction, Timestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
@@ -336,7 +365,7 @@ service cloud.firestore {
             const versionInfo = document.getElementById('version-info');
             if(versionInfo) {
                 const year = new Date().getFullYear();
-                versionInfo.textContent = `Versi 2.3 (${year})`; // Versi dikemas kini
+                versionInfo.textContent = `Versi 2.4 (${year})`; // Versi dikemas kini
             }
         }
         
@@ -426,70 +455,59 @@ service cloud.firestore {
             document.querySelector('input[name="work-location"]:checked').dispatchEvent(new Event('change'));
         }
         
-        // ===== FUNGSI BARU UNTUK SEMAK PERTINDIHAN TEMPAHAN =====
+        // ===== GANTIKAN FUNGSI INI SEPENUHNYA (checkBookingAvailability) =====
         async function checkBookingAvailability(room, newStartISO, newEndISO) {
             const bookingsRef = collection(db, `artifacts/${appId}/public/data/spark_bookings`);
             const newStart = new Date(newStartISO);
             const newEnd = new Date(newEndISO);
 
-            // 1. Cari tempahan untuk bilik yang sama yang BERMULA SEBELUM tempahan baru TAMAT
             const q = query(bookingsRef, 
                           where("room", "==", room), 
-                          where("start", "<", newEnd) // Guna newEnd (sebagai JS Date) untuk perbandingan
+                          where("start", "<", newEnd)
                         );
             
             try {
                 const querySnapshot = await getDocs(q);
                 if (querySnapshot.empty) {
-                    return true; // Tiada konflik, bilik tersedia
+                    return { available: true }; // Diubah
                 }
 
-                // 2. Tapis hasil di client-side untuk semak jika ia BERTAMAT SELEPAS tempahan baru BERMULA
                 for (const doc of querySnapshot.docs) {
                     const booking = doc.data();
-                    const bookingEnd = booking.end.toDate(); // Tukar Firestore Timestamp ke JS Date
+                    const bookingEnd = booking.end.toDate(); 
                     
                     if (bookingEnd > newStart) {
-                        // Terdapat pertindihan!
                         console.warn("Konflik tempahan dikesan:", booking);
-                        alert(`Bilik ini telah ditempah pada masa tersebut.\n\nProgram Bertindih: ${booking.programName}\nMasa: ${booking.start.toDate().toLocaleString()} - ${bookingEnd.toLocaleString()}`);
-                        return false; // Bilik TIDAK tersedia
+                        return { available: false, conflict: booking }; // Diubah
                     }
                 }
 
-                return true; // Tiada konflik ditemui selepas tapisan
+                return { available: true }; // Diubah
             } catch (error) {
                 console.error("Error checking booking availability:", error);
                 if (error.code === 'permission-denied') {
-                     showPermissionErrorModal(); // Isu security rules
-                     alert("Ralat Kebenaran: Gagal menyemak tempahan. Sila pastikan Firebase Rules anda dikemas kini.");
-                } else {
-                    alert("Ralat semasa menyemak ketersediaan bilik. Sila cuba lagi.");
+                     showPermissionErrorModal(); 
                 }
-                return false; // Gagal jika ralat
+                // Kembalikan ralat untuk ditafsir
+                return { available: false, error: error }; // Diubah
             }
         }
 
         // ===== FUNGSI BARU UNTUK SEMAK KAPASITI VS KUOTA =====
         function checkCapacity() {
             const warningEl = document.getElementById('booking-capacity-warning');
-            // Pastikan borang tempahan aktif
             if (document.getElementById('booking-needed').disabled) {
                 warningEl.classList.add('hidden');
                 return;
             }
-
             const quotaInput = document.getElementById('quota');
             const selectedRoomOption = document.getElementById('booking-room-select').selectedOptions[0];
-            
             if (!quotaInput || !selectedRoomOption || !selectedRoomOption.dataset.kapasiti) {
                 warningEl.classList.add('hidden');
                 return;
             }
-            
             const quota = parseInt(quotaInput.value, 10);
             const capacity = parseInt(selectedRoomOption.dataset.kapasiti, 10);
-            
             if (quota > capacity) {
                 warningEl.textContent = `Amaran: Kuota (${quota}) melebihi kapasiti bilik (${capacity}).`;
                 warningEl.classList.remove('hidden');
@@ -498,7 +516,7 @@ service cloud.firestore {
             }
         }
 
-        // ===== FUNGSI BARU UNTUK BUTANG SEMAK JADUAL =====
+        // ===== GANTIKAN FUNGSI INI SEPENUHNYA (checkBookingAvailabilityOnClick) =====
         async function checkBookingAvailabilityOnClick(buttonElement) {
             const room = document.getElementById('booking-room-select').value;
             if (!room) {
@@ -506,7 +524,6 @@ service cloud.firestore {
                 return;
             }
 
-            // Kumpul tarikh dan masa
             const startDate = document.getElementById('start-date').value;
             const startTime = document.getElementById('start-time').value; 
             const startDateTime = new Date(`${startDate}T${startTime}`);
@@ -516,23 +533,67 @@ service cloud.firestore {
             const endTime = document.getElementById('end-time').value;
             const endDateTimeFull = new Date(`${endDateValue}T${endTime}`);
 
-            // Simpan teks asal dan lumpuhkan butang
             const originalText = buttonElement.innerHTML;
             buttonElement.disabled = true;
             buttonElement.innerHTML = 'Menyemak...';
 
-            // Panggil fungsi semakan sedia ada
-            const isAvailable = await checkBookingAvailability(room, startDateTime.toISOString(), endDateTimeFull.toISOString());
+            const result = await checkBookingAvailability(room, startDateTime.toISOString(), endDateTimeFull.toISOString());
 
-            if (isAvailable) {
-                // 'checkBookingAvailability' hanya tunjuk alert jika GAGAL.
-                // Jadi, kita tunjuk alert BERJAYA di sini.
-                alert('Bilik ini tersedia pada tarikh dan masa yang dipilih.');
-            }
+            // Panggil modal baru
+            showBookingStatusModal(result);
 
-            // Kembalikan butang ke keadaan asal
             buttonElement.disabled = false;
             buttonElement.innerHTML = originalText;
+        }
+
+        // ===== FUNGSI BARU UNTUK PAPAR MODAL STATUS =====
+        function showBookingStatusModal(result) {
+            const modal = document.getElementById('booking-status-modal');
+            const iconEl = document.getElementById('booking-modal-icon');
+            const titleEl = document.getElementById('booking-modal-title');
+            const descEl = document.getElementById('booking-modal-description');
+            const suggestEl = document.getElementById('booking-modal-suggestions');
+
+            // Reset modal
+            iconEl.innerHTML = '';
+            suggestEl.innerHTML = '';
+            suggestEl.classList.add('hidden');
+            iconEl.classList.remove('bg-green-100', 'bg-red-100');
+
+            if (result.available) {
+                // --- KES SEDIA ADA (HIJAU) ---
+                iconEl.classList.add('bg-green-100');
+                iconEl.innerHTML = `<svg class="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>`;
+                titleEl.textContent = 'Bilik Tersedia';
+                descEl.textContent = 'Bilik ini tersedia pada tarikh dan masa yang anda pilih. Anda boleh meneruskan tempahan.';
+            
+            } else if (result.conflict) {
+                // --- KES KONFLIK (MERAH) ---
+                const conflict = result.conflict;
+                const conflictEnd = conflict.end.toDate();
+                // Cadangkan 15 minit selepas tamat
+                const suggestionTime = new Date(conflictEnd.getTime() + 15 * 60000); 
+                
+                iconEl.classList.add('bg-red-100');
+                iconEl.innerHTML = `<svg class="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>`;
+                titleEl.textContent = 'Konflik Jadual Dikesan';
+                descEl.textContent = `Bilik ini telah ditempah untuk '${conflict.programName}' (oleh ${conflict.bookedBy_name}) sehingga ${conflictEnd.toLocaleString('ms-MY', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}.`;
+
+                // Papar cadangan
+                suggestEl.classList.remove('hidden');
+                suggestEl.innerHTML = `
+                    <p class="text-sm font-semibold text-gray-800">Cadangan:</p>
+                    <p class="text-sm text-gray-600">1. Cuba semak semula pada tarikh lain.<br>2. Cuba tempah bilik ini selepas jam ${suggestionTime.toLocaleString('ms-MY', { hour: '2-digit', minute: '2-digit' })} pada tarikh tersebut.</p>
+                `;
+            } else {
+                // --- KES RALAT (cth: Firebase Rules) ---
+                iconEl.classList.add('bg-red-100');
+                iconEl.innerHTML = `<svg class="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>`;
+                titleEl.textContent = 'Ralat Semakan';
+                descEl.textContent = 'Gagal menyemak ketersediaan. Sila pastikan Firebase Rules anda betul atau hubungi pentadbir.';
+            }
+
+            modal.classList.remove('hidden');
         }
         
         // ===== FUNGSI generateProgram (TERKINI) =====
@@ -552,7 +613,6 @@ service cloud.firestore {
                 return; 
             }
 
-            // === 1. Kumpul Data Borang ===
             const surveyNeeded = document.getElementById('survey-needed').checked;
             const evaluationNeeded = document.getElementById('evaluation-needed').checked;
             const eCertificateNeeded = document.getElementById('ecert-needed').checked;
@@ -568,7 +628,7 @@ service cloud.firestore {
             const endTime = document.getElementById('end-time').value;
             const endDateTimeFull = new Date(`${endDateValue}T${endTime}`);
 
-            // === 2. Semakan Tempahan Bilik (Jika Perlu) ===
+            // === 2. Semakan Tempahan Bilik (DIKEMAS KINI) ===
             if (bookingNeeded) {
                 if (!roomBooked) {
                     alert('Sila pilih bilik untuk ditempah.');
@@ -579,10 +639,12 @@ service cloud.firestore {
                 }
                 
                 // Semak ketersediaan bilik
-                const isAvailable = await checkBookingAvailability(roomBooked, startDateTime.toISOString(), endDateTimeFull.toISOString());
+                const result = await checkBookingAvailability(roomBooked, startDateTime.toISOString(), endDateTimeFull.toISOString()); // Diubah
                 
-                if (!isAvailable) {
-                    // Mesej ralat telah ditunjukkan oleh checkBookingAvailability()
+                if (!result.available) { // Diubah
+                    // Paparkan modal konflik dan HENTIKAN proses
+                    showBookingStatusModal(result); // Diubah
+                    
                     isSubmitting = false;
                     submitButton.disabled = false;
                     submitButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" /></svg>Jana Program';
@@ -590,7 +652,7 @@ service cloud.firestore {
                 }
             }
 
-            // === 3. Sediakan Data Lain (Selepas disahkan tiada konflik) ===
+            // === 3. Sediakan Data Lain (Tiada Perubahan) ===
             let surveyKey = surveyNeeded ? `SRV-${Math.random().toString(36).substring(2, 8).toUpperCase()}` : null;
             let evaluationKey = evaluationNeeded ? `EVAL-${Math.random().toString(36).substring(2, 8).toUpperCase()}` : null;
             
@@ -626,7 +688,7 @@ service cloud.firestore {
                 }
             }
             
-            // === 4. Sediakan Objek Data ===
+            // === 4. Sediakan Objek Data (Tiada Perubahan) ===
             const newProgram = {
                 key: programKey, name: document.getElementById('program-name').value, location: document.getElementById('location').value,
                 startDate: startDate, endDate: endDateValue, startTime: startTime, endTime: endTime, expiryTimestamp: expiryTimestamp,
@@ -637,35 +699,34 @@ service cloud.firestore {
                 surveyDeadline: surveyDeadline ? surveyDeadline.toISOString() : null, surveyResponses: [],
                 evaluationNeeded: evaluationNeeded, evaluationKey: evaluationKey, evaluations: [],
                 referenceNeeded: referenceNeeded, referenceList: referenceList, eCertificateNeeded: eCertificateNeeded,
-                bookingNeeded: bookingNeeded, // Data baru
-                roomBooked: roomBooked || null // Data baru
+                bookingNeeded: bookingNeeded,
+                roomBooked: roomBooked || null
             };
             
             const newBooking = {
                 programKey: programKey,
                 programName: newProgram.name,
                 room: roomBooked,
-                start: startDateTime, // Simpan sebagai JS Date, Firestore akan tukar ke Timestamp
-                end: endDateTimeFull, // Simpan sebagai JS Date
+                start: startDateTime, 
+                end: endDateTimeFull, 
                 bookedBy_ic: currentApplicant.ic,
                 bookedBy_name: currentApplicant.name,
                 createdAt: serverTimestamp() 
             };
 
-            // === 5. Jalankan Transaksi (Simpan Program + Tempahan) ===
+            // === 5. Jalankan Transaksi (Tiada Perubahan) ===
             try {
                 await runTransaction(db, async (transaction) => {
                     const programRef = doc(db, `artifacts/${appId}/public/data/spark_programs`, programKey);
                     transaction.set(programRef, newProgram);
 
                     if (bookingNeeded) {
-                        // Guna programKey sebagai ID untuk booking Ref
                         const bookingRef = doc(db, `artifacts/${appId}/public/data/spark_bookings`, programKey);
                         transaction.set(bookingRef, newBooking);
                     }
                 });
 
-                // === 6. Berjaya - Kemas kini UI ===
+                // === 6. Berjaya - Kemas kini UI (Tiada Perubahan) ===
                 document.getElementById('generated-key').textContent = programKey;
                 
                 const surveyLinkContainer = document.getElementById('survey-link-container');
@@ -926,7 +987,6 @@ service cloud.firestore {
         }
 
         // ===== PENTING: MENDEDAHKAN FUNGSI KE HTML =====
-        // Ini membetulkan ralat '... is not defined'
         Object.assign(window, { 
             generateProgram, 
             validateAndFetchApplicantName, 
