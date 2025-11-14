@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Semakan Kekuatan Sekolah</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+        }
+        .status-cell {
+            transition: all 0.2s ease;
+        }
+        thead.sticky {
+            z-index: 20;
+        }
+        tfoot.sticky {
+            z-index: 10;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-900 min-h-screen">
+
+    <!-- Modal Pengesahan IC Admin -->
+    <div id="auth-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-gray-900 bg-opacity-75">
+        <div class="bg-white rounded-xl shadow-2xl p-8 m-4 w-full max-w-md">
+            <h2 class="text-xl font-bold text-center text-gray-800 mb-4">Pengesahan Pentadbir</h2>
+            <p class="text-center text-sm text-gray-600 mb-6">Sila masukkan No. IC anda yang berdaftar dalam sistem SPARK.</p>
+            <form id="admin-auth-form" onsubmit="checkAdminIc(event)">
+                <label for="admin-ic-main" class="block text-sm font-medium text-gray-700">No. IC</label>
+                <input type="password" id="admin-ic-main" class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required>
+                <p id="auth-error" class="text-red-500 text-sm hidden mt-2">No. IC tidak ditemui dalam pangkalan data.</p>
+                <button type="submit" id="auth-submit-btn" class="btn w-full mt-6 bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-indigo-700">
+                    Sahkan
+                </button>
+            </form>
+        </div>
+    </div>
+    
+    <!-- ▼▼▼ UBAHSUAI: Tambah 'h-20' (5rem / 80px) untuk tetapkan ketinggian header ▼▼▼ -->
+    <header id="page-header" class="bg-white shadow-sm sticky top-0 z-30 hidden h-20 flex items-center">
+        <div class="max-w-screen-xl mx-auto py-4 px-4 sm:px-6 lg:px-8 flex justify-between items-center w-full">
+             <div class="flex items-center gap-3">
+                <div class="bg-indigo-600 p-2 rounded-lg"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="text-white"><path d="M4 4H8V8H4V4Z" fill="currentColor"></path><path d="M4 16H8V20H4V16Z" fill="currentColor"></path><path d="M16 4H20V8H16V4Z" fill="currentColor"></path><path d="M10 4H14V6H10V4Z" fill="currentColor"></path><path d="M10 8H12V10H10V8Z" fill="currentColor"></path><path d="M12 12H14V14H12V12Z" fill="currentColor"></path><path d="M10 16H12V18H10V16Z" fill="currentColor"></path><path d="M14 16H16V18H14V16Z" fill="currentColor"></path><path d="M16 12H18V14H16V12Z" fill="currentColor"></path><path d="M16 8H20V10H16V8Z" fill="currentColor"></path><path d="M12 18H14V20H12V18Z" fill="currentColor"></path><path d="M4 10H6V14H4V10Z" fill="currentColor"></path></svg></div>
+                <div>
+                    <h1 class="text-2xl font-bold text-indigo-600">SPARK</h1>
+                    <p class="text-sm text-gray-500">Sistem Semakan Kekuatan</p>
+                </div>
+            </div>
+            <a href="index.html" class="bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-gray-300">Halaman Utama</a>
+        </div>
+    </header>
+
+    <div id="main-content" class="max-w-screen-xl mx-auto bg-white p-6 md:p-8 rounded-xl shadow-lg my-8 hidden">
+
+        <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+            <h1 class="text-2xl md:text-3xl font-bold text-gray-800">
+                Semakan Kekuatan Sekolah
+            </h1>
+            <button id="resetButton" class="px-5 py-2 bg-red-600 text-white rounded-lg shadow-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition-colors">
+                Set Semula Semua Data
+            </button>
+        </div>
+
+        <div class="overflow-x-auto rounded-lg border border-gray-200">
+            <table class="min-w-full divide-y divide-gray-200">
+                <!-- ▼▼▼ UBAHSUAI: 'top-[77px]' ditukar ke 'top-[5rem]' (80px) untuk padan dengan header ▼▼▼ -->
+                <thead class="bg-gray-800 text-white sticky top-[5rem]">
+                    <tr>
+                        <th scope="col" class="py-3.5 px-4 text-left text-sm font-semibold whitespace-nowrap sticky left-0 bg-gray-800 z-10">
+                            Nama Sekolah
+                        </th>
+                        <th scope="col" class="py-3.5 px-4 text-center text-sm font-semibold whitespace-nowrap">
+                            Aspek A4
+                        </th>
+                        <th scope="col" class="py-3.5 px-4 text-center text-sm font-semibold whitespace-nowrap">
+                            Aspek A5
+                        </th>
+                        <th scope="col" class="py-3.5 px-4 text-center text-sm font-semibold whitespace-nowrap">
+                            Aspek A6
+                        </th>
+                        <th scope="col" class="py-3.5 px-4 text-center text-sm font-semibold whitespace-nowrap">
+                            Aspek A7
+                        </th>
+                        <th scope="col" class="py-3.5 px-4 text-center text-sm font-semibold whitespace-nowrap">
+                            Aspek A8
+                        </th>
+                        <th scope="col" class="py-3.5 px-4 text-center text-sm font-semibold whitespace-nowrap">
+                            Aspek A9 (1)
+                        </th>
+                        <th scope="col" class="py-3.5 px-4 text-center text-sm font-semibold whitespace-nowrap">
+                            Aspek A9 (2)
+                        </th>
+                        <th scope="col" class="py-3.5 px-4 text-center text-sm font-semibold whitespace-nowrap">
+                            Peratus Selesai
+                        </th>
+                    </tr>
+                </thead>
+
+                <tbody id="school-table-body" class="divide-y divide-gray-200 bg-white">
+                    <tr>
+                        <td colspan="9" class="p-6 text-center text-gray-500">
+                            <svg class="animate-spin h-6 w-6 text-indigo-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8
+ 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                            Memuatkan data sekolah dan kekuatan...
+                        </td>
+                    </tr>
+                </tbody>
+
+                <tfoot id="school-table-foot" class="bg-gray-100 sticky bottom-0 border-t-2 border-gray-300">
+                    <!-- Baris pengesahan akan dijana oleh JavaScript -->
+                </tfoot>
+            </table>
+        </div>
+    </div>
+
+    <!-- Modal Pengesahan Set Semula -->
+    <div id="modal-backdrop" class="fixed inset-0 bg-black bg-opacity-60 hidden transition-opacity duration-300 z-40"></div>
+    <div id="modal-box" class="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-2xl p-6 md:p-8 w-11/12 max-w-md hidden transform scale-95 transition-all duration-300 z-50">
+        <h3 class="text-xl font-semibold text-gray-900 mb-4">Amaran</h3>
+        <p class="text-gray-700 mb-6">Anda pasti mahu set semula (reset) semua data kekuatan? Tindakan ini akan memadam semua kemajuan dan tidak boleh diundur.</p>
+        <div class="flex justify-end gap-4">
+            <button id="modal-cancel" class="px-5 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors">
+                Batal
+            </button>
+            <button id="modal-confirm" class="px-5 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">
+                Ya, Set Semula
+            </button>
+        </div>
+    </div>
+
+    <!-- Modal Pengesahan IC Admin (untuk Set Semula) -->
+    <div id="admin-ic-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75 hidden">
+        <div class="bg-white rounded-lg shadow-2xl p-6 md:p-8 w-11/12 max-w-md">
+            <h3 class="text-xl font-semibold text-gray-900 mb-4">Pengesahan Pentadbir</h3>
+            <p class="text-gray-700 mb-6">Sila masukkan No. IC anda yang berdaftar untuk meneruskan.</p>
+            <form id="admin-ic-form">
+                <label for="admin-ic" class="block text-sm font-medium text-gray-700">No. IC</label>
+                <input type="password" id="admin-ic" class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" required>
+                <p id="admin-ic-error" class="text-red-500 text-sm hidden mt-2">No. IC tidak ditemui.</p>
+                <div class="flex justify-end gap-4 mt-6">
+                    <button type="button" id="admin-ic-cancel" class="px-5 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors">
+                        Batal
+                    </button>
+                    <button type="submit" id="admin-ic-submit-btn" class="px-5 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">
+                        Sahkan
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Firebase -->
+    <script type="module">
+        // ▼▼▼ UBAHSUAI: Import 'query', 'where', 'getDocs' ▼▼▼
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, onSnapshot, query, orderBy, getDocs, setDoc, updateDoc, writeBatch, where } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        // ▲▲▲ TAMAT UBAHSUAI ▲▲▲
+
+        // --- KONFIGURASI FIREBASE ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM",
+            authDomain: "myqrhadir.firebaseapp.com",
+            projectId: "myqrhadir",
+            storageBucket: "myqrhadir.appspot.com",
+            messagingSenderId: "799691133747",
+            appId: "1:799691133747:web:835a5e3e9413eace806446"
+        };
+        
+        let db, auth, appId;
+        try {
+            const app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+            appId = firebaseConfig.projectId;
+        } catch (e) { console.error("Error initializing Firebase:", e); }
+
+        // --- KONFIGURASI APLIKASI ---
+        // ▼▼▼ UBAHSUAI: Padam 'ADMIN_IC' ▼▼▼
+        // const ADMIN_IC = "890522135381"; // DIPADAM
+        const PARTICIPANTS_COLLECTION = `artifacts/${appId}/public/data/spark_participants`;
+        // ▲▲▲ TAMAT UBAHSUAI ▲▲▲
+        const SCHOOLS_COLLECTION = `artifacts/${appId}/public/data/spark_schools`;
+        const KEKUATAN_COLLECTION = `artifacts/${appId}/public/data/spark_kekuatan`;
+        const CONFIRMATION_DOC = "__confirmation"; 
+        
+        const aspectKeys = ['a4', 'a5', 'a6', 'a7', 'a8', 'a9_1', 'a9_2'];
+        const totalAspects = aspectKeys.length;
+
+        const STATUSES = {
+            NOT_STARTED: 0,
+            IN_REVIEW: 1, 
+            CORRECTED: 2, 
+            COMPLETED: 3 
+        };
+
+        const STATUS_CONFIG = {
+            [STATUSES.NOT_STARTED]: { text: '✗ Belum Mula', color: 'bg-red-100 text-red-700' },
+            [STATUSES.IN_REVIEW]: { text: '? Semakan', color: 'bg-yellow-100 text-yellow-700' },
+            [STATUSES.CORRECTED]: { text: '! Pembetulan', color: 'bg-blue-100 text-blue-700' },
+            [STATUSES.COMPLETED]: { text: '✓ Selesai', color: 'bg-green-100 text-green-700' }
+        };
+
+        // --- ELEMEN DOM ---
+        const tableBody = document.getElementById('school-table-body');
+        const tableFoot = document.getElementById('school-table-foot');
+        const resetButton = document.getElementById('resetButton');
+        const modalBackdrop = document.getElementById('modal-backdrop');
+        const modalBox = document.getElementById('modal-box');
+        const modalCancel = document.getElementById('modal-cancel');
+        const modalConfirm = document.getElementById('modal-confirm');
+        
+        const authModal = document.getElementById('auth-modal');
+        const authForm = document.getElementById('admin-auth-form');
+        const authSubmitBtn = document.getElementById('auth-submit-btn');
+        const authError = document.getElementById('auth-error');
+
+        const adminIcModal = document.getElementById('admin-ic-modal');
+        const adminIcForm = document.getElementById('admin-ic-form');
+        const adminIcCancel = document.getElementById('admin-ic-cancel');
+        const adminIcError = document.getElementById('admin-ic-error');
+        const adminIcSubmitBtn = document.getElementById('admin-ic-submit-btn');
+
+        // --- FUNGSI-FUNGSI UTAMA ---
+
+        function createDefaultStrengthObject() {
+            const defaultObj = {};
+            aspectKeys.forEach(key => {
+                defaultObj[key] = {
+                    status: STATUSES.NOT_STARTED,
+                    timestamp: null
+                };
+            });
+            return defaultObj;
+        }
+
+        function initializePage() {
+            loadAndRenderData();
+            tableBody.addEventListener('click', handleCellClick);
+            resetButton.addEventListener('click', showResetModal);
+            modalCancel.addEventListener('click', hideAllModals);
+            adminIcCancel.addEventListener('click', hideAllModals);
+            adminIcForm.addEventListener('submit', checkAdminIcForReset);
+            modalConfirm.addEventListener('click', executeReset);
+        }
+
+        function loadAndRenderData() {
+            const schoolsRef = collection(db, SCHOOLS_COLLECTION);
+            const kekuatanRef = collection(db, KEKUATAN_COLLECTION);
+            
+            const qSchools = query(schoolsRef, orderBy("name", "asc"));
+            
+            onSnapshot(qSchools, (schoolSnapshot) => {
+                const masterSchoolList = schoolSnapshot.docs.map(doc => doc.data().name);
+
+                onSnapshot(kekuatanRef, (kekuatanSnapshot) => {
+                    const strengthData = new Map();
+                    let confirmationData = {};
+
+                    kekuatanSnapshot.docs.forEach(doc => {
+                        if (doc.id === CONFIRMATION_DOC) {
+                            confirmationData = doc.data();
+                        } else {
+                            strengthData.set(doc.id, doc.data());
+                        }
+                    });
+
+                    const mergedData = new Map();
+                    masterSchoolList.forEach(schoolName => {
+                        const data = strengthData.get(schoolName) || createDefaultStrengthObject();
+                        mergedData.set(schoolName, data);
+                    });
+                    
+                    renderTable(mergedData);
+                    renderFooter(confirmationData);
+
+                }, (error) => {
+                    console.error("Error listening to strength data: ", error);
+                    tableBody.innerHTML = `<tr><td colspan="9" class="p-6 text-center text-red-500">Gagal memuatkan data kekuatan. Sila semak 'firestore.rules'.</td></tr>`;
+                });
+            }, (error) => {
+                console.error("Error listening to school list: ", error);
+                tableBody.innerHTML = `<tr><td colspan="9" class="p-6 text-center text-red-500">Gagal memuatkan senarai sekolah. Sila semak 'firestore.rules'.</td></tr>`;
+            });
+        }
+
+        function renderTable(mergedData) {
+            tableBody.innerHTML = ''; 
+            if (mergedData.size === 0) {
+                tableBody.innerHTML = `<tr><td colspan="9" class="p-6 text-center text-gray-500">Tiada data sekolah ditemui. Sila tambah sekolah di halaman Pentadbiran Data.</td></tr>`;
+                return;
+            }
+
+            mergedData.forEach((school, schoolName) => {
+                const row = document.createElement('tr');
+                row.classList.add('hover:bg-gray-50');
+
+                const nameCell = document.createElement('td');
+                nameCell.className = 'py-3.5 px-4 text-sm font-medium text-gray-900 whitespace-nowrap sticky left-0 bg-white z-0';
+                row.addEventListener('mouseenter', () => nameCell.classList.add('bg-gray-50'));
+                row.addEventListener('mouseleave', () => nameCell.classList.remove('bg-gray-50'));
+                nameCell.textContent = schoolName;
+                row.appendChild(nameCell);
+
+                let completedCount = 0;
+
+                aspectKeys.forEach(key => {
+                    const aspectData = school[key] || { status: STATUSES.NOT_STARTED, timestamp: null };
+                    const currentStatus = aspectData.status;
+                    const timestamp = aspectData.timestamp;
+
+                    if (currentStatus === STATUSES.COMPLETED) {
+                        completedCount++;
+                    }
+
+                    const config = STATUS_CONFIG[currentStatus];
+                    const aspectCell = document.createElement('td');
+                    aspectCell.className = `status-cell py-2.5 px-4 text-center text-sm font-bold cursor-pointer whitespace-nowrap ${config.color}`;
+                    
+                    let timestampHtml = '';
+                    if (timestamp) {
+                        timestampHtml = `<br><span class="text-xs font-normal opacity-70">${timestamp}</span>`;
+                    }
+                    aspectCell.innerHTML = `${config.text}${timestampHtml}`;
+                    
+                    aspectCell.dataset.schoolName = schoolName;
+                    aspectCell.dataset.aspek = key;
+                    
+                    row.appendChild(aspectCell);
+                });
+
+                const percentage = (completedCount / totalAspects) * 100;
+                const percentageCell = document.createElement('td');
+                percentageCell.className = 'py-3.5 px-4 text-center text-sm font-semibold whitespace-nowrap';
+                percentageCell.textContent = `${percentage.toFixed(0)}%`;
+                
+                if (percentage === 100) {
+                    percentageCell.classList.add('text-green-600', 'bg-green-50');
+                } else if (percentage > 0) {
+                    percentageCell.classList.add('text-yellow-600', 'bg-yellow-50');
+                } else {
+                    percentageCell.classList.add('text-red-600', 'bg-red-50');
+                }
+                
+                row.appendChild(percentageCell);
+                tableBody.appendChild(row);
+            });
+        }
+
+        function renderFooter(confirmationData) {
+            tableFoot.innerHTML = ''; 
+            const row = document.createElement('tr');
+            
+            const labelCell = document.createElement('td');
+            labelCell.className = 'py-2.5 px-4 text-sm font-semibold text-gray-900 whitespace-nowrap sticky left-0 bg-gray-100 z-10';
+            labelCell.textContent = 'DISAHKAN OLEH:';
+            row.appendChild(labelCell);
+
+            aspectKeys.forEach(key => {
+                const td = document.createElement('td');
+                td.className = 'py-2 px-3';
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.className = 'w-full px-2 py-1.5 border border-gray-300 rounded-md text-sm shadow-sm focus:ring-blue-500 focus:border-blue-500';
+                input.placeholder = 'Nama...';
+                input.value = confirmationData[key] || '';
+                input.dataset.aspek = key;
+                input.addEventListener('input', handleFooterInput);
+                td.appendChild(input);
+                row.appendChild(td);
+            });
+
+            const emptyCell = document.createElement('td');
+            emptyCell.className = 'py-2.5 px-4';
+            row.appendChild(emptyCell);
+            
+            tableFoot.appendChild(row);
+        }
+
+        // --- FUNGSI PENGENDALI ACARA ---
+
+        async function handleFooterInput(e) {
+            const aspek = e.target.dataset.aspek;
+            const value = e.target.value.toUpperCase(); 
+            const confRef = doc(db, KEKUATAN_COLLECTION, CONFIRMATION_DOC);
+            try {
+                await setDoc(confRef, { [aspek]: value }, { merge: true });
+            } catch (error) {
+                console.error("Gagal simpan data pengesah:", error);
+            }
+        }
+
+        async function handleCellClick(e) {
+            if (e.target && e.target.closest('.status-cell')) {
+                const cell = e.target.closest('.status-cell');
+                const schoolName = cell.dataset.schoolName;
+                const aspek = cell.dataset.aspek;
+
+                const currentText = cell.innerHTML.split('<br>')[0];
+                const currentEntry = Object.entries(STATUS_CONFIG).find(([key, val]) => val.text === currentText);
+                const currentStatus = currentEntry ? parseInt(currentEntry[0]) : STATUSES.NOT_STARTED;
+
+                let newStatus = (currentStatus + 1) % 4;
+                
+                let newTimestamp = null;
+                if (newStatus !== STATUSES.NOT_STARTED) {
+                    const now = new Date();
+                    newTimestamp = now.toLocaleString('ms-MY', {
+                        day: '2-digit', month: '2-digit', year: '2-digit',
+                        hour: '2-digit', minute: '2-digit', hour12: false 
+                    }).replace(',', '');
+                }
+
+                const docRef = doc(db, KEKUATAN_COLLECTION, schoolName);
+                try {
+                    await setDoc(docRef, {
+                        [aspek]: {
+                            status: newStatus,
+                            timestamp: newTimestamp
+                        }
+                    }, { merge: true }); 
+                } catch (error) {
+                    console.error("Gagal kemas kini status:", error);
+                }
+            }
+        }
+
+        // --- Logik Modal dan Set Semula ---
+        function showResetModal() {
+            adminIcModal.classList.remove('hidden');
+            document.getElementById('admin-ic').focus();
+        }
+
+        // ▼▼▼ UBAHSUAI: 'checkAdminIcForReset' kini semak dari Firebase ▼▼▼
+        async function checkAdminIcForReset(event) {
+            event.preventDefault();
+            const input = document.getElementById('admin-ic').value;
+            adminIcSubmitBtn.disabled = true;
+
+            const q = query(collection(db, PARTICIPANTS_COLLECTION), where("ic", "==", input));
+            const querySnapshot = await getDocs(q);
+
+            if (!querySnapshot.empty) {
+                // IC ditemui
+                adminIcModal.classList.add('hidden');
+                adminIcError.classList.add('hidden');
+                document.getElementById('admin-ic').value = '';
+                
+                modalBackdrop.classList.remove('hidden');
+                modalBox.classList.remove('hidden');
+            } else {
+                // IC tidak ditemui
+                adminIcError.classList.remove('hidden');
+            }
+            adminIcSubmitBtn.disabled = false;
+        }
+        // ▲▲▲ TAMAT UBAHSUAI ▲▲▲
+
+        function hideAllModals() {
+            modalBackdrop.classList.add('hidden');
+            modalBox.classList.add('hidden');
+            adminIcModal.classList.add('hidden');
+            adminIcError.classList.add('hidden');
+            document.getElementById('admin-ic').value = '';
+        }
+
+        async function executeReset() {
+            hideAllModals();
+            resetButton.disabled = true;
+            resetButton.textContent = "Memadam...";
+
+            try {
+                const snapshot = await getDocs(query(collection(db, KEKUATAN_COLLECTION)));
+                if (snapshot.empty) {
+                    alert("Tiada data untuk dipadam.");
+                    return;
+                }
+                
+                const batch = writeBatch(db);
+                snapshot.docs.forEach(d => {
+                    batch.delete(d.ref);
+                });
+                await batch.commit();
+
+                alert(`Berjaya memadam ${snapshot.size} rekod.`);
+            } catch (error) {
+                console.error("Gagal set semula data:", error);
+                alert("Berlaku ralat semasa set semula data.");
+            } finally {
+                resetButton.disabled = false;
+                resetButton.textContent = "Set Semula Semua Data";
+            }
+        }
+        
+        // ▼▼▼ UBAHSUAI: 'checkAdminIc' kini semak dari Firebase ▼▼▼
+        async function checkAdminIc(event) {
+            event.preventDefault();
+            const input = document.getElementById('admin-ic-main').value;
+            authSubmitBtn.disabled = true;
+            authSubmitBtn.textContent = "Menyemak...";
+
+            // Semak koleksi 'spark_participants'
+            const q = query(collection(db, PARTICIPANTS_COLLECTION), where("ic", "==", input));
+            const querySnapshot = await getDocs(q);
+
+            if (!querySnapshot.empty) {
+                // IC ditemui, benarkan masuk
+                authModal.classList.add('hidden');
+                document.getElementById('page-header').classList.remove('hidden');
+                document.getElementById('main-content').classList.remove('hidden');
+                authError.classList.add('hidden');
+                initializePage(); // Panggil fungsi utama
+            } else {
+                // IC tidak ditemui
+                authError.classList.remove('hidden');
+                authSubmitBtn.disabled = false;
+                authSubmitBtn.textContent = "Sahkan";
+            }
+        }
+        // ▲▲▲ TAMAT UBAHSUAI ▲▲▲
+
+        // --- Pendaftaran Acara (Event Listeners) ---
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                console.log("Pengguna disahkan:", user.uid);
+                // Jangan panggil initializePage() di sini
+                // Tunggu pengesahan IC
+            } else {
+                try {
+                    await signInAnonymously(auth);
+                } catch (error) {
+                    console.error("Error signing in anonymously:", error);
+                    alert("Gagal mendapat pengesahan. Sila muat semula.");
+                }
+            }
+        });
+        
+        authForm.addEventListener('submit', checkAdminIc);
+        window.checkAdminIc = checkAdminIc;
+        
+    </script>
+</body>
+</html>
