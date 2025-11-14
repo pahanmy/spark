@@ -509,17 +509,32 @@
             let totalSelesai = 0;
             let totalBelum = 0;
             filteredList.forEach(tugasan => {
-                const totalSkop = Array.isArray(tugasan.skopSenaraiSekolah) ? tugasan.skopSenaraiSekolah : [];
-                const skopSelesai = Array.isArray(tugasan.skopSelesai) ? tugasan.skopSelesai : [];
-                let jumlahSelesai;
-                let total;
+                
+                // ▼▼▼ UBAHSUAI LOGIK RUMUSAN DI SINI (1) ▼▼▼
+                const totalSkop = Array.isArray(tugasan.skopSenaraiSekolah) 
+                    ? tugasan.skopSenaraiSekolah.map(normalizeStationName) 
+                    : [];
+                
+                let jumlahSelesai, total;
+
                 if (totalSkop.length > 0) {
-                    jumlahSelesai = skopSelesai.length;
+                    // Mod Skop: Guna logik normalisasi
+                    const totalSkopSet = new Set(totalSkop);
+                    const allSelesai = Array.isArray(tugasan.skopSelesai) 
+                        ? tugasan.skopSelesai.map(normalizeStationName) 
+                        : [];
+                    
+                    const skopSelesaiList = allSelesai.filter(sekolah => totalSkopSet.has(sekolah));
+                    
+                    jumlahSelesai = skopSelesaiList.length;
                     total = totalSkop.length;
                 } else {
+                    // Mod Manual: Guna logik sedia ada
                     jumlahSelesai = tugasan.jumlahSelesai || 0;
                     total = (tugasan.jumlahSelesai || 0) + (tugasan.jumlahBelum || 0);
                 }
+                // ▲▲▲ TAMAT UBAHSUAI (1) ▲▲▲
+
                 const peratus = (total === 0) ? 0 : Math.round((jumlahSelesai / total) * 100);
                 if (total > 0 && peratus === 100) {
                     totalSelesai++;
@@ -551,17 +566,32 @@
                 // ▼▼▼ KESAN HOVER BARU ▼▼▼
                 baris.className = "hover:bg-gray-50 transition-colors duration-150";
                 
-                const totalSkop = Array.isArray(tugasan.skopSenaraiSekolah) ? tugasan.skopSenaraiSekolah : [];
-                const skopSelesai = Array.isArray(tugasan.skopSelesai) ? tugasan.skopSelesai : [];
+                // ▼▼▼ UBAHSUAI LOGIK RUMUSAN DI SINI (2) ▼▼▼
+                const totalSkop = Array.isArray(tugasan.skopSenaraiSekolah) 
+                    ? tugasan.skopSenaraiSekolah.map(normalizeStationName) 
+                    : [];
+
                 let jumlahSelesai;
                 let total;
+
                 if (totalSkop.length > 0) {
-                    jumlahSelesai = skopSelesai.length;
+                    // Mod Skop: Guna logik normalisasi
+                    const totalSkopSet = new Set(totalSkop);
+                    const allSelesai = Array.isArray(tugasan.skopSelesai) 
+                        ? tugasan.skopSelesai.map(normalizeStationName) 
+                        : [];
+                    
+                    const skopSelesaiList = allSelesai.filter(sekolah => totalSkopSet.has(sekolah));
+                    
+                    jumlahSelesai = skopSelesaiList.length;
                     total = totalSkop.length;
                 } else {
+                    // Mod Manual: Guna logik sedia ada
                     jumlahSelesai = tugasan.jumlahSelesai || 0;
                     total = (tugasan.jumlahSelesai || 0) + (tugasan.jumlahBelum || 0);
                 }
+                // ▲▲▲ TAMAT UBAHSUAI (2) ▲▲▲
+                
                 const peratus = (total === 0) ? 0 : Math.round((jumlahSelesai / total) * 100);
                 const bakiHariInfo = kiraBakiHari(tugasan.tarikhSiap, peratus);
 
@@ -1048,11 +1078,40 @@
             });
         }
         
+        // ▼▼▼ TAMBAH FUNGSI INI ▼▼▼
+        /**
+         * Menyeragamkan nama stesen untuk perbandingan.
+         * 1. Tukar ke huruf besar.
+         * 2. Tukar 'SG.' atau 'SG' kepada 'SUNGAI'.
+         * 3. Buang semua tanda noktah.
+         * 4. Buang ruang kosong berlebihan.
+         */
+        function normalizeStationName(name) {
+            if (typeof name !== 'string') return '';
+            let normalized = name.toUpperCase();
+            
+            // Standardize Sg. and Sg to SUNGAI
+            // Ganti "SG." (dengan noktah)
+            normalized = normalized.replace(/\bSG\./g, 'SUNGAI'); 
+            // Ganti "SG" (tanpa noktah, sebagai perkataan penuh)
+            normalized = normalized.replace(/\bSG\b/g, 'SUNGAI'); 
+            
+            // Buang semua noktah lain (cth: S.K. -> SK, P.P.D. -> PPD)
+            normalized = normalized.replace(/\./g, '');
+            
+            // Buang ruang kosong berlebihan (cth: "SK  BAWAN" -> "SK BAWAN")
+            normalized = normalized.replace(/\s+/g, ' ').trim();
+            
+            return normalized;
+        }
+        // ▲▲▲ TAMAT TAMBAHAN ▲▲▲
+
         // --- EVENT LISTENERS ---
         document.addEventListener('DOMContentLoaded', () => {
             const versionInfo = document.getElementById('version-info');
             if(versionInfo) {
-                versionInfo.textContent = `Versi 2.1 (2025)`;
+                const year = new Date().getFullYear();
+                versionInfo.textContent = `Versi 2.1 (${year})`;
             }
             namaModal.addEventListener('input', (e) => {
                 e.target.value = e.target.value.toUpperCase();
