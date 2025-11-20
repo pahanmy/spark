@@ -20,10 +20,44 @@
             color: #4f46e5;
             font-weight: 600;
         }
+        /* Style untuk Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.75);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+        }
+        .modal-content {
+            animation: fadeIn 0.3s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
     </style>
 </head>
 <body class="bg-gray-50 flex flex-col min-h-screen">
 
+    <div id="security-modal" class="modal-overlay hidden">
+        <div class="modal-content bg-white p-8 rounded-xl shadow-2xl max-w-md w-full mx-4">
+            <div class="flex items-center gap-3 mb-6">
+                <div class="bg-red-500 p-3 rounded-full text-white">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2h2a2 2 0 012 2v5a2 2 0 01-2 2H3a2 2 0 01-2-2v-5a2 2 0 012-2h2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd" /></svg>
+                </div>
+                <h2 class="text-2xl font-bold text-gray-800">Akses Pentadbiran</h2>
+            </div>
+            <p class="text-gray-600 mb-4">Sila masukkan **Kod Keselamatan** untuk mengakses Halaman Pentadbiran Data SPARK.</p>
+            <input type="password" id="admin-code-input" placeholder="Masukkan kod keselamatan..." class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 mb-4">
+            <div id="modal-error-message" class="text-sm text-red-500 mb-4 hidden"></div>
+            <button id="submit-admin-code" class="btn w-full bg-indigo-600 text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:bg-indigo-700">Sahkan Kod</button>
+        </div>
+    </div>
     <header class="bg-white shadow-sm">
         <div class="max-w-screen-xl mx-auto py-4 px-4 sm:px-6 lg:px-8 flex justify-between items-center">
              <div class="flex items-center gap-3">
@@ -39,7 +73,7 @@
 
     <main class="max-w-screen-xl mx-auto py-6 sm:px-6 lg:px-8 flex-grow w-full">
         <div id="loading-screen" class="min-h-96 flex items-center justify-center text-lg text-gray-500">
-            Sila tunggu, memuatkan sesi admin...
+            Menunggu Pengesahan Kod Keselamatan...
         </div>
         
         <div id="admin-content" class="hidden">
@@ -63,7 +97,7 @@
                     <button id="tab-lokasi" onclick="switchTab('lokasi')" class="tab-btn text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
                         Lokasi
                     </button>
-                    </nav>
+                </nav>
             </div>
 
             <div id="panel-program" class="mt-6">
@@ -241,7 +275,8 @@
         const programsCollectionRef = collection(db, `artifacts/${appId}/public/data/spark_programs`);
 
         const ADMIN_IC = "890522135381";
-        const ADMIN_ACCESS_CODE = "BELAWAI";
+        // Guna 'KESELAMATAN' sebagai contoh. Anda boleh ubah di sini.
+        const ADMIN_ACCESS_CODE = "belawai"; 
         
         let allParticipants = [];
         let participantCurrentPage = 1;
@@ -251,33 +286,54 @@
         let programCurrentPage = 1;
         const programsPerPage = 15;
 
-        // KEMAS KINI: Fungsi untuk semak Kod Belawai sebelum memanggil onAuthStateChanged
-        function checkAdminCode() {
-            const code = prompt("Sila masukkan Kod Akses Pentadbir (Kod Belawai) untuk meneruskan:", "");
-            if (code && code.toUpperCase() === ADMIN_ACCESS_CODE) {
-                // Sembunyikan loading screen dan paparkan kandungan
-                document.getElementById('loading-screen').classList.add('hidden');
-                document.getElementById('admin-content').classList.remove('hidden');
-                
-                // Meneruskan dengan pengesahan Firebase (anon) dan inisialisasi
-                onAuthStateChanged(auth, async (user) => {
-                    if (user) {
-                        initializeAdminPage();
+        // FUNGSI UTAMA UNTUK MENGENDALIKAN MODAL
+        function showAdminModal() {
+            document.getElementById('security-modal').classList.remove('hidden');
+            const input = document.getElementById('admin-code-input');
+            const button = document.getElementById('submit-admin-code');
+            const errorMessage = document.getElementById('modal-error-message');
+            
+            input.focus();
+            errorMessage.classList.add('hidden');
+
+            const handleSubmission = (e) => {
+                if (e.type === 'click' || (e.type === 'keyup' && e.key === 'Enter')) {
+                    const code = input.value.trim().toUpperCase();
+                    if (code === ADMIN_ACCESS_CODE) {
+                        document.getElementById('security-modal').classList.add('hidden');
+                        document.getElementById('loading-screen').classList.add('hidden');
+                        document.getElementById('admin-content').classList.remove('hidden');
+                        // Teruskan ke Firebase Auth dan inisialisasi
+                        onAuthStateChanged(auth, async (user) => {
+                            if (user) {
+                                initializeAdminPage();
+                            } else {
+                                try {
+                                    await signInAnonymously(auth);
+                                } catch (error) {
+                                    console.error("Gagal daftar masuk tanpa nama:", error);
+                                    alert("Tidak dapat menyambung ke pangkalan data. Sila muat semula halaman.");
+                                }
+                            }
+                        });
+                        // Buang event listeners selepas berjaya
+                        button.removeEventListener('click', handleSubmission);
+                        input.removeEventListener('keyup', handleSubmission);
                     } else {
-                        try {
-                            await signInAnonymously(auth);
-                        } catch (error) {
-                            console.error("Gagal daftar masuk tanpa nama:", error);
-                            alert("Tidak dapat menyambung ke pangkalan data. Sila muat semula halaman.");
-                        }
+                        errorMessage.textContent = 'Kod Keselamatan SALAH. Sila cuba lagi.';
+                        errorMessage.classList.remove('hidden');
+                        input.value = '';
+                        input.focus();
                     }
-                });
-            } else {
-                document.getElementById('loading-screen').innerHTML = '<div class="text-red-600 font-bold">Kod Akses SALAH. Sila muat semula halaman dan cuba lagi.</div>';
-            }
+                }
+            };
+
+            button.addEventListener('click', handleSubmission);
+            input.addEventListener('keyup', handleSubmission);
         }
         
-        checkAdminCode();
+        // Panggil modal sebaik sahaja skrip dimuatkan
+        showAdminModal();
 
 
         function initializeAdminPage() {
@@ -286,7 +342,7 @@
             loadAndDisplaySchools();
             loadAndDisplayPositions();
             loadAndDisplayCoordinators(); 
-            loadAndDisplayLocations(); // FUNGSI BARU
+            loadAndDisplayLocations();
             initSortable();
 
             document.getElementById('program-search').addEventListener('input', () => {
@@ -303,7 +359,6 @@
             });
         }
 
-        // KEMAS KINI: Menambah 'lokasi' ke senarai tab
         function switchTab(tabName) {
             ['program', 'peserta', 'sekolah', 'jawatan', 'penyelaras', 'lokasi'].forEach(name => {
                 const tab = document.getElementById(`tab-${name}`);
@@ -583,7 +638,7 @@
         }
         // --- TAMAT Fungsi Penyelaras ---
 
-        // --- FUNGSI BARU: Lokasi Mesyuarat ---
+        // --- Fungsi Lokasi Mesyuarat ---
         function loadAndDisplayLocations() {
             const q = query(programsCollectionRef);
             onSnapshot(q, (snapshot) => {
@@ -605,7 +660,6 @@
 
                 let locations = Object.values(locationMap);
                 
-                // Susun mengikut kekerapan (paling banyak di atas)
                 locations.sort((a, b) => b.count - a.count);
 
                 renderLocationTable(locations);
