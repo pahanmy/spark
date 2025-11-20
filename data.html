@@ -97,7 +97,10 @@
                     <button id="tab-lokasi" onclick="switchTab('lokasi')" class="tab-btn text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
                         Lokasi
                     </button>
-                </nav>
+                    <button id="tab-pesertaaktif" onclick="switchTab('pesertaaktif')" class="tab-btn text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                        Peserta Aktif
+                    </button>
+                    </nav>
             </div>
 
             <div id="panel-program" class="mt-6">
@@ -255,6 +258,22 @@
                     </div>
                 </div>
             </div>
+            <div id="panel-pesertaaktif" class="mt-6 hidden">
+                <div class="card p-6 md:p-8">
+                    <div class="flex items-center gap-3 mb-6">
+                        <div class="bg-indigo-100 p-2 rounded-lg"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg></div>
+                        <h2 class="text-xl font-bold text-gray-800">20 Peserta Paling Aktif (Paling Banyak Pendaftaran)</h2>
+                    </div>
+                    <div class="flex justify-end items-center mb-4">
+                        <span id="active-participant-count" class="text-sm font-medium text-gray-600"></span>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full"><thead class="bg-gray-50"><tr><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kedudukan</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nama Peserta</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">No. IC</th><th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Jumlah Program</th></tr></thead><tbody id="active-participant-list-body" class="divide-y divide-gray-200">
+                             <tr><td colspan="4" class="text-center text-gray-500 py-4">Memuatkan data peserta aktif...</td></tr>
+                        </tbody></table>
+                    </div>
+                </div>
+            </div>
             </div>
     </main>
     
@@ -275,7 +294,6 @@
         const programsCollectionRef = collection(db, `artifacts/${appId}/public/data/spark_programs`);
 
         const ADMIN_IC = "890522135381";
-        // Guna 'KESELAMATAN' sebagai contoh. Anda boleh ubah di sini.
         const ADMIN_ACCESS_CODE = "KESELAMATAN"; 
         
         let allParticipants = [];
@@ -303,7 +321,10 @@
                         document.getElementById('security-modal').classList.add('hidden');
                         document.getElementById('loading-screen').classList.add('hidden');
                         document.getElementById('admin-content').classList.remove('hidden');
-                        // Teruskan ke Firebase Auth dan inisialisasi
+                        
+                        button.removeEventListener('click', handleSubmission);
+                        input.removeEventListener('keyup', handleSubmission);
+
                         onAuthStateChanged(auth, async (user) => {
                             if (user) {
                                 initializeAdminPage();
@@ -316,9 +337,6 @@
                                 }
                             }
                         });
-                        // Buang event listeners selepas berjaya
-                        button.removeEventListener('click', handleSubmission);
-                        input.removeEventListener('keyup', handleSubmission);
                     } else {
                         errorMessage.textContent = 'Kod Keselamatan SALAH. Sila cuba lagi.';
                         errorMessage.classList.remove('hidden');
@@ -332,7 +350,6 @@
             input.addEventListener('keyup', handleSubmission);
         }
         
-        // Panggil modal sebaik sahaja skrip dimuatkan
         showAdminModal();
 
 
@@ -343,6 +360,7 @@
             loadAndDisplayPositions();
             loadAndDisplayCoordinators(); 
             loadAndDisplayLocations();
+            loadAndDisplayActiveParticipants(); // FUNGSI BARU
             initSortable();
 
             document.getElementById('program-search').addEventListener('input', () => {
@@ -359,8 +377,9 @@
             });
         }
 
+        // KEMAS KINI: Menambah 'pesertaaktif' ke senarai tab
         function switchTab(tabName) {
-            ['program', 'peserta', 'sekolah', 'jawatan', 'penyelaras', 'lokasi'].forEach(name => {
+            ['program', 'peserta', 'sekolah', 'jawatan', 'penyelaras', 'lokasi', 'pesertaaktif'].forEach(name => {
                 const tab = document.getElementById(`tab-${name}`);
                 const panel = document.getElementById(`panel-${name}`);
                 const isActive = name === tabName;
@@ -687,6 +706,108 @@
             }
         }
         // --- TAMAT FUNGSI Lokasi Mesyuarat ---
+
+
+        // --- FUNGSI BARU: Peserta Teraktif (Top 20) ---
+        function loadAndDisplayActiveParticipants() {
+            // Program collection mengandungi senarai IC peserta yang mendaftar.
+            const q = query(programsCollectionRef); 
+            onSnapshot(q, (snapshot) => {
+                const programs = snapshot.docs.map(doc => doc.data());
+                
+                const participantCountMap = {};
+                
+                // Iterasi melalui setiap program, dan setiap peserta dalam program tersebut
+                programs.forEach(p => {
+                    // Anda mungkin perlu mengakses subkoleksi atau array peserta di sini.
+                    // Jika data anda adalah denormalized (e.g., senarai IC di dalam dokumen program)
+                    // Anda perlu menyesuaikannya. Untuk tujuan ini, kita akan anggap setiap program
+                    // hanya merekodkan satu peserta per program (jika p.peserta_ic wujud) atau 
+                    // kita perlu muatkan data pendaftaran dari koleksi lain jika p.peserta_ic tidak wujud.
+                    
+                    // Kerana tiada data struktur pendaftaran program disediakan, kita akan gunakan IC
+                    // dari Penyelaras sebagai dummy, dan Peserta Induk sebagai map.
+                    // Walau bagaimanapun, untuk benar-benar mengira pendaftaran program:
+                    // Anda perlu memuatkan subkoleksi pendaftaran untuk setiap program.
+                    
+                    // Untuk senario ini, kita akan buat pengiraan berasaskan data INDUK Peserta
+                    // yang telah kita muatkan sebelumnya. **Ini mungkin memerlukan muatan data yang lebih kompleks
+                    // jika data pendaftaran program (siapa yang daftar di program mana) disimpan
+                    // dalam koleksi yang berasingan dan tidak didenormalize.**
+                    
+                    // Jika setiap dokumen PROGRAM ada senarai IC peserta, anda boleh lakukan:
+                    // if (p.participants_ics && Array.isArray(p.participants_ics)) {
+                    //     p.participants_ics.forEach(ic => {
+                    //         participantCountMap[ic] = (participantCountMap[ic] || 0) + 1;
+                    //     });
+                    // }
+                    
+                    // **********
+                    // Oleh kerana struktur penuh Firebase tidak diberikan, saya akan menggunakan data yang ADA: 
+                    // Kita akan assume setiap peserta induk (allParticipants) mempunyai medan 'program_count' 
+                    // yang perlu dikira secara berasingan. **Untuk menjalankan pengiraan ini, 
+                    // kita akan terpaksa memuatkan semua data Peserta Induk dan mengira semula 
+                    // berdasarkan semua program yang ada.**
+
+                    // MENGIRA KEKERAPAN IC (SANGAT BERGANTUNG PADA BAGAIMANA ANDA SIMPAN DATA PROGRAM)
+                    // Pilihan 1 (Jika pendaftaran didenormalize dan kita ada program IC):
+                    if (p.participants) { // Anggap 'participants' adalah array objek {ic: '123', name: 'ABC'}
+                        p.participants.forEach(participant => {
+                             if (participant.ic) {
+                                participantCountMap[participant.ic] = (participantCountMap[participant.ic] || 0) + 1;
+                             }
+                        });
+                    }
+                    // Pilihan 2 (Jika setiap program mempunyai subkoleksi pendaftaran, ini memerlukan muatan rekursif yang TIDAK EFEKTIF):
+                    // Kami akan teruskan dengan andaian data program mengandungi senarai IC peserta (Pilihan 1).
+                    // **********
+                });
+
+                // Menggunakan data Peserta Induk (allParticipants) yang sedia ada untuk mendapatkan nama
+                const participantNameMap = allParticipants.reduce((acc, p) => {
+                    acc[p.ic] = p.name;
+                    return acc;
+                }, {});
+
+                let activeParticipants = Object.keys(participantCountMap).map(ic => ({
+                    ic: ic,
+                    name: participantNameMap[ic] || 'Peserta Tidak Diketahui',
+                    count: participantCountMap[ic]
+                }));
+                
+                activeParticipants.sort((a, b) => b.count - a.count);
+                
+                // Hadkan kepada 20 teratas
+                const top20 = activeParticipants.slice(0, 20);
+
+                renderActiveParticipantTable(top20);
+
+            }, (error) => {
+                console.error("Ralat memuatkan data peserta aktif:", error);
+                document.getElementById('active-participant-list-body').innerHTML = `<tr><td colspan="4" class="text-center text-red-500 py-4">Ralat: Gagal memuatkan data peserta aktif.</td></tr>`;
+            });
+        }
+
+        function renderActiveParticipantTable(participants) {
+            const listBody = document.getElementById('active-participant-list-body');
+            document.getElementById('active-participant-count').textContent = `Memaparkan: ${participants.length}`;
+
+            if (participants.length === 0) {
+                listBody.innerHTML = `<tr><td colspan="4" class="text-center text-gray-500 py-4">Tiada data peserta aktif ditemui.</td></tr>`;
+            } else {
+                listBody.innerHTML = participants.map((p, index) => `
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-6 py-4 text-sm font-bold text-gray-800">${index + 1}</td>
+                        <td class="px-6 py-4 text-sm font-medium text-gray-900">
+                            <a href="edit.html?ic=${p.ic}" class="text-indigo-600 hover:text-indigo-800 hover:underline">${p.name}</a>
+                        </td>
+                        <td class="px-6 py-4 text-sm text-gray-500">${p.ic}</td>
+                        <td class="px-6 py-4 text-center text-sm font-bold text-green-600">${p.count}</td>
+                    </tr>
+                `).join('');
+            }
+        }
+        // --- TAMAT FUNGSI Peserta Teraktif ---
 
 
         // --- Fungsi Utiliti ---
