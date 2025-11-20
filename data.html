@@ -38,7 +38,11 @@
     </header>
 
     <main class="max-w-screen-xl mx-auto py-6 sm:px-6 lg:px-8 flex-grow w-full">
-        <div>
+        <div id="loading-screen" class="min-h-96 flex items-center justify-center text-lg text-gray-500">
+            Sila tunggu, memuatkan sesi admin...
+        </div>
+        
+        <div id="admin-content" class="hidden">
             <div class="border-b border-gray-200">
                 <nav class="-mb-px flex space-x-8" aria-label="Tabs">
                     <button id="tab-program" onclick="switchTab('program')" class="tab-btn active whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
@@ -66,11 +70,11 @@
                            <div class="bg-blue-100 p-2 rounded-lg"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg></div>
                            <h2 class="text-xl font-bold text-gray-800">Senarai Semua Program</h2>
                        </div>
-                       <div class="flex items-center text-sm font-medium text-gray-600 bg-gray-100 px-3 py-1 rounded-full gap-1">
+                        <div class="flex items-center text-sm font-medium text-gray-600 bg-gray-100 px-3 py-1 rounded-full gap-1">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-indigo-500" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 5a2 2 0 012-2h10a2 2 0 012 2v8a2 2 0 01-2 2h-2.222l1.657 1.657A1 1 0 0113.828 19H6.172a1 1 0 01-.707-1.707L7.222 15H5a2 2 0 01-2-2V5zm12 3a1 1 0 100 2h-3a1 1 0 100 2h3a1 1 0 100 2H8a1 1 0 100 2h7a2 2 0 002-2V8a2 2 0 00-2-2h-2a1 1 0 000 2h2z" clip-rule="evenodd" /></svg>
                             <span class="text-indigo-600 font-bold" id="total-program-count">0</span> Program
                         </div>
-                       </div>
+                   </div>
                    <div class="flex flex-wrap items-center mb-4 gap-4">
                        <div class="relative w-full sm:w-auto flex-grow">
                            <input type="text" id="program-search" placeholder="Cari nama program..." class="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 w-full">
@@ -217,7 +221,9 @@
         const participantsCollectionRef = collection(db, `artifacts/${appId}/public/data/spark_participants`);
         const programsCollectionRef = collection(db, `artifacts/${appId}/public/data/spark_programs`);
 
+        // KEMAS KINI: Kod Belawai dan IC Admin
         const ADMIN_IC = "890522135381";
+        const ADMIN_ACCESS_CODE = "BELAWAI"; // Ganti dengan kod yang anda mahukan
         
         let allParticipants = [];
         let participantCurrentPage = 1;
@@ -227,32 +233,48 @@
         let programCurrentPage = 1;
         const programsPerPage = 15;
 
-        onAuthStateChanged(auth, async (user) => {
-            if (user) {
-                initializeAdminPage();
+        // KEMAS KINI: Fungsi untuk semak Kod Belawai sebelum memanggil onAuthStateChanged
+        function checkAdminCode() {
+            const code = prompt("Sila masukkan Kod Akses Pentadbir (Kod Belawai) untuk meneruskan:", "");
+            if (code && code.toUpperCase() === ADMIN_ACCESS_CODE) {
+                // Sembunyikan loading screen dan paparkan kandungan
+                document.getElementById('loading-screen').classList.add('hidden');
+                document.getElementById('admin-content').classList.remove('hidden');
+                
+                // Meneruskan dengan pengesahan Firebase (anon) dan inisialisasi
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        initializeAdminPage();
+                    } else {
+                        try {
+                            await signInAnonymously(auth);
+                        } catch (error) {
+                            console.error("Gagal daftar masuk tanpa nama:", error);
+                            alert("Tidak dapat menyambung ke pangkalan data. Sila muat semula halaman.");
+                        }
+                    }
+                });
             } else {
-                try {
-                    await signInAnonymously(auth);
-                } catch (error) {
-                    console.error("Gagal daftar masuk tanpa nama:", error);
-                    alert("Tidak dapat menyambung ke pangkalan data. Sila muat semula halaman.");
-                }
+                document.getElementById('loading-screen').innerHTML = '<div class="text-red-600 font-bold">Kod Akses SALAH. Sila muat semula halaman dan cuba lagi.</div>';
             }
-        });
+        }
+        
+        // Panggil semakan kod sebaik sahaja skrip dimuatkan
+        checkAdminCode();
+
 
         function initializeAdminPage() {
             loadAndDisplayPrograms();
             loadAndDisplayParticipants();
             loadAndDisplaySchools();
             loadAndDisplayPositions();
-            loadAndDisplayCoordinators(); // Fungsi baru
+            loadAndDisplayCoordinators(); 
             initSortable();
-            // Event listener untuk carian program
+
             document.getElementById('program-search').addEventListener('input', () => {
                 programCurrentPage = 1;
                 renderProgramTable();
             });
-             // KEMAS KINI: Event listener baru untuk susunan tarikh program
             document.getElementById('program-order-by').addEventListener('change', () => {
                 programCurrentPage = 1;
                 renderProgramTable();
@@ -263,7 +285,6 @@
             });
         }
 
-        // KEMAS KINI: Menambah 'penyelaras' ke senarai tab
         function switchTab(tabName) {
             ['program', 'peserta', 'sekolah', 'jawatan', 'penyelaras'].forEach(name => {
                 const tab = document.getElementById(`tab-${name}`);
@@ -326,11 +347,10 @@
 
         // --- Fungsi Program ---
         function loadAndDisplayPrograms() {
-            // KEMAS KINI: Guna orderBy("startDate", "desc") secara default atau biarkan createdAt, tapi nanti kita guna renderProgramTable() untuk susunan
             const q = query(programsCollectionRef, orderBy("createdAt", "desc")); 
             onSnapshot(q, (snapshot) => {
                 allPrograms = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                document.getElementById('total-program-count').textContent = allPrograms.length; // Paparkan Total Program
+                document.getElementById('total-program-count').textContent = allPrograms.length; 
                 renderProgramTable();
             }, (error) => {
                 console.error("Ralat memuatkan data program:", error);
@@ -341,22 +361,21 @@
         function renderProgramTable() {
             const listBody = document.getElementById('program-list-body');
             const searchInput = document.getElementById('program-search').value.toLowerCase();
-            const orderByValue = document.getElementById('program-order-by').value; // Ambil nilai susunan
+            const orderByValue = document.getElementById('program-order-by').value;
 
             let filteredPrograms = allPrograms.filter(p => 
                 p.name.toLowerCase().includes(searchInput) || 
                 (p.penyelaras_name && p.penyelaras_name.toLowerCase().includes(searchInput))
             );
 
-            // KEMAS KINI: Laksanakan susunan berdasarkan tarikh mula (startDate)
             filteredPrograms.sort((a, b) => {
                 const dateA = a.startDate ? new Date(a.startDate).getTime() : 0;
                 const dateB = b.startDate ? new Date(b.startDate).getTime() : 0;
 
                 if (orderByValue === 'asc') {
-                    return dateA - dateB; // Tarikh Terdahulu
+                    return dateA - dateB;
                 } else {
-                    return dateB - dateA; // Tarikh Terbaru (Default)
+                    return dateB - dateA;
                 }
             });
 
@@ -493,9 +512,8 @@
             }
         }
 
-        // --- Fungsi Penyelaras (Baru) ---
+        // --- Fungsi Penyelaras ---
         function loadAndDisplayCoordinators() {
-            // Kita tunggu data program dimuatkan untuk membuat senarai penyelaras
             const q = query(programsCollectionRef);
             onSnapshot(q, (snapshot) => {
                 const programs = snapshot.docs.map(doc => doc.data());
@@ -517,7 +535,6 @@
 
                 let coordinators = Object.values(coordinatorMap);
                 
-                // Susun mengikut jumlah program (paling banyak di atas)
                 coordinators.sort((a, b) => b.count - a.count);
 
                 renderCoordinatorTable(coordinators);
