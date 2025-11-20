@@ -6,7 +6,6 @@
     <title>SPARK – Pentadbiran Data</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <!-- Library untuk fungsi seret-dan-lepas (drag-and-drop) -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     <style>
         body { font-family: 'Poppins', sans-serif; background-color: #f8f9fa; }
@@ -57,20 +56,25 @@
                 </nav>
             </div>
 
-            <!-- Panel Program -->
             <div id="panel-program" class="mt-6">
                 <div class="card p-6 md:p-8">
                    <div class="flex items-center gap-3 mb-4">
                        <div class="bg-blue-100 p-2 rounded-lg"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg></div>
                        <h2 class="text-xl font-bold text-gray-800">Senarai Semua Program</h2>
                    </div>
-                   <div class="flex justify-between items-center mb-4">
-                       <div class="relative">
-                           <input type="text" id="program-search" placeholder="Cari nama program..." class="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500">
+                   <div class="flex flex-wrap justify-between items-center mb-4 gap-4">
+                       <div class="relative w-full sm:w-auto">
+                           <input type="text" id="program-search" placeholder="Cari nama program..." class="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 w-full">
                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                <svg class="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" /></svg>
                            </div>
                        </div>
+                       
+                       <div class="flex items-center gap-2">
+                           <label for="program-date-filter" class="text-sm font-medium text-gray-600 whitespace-nowrap">Tarikh:</label>
+                           <input type="date" id="program-date-filter" class="py-2 px-3 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm">
+                       </div>
+                       
                        <span id="program-count" class="text-sm font-medium text-gray-600"></span>
                    </div>
                    <div class="overflow-x-auto">
@@ -80,7 +84,6 @@
                </div>
            </div>
 
-            <!-- Panel Peserta -->
             <div id="panel-peserta" class="mt-6 hidden">
                  <div class="card p-6 md:p-8">
                     <div class="flex items-center gap-3 mb-4">
@@ -103,7 +106,6 @@
                 </div>
             </div>
 
-            <!-- Panel Sekolah -->
             <div id="panel-sekolah" class="mt-6 hidden">
                 <div class="card p-6 md:p-8 space-y-6 flex flex-col">
                     <div class="flex items-center gap-3">
@@ -136,8 +138,7 @@
                 </div>
             </div>
 
-             <!-- Panel Jawatan -->
-            <div id="panel-jawatan" class="mt-6 hidden">
+             <div id="panel-jawatan" class="mt-6 hidden">
                 <div class="card p-6 md:p-8 space-y-6 flex flex-col">
                      <div class="flex items-center gap-3">
                         <div class="bg-purple-100 p-2 rounded-lg"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg></div>
@@ -196,6 +197,7 @@
         let allPrograms = [];
         let programCurrentPage = 1;
         const programsPerPage = 15;
+        let programFilterDate = ''; // Pembolehubah baru untuk menyimpan tarikh penapisan
 
         onAuthStateChanged(auth, async (user) => {
             if (user) {
@@ -216,7 +218,14 @@
             loadAndDisplaySchools();
             loadAndDisplayPositions();
             initSortable();
+            // Event listener untuk carian program
             document.getElementById('program-search').addEventListener('input', () => {
+                programCurrentPage = 1;
+                renderProgramTable();
+            });
+            // Event listener baru untuk penapis tarikh program
+            document.getElementById('program-date-filter').addEventListener('change', (e) => {
+                programFilterDate = e.target.value;
                 programCurrentPage = 1;
                 renderProgramTable();
             });
@@ -302,7 +311,18 @@
             const listBody = document.getElementById('program-list-body');
             const searchInput = document.getElementById('program-search').value.toLowerCase();
             
-            const filteredPrograms = allPrograms.filter(p => p.name.toLowerCase().includes(searchInput) || (p.penyelaras_name && p.penyelaras_name.toLowerCase().includes(searchInput)));
+            let filteredPrograms = allPrograms.filter(p => 
+                p.name.toLowerCase().includes(searchInput) || 
+                (p.penyelaras_name && p.penyelaras_name.toLowerCase().includes(searchInput))
+            );
+
+            // Penapisan mengikut tarikh jika 'programFilterDate' ditetapkan
+            if (programFilterDate) {
+                filteredPrograms = filteredPrograms.filter(p => {
+                    // Bandingkan tarikh program (startDate) dengan tarikh yang ditapis
+                    return p.startDate && formatDate(p.startDate, 'YYYY-MM-DD') === programFilterDate;
+                });
+            }
 
             document.getElementById('program-count').textContent = `Jumlah: ${filteredPrograms.length}`;
 
@@ -351,7 +371,14 @@
             `;
         }
         function programPrevPage() { if (programCurrentPage > 1) { programCurrentPage--; renderProgramTable(); } }
-        function programNextPage() { const totalItems = allPrograms.filter(p => p.name.toLowerCase().includes(document.getElementById('program-search').value.toLowerCase())).length; if (programCurrentPage < Math.ceil(totalItems / programsPerPage)) { programCurrentPage++; renderProgramTable(); } }
+        function programNextPage() { 
+            const searchInput = document.getElementById('program-search').value.toLowerCase();
+            const filteredLength = allPrograms.filter(p => 
+                p.name.toLowerCase().includes(searchInput) && 
+                (!programFilterDate || (p.startDate && formatDate(p.startDate, 'YYYY-MM-DD') === programFilterDate))
+            ).length;
+            if (programCurrentPage < Math.ceil(filteredLength / programsPerPage)) { programCurrentPage++; renderProgramTable(); } 
+        }
 
 
         // --- Fungsi Peserta ---
@@ -380,10 +407,13 @@
             if (paginatedItems.length === 0) {
                 listBody.innerHTML = `<tr><td colspan="5" class="text-center text-gray-500 py-4">Tiada peserta ditemui.</td></tr>`;
             } else {
+                // KEMAS KINI: Menambah pautan ke edit.html untuk nama peserta
                 listBody.innerHTML = paginatedItems.map((p, index) => `
                     <tr class="hover:bg-gray-50">
                         <td class="px-6 py-4 text-sm text-gray-500">${startIndex + index + 1}</td>
-                        <td class="px-6 py-4 text-sm font-medium text-gray-900">${p.name}</td>
+                        <td class="px-6 py-4 text-sm font-medium text-gray-900">
+                             <a href="edit.html?ic=${p.ic}" class="text-indigo-600 hover:text-indigo-800 hover:underline">${p.name}</a>
+                        </td>
                         <td class="px-6 py-4 text-sm text-gray-500">${p.ic}</td>
                         <td class="px-6 py-4 text-sm text-gray-500">${p.station || '-'}</td>
                         <td class="px-6 py-4 text-center">
@@ -432,9 +462,13 @@
         }
 
         // --- Fungsi Utiliti ---
-        function formatDate(dateString) {
+        function formatDate(dateString, format = 'DD-MM-YYYY') {
             if (!dateString) return 'N/A';
-            return new Date(dateString).toLocaleDateString('ms-MY', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            const date = new Date(dateString);
+            if (format === 'YYYY-MM-DD') {
+                return date.toISOString().split('T')[0];
+            }
+            return date.toLocaleDateString('ms-MY', { day: '2-digit', month: '2-digit', year: 'numeric' });
         }
 
         async function removeDuplicates(collectionName) {
@@ -506,4 +540,3 @@
     </script>
 </body>
 </html>
-
