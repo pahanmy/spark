@@ -520,7 +520,7 @@
         
         function openAddModal() {
              document.getElementById('add-history-form').reset();
-             // ** KEMASKINI: Set waktu lalai kepada waktu semasa peranti **
+             // ** KEMASKINI: Set waktu lalai kepada waktu semasa peranti dalam format datetime-local **
              const now = new Date();
              const localIsoString = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().slice(0, 16);
              document.getElementById('history-date').value = localIsoString;
@@ -552,9 +552,7 @@
 
         try {
             // ** PEMBETULAN UNTUK MENGATASI ralat "projectId" **
-            // Langkah 1: Buat salinan konfigurasi yang efektif
             const effectiveConfig = { ...firebaseConfig };
-            // Langkah 2: Gunakan appId sebagai fallback jika projectId tiada
             if (!effectiveConfig.projectId && appId !== 'default-app-id') {
                 effectiveConfig.projectId = appId;
             }
@@ -584,7 +582,6 @@
             
         } catch (e) { 
             console.error("Ralat memulakan Firebase:", e);
-            // Menukar mesej ralat agar lebih generik apabila init gagal
             showLoadingError("Ralat inisialisasi sistem. (Sila semak konfigurasi konsol)");
         }
         
@@ -604,7 +601,7 @@
                     if (data.date_timestamp && typeof data.date_timestamp.toMillis === 'function') {
                         timestamp = data.date_timestamp.toMillis();
                     } else if (data.date) {
-                         // Guna new Date() secara langsung pada string datetime-local
+                         // Guna new Date() pada string datetime-local yang disimpan
                          try { timestamp = new Date(data.date).getTime(); } catch(e) {}
                     } else if (data.createdAt && typeof data.createdAt.toDate === 'function') {
                          timestamp = data.createdAt.toDate().getTime();
@@ -639,7 +636,7 @@
         // FUNGSI UNTUK MERENDER GARIS MASA
         function renderTimeline(items) {
             const container = document.getElementById('timeline-container');
-            if (!container) return; // Tambah null check untuk container
+            if (!container) return; 
 
             const isAdminMode = document.body.classList.contains('admin-mode');
 
@@ -654,7 +651,7 @@
             items.forEach(item => {
                 const dateObj = new Date(item.timestamp);
                 
-                if (isNaN(dateObj.getTime())) return; 
+                if (isNaN(dateObj.getTime()) || item.id === undefined || item.id === null) return; 
                 
                 const monthYear = dateObj.toLocaleDateString('ms-MY', { year: 'numeric', month: 'long' });
                 
@@ -669,8 +666,8 @@
                 const layout = item.imageLayout || 'bottom'; // Susun atur Imej
 
                 const itemDate = dateObj.toLocaleDateString('ms-MY', { day: 'numeric', month: 'short' });
-                // ** KEMASKINI: Tambah 'timeZone: 'Asia/Kuala_Lumpur'' atau biarkan ia menggunakan waktu tempatan (yang sedia ada sudah okay jika input adalah datetime-local) **
-                const itemTime = dateObj.toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit', hour12: true }); // Menggunakan 12-jam format lebih biasa di MS
+                // Guna format 12 jam (AM/PM) untuk kebiasaan pengguna
+                const itemTime = dateObj.toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit', hour12: true }); 
                 const itemDayTime = `${itemDate} ${itemTime}`;
                 
                 const contentText = Array.isArray(item.description) 
@@ -686,6 +683,7 @@
                                 ? `<div class="timeline-image-wrapper"><img src="${item.imageUrl}" onerror="this.onerror=null;this.src='https://placehold.co/400x200/E5E7EB/4B5563?text=Tiada+Imej';" alt="${item.title}"></div>`
                                 : '';
                                 
+                // ** LOGIK BUTANG EDIT TELAH DISEMBAK **
                 const editButton = isAdminMode 
                                 ? `<button onclick="openEditModal('${item.id}')" class="text-indigo-600 hover:text-indigo-800 text-xs font-semibold px-2 py-1 rounded-full bg-indigo-100/70 ml-auto transition duration-300">Edit</button>`
                                 : '';
@@ -697,28 +695,16 @@
                 let secondaryContent = '';
                 let contentClass = layout === 'side' && imageHtml ? 'side-layout' : 'bottom-layout';
 
-                if (contentClass === 'side-layout') {
-                    primaryContent = `
-                        <div class="timeline-text-content">
-                            <h4 class="text-base ${typeConfig.titleClass}">${subtitleText}</h4>
-                            <div class="mt-2">
-                                ${item.description && item.description.some(d => d.startsWith('• ')) ? `<ul class="list-none space-y-1">${contentText}</ul>` : contentText}
-                            </div>
-                            <span class="text-timestamp">Direkodkan pada: ${itemDayTime}</span>
-                        </div>`;
-                    secondaryContent = imageHtml;
-                } else {
-                    // Susun atur Bottom
-                    primaryContent = `
-                        <div class="timeline-text-content">
-                            <h4 class="text-base ${typeConfig.titleClass}">${subtitleText}</h4>
-                            <div class="mt-2">
-                                ${item.description && item.description.some(d => d.startsWith('• ')) ? `<ul class="list-none space-y-1">${contentText}</ul>` : contentText}
-                            </div>
-                            <span class="text-timestamp">Direkodkan pada: ${itemDayTime}</span>
-                        </div>`;
-                    secondaryContent = imageHtml; // Imej dipaparkan di bawah teks
-                }
+                // Mengemas kini penjanaan kandungan (sama seperti versi sebelumnya)
+                primaryContent = `
+                    <div class="timeline-text-content">
+                        <h4 class="text-base ${typeConfig.titleClass}">${subtitleText}</h4>
+                        <div class="mt-2">
+                            ${item.description && item.description.some(d => d.startsWith('• ')) ? `<ul class="list-none space-y-1">${contentText}</ul>` : contentText}
+                        </div>
+                        <span class="text-timestamp">Direkodkan pada: ${itemDayTime}</span>
+                    </div>`;
+                secondaryContent = imageHtml;
                 
                 const finalContent = contentClass === 'side-layout' 
                     ? primaryContent + secondaryContent
@@ -745,7 +731,7 @@
             container.innerHTML = html;
         }
 
-        // FUNGSI KHAS: PENGESAHAN ADMIN
+        // FUNGSI PENGESAHAN ADMIN
         window.promptAdminAuth = function(pageId) {
             if (document.body.classList.contains('admin-mode')) {
                 if (confirm('Keluar dari Mod Pentadbir?')) {
@@ -770,7 +756,6 @@
             }
         }
         
-        // FUNGSI BARU: Set Admin Mode
         function setAdminMode(enable) {
              document.body.classList.toggle('admin-mode', enable);
              
@@ -782,13 +767,14 @@
 
              renderTimeline(historyRecords.sort((a, b) => b.timestamp - a.timestamp)); 
         }
+        // END FUNGSI PENGESAHAN ADMIN
 
-        // FUNGSI KHAS: TAMBAH REKOD SEJARAH
+        // FUNGSI TAMBAH REKOD SEJARAH
         window.addHistoryRecord = async function(event) {
             event.preventDefault();
 
             const type = document.getElementById('history-type').value;
-            const dateInput = document.getElementById('history-date').value; // Ini kini datetime-local string (YYYY-MM-DDTHH:MM)
+            const dateInput = document.getElementById('history-date').value; 
             const title = document.getElementById('history-title').value.trim();
             const subtitle = document.getElementById('history-subtitle').value.trim();
             const imageUrl = document.getElementById('history-image-url').value.trim();
@@ -804,15 +790,14 @@
 
             const newRecord = {
                 type: type, 
-                date: dateInput, // Simpan sebagai string datetime-local
+                date: dateInput, 
                 title: title,
                 subtitle: subtitle || null,
                 imageUrl: imageUrl || null,
                 description: descriptionArray,
                 imageLayout: imageLayout, 
                 createdAt: serverTimestamp(),
-                // ** KEMASKINI: Gunakan string datetime-local untuk mencipta cap waktu yang lebih tepat **
-                date_timestamp: new Date(dateInput), 
+                date_timestamp: new Date(dateInput), // Simpan cap waktu yang tepat
             };
 
             const timelineRef = collection(db, `artifacts/${appId}/public/data/spark_history`);
@@ -827,7 +812,7 @@
             }
         }
         
-        // FUNGSI BARU: BUKA MODAL EDIT
+        // FUNGSI BUKA MODAL EDIT
         window.openEditModal = function(id) {
             const record = historyRecords.find(r => r.id === id);
             if (!record) {
@@ -838,11 +823,10 @@
             document.getElementById('edit-record-id').value = record.id;
             document.getElementById('edit-history-type').value = record.type || 'update'; 
             
-            // ** KEMASKINI: Tukar cap waktu (timestamp) kepada format datetime-local (YYYY-MM-DDTHH:MM) **
+            // Tukar timestamp/string tarikh kepada format datetime-local
             let formattedDate = record.date; 
             if (record.timestamp) {
                 const dateObj = new Date(record.timestamp);
-                // Buat string YYYY-MM-DDTHH:MM menggunakan zon waktu tempatan
                 const offset = dateObj.getTimezoneOffset() * 60000;
                 const localISOTime = new Date(dateObj.getTime() - offset).toISOString().slice(0, 16);
                 formattedDate = localISOTime;
@@ -860,13 +844,13 @@
             document.getElementById('edit-history-modal').classList.remove('hidden');
         }
 
-        // FUNGSI BARU: KEMAS KINI REKOD SEJARAH
+        // FUNGSI KEMAS KINI REKOD SEJARAH
         window.updateHistoryRecord = async function(event) {
             event.preventDefault();
             const recordId = document.getElementById('edit-record-id').value;
 
             const type = document.getElementById('edit-history-type').value;
-            const dateInput = document.getElementById('edit-history-date').value; // Ini kini datetime-local string
+            const dateInput = document.getElementById('edit-history-date').value; 
             const title = document.getElementById('edit-history-title').value.trim();
             const subtitle = document.getElementById('edit-history-subtitle').value.trim();
             const imageUrl = document.getElementById('edit-history-image-url').value.trim();
@@ -882,13 +866,12 @@
 
             const updatedData = {
                 type: type, 
-                date: dateInput, // Simpan string datetime-local
+                date: dateInput,
                 title: title,
                 subtitle: subtitle || null,
                 imageUrl: imageUrl || null,
                 description: descriptionArray,
                 imageLayout: imageLayout,
-                // ** KEMASKINI: Gunakan string datetime-local untuk mencipta cap waktu yang lebih tepat **
                 date_timestamp: new Date(dateInput), 
             };
 
@@ -904,12 +887,12 @@
             }
         }
         
-        // FUNGSI BARU: PADAM REKOD SEJARAH
+        // FUNGSI PADAM REKOD SEJARAH (DELETE)
         window.deleteHistoryRecord = async function() {
             const recordId = document.getElementById('edit-record-id').value;
             if (!recordId) return;
 
-            if (!confirm("Anda pasti mahu memadam rekod sejarah ini secara kekal?")) {
+            if (!confirm("Anda pasti mahu memadam rekod sejarah ini secara kekal? Tindakan ini tidak boleh diundur.")) {
                 return;
             }
 
