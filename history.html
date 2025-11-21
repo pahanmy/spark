@@ -43,7 +43,6 @@
             height: 1rem;
             border-radius: 9999px; 
             background-color: white;
-            /* Warna lalai: Indigo */
             border: 3px solid #6366f1; 
             z-index: 10;
         }
@@ -52,6 +51,8 @@
         .marker-feature { border-color: #10b981; } /* emerald-500 */
         .marker-problem { border-color: #ef4444; } /* red-500 */
         .marker-suggestion { border-color: #f59e0b; } /* amber-500 */
+        .marker-pujian { border-color: #facc15; } /* yellow-400 */
+
         
         .timeline-content {
             background-color: white;
@@ -59,29 +60,55 @@
             border-radius: 0.5rem;
             border: 1px solid #e5e7eb;
             box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
-            display: flex; /* Aktifkan flex untuk susunan kandungan */
-            gap: 1.5rem;
+            
+            /* Tetapan Lalai untuk Susun Atur Bawah */
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
         }
+        
+        .timeline-content.side-layout {
+            /* Susun atur untuk Imej di Sisi */
+            display: flex;
+            flex-direction: row;
+        }
+
         .timeline-text-content {
             flex-grow: 1;
         }
-        .timeline-image-content {
+        
+        /* Imej di Sisi */
+        .side-layout .timeline-image-wrapper {
             flex-shrink: 0;
-            width: 120px;
-            height: 120px;
-            overflow: hidden;
-            border-radius: 0.5rem;
-            object-fit: cover;
+            width: 40%;
+            max-width: 180px;
+            height: auto;
         }
+
+        /* Imej di Bawah */
+        .bottom-layout .timeline-image-wrapper {
+            width: 100%;
+            height: auto;
+        }
+        
+        .timeline-image-wrapper img {
+            width: 100%;
+            height: auto;
+            max-height: 200px; 
+            object-fit: cover;
+            border-radius: 0.5rem;
+        }
+
         @media (max-width: 640px) {
-            .timeline-content {
+            .timeline-content.side-layout {
                 flex-direction: column;
             }
-            .timeline-image-content {
+            .timeline-content.side-layout .timeline-image-wrapper {
                 width: 100%;
-                height: 180px;
+                max-width: none;
             }
         }
+        
         .timeline-content h4 {
             font-weight: 600;
             color: #1f2937;
@@ -92,6 +119,7 @@
         .title-feature { color: #10b981; } 
         .title-problem { color: #ef4444; } 
         .title-suggestion { color: #f59e0b; } 
+        .title-pujian { color: #facc15; }
 
         .timeline-content p {
             font-size: 0.875rem; 
@@ -140,6 +168,38 @@
         .icon-feature { color: #10b981; } 
         .icon-problem { color: #ef4444; } 
         .icon-suggestion { color: #f59e0b; } 
+        .icon-pujian { color: #facc15; }
+
+        /* Toast Notification Styles */
+        #toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            pointer-events: none;
+        }
+        .toast {
+            background-color: white;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            opacity: 0;
+            transform: translateX(100%);
+            transition: opacity 0.3s ease-out, transform 0.3s ease-out;
+            pointer-events: auto;
+            border-left: 5px solid;
+            min-width: 250px;
+        }
+        .toast.show {
+            opacity: 1;
+            transform: translateX(0);
+        }
+        .toast-success { border-color: #10b981; } /* emerald-500 */
+        .toast-error { border-color: #ef4444; } /* red-500 */
+        .toast-delete { border-color: #f97316; } /* orange-500 */
 
     </style>
 </head>
@@ -208,6 +268,9 @@
 
     <footer class="text-center py-4 mt-8 border-t border-gray-200"><p class="text-sm text-gray-600">Projek Inovasi oleh <a href="https://pahanmy.github.io/works/" target="_blank" class="font-semibold text-indigo-500 hover:underline">Pahan</a></p><p id="version-info" class="text-xs text-gray-500">Versi 2.1</p></footer>
     
+    <!-- TOAST NOTIFICATION CONTAINER -->
+    <div id="toast-container"></div>
+    
     <!-- MODAL PENGESAHAN ADMIN -->
     <div id="admin-auth-modal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop hidden">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-sm p-6">
@@ -235,6 +298,7 @@
                         <option value="feature">Fungsi Baharu (New Feature)</option>
                         <option value="problem">Isu / Ralat (Problem)</option>
                         <option value="suggestion">Cadangan (Suggestion/Idea)</option>
+                        <option value="pujian">Pujian (Compliment)</option>
                     </select>
                 </div>
                 <div>
@@ -252,6 +316,13 @@
                 <div>
                     <label for="history-image-url" class="block text-sm font-medium text-gray-700">URL Gambar/Imej (Pilihan)</label>
                     <input type="url" id="history-image-url" placeholder="http://atau-https://..." class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
+                </div>
+                <div>
+                    <label for="history-image-layout" class="block text-sm font-medium text-gray-700">Susun Atur Imej</label>
+                    <select id="history-image-layout" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-white">
+                        <option value="bottom">Penuh (Di Bawah Teks)</option>
+                        <option value="side">Sisi (Sebelah Teks)</option>
+                    </select>
                 </div>
                 <div>
                     <label for="history-description" class="block text-sm font-medium text-gray-700 flex justify-between items-center">
@@ -283,6 +354,7 @@
                         <option value="feature">Fungsi Baharu (New Feature)</option>
                         <option value="problem">Isu / Ralat (Problem)</option>
                         <option value="suggestion">Cadangan (Suggestion/Idea)</option>
+                        <option value="pujian">Pujian (Compliment)</option>
                     </select>
                 </div>
                 <div>
@@ -329,8 +401,9 @@
         import { getFirestore, collection, query, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Global variables provided by the environment
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        // Definisikan konfigurasi Firebase secara kukuh (hardcoded) sebagai fallback
+        const ADMIN_IC = '890522135381';
+        
+        // Konfigurasi Firebase Anda (Digunakan sebagai fallback yang kuat)
         const hardcodedFirebaseConfig = {
             apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM",
             authDomain: "myqrhadir.firebaseapp.com",
@@ -339,19 +412,19 @@
             messagingSenderId: "799691133747",
             appId: "1:799691133747:web:835a5e3e9413eace806446"
         };
-
+        
+        // Dapatkan data konfigurasi dan pemboleh ubah persekitaran (tanpa menggunakan const/let di sini)
+        const appId = typeof __app_id !== 'undefined' ? __app_id : hardcodedFirebaseConfig.projectId;
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        
         // Ambil konfigurasi dari environment, jika gagal, gunakan hardcoded config.
         const firebaseConfig = typeof __firebase_config !== 'undefined' 
             ? JSON.parse(__firebase_config) 
             : hardcodedFirebaseConfig;
-        
-        // Dapatkan tokenAuth secara langsung dari global variable
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-        
-        // No. IC Pentadbir Ditetapkan
-        const ADMIN_IC = '890522135381';
 
-        let db, auth, userId;
+        let db = null;
+        let auth = null;
+        let userId;
         let historyRecords = []; // Simpan semua rekod untuk edit
         
         // Peta jenis rekod kepada ikon SVG dan warna CSS
@@ -360,27 +433,76 @@
                 icon: `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>`,
                 markerClass: 'marker-update',
                 titleClass: 'title-update',
-                iconClass: 'icon-update'
+                iconClass: 'icon-update',
+                successMsg: 'Rekod Kemaskini berjaya ditambah/disimpan.'
             },
             'feature': {
                 icon: `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M19 12h1M18.364 18.364l-.707-.707M12 21v-1M5.636 18.364l.707-.707M4 12H3m1.636-6.364l.707-.707M6 10v4a2 2 0 002 2h6a2 2 0 002-2v-4"/></svg>`,
                 markerClass: 'marker-feature',
                 titleClass: 'title-feature',
-                iconClass: 'icon-feature'
+                iconClass: 'icon-feature',
+                successMsg: 'Rekod Fungsi Baharu berjaya ditambah/disimpan.'
             },
             'problem': {
                 icon: `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>`,
                 markerClass: 'marker-problem',
                 titleClass: 'title-problem',
-                iconClass: 'icon-problem'
+                iconClass: 'icon-problem',
+                successMsg: 'Rekod Isu/Ralat berjaya ditambah/disimpan.'
             },
             'suggestion': {
                 icon: `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M19 12h1M18.364 18.364l-.707-.707M12 21v-1M5.636 18.364l.707-.707M4 12H3m1.636-6.364l.707-.707M6 10v4a2 2 0 002 2h6a2 2 0 002-2v-4"/></svg>`,
                 markerClass: 'marker-suggestion',
                 titleClass: 'title-suggestion',
-                iconClass: 'icon-suggestion'
+                iconClass: 'icon-suggestion',
+                successMsg: 'Rekod Cadangan berjaya ditambah/disimpan.'
+            },
+            'pujian': {
+                icon: `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M10.788 3.212a.75.75 0 010 1.06L7.272 8.788l1.442 1.442a.75.75 0 01-1.06 1.06L6.212 9.848 4.77 11.29a.75.75 0 01-1.06-1.06l1.442-1.442L2.652 4.272a.75.75 0 011.06-1.06l1.442 1.442 1.442-1.442a.75.75 0 011.06 0zM12 21a9 9 0 100-18 9 9 0 000 18z"/></svg>`,
+                markerClass: 'marker-pujian',
+                titleClass: 'title-pujian',
+                iconClass: 'icon-pujian',
+                successMsg: 'Rekod Pujian berjaya ditambah/disimpan.'
             }
         };
+
+        // --- TOAST NOTIFICATION FUNCTION ---
+        function showToast(message, type = 'success', duration = 3000) {
+            const container = document.getElementById('toast-container');
+            if (!container) return;
+
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            
+            let iconHtml = '';
+            if (type === 'success') {
+                iconHtml = `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-emerald-500 mr-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" /></svg>`;
+            } else if (type === 'error') {
+                 iconHtml = `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-red-500 mr-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>`;
+            } else if (type === 'delete') {
+                 iconHtml = `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-orange-500 mr-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd" /></svg>`;
+            }
+
+
+            toast.innerHTML = `${iconHtml}<span class="text-gray-700 text-sm font-medium">${message}</span>`;
+            
+            container.appendChild(toast);
+            
+            // Tunjukkan toast
+            setTimeout(() => {
+                toast.classList.add('show');
+            }, 10);
+
+            // Sembunyikan dan padam toast selepas tempoh masa
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => {
+                    container.removeChild(toast);
+                }, 300); // Masa untuk transisi fade-out
+            }, duration);
+        }
+        // --- END TOAST NOTIFICATION FUNCTION ---
+
 
         // Fungsi untuk menguruskan paparan ralat UI
         function showLoadingError(message = "Ralat Memuatkan Data") {
@@ -496,6 +618,7 @@
                         id: doc.id, 
                         ...data,
                         timestamp: timestamp, 
+                        imageLayout: data.imageLayout || 'bottom' // Default ke bottom
                     });
                 });
                 
@@ -539,7 +662,6 @@
                 
                 const monthYear = dateObj.toLocaleDateString('ms-MY', { year: 'numeric', month: 'long' });
                 
-                // Semak untuk header bulan/tahun baru
                 if (monthYear !== currentMonthYear) {
                     html += `<h3 class="text-2xl font-bold text-gray-800 mt-8 mb-4">${monthYear}</h3>`;
                     currentMonthYear = monthYear;
@@ -548,13 +670,12 @@
                 // Tetapkan jenis dan ambil konfigurasi
                 const type = item.type || 'update';
                 const typeConfig = recordTypes[type] || recordTypes['update'];
+                const layout = item.imageLayout || 'bottom'; // Susun atur Imej
 
-                // Format masa
                 const itemDate = dateObj.toLocaleDateString('ms-MY', { day: 'numeric', month: 'short' });
                 const itemTime = dateObj.toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit', hour12: false });
                 const itemDayTime = `${itemDate} ${itemTime}`;
                 
-                // Mengendalikan deskripsi (termasuk list item)
                 const contentText = Array.isArray(item.description) 
                                 ? item.description.map(desc => {
                                     const processedDesc = desc.startsWith('• ') 
@@ -564,8 +685,8 @@
                                 }).join('') 
                                 : `<p class="mt-2 text-sm">${item.description || ''}</p>`;
                                 
-                const imageContent = item.imageUrl 
-                                ? `<img src="${item.imageUrl}" onerror="this.onerror=null;this.src='https://placehold.co/120x120/E5E7EB/4B5563?text=Tiada+Imej';" alt="${item.title}" class="timeline-image-content">`
+                const imageHtml = item.imageUrl 
+                                ? `<div class="timeline-image-wrapper"><img src="${item.imageUrl}" onerror="this.onerror=null;this.src='https://placehold.co/400x200/E5E7EB/4B5563?text=Tiada+Imej';" alt="${item.title}"></div>`
                                 : '';
                                 
                 const editButton = isAdminMode 
@@ -575,6 +696,33 @@
                 const titleText = item.title || 'Kemaskini';
                 const subtitleText = item.subtitle || titleText || 'Perkembangan SPARK';
 
+                let primaryContent = '';
+                let secondaryContent = '';
+                let contentClass = layout === 'side' && imageHtml ? 'side-layout' : 'bottom-layout';
+
+                if (contentClass === 'side-layout') {
+                    primaryContent = `
+                        <div class="timeline-text-content">
+                            <h4 class="text-base ${typeConfig.titleClass}">${subtitleText}</h4>
+                            <div class="mt-2">
+                                ${item.description && item.description.some(d => d.startsWith('• ')) ? `<ul class="list-none space-y-1">${contentText}</ul>` : contentText}
+                            </div>
+                            <span class="text-timestamp">Direkodkan pada: ${itemDayTime}</span>
+                        </div>`;
+                    secondaryContent = imageHtml;
+                } else {
+                    // Susun atur Bottom
+                    primaryContent = `
+                        <div class="timeline-text-content">
+                            <h4 class="text-base ${typeConfig.titleClass}">${subtitleText}</h4>
+                            <div class="mt-2">
+                                ${item.description && item.description.some(d => d.startsWith('• ')) ? `<ul class="list-none space-y-1">${contentText}</ul>` : contentText}
+                            </div>
+                            <span class="text-timestamp">Direkodkan pada: ${itemDayTime}</span>
+                        </div>`;
+                    secondaryContent = imageHtml; // Imej dipaparkan di bawah teks
+                }
+
                 html += `
                     <div class="timeline-item">
                         <div class="timeline-marker ${typeConfig.markerClass}"></div>
@@ -583,15 +731,8 @@
                             <span class="font-semibold text-gray-800">${titleText}</span>
                             ${editButton}
                         </div>
-                        <div class="timeline-content">
-                            <div class="timeline-text-content">
-                                <h4 class="text-base ${typeConfig.titleClass}">${subtitleText}</h4>
-                                <div class="mt-2">
-                                    ${item.description && item.description.length > 0 && item.description.some(d => d.startsWith('• ')) ? `<ul class="list-none space-y-1">${contentText}</ul>` : contentText}
-                                </div>
-                                <span class="text-timestamp">Direkodkan pada: ${itemDayTime}</span>
-                            </div>
-                            ${imageContent}
+                        <div class="timeline-content ${contentClass}">
+                            ${contentClass === 'side-layout' ? primaryContent + secondaryContent : primaryContent + secondaryContent}
                         </div>
                     </div>
                 `;
@@ -603,14 +744,12 @@
         // FUNGSI KHAS: PENGESAHAN ADMIN
         window.promptAdminAuth = function(pageId) {
             if (document.body.classList.contains('admin-mode')) {
-                // *** LOGIK UNTUK LOCK ***
                 if (confirm('Keluar dari Mod Pentadbir?')) {
                     setAdminMode(false);
                 }
                 return;
             }
             
-            // Masuk ke mod admin (tunjukkan modal pengesahan)
             document.getElementById('admin-auth-ic-input').value = '';
             document.getElementById('admin-auth-error').classList.add('hidden');
             document.getElementById('admin-auth-modal').classList.remove('hidden');
@@ -621,7 +760,7 @@
 
             if (enteredIc === correctIc) {
                 closeModal('admin-auth-modal');
-                setAdminMode(true); // Aktifkan mod admin
+                setAdminMode(true); 
             } else {
                 document.getElementById('admin-auth-error').classList.remove('hidden');
             }
@@ -631,14 +770,12 @@
         function setAdminMode(enable) {
              document.body.classList.toggle('admin-mode', enable);
              
-             // Pastikan ikon dikemas kini
              const lockIcon = document.getElementById('lock-icon');
              const unlockIcon = document.getElementById('unlock-icon');
              
              if(lockIcon) lockIcon.classList.toggle('hidden', enable);
              if(unlockIcon) unlockIcon.classList.toggle('hidden', !enable);
 
-             // Render semula timeline untuk memaparkan/menyembunyikan butang edit
              renderTimeline(historyRecords.sort((a, b) => b.timestamp - a.timestamp)); 
         }
 
@@ -652,24 +789,24 @@
             const subtitle = document.getElementById('history-subtitle').value.trim();
             const imageUrl = document.getElementById('history-image-url').value.trim();
             const descriptionText = document.getElementById('history-description').value.trim();
+            const imageLayout = document.getElementById('history-image-layout').value;
             
-            // Pecahkan deskripsi berdasarkan baris baru untuk menjadikannya array
             const descriptionArray = descriptionText.split('\n').filter(p => p.trim() !== '');
 
             if (!dateInput || !title || descriptionArray.length === 0) {
-                alert("Sila lengkapkan semua medan mandatori.");
+                showToast("Sila lengkapkan semua medan mandatori.", 'error');
                 return;
             }
 
             const newRecord = {
-                type: type, // Simpan jenis rekod
+                type: type, 
                 date: dateInput,
                 title: title,
                 subtitle: subtitle || null,
                 imageUrl: imageUrl || null,
                 description: descriptionArray,
+                imageLayout: imageLayout, 
                 createdAt: serverTimestamp(),
-                // Firestore akan memerlukan objek Date untuk mencipta Timestamp
                 date_timestamp: new Date(dateInput), 
             };
 
@@ -677,11 +814,11 @@
 
             try {
                 await addDoc(timelineRef, newRecord);
-                alert("Rekod sejarah baru berjaya ditambah!");
+                showToast(recordTypes[type].successMsg, 'success');
                 closeModal('add-history-modal');
             } catch (error) {
                 console.error("Error adding history record: ", error);
-                alert("Gagal menambah rekod sejarah. Sila semak konsol.");
+                showToast("Gagal menambah rekod. Sila semak konsol.", 'error');
             }
         }
         
@@ -689,19 +826,18 @@
         window.openEditModal = function(id) {
             const record = historyRecords.find(r => r.id === id);
             if (!record) {
-                alert("Rekod tidak ditemui.");
+                showToast("Rekod tidak ditemui.", 'error');
                 return;
             }
             
-            // Isi borang edit
             document.getElementById('edit-record-id').value = record.id;
-            document.getElementById('edit-history-type').value = record.type || 'update'; // Muatkan jenis
+            document.getElementById('edit-history-type').value = record.type || 'update'; 
             document.getElementById('edit-history-date').value = record.date;
             document.getElementById('edit-history-title').value = record.title || '';
             document.getElementById('edit-history-subtitle').value = record.subtitle || '';
             document.getElementById('edit-history-image-url').value = record.imageUrl || '';
+            document.getElementById('edit-history-image-layout').value = record.imageLayout || 'bottom'; 
             
-            // Gabungkan array deskripsi kembali menjadi string dengan baris baru
             const descriptionString = Array.isArray(record.description) ? record.description.join('\n') : (record.description || '');
             document.getElementById('edit-history-description').value = descriptionString;
             
@@ -719,22 +855,23 @@
             const subtitle = document.getElementById('edit-history-subtitle').value.trim();
             const imageUrl = document.getElementById('edit-history-image-url').value.trim();
             const descriptionText = document.getElementById('edit-history-description').value.trim();
-            
+            const imageLayout = document.getElementById('edit-history-image-layout').value;
+
             const descriptionArray = descriptionText.split('\n').filter(p => p.trim() !== '');
 
             if (!recordId || !dateInput || !title || descriptionArray.length === 0) {
-                alert("Sila lengkapkan semua medan mandatori.");
+                showToast("Sila lengkapkan semua medan mandatori.", 'error');
                 return;
             }
 
             const updatedData = {
-                type: type, // Kemas kini jenis rekod
+                type: type, 
                 date: dateInput,
                 title: title,
                 subtitle: subtitle || null,
                 imageUrl: imageUrl || null,
                 description: descriptionArray,
-                // Kemas kini timestamp agar urutan garis masa dikemas kini
+                imageLayout: imageLayout,
                 date_timestamp: new Date(dateInput), 
             };
 
@@ -742,11 +879,11 @@
 
             try {
                 await updateDoc(recordRef, updatedData);
-                alert("Rekod sejarah berjaya dikemaskini!");
+                showToast(recordTypes[type].successMsg + " (Kemas Kini)", 'success'); 
                 closeModal('edit-history-modal');
             } catch (error) {
                 console.error("Error updating history record: ", error);
-                alert("Gagal mengemas kini rekod sejarah. Sila semak konsol.");
+                showToast("Gagal mengemas kini rekod. Sila semak konsol.", 'error');
             }
         }
         
@@ -762,11 +899,11 @@
             const recordRef = doc(db, `artifacts/${appId}/public/data/spark_history`, recordId);
             try {
                 await deleteDoc(recordRef);
-                alert("Rekod sejarah berjaya dipadam!");
+                showToast("Rekod sejarah berjaya dipadam.", 'delete');
                 closeModal('edit-history-modal');
             } catch (error) {
                 console.error("Error deleting history record: ", error);
-                alert("Gagal memadam rekod sejarah. Sila semak konsol.");
+                showToast("Gagal memadam rekod. Sila semak konsol.", 'error');
             }
         }
 
