@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Muka Depan Rasmi Program</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Muat turun pustaka html2canvas untuk fungsi eksport PNG -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Poppins', sans-serif; background-color: #f8f9fa; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+        
+        /* Kontena Utama 16:9 */
+        .cover-container {
+            width: 100vw;
+            height: 56.25vw; /* 9 / 16 = 0.5625 */
+            max-height: 100vh;
+            max-width: 177.77vh; /* 16 / 9 = 1.7777 */
+            
+            /* Pastikan ia sentiasa 16:9 dan ditengah */
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            
+            /* Gaya Formal */
+            background: linear-gradient(135deg, #ffffff 0%, #f0f4f8 100%);
+            border: 20px solid #1e3a8a; /* Border biru tua/indigo */
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            /* Tambah grid untuk layout 2-kolom */
+            display: grid;
+            grid-template-columns: 3fr 2fr; /* Program Info (Kiri) 3/5, QR (Kanan) 2/5 */
+            grid-template-rows: auto 1fr auto;
+            gap: 20px;
+            padding: 2.5vw; /* Padding responsif */
+        }
+
+        /* Responsive QR Size and Positioning */
+        #qr-code-image {
+            width: 90%; /* QR akan memenuhi hampir keseluruhan ruang kanannya */
+            height: auto;
+            aspect-ratio: 1 / 1;
+            object-fit: contain;
+            border: 8px solid #fff;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
+            border-radius: 0.5rem;
+        }
+        
+        /* Saiz font yang lebih besar untuk paparan mesyuarat (dilaraskan untuk skema kiri-kanan) */
+        .text-super-huge { font-size: 3vw; line-height: 1.1; font-weight: 800; } /* Untuk Nama Program */
+        .text-huge { font-size: 1.8vw; line-height: 1.2; font-weight: 700; } /* Untuk Lokasi/Tarikh/Masa */
+        .text-xlarge { font-size: 1.2vw; line-height: 1.2; font-weight: 600; } /* Untuk Tajuk Kecil */
+        .text-medium { font-size: 1vw; line-height: 1.4; }
+        
+        /* Gaya untuk card maklumat */
+        .info-card {
+            display: flex;
+            align-items: center;
+            background-color: #ffffff; /* Putih */
+            padding: 1vw; /* Padding responsif */
+            border-radius: 0.5rem;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            border-left: 0.4vw solid; /* Border kiri berwarna */
+        }
+
+        /* Gaya untuk ikon dalam card */
+        .info-card-icon {
+            width: 2.5vw; 
+            height: 2.5vw;
+            min-width: 30px;
+            min-height: 30px;
+            margin-right: 1.5vw;
+        }
+
+        /* Media Query untuk Mobile/Potrait (kembali kepada susunan bertindan) */
+        @media (max-aspect-ratio: 1/1) { /* Skrin petak atau portrait */
+            .cover-container {
+                grid-template-columns: 1fr;
+                grid-template-rows: auto auto 1fr auto; /* Header, QR, Info Utama, Footer */
+                width: 95vw;
+                height: auto;
+                max-width: none;
+                position: static;
+                transform: none;
+                margin: 2.5vw auto;
+                padding: 5vw;
+            }
+            #qr-section {
+                order: 2; /* Pindah QR ke bawah Header, atas info utama */
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                padding: 5vw 0;
+            }
+            #qr-code-image {
+                width: 50vw;
+                height: 50vw;
+                max-width: 300px;
+                max-height: 300px;
+            }
+            #program-info {
+                order: 3;
+            }
+            .text-super-huge { font-size: 7vw; }
+            .text-huge { font-size: 4.5vw; }
+            .text-xlarge { font-size: 3vw; }
+            .text-medium { font-size: 2.5vw; }
+            .info-card { padding: 3vw; }
+            .info-card-icon { width: 5vw; height: 5vw; min-width: 40px; min-height: 40px; margin-right: 4vw;}
+        }
+
+        /* Grid Area Definitions */
+        #header-area { grid-column: 1 / -1; grid-row: 1; }
+        #qr-section { grid-column: 2; grid-row: 2; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;}
+        #program-info { grid-column: 1; grid-row: 2; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; }
+        #footer-area { grid-column: 1 / -1; grid-row: 3; }
+
+    </style>
+</head>
+<body class="bg-gray-100">
+
+    <div id="cover-display" class="cover-container text-gray-800">
+
+        <!-- HEADER AREA (Merentasi 2 Kolom) - Menggunakan justify-between dengan elemen kosong di kiri -->
+        <div id="header-area" class="flex justify-between items-start">
+            <!-- Elemen kosong untuk menolak butang ke kanan sepenuhnya dan mengisi ruang kiri -->
+            <div class="h-5"></div>
+             <!-- Butang Export as PNG (Top Right) -->
+            <button id="export-png-btn" onclick="exportAsPng(this)" 
+                    class="bg-pink-100 text-pink-800 font-semibold py-1.5 px-4 rounded-lg shadow-md hover:bg-pink-200 flex items-center gap-2 text-sm transition duration-150 ease-in-out">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" />
+                </svg>
+                <span id="export-button-text">Eksport PNG</span>
+            </button>
+        </div>
+
+        <!-- PROGRAM INFO (Kiri) -->
+        <div id="program-info" class="pr-8">
+            <p class="text-xlarge text-indigo-600 mb-2 tracking-widest uppercase">MAKLUMAT PROGRAM</p>
+            <h2 id="program-name" class="text-super-huge text-gray-900 mb-8 uppercase text-shadow-lg text-left">... Memuatkan Nama Program ...</h2>
+            
+            <div class="space-y-4 w-full">
+                
+                <!-- Nama Penyelaras (Card Style) -->
+                <div class="info-card" style="border-left-color: #ef4444;">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="info-card-icon text-red-500 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd" /></svg>
+                    <div class="text-left">
+                        <p class="text-medium text-gray-500 uppercase">PENYELARAS</p>
+                        <p id="program-penyelaras" class="text-huge text-gray-800 uppercase">...</p>
+                    </div>
+                </div>
+
+                <!-- Location (Card Style) -->
+                <div class="info-card" style="border-left-color: #3b82f6;">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="info-card-icon text-blue-500 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd" /></svg>
+                    <div class="text-left">
+                        <p class="text-medium text-gray-500 uppercase">LOKASI</p>
+                        <p id="program-location" class="text-huge text-gray-800 uppercase">...</p>
+                    </div>
+                </div>
+                
+                <!-- Date (Card Style) -->
+                <div class="info-card" style="border-left-color: #10b981;">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="info-card-icon text-emerald-500 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd" /></svg>
+                    <div class="text-left">
+                        <p class="text-medium text-gray-500 uppercase">TARIKH</p>
+                        <p id="program-date" class="text-huge text-gray-800 uppercase">...</p>
+                    </div>
+                </div>
+                
+                <!-- Time (Card Style) -->
+                <div class="info-card" style="border-left-color: #8b5cf6;">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="info-card-icon text-violet-500 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd" /></svg>
+                    <div class="text-left">
+                        <p class="text-medium text-gray-500 uppercase">MASA</p>
+                        <p id="program-time" class="text-huge text-gray-800 uppercase">...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- QR CODE (Kanan) -->
+        <div id="qr-section" class="flex flex-col justify-center items-center">
+            <p class="text-xlarge text-gray-700 mb-4 tracking-wider uppercase">IMBAS KOD QR UNTUK KEHADIRAN</p>
+            <div class="bg-white p-2 rounded-lg border border-gray-300">
+                <img id="qr-code-image" src="https://placehold.co/400x400/4f46e5/ffffff?text=Loading+QR" alt="QR Code Kehadiran">
+            </div>
+        </div>
+
+        <!-- FOOTER AREA (Merentasi 2 Kolom) - Kini memegang Logo & Kredit -->
+        <div id="footer-area" class="flex justify-between items-end text-gray-500 text-medium pt-4 border-t border-gray-200">
+            <!-- Logo & Subjudul -->
+            <div class="flex items-center gap-4">
+                <div class="bg-indigo-700 p-1.5 rounded-md shadow-lg">
+                    <svg width="1.5vw" height="1.5vw" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="text-white min-w-4 min-h-4">
+                        <path d="M4 4H8V8H4V4Z" fill="currentColor"></path><path d="M4 16H8V20H4V16Z" fill="currentColor"></path><path d="M16 4H20V8H16V4Z" fill="currentColor"></path><path d="M10 4H14V6H10V4Z" fill="currentColor"></path><path d="M10 8H12V10H10V8Z" fill="currentColor"></path><path d="M12 12H14V14H12V12Z" fill="currentColor"></path><path d="M10 16H12V18H10V16Z" fill="currentColor"></path><path d="M14 16H16V18H14V16Z" fill="currentColor"></path><path d="M16 12H18V14H16V12Z" fill="currentColor"></path><path d="M16 8H20V10H16V8Z" fill="currentColor"></path><path d="M12 18H14V20H12V18Z" fill="currentColor"></path><path d="M4 10H6V14H4V10Z" fill="currentColor"></path>
+                    </svg>
+                </div>
+                <div>
+                    <p class="text-medium font-bold text-indigo-700">SPARK</p>
+                    <p class="text-xs text-gray-500">Percikan Inovasi Kehadiran Digital</p>
+                </div>
+            </div>
+            
+            <div class="flex flex-col items-end">
+                <p>Projek Inovasi oleh <span class="font-semibold text-indigo-500">Pahan</span></p>
+                <p class="text-right">Versi 2.1 (2025)</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal untuk paparan error / loading -->
+    <div id="loading-overlay" class="fixed inset-0 bg-white bg-opacity-90 flex items-center justify-center z-50">
+        <div class="text-center p-8 rounded-lg shadow-xl bg-white border border-indigo-200">
+            <svg class="animate-spin h-8 w-8 text-indigo-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+            <p class="mt-4 text-lg text-gray-700">Memuatkan maklumat program...</p>
+        </div>
+    </div>
+
+    <script type="module">
+        // Import Firebase modules yang diperlukan
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Konfigurasi Firebase (disalin dari program.html yang dimuat naik)
+        const firebaseConfig = {
+            apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM",
+            authDomain: "myqrhadir.firebaseapp.com",
+            projectId: "myqrhadir",
+            storageBucket: "myqrhadir.appspot.com",
+            messagingSenderId: "799691133747",
+            appId: "1:799691133747:web:835a5e3e9413eace806446"
+        };
+        
+        let db, auth;
+        const appId = firebaseConfig.projectId;
+        let currentLoadedProgram = null;
+
+        try {
+            const app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+        } catch (e) {
+             console.error("Ralat memulakan Firebase:", e); 
+             showError('Ralat memulakan Firebase. Sila semak konsol.');
+        }
+
+        // FUNGSI: Eksport halaman sebagai PNG
+        function exportAsPng(buttonElement) {
+            const container = document.querySelector('.cover-container'); // Elemen 16:9 yang ingin ditangkap
+            const originalText = buttonElement.querySelector('span').textContent;
+            buttonElement.disabled = true;
+            buttonElement.querySelector('span').textContent = 'Memproses...';
+
+            html2canvas(container, {
+                scale: 2, 
+                ignoreElements: (element) => element.id === 'export-png-btn'
+            }).then(canvas => {
+                const imgData = canvas.toDataURL('image/png');
+                const a = document.createElement('a');
+                a.href = imgData;
+                
+                const programName = currentLoadedProgram ? currentLoadedProgram.name.replace(/[^a-z0-9]/gi, '_').toLowerCase() : 'cover_program';
+                a.download = `${programName}_cover.png`;
+                
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+
+                // Kembalikan status butang
+                buttonElement.querySelector('span').textContent = 'Berjaya!';
+                setTimeout(() => {
+                    buttonElement.querySelector('span').textContent = originalText;
+                    buttonElement.disabled = false;
+                }, 2000);
+            }).catch(error => {
+                console.error("Ralat eksport PNG:", error);
+                console.error("Gagal mengeksport sebagai PNG.", error); 
+                
+                // Kembalikan status butang
+                buttonElement.querySelector('span').textContent = 'Ralat!';
+                setTimeout(() => {
+                    buttonElement.querySelector('span').textContent = originalText;
+                    buttonElement.disabled = false;
+                }, 3000);
+            });
+        }
+        
+        // 1. Fungsi Format yang disalin dari program.html
+        function formatDate(date) { 
+            if (!date) return 'T/A'; 
+            const d = typeof date === 'string' ? new Date(date.split('T')[0] + 'T00:00:00') : (date.toDate ? date.toDate() : date); 
+            return d.toLocaleDateString('ms-MY', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kuala_Lumpur' }); 
+        }
+        function formatDateRange(start, end) { 
+            return start === end ? formatDate(start) : `${formatDate(start)} - ${formatDate(end)}`; 
+        }
+        function formatTimeMalay(timeString) { 
+            if (!timeString) return 'T/A'; 
+            const [hourStr, minuteStr] = timeString.split(':'); 
+            let hour = parseInt(hourStr, 10); 
+            let period; 
+            if (hour === 0) { period = 'TGH MALAM'; hour = 12; } 
+            else if (hour < 12) { period = 'PG'; } 
+            else if (hour === 12) { period = 'TGH HARI'; } 
+            else { period = 'PTG'; hour -= 12; } 
+            return `${hour}:${minuteStr} ${period}`; 
+        }
+        function formatTimeRange(start, end) { 
+            return `${formatTimeMalay(start)} - ${formatTimeMalay(end)}`; 
+        }
+        // ---------------------------------------------------
+
+        function showError(message) {
+            const overlay = document.getElementById('loading-overlay');
+            overlay.innerHTML = `<div class="text-center p-8 rounded-lg shadow-xl bg-white border border-red-200"><p class="text-xl font-bold text-red-600">Ralat!</p><p class="mt-2 text-lg text-gray-700">${message}</p><p class="mt-4 text-sm text-gray-500">Sila semak semula kunci program (kod) pada URL.</p></div>`;
+            overlay.classList.remove('hidden');
+        }
+
+        function renderCoverPage() {
+            if (!currentLoadedProgram) {
+                showError('Maklumat program tidak dimuatkan.');
+                return;
+            }
+
+            // Kemas kini maklumat pada halaman
+            document.getElementById('program-name').textContent = currentLoadedProgram.name.toUpperCase();
+            
+            // Mengambil maklumat penyelaras
+            const penyelarasName = currentLoadedProgram.penyelaras_name ? currentLoadedProgram.penyelaras_name.toUpperCase() : 'TIDAK DITETAPKAN';
+            document.getElementById('program-penyelaras').textContent = penyelarasName;
+
+            document.getElementById('program-location').textContent = currentLoadedProgram.location.toUpperCase();
+            document.getElementById('program-date').textContent = formatDateRange(currentLoadedProgram.startDate, currentLoadedProgram.endDate).toUpperCase();
+            document.getElementById('program-time').textContent = formatTimeRange(currentLoadedProgram.startTime, currentLoadedProgram.endTime).toUpperCase();
+            
+            // Jana dan paparkan QR Code
+            const urlParams = new URLSearchParams(window.location.search);
+            const programKey = urlParams.get('kod');
+            const finalProgramKey = programKey || 'PZT-28721'; 
+            
+            if (finalProgramKey) {
+                const baseUrl = window.location.origin + window.location.pathname.replace('cover.html', '');
+                const checkinUrl = `${baseUrl}participant.html?kod=${finalProgramKey}`;
+                const qrImg = document.getElementById('qr-code-image');
+                qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(checkinUrl)}`;
+            }
+            
+            document.getElementById('loading-overlay').classList.add('hidden');
+        }
+
+        function initializeProgramListener(programKey) {
+            const programRef = doc(db, `artifacts/${appId}/public/data/spark_programs`, programKey);
+            
+            onSnapshot(programRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    currentLoadedProgram = { id: docSnap.id, ...docSnap.data() };
+                    renderCoverPage();
+                } else {
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const queryKey = urlParams.get('kod');
+                    if(queryKey || programKey === 'PZT-28721') {
+                        showError(`Program dengan kunci "${programKey}" tidak ditemui.`);
+                    }
+                    currentLoadedProgram = null;
+                }
+            }, (error) => {
+                console.error("Ralat mendengar perubahan program:", error);
+                showError(`Gagal memuatkan program. Sila semak konsol.`);
+            });
+        }
+        
+        function main() {
+            const urlParams = new URLSearchParams(window.location.search);
+            let programKey = urlParams.get('kod');
+
+            if (!programKey) {
+                programKey = 'PZT-28721';
+            }
+
+            if (programKey) {
+                 onAuthStateChanged(auth, (user) => {
+                    if (user) { 
+                        initializeProgramListener(programKey);
+                    } else { 
+                        signInAnonymously(auth).catch((error) => { 
+                            console.error("Ralat log masuk anonim:", error); 
+                            showError("Gagal log masuk ke sistem.");
+                        }); 
+                    }
+                });
+            } else {
+                showError('Tiada kunci program (kod) ditemui dalam URL.');
+            }
+        }
+        
+        // Daftarkan fungsi ke window scope
+        Object.assign(window, { exportAsPng });
+
+        // Mulakan aplikasi apabila skrip dimuatkan
+        main();
+
+    </script>
+</body>
+</html>
