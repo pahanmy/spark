@@ -113,33 +113,29 @@
 
         /* --- GAYA POP-UP SKRIN PENUH BARU --- */
 
-        /* Latar belakang legap separa skrin penuh untuk menarik perhatian */
         #popup-live-checkin-overlay {
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background-color: rgba(0, 0, 0, 0.4); /* Latar belakang separa legap hitam */
+            background-color: rgba(0, 0, 0, 0.4); 
             display: flex;
             justify-content: center;
             align-items: center;
-            z-index: 100; /* Pastikan ia berada di atas semua elemen */
+            z-index: 100; 
             transition: opacity 0.3s ease;
         }
 
-        /* Kotak pop-up sebenar */
         #live-checkin-popup-box {
-            background-color: var(--color-primary); /* Ungu Utama */
+            background-color: var(--color-primary); 
             color: white;
             padding: 3vw 5vw;
             border-radius: 1rem;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
             text-align: center;
-            /* Kedudukan permulaan untuk kesan pop-in */
             transform: scale(0.8) translateY(20px); 
             opacity: 0;
-            /* Transisi untuk kesan pop-up */
             transition: opacity 0.5s ease-out, transform 0.5s ease-out;
         }
 
@@ -311,7 +307,7 @@
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Konfigurasi Firebase Anda (Guna yang asal)
+        // Konfigurasi Firebase Anda
         const firebaseConfig = {
             apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM",
             authDomain: "myqrhadir.firebaseapp.com",
@@ -346,7 +342,7 @@
             }
         }
 
-        // FUNGSI: Format Tarikh dan Masa (Kekal Sama)
+        // FUNGSI: Format Tarikh dan Masa
         function formatDate(date) { 
             if (!date) return 'T/A'; 
             const d = typeof date === 'string' ? new Date(date.split('T')[0] + 'T00:00:00') : (date.toDate ? date.toDate() : date); 
@@ -377,11 +373,15 @@
             overlay.classList.remove('hidden');
         }
         
-        // FUNGSI: Mengemaskini infografik kehadiran (Kekal Sama)
-        function renderCoverInfographic() {
+        // FUNGSI: Mengemaskini infografik kehadiran (Disesuaikan untuk menerima jumlahHadir)
+        function renderCoverInfographic(jumlahHadirManual) {
             if (!currentLoadedProgram) return;
             
-            const jumlahHadir = (currentLoadedProgram.attendance || []).length;
+            // Mengira jumlahHadir dari objek attendance jika tidak dihantar manual
+            const jumlahHadir = jumlahHadirManual !== undefined 
+                ? jumlahHadirManual 
+                : Object.keys(currentLoadedProgram.attendance || {}).length;
+
             const kuota = parseInt(currentLoadedProgram.quota) || 0;
             
             const hadirEl = document.getElementById('cover-info-hadir');
@@ -422,7 +422,7 @@
             }
         }
         
-        // FUNGSI: Paparkan Live Pop-up Alert (BAHARU)
+        // FUNGSI: Paparkan Live Pop-up Alert (Pop-in dan hilang)
         function showLiveCheckinAlert(name) {
             const overlay = document.getElementById('popup-live-checkin-overlay');
             const popupBox = document.getElementById('live-checkin-popup-box');
@@ -430,7 +430,7 @@
             
             // 1. Set nama dan tunjukkan overlay
             displaySpan.textContent = `${name}`; 
-            overlay.classList.remove('hidden'); // Tunjukkan keseluruhan overlay
+            overlay.classList.remove('hidden'); 
 
             // 2. Animasikan Pop-up (Kesan Pop-in)
             setTimeout(() => {
@@ -449,19 +449,28 @@
                     overlay.classList.add('hidden');
                 }, 500); 
 
-            }, 4000); // Popup dipaparkan selama 4 saat
+            }, 4000); 
         }
 
 
-        // FUNGSI: Render Halaman Penuh
+        // FUNGSI: Render Halaman Penuh (DIPERBAIKI UNTUK DATA FIREBASE)
         function renderCoverPage() {
             
-            const currentAttendance = currentLoadedProgram.attendance || [];
+            // MENGENDALIKAN ATTENDANCE SEBAGAI OBJEK/PETA
+            const currentAttendanceObj = currentLoadedProgram.attendance || {};
+            const attendanceKeys = Object.keys(currentAttendanceObj);
+            const jumlahHadir = attendanceKeys.length;
             
             // Logik untuk mengesan entri baharu
-            const isNewEntryAdded = currentAttendance.length > lastAttendanceCount;
-            const latestEntry = isNewEntryAdded ? currentAttendance[currentAttendance.length - 1] : null; 
-            
+            const isNewEntryAdded = jumlahHadir > lastAttendanceCount;
+            let latestEntry = null;
+
+            if (isNewEntryAdded) {
+                // Cari kunci terkini (dengan asumsi kunci adalah timestamp/ID yang semakin meningkat)
+                const latestKey = attendanceKeys.reduce((a, b) => (a > b ? a : b), 0);
+                latestEntry = currentAttendanceObj[latestKey];
+            }
+
             // Kemas kini maklumat statik
             document.getElementById('program-name').textContent = currentLoadedProgram.name.toUpperCase();
             const penyelarasName = currentLoadedProgram.penyelaras_name ? currentLoadedProgram.penyelaras_name.toUpperCase() : 'TIDAK DITETAPKAN';
@@ -476,16 +485,15 @@
                 `${dateRange} <span class="text-huge ml-2 mr-2">|</span> ${timeRange}`;
             
             // PANGGIL FUNGSI INFOGRAFIK
-            renderCoverInfographic(); 
+            renderCoverInfographic(jumlahHadir); 
             
             // Paparkan Live Pop-up jika ada entri baharu
-            if (isNewEntryAdded && latestEntry) {
-                 // Tukar nama kepada huruf besar di sini
+            if (isNewEntryAdded && latestEntry && latestEntry.name) {
                  showLiveCheckinAlert(latestEntry.name.toUpperCase()); 
             }
             
             // Kemaskini tracker kehadiran
-            lastAttendanceCount = currentAttendance.length;
+            lastAttendanceCount = jumlahHadir; 
 
             // Jana dan paparkan QR Code
             const finalProgramKey = currentProgramKey; 
@@ -499,7 +507,7 @@
             document.getElementById('loading-overlay').classList.add('hidden');
         }
 
-        // FUNGSI: Memulakan Pendengar Firebase (Kekal Sama)
+        // FUNGSI: Memulakan Pendengar Firebase
         function initializeProgramListener(programKey) {
             currentProgramKey = programKey;
             
