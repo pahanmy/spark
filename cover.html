@@ -11,9 +11,9 @@
     <title>Muka Depan Rasmi Program</title>
 
     <script src="https://cdn.tailwindcss.com"></script>
-
     
-
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    
     <link rel="preconnect" href="https://fonts.googleapis.com">
 
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -111,7 +111,6 @@
         }
 
 
-
         /* Responsive QR Size and Positioning */
 
         #qr-code-image {
@@ -128,8 +127,7 @@
 
         
 
-        /* Bingkai QR Bersih */
-
+        /* Bingkai QR Bersih - saiz dikawal oleh kelas QR */
         #qr-frame {
 
             background-color: #ffffff;
@@ -142,12 +140,17 @@
 
             border: 2px solid var(--color-secondary); 
 
-            width: 60%; /* Lebar QR DIKEJILKAN LAGI */
-
+            /* Saiz lalai (Sederhana) */
+            width: 70%; 
+            transition: width 0.3s ease-in-out;
             margin-bottom: 0.5vw; 
 
         }
 
+        /* Modifier Saiz QR */
+        #qr-frame.qr-kecil { width: 45%; }
+        #qr-frame.qr-sederhana { width: 60%; }
+        #qr-frame.qr-besar { width: 85%; }
 
 
         /* PELARASAN SAIZ FONT (DIKEKILKAN) */
@@ -282,7 +285,7 @@
 
             transition: width 0.5s ease-in-out;
 
-            background-color: #10b981; 
+            /* Warna lalai ditetapkan melalui JS */
 
         }
 
@@ -335,7 +338,17 @@
             0%, 100% { transform: scale(1); }
             50% { transform: scale(1.02); } /* Kesan 'bounce' dikurangkan */
         }
-
+        
+        /* Sembunyikan Butang Pilihan QR dan Butang Eksport semasa Screenshot */
+        .hide-on-screenshot {
+            display: flex; /* Default: flex row */
+            margin-top: 1vw;
+            margin-bottom: 1vw;
+        }
+        .hide-on-screenshot.export-btn {
+            display: block; /* Export button adalah blok */
+        }
+        
 
         /* Responsive adjustments */
 
@@ -403,6 +416,15 @@
             /* Saiz Font Modal Mobile */
             #modal-checkin-name { font-size: 8vw; } 
             #modal-checkin-text { font-size: 3vw; } 
+            
+            .hide-on-screenshot {
+                /* Kembalikan kepada susunan menegak untuk mobile */
+                flex-direction: column; 
+                gap: 10px;
+                margin-top: 5vw;
+                margin-bottom: 5vw;
+                width: 60vw;
+            }
 
 
             .text-super-huge { font-size: 5vw; } 
@@ -665,15 +687,40 @@
 
         
         <div id="qr-section" class="flex flex-col justify-start items-center">
+            
+            
+            <div class="hide-on-screenshot flex space-x-2 items-center text-sm">
+                <span class="text-medium uppercase text-gray-700 font-semibold">Saiz QR:</span>
+                
+                <button onclick="setQrSize('kecil', this)" id="btn-kecil"
+                        class="qr-size-btn text-gray-500 bg-gray-100 hover:bg-gray-200">Kecil</button>
+                        
+                <button onclick="setQrSize('sederhana', this)" id="btn-sederhana"
+                        class="qr-size-btn text-white bg-violet-600 hover:bg-violet-700 shadow-md">Sederhana</button>
+                        
+                <button onclick="setQrSize('besar', this)" id="btn-besar"
+                        class="qr-size-btn text-gray-500 bg-gray-100 hover:bg-gray-200">Besar</button>
+            </div>
 
             
-            <div id="qr-frame" class="mt-0"> 
-
-                <img id="qr-code-image" src="https://placehold.co/400x400/ffffff/111827?text=Loading+QR" alt="QR Code Kehadiran">
+            <div id="qr-frame" class="mt-4 qr-sederhana"> <img id="qr-code-image" src="https://placehold.co/400x400/ffffff/111827?text=Loading+QR" alt="QR Code Kehadiran">
 
             </div>
 
             <p class="text-medium mt-1" style="color: #6b7280;">Imbas kod QR di atas untuk mendaftar masuk.</p> 
+
+            
+            <div class="hide-on-screenshot export-btn">
+                <button onclick="exportPageAsPng()" 
+                        class="mt-4 bg-red-600 text-white font-semibold py-2 px-4 rounded-lg shadow-xl hover:bg-red-700 transition duration-150 ease-in-out text-sm uppercase flex items-center justify-center gap-2">
+                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-download" viewBox="0 0 16 16">
+                        <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5"/>
+                        <path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708z"/>
+                    </svg>
+                    SIMPAN SEBAGAI MUKA DEPAN (.PNG)
+                </button>
+            </div>
+
 
         </div>
 
@@ -727,6 +774,8 @@
         import { getFirestore, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 
+        // Gunakan html2canvas yang dimuatkan melalui CDN di bahagian <head>
+        // TIDAK PERLU IMPORT
 
         // Konfigurasi Firebase (disalin dari program.html yang dimuat naik)
 
@@ -751,12 +800,81 @@
         let db, auth;
 
         const appId = firebaseConfig.projectId;
-        // PENTING: TAMBAH BENDERA isInitialLoad
         let isInitialLoad = true; 
         let currentLoadedProgram = null;
         let currentProgramKey = 'PZT-28721'; // Default Fallback Key
-        let lastAttendanceCount = 0; // Pembolehubah baharu untuk menjejaki kehadiran
+        let lastAttendanceCount = 0; 
+        let currentQrSize = 'sederhana'; // Ditetapkan secara global untuk kegunaan eksport
 
+
+        /* ==================================================================== */
+        /* FUNGSI KAWALAN QR */
+        /* ==================================================================== */
+
+        function updateQrSizeUi(newSize, activeButton) {
+            const frame = document.getElementById('qr-frame');
+            currentQrSize = newSize;
+
+            // 1. Kemas kini kelas saiz bingkai QR
+            frame.classList.remove('qr-kecil', 'qr-sederhana', 'qr-besar');
+            frame.classList.add(`qr-${newSize}`);
+
+            // 2. Kemas kini gaya butang (Aktif/Tidak Aktif)
+            const buttons = document.querySelectorAll('.qr-size-btn');
+            buttons.forEach(btn => {
+                btn.classList.remove('text-white', 'bg-violet-600', 'hover:bg-violet-700', 'shadow-md');
+                btn.classList.add('text-gray-500', 'bg-gray-100', 'hover:bg-gray-200');
+            });
+
+            if (activeButton) {
+                activeButton.classList.add('text-white', 'bg-violet-600', 'hover:bg-violet-700', 'shadow-md');
+                activeButton.classList.remove('text-gray-500', 'bg-gray-100', 'hover:bg-gray-200');
+            }
+        }
+        
+        // Fungsi yang dipanggil oleh butang
+        function setQrSize(size, element) {
+            updateQrSizeUi(size, element);
+        }
+        
+
+        /* ==================================================================== */
+        /* FUNGSI EXPORT SEBAGAI PNG */
+        /* ==================================================================== */
+
+        function exportPageAsPng() {
+            // 1. Sembunyikan elemen kawalan (butang dan pilihan QR)
+            const controls = document.querySelectorAll('.hide-on-screenshot');
+            controls.forEach(el => el.style.display = 'none');
+            
+            const coverContainer = document.getElementById('cover-display');
+            
+            // 2. Gunakan html2canvas
+            html2canvas(coverContainer, {
+                allowTaint: true,
+                useCORS: true,
+                backgroundColor: null, 
+                scale: 2, 
+            }).then(canvas => {
+                // 3. Simpan imej
+                const image = canvas.toDataURL("image/png");
+                const link = document.createElement('a');
+                link.download = `Muka_Depan_Program_${currentProgramKey}_${currentQrSize.toUpperCase()}.png`;
+                link.href = image;
+                link.click();
+
+            }).catch(error => {
+                 console.error("Gagal menjana PNG:", error);
+                 showError('Gagal menjana PNG. Sila cuba muat semula halaman.');
+            }).finally(() => {
+                // 4. Pastikan elemen kawalan dipaparkan semula
+                controls.forEach(el => el.style.removeProperty('display'));
+                
+                // Tambahan: Betulkan butang export (kerana ia adalah display: block)
+                const exportBtnDiv = document.querySelector('.export-btn');
+                if(exportBtnDiv) exportBtnDiv.style.display = 'block';
+            });
+        }
 
 
         try {
@@ -799,7 +917,7 @@
 
         function exportAsPng(buttonElement) {
 
-            console.warn("Fungsi Eksport PNG dinyahaktifkan dari DOM tetapi kod fungsi masih wujud. Sila aktifkan semula butang jika diperlukan.");
+            console.warn("Fungsi Eksport PNG telah dipindahkan ke fungsi exportPageAsPng()");
 
         }
 
@@ -874,91 +992,61 @@
             if (!currentLoadedProgram) return;
 
             
-
             const jumlahHadir = (currentLoadedProgram.attendance || []).length;
-
             const kuota = parseInt(currentLoadedProgram.quota) || 0;
-
             
-
             const hadirEl = document.getElementById('cover-info-hadir');
-
             const kuotaEl = document.getElementById('cover-info-kuota');
-
             const peratusEl = document.getElementById('cover-info-peratus');
-
             const progressBarFill = document.getElementById('progress-bar-fill'); 
-
             const progressBarContainer = document.getElementById('progress-bar-container'); 
-
-
 
             if (kuota > 0) {
 
                 const rawPeratus = (jumlahHadir / kuota) * 100;
-
                 const displayPeratus = Math.round(rawPeratus);
-
                 const visualPeratus = Math.min(100, rawPeratus); 
 
-
-
                 hadirEl.textContent = jumlahHadir;
-
                 kuotaEl.textContent = kuota;
-
                 peratusEl.textContent = `${displayPeratus}%`;
-
                 
-
                 progressBarFill.style.width = `${visualPeratus}%`;
 
-
-
-                if (rawPeratus > 100) {
-
-                     progressBarFill.style.backgroundColor = '#ef4444'; // bg-red-500
-
-                     progressBarContainer.style.backgroundColor = '#fee2e2'; // bg-red-100
-
-                } else {
-
-                     progressBarFill.style.backgroundColor = '#10b981'; // bg-green-500
-
-                     progressBarContainer.style.backgroundColor = '#d1fae5'; // bg-green-100
-
-                }
-
+                // LOGIK WARNA BARU
+                let fillColor = '#10b981'; // Hijau (Lalai > 80%)
+                let bgColor = '#d1fae5';   // Hijau Pudar
                 
+                if (rawPeratus <= 30) {
+                     fillColor = '#ef4444'; // Merah
+                     bgColor = '#fee2e2';   // Merah Muda Pudar
+                } else if (rawPeratus > 30 && rawPeratus <= 80) { // 31% - 80%
+                     fillColor = '#f59e0b'; // Jingga
+                     bgColor = '#fffbeb';   // Kuning Pudar
+                } else if (rawPeratus > 100) {
+                     fillColor = '#ef4444'; // Merah (Melebihi Kuota)
+                     bgColor = '#fee2e2';   // Merah Muda Pudar
+                } 
+                
+                progressBarFill.style.backgroundColor = fillColor;
+                progressBarContainer.style.backgroundColor = bgColor;
 
             } else {
 
                 // Jika tiada kuota ditetapkan
-
                 hadirEl.textContent = jumlahHadir;
-
                 kuotaEl.textContent = 'N/A';
-
                 peratusEl.textContent = 'N/A';
-
                 
-
                 const defaultWidth = jumlahHadir > 0 ? '100%' : '0%';
-
                 progressBarFill.style.width = defaultWidth;
-
                 
-
                 progressBarFill.style.backgroundColor = '#10b981';
-
                 progressBarContainer.style.backgroundColor = '#d1fae5';
-
             }
-
         }
 
         
-
         // FUNGSI LIVE ALERT BAHARU (KINI MENGURUSKAN MODAL)
         function showLiveCheckinAlert(name) {
 
@@ -1144,14 +1232,19 @@
                 showError('Tiada kunci program (kod) ditemui dalam URL.');
 
             }
-
+            
+            // Tetapkan saiz QR Lalai (Sederhana) pada permulaan
+            const defaultBtn = document.getElementById('btn-sederhana');
+            if (defaultBtn) {
+                 updateQrSizeUi('sederhana', defaultBtn);
+            }
         }
 
         
 
         // Daftarkan fungsi ke window scope
-
-        Object.assign(window, { exportAsPng, redirectToDashboard });
+        // PENTING: TAMBAH setQrSize DAN exportPageAsPng
+        Object.assign(window, { exportAsPng, redirectToDashboard, setQrSize, exportPageAsPng });
 
 
 
