@@ -243,6 +243,12 @@
                 <h3 id="skop-modal-title" class="text-xl font-semibold text-gray-800"></h3>
                 <button onclick="closeSkopModal()" class="text-gray-400 hover:text-gray-600 text-3xl font-bold no-print">&times;</button>
             </div>
+
+            <div class="mb-4 no-print">
+                <input type="text" id="skop-search-input" oninput="filterSkopList()" placeholder="Cari nama..." class="block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2">
+                <p id="skop-count-display" class="text-xs text-gray-500 mt-1"></p>
+            </div>
+
             <div id="skop-modal-content" class="max-h-96 overflow-y-auto space-y-2 bg-gray-50 p-4 rounded-md border">
                 </div>
             <div class="mt-6 flex flex-col sm:flex-row justify-between items-center gap-4 no-print">
@@ -291,6 +297,36 @@
         </div>
     </div>
     
+    <div id="completion-list-modal" class="modal fixed inset-0 z-50 items-center justify-center bg-black bg-opacity-50"> 
+        <div class="card bg-white rounded-lg shadow-xl w-full max-w-2xl p-6">
+            <div class="flex justify-between items-center mb-4 border-b pb-3">
+                <h3 class="text-xl font-semibold text-gray-800">Semua Rekod Pengesahan Selesai</h3>
+                <button onclick="closeCompletionModal()" class="text-gray-400 hover:text-gray-600 text-3xl font-bold">&times;</button>
+            </div>
+
+            <div class="mb-4">
+                <input type="text" id="completion-search-input" oninput="filterCompletionList()" placeholder="Cari nama pengesah/stesen..." class="block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2">
+                <p id="completion-count-display" class="text-xs text-gray-500 mt-1"></p>
+            </div>
+
+            <div class="max-h-96 overflow-y-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50 sticky top-0">
+                        <tr>
+                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Maklumat Pengesah</th>
+                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tarikh & Masa</th>
+                        </tr>
+                    </thead>
+                    <tbody id="full-completion-list-body" class="bg-white divide-y divide-gray-200">
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="mt-6 flex justify-end">
+                 <button onclick="closeCompletionModal()" class="btn bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg w-full sm:w-auto">Tutup</button>
+            </div>
+        </div>
+    </div>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
@@ -311,8 +347,8 @@
         let currentTask = null;
         const appId = firebaseConfig.projectId;
         let currentTaskId = null;
-        let skopSelesaiList = [];
-        let skopBelumList = [];
+        let skopSelesaiList = []; // Senarai nama skop yang disahkan selesai
+        let skopBelumList = [];   // Senarai nama skop yang belum disahkan
         let currentModalSkopList = [];
         let currentModalSkopTitle = "";
         
@@ -339,10 +375,6 @@
 
         // --- FUNGSI BANTUAN (HELPER) BARU/DIKEMASKINI ---
 
-        /**
-         * Menyeragamkan nama/stesen untuk perbandingan.
-         * Untuk perbandingan 70% longgar.
-         */
         function normalizeName(name) {
             if (typeof name !== 'string') return '';
             let normalized = name.toUpperCase();
@@ -357,10 +389,6 @@
             return normalized.trim(); 
         }
 
-        /**
-         * Membandingkan dua rentetan teks untuk persamaan longgar (Fuzzy Matching).
-         * Nota: Untuk kestabilan tanpa pustaka luaran, kita gunakan 100% sama (selepas normalisasi).
-         */
         function isApproximateMatch(str1, str2, threshold = 0.7) {
             const norm1 = normalizeName(str1);
             const norm2 = normalizeName(str2);
@@ -369,11 +397,7 @@
             return norm1 === norm2;
         }
 
-        /**
-         * Menentukan sama ada tugasan tersebut adalah tugasan PPD Kumpulan (Pegawai/Sektor).
-         */
         function isPPDGroupTask(task) {
-            // Kita menganggap ada flag yang disimpan semasa Tambah Tugasan
             return task && task.isPPDGroupTask === true; 
         }
         
@@ -383,9 +407,6 @@
             return `${hari}/${bulan}/${tahun}`;
         }
         
-        /**
-         * Kira baki hari untuk tarikh siap tugasan
-         */
         function kiraBakiHari(tarikhString, peratus) {
             if (peratus === 100) {
                 return { teks: 'Selesai', badgeClass: 'bg-green-100 text-green-800 font-semibold' };
@@ -428,6 +449,7 @@
                 versionInfo.textContent = `Versi 2.1 (${year})`;
             }
             
+            // Panggil setup listener modal
             setupDynamicFormListeners();
             loadSchoolsIntoDropdowns();
             loadPositionsIntoDropdown();
@@ -472,6 +494,9 @@
                 }
             }
 
+            // Tambah Listener untuk butang "Papar Semua Rekod" di footer
+            document.getElementById('completion-list-footer').querySelector('button').addEventListener('click', showAllCompletionsModal);
+
             const completionSelect = document.getElementById('completion-items-select');
             completionSelect.addEventListener('change', (e) => {
                 completionItemsToShow = parseInt(e.target.value, 10);
@@ -483,7 +508,7 @@
             unsubscribeTaskListener = onSnapshot(taskRef, (docSnap) => {
                 if (docSnap.exists()) {
                     currentTask = { id: docSnap.id, ...docSnap.data() };
-                    renderTaskProgress(); // Perlu kira progres dahulu untuk dapat peratusan
+                    renderTaskProgress(); // Kira progres dahulu untuk dapat peratusan
                     renderTaskDetails(); 
                     renderCompletionHistory();
                     renderSubTasks(); 
@@ -511,7 +536,7 @@
         function renderTaskDetails() {
             document.getElementById('dashboard-task-name').textContent = currentTask.nama.toUpperCase();
             
-            // Kira Baki Hari
+            // Kira Baki Hari dan Papar Badge
             const jumlahSelesai = document.getElementById('info-selesai').textContent;
             const total = document.getElementById('info-total').textContent;
             const peratus = (parseInt(total) === 0) ? 0 : Math.round((parseInt(jumlahSelesai) / parseInt(total)) * 100);
@@ -521,7 +546,6 @@
                     ${bakiHariInfo.teks}
                  </span>
             `;
-            // End Baki Hari
 
             document.getElementById('dashboard-pegawai').textContent = currentTask.pegawai;
             document.getElementById('dashboard-sektor').textContent = currentTask.sektor;
@@ -559,14 +583,9 @@
                 skopBelumList = [];
             } else {
                 // --- MOD SKOP (Logik Baru/Dikemas Kini) ---
-                const completedSkops = new Set();
-                const totalSkopSet = new Set(totalSkop.map(s => normalizeName(s)));
-                
-                // Normalisasi dan penjejakan rekod selesai
-                const normalizedRecords = allSelesai.map(r => normalizeName(r));
-                
-                // Set untuk menyimpan skop yang telah disahkan (nama asal)
                 const completedSkopOriginalNames = new Set();
+                const totalSkopSet = new Set(totalSkop.map(s => normalizeName(s)));
+                const normalizedRecords = allSelesai.map(r => normalizeName(r));
 
                 if (isPPDGroupTask(currentTask)) {
                     // Logik Kumpulan PPD (Pegawai/Sektor)
@@ -576,7 +595,7 @@
                         let isCompleted = false;
                         
                         isCompleted = normalizedRecords.some(rekod => {
-                            // Menggantikan 70% fuzzy match dengan 100% normalized match buat masa ini.
+                            // Gunakan 70% match untuk memenuhi kriteria
                             return isApproximateMatch(normalizedSkop, rekod, 0.7);
                         });
                         
@@ -613,6 +632,74 @@
             document.getElementById('info-peratus').textContent = `${peratus}%`;
             document.getElementById('progress-circle').style.strokeDashoffset = 100 - peratus;
         }
+
+        // --- FUNGSI MODAL REKOD SELESAI PENUH (BARU) ---
+
+        function showAllCompletionsModal() {
+            const modal = document.getElementById('completion-list-modal');
+            const container = document.getElementById('full-completion-list-body');
+            const displayCount = document.getElementById('completion-count-display');
+            container.innerHTML = '';
+            
+            const list = currentTask.rekodSelesai || [];
+            if (list.length === 0) {
+                container.innerHTML = `<tr><td colspan="2" class="px-4 py-4 text-center text-sm text-gray-500 italic">Tiada rekod pengesahan.</td></tr>`;
+                displayCount.textContent = 'Menunjukkan 0 rekod.';
+                modal.classList.add('buka');
+                return;
+            }
+            
+            list.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+            
+            list.forEach((rekod, index) => {
+                const timestamp = new Date(rekod.timestamp).toLocaleString('ms-MY', { 
+                    day: 'numeric', month: 'long', year: 'numeric', 
+                    hour: 'numeric', minute: '2-digit' 
+                });
+                const nama = rekod.nama_pengesah || currentTask.pegawai || 'N/A';
+                const jawatan = rekod.jawatan_pengesah || 'N/A';
+                const stesen = rekod.stesen_pengesah || 'N/A';
+                
+                container.innerHTML += `
+                    <tr class="text-sm completion-item" data-search="${nama} ${stesen} ${jawatan}">
+                        <td class="px-4 py-3 align-top">
+                            <div class="font-medium text-gray-800">${nama}</div>
+                            <div class="text-gray-600">${jawatan}</div>
+                            <div class="text-gray-600">${stesen}</div>
+                        </td>
+                        <td class="px-4 py-3 text-gray-600 whitespace-nowrap align-top">${timestamp}</td>
+                    </tr>
+                `;
+            });
+            
+            document.getElementById('completion-search-input').value = '';
+            filterCompletionList(); // Paparkan semua dan set kiraan
+            modal.classList.add('buka');
+        }
+
+        function filterCompletionList() {
+            const input = document.getElementById('completion-search-input').value.toUpperCase();
+            const items = document.querySelectorAll('#full-completion-list-body .completion-item');
+            const displayCount = document.getElementById('completion-count-display');
+            let foundCount = 0;
+
+            items.forEach(item => {
+                const searchData = item.getAttribute('data-search').toUpperCase();
+                if (searchData.includes(input)) {
+                    item.style.display = '';
+                    foundCount++;
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+            displayCount.textContent = `Menunjukkan ${foundCount} rekod yang ditemui.`;
+        }
+
+        function closeCompletionModal() {
+            document.getElementById('completion-list-modal').classList.remove('buka');
+        }
+
+        // --- END MODAL REKOD SELESAI PENUH ---
 
         function renderCompletionHistory() {
             const container = document.getElementById('completion-list');
@@ -842,11 +929,14 @@ Sekian, terima kasih.`;
             }
         }
         
+        // --- FUNGSI MODAL SKOP ---
+
         function showSkopList(status) {
             const modal = document.getElementById('skop-list-modal');
             const titleEl = document.getElementById('skop-modal-title');
             const contentEl = document.getElementById('skop-modal-content');
             let list = [];
+            
             if (status === 'selesai') {
                 titleEl.textContent = 'Senarai Selesai';
                 list = skopSelesaiList;
@@ -856,42 +946,76 @@ Sekian, terima kasih.`;
             }
             currentModalSkopList = list;
             currentModalSkopTitle = titleEl.textContent;
-            contentEl.innerHTML = '';
-            if (list.length === 0) {
-                contentEl.innerHTML = `<p class="text-sm text-gray-500 italic">Tiada data untuk dipaparkan.</p>`;
-            } else {
-                list.sort().forEach((item, index) => {
-                    contentEl.innerHTML += `
-                        <div class="text-sm text-gray-800 bg-white p-2 border-b last:border-b-0">
-                            ${index + 1}. ${item}
-                        </div>
-                    `;
-                });
-            }
+            
+            document.getElementById('skop-search-input').value = '';
+            renderSkopContent(contentEl, list);
+            
             modal.classList.add('buka');
         }
-        
+
+        function renderSkopContent(containerEl, list) {
+             containerEl.innerHTML = '';
+             const displayCount = document.getElementById('skop-count-display');
+             
+            if (list.length === 0) {
+                containerEl.innerHTML = `<p class="text-sm text-gray-500 italic p-2">Tiada data untuk dipaparkan.</p>`;
+                displayCount.textContent = 'Menunjukkan 0 entri.';
+                return;
+            }
+            
+            list.sort().forEach((item, index) => {
+                containerEl.innerHTML += `
+                    <div class="text-sm text-gray-800 bg-white p-2 border-b last:border-b-0 skop-item" data-search="${item.toUpperCase()}">
+                        ${index + 1}. ${item}
+                    </div>
+                `;
+            });
+            displayCount.textContent = `Menunjukkan ${list.length} entri.`;
+        }
+
+        function filterSkopList() {
+            const input = document.getElementById('skop-search-input').value.toUpperCase();
+            const containerEl = document.getElementById('skop-modal-content');
+            const displayCount = document.getElementById('skop-count-display');
+            containerEl.innerHTML = '';
+            
+            let filteredList = currentModalSkopList.filter(item => item.toUpperCase().includes(input));
+            
+            if (filteredList.length === 0) {
+                 containerEl.innerHTML = `<p class="text-sm text-gray-500 italic p-2">Tiada entri ditemui untuk carian ini.</p>`;
+                 displayCount.textContent = `Menunjukkan 0 entri.`;
+                 return;
+            }
+            
+            renderSkopContent(containerEl, filteredList);
+        }
+
         function closeSkopModal() {
             document.getElementById('skop-list-modal').classList.remove('buka'); 
             document.body.classList.remove('is-printing-modal');
         }
         
         function copySkopList() {
-            if (currentModalSkopList.length === 0) {
+            const visibleSkops = Array.from(document.querySelectorAll('#skop-modal-content .skop-item')).map(el => el.textContent.trim());
+            
+            if (visibleSkops.length === 0) {
                 alert("Senarai kosong, tiada apa untuk disalin.");
                 return;
             }
             let textToCopy = `${currentModalSkopTitle} (Tugasan: ${currentTask.nama.toUpperCase() || 'N/A'}):\n\n`;
-            currentModalSkopList.forEach((item, index) => {
-                textToCopy += `${index + 1}. ${item}\n`;
+            visibleSkops.forEach((item, index) => {
+                 // Hanya salin teks tanpa nombor asal dari DOM (nombor akan dijana semula dalam modal)
+                textToCopy += `${index + 1}. ${item.substring(item.indexOf('.') + 2)}\n`; 
             });
+
             navigator.clipboard.writeText(textToCopy).then(() => {
-                alert("Senarai telah disalin ke clipboard!");
+                alert("Senarai yang dipaparkan telah disalin ke clipboard!");
             }).catch(err => {
                 console.error("Gagal menyalin:", err);
                 alert("Gagal menyalin. Sila cuba lagi.");
             });
         }
+        
         function printSkopList() {
             document.body.classList.add('is-printing-modal');
             setTimeout(() => {
@@ -918,8 +1042,12 @@ Sekian, terima kasih.`;
             showSkopList,
             closeSkopModal,
             copySkopList,
+            filterSkopList, // Tambah fungsi filter
             printSkopList,
             showAllCompletions,
+            showAllCompletionsModal, // Tambah modal kehadiran
+            closeCompletionModal,
+            filterCompletionList,
             showShareModal,
             closeShareModal,
             copyShareText,
