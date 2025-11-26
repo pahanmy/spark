@@ -167,8 +167,8 @@
         const pegawaiCategorySelect = document.getElementById('pegawai-category');
         const pegawaiNameInput = document.getElementById('pegawai-name');
         const pegawaiPositionInput = document.getElementById('pegawai-position');
-        const pegawaiSectorInput = document.getElementById('pegawai-sector'); // BARU
-        const pegawaiUnitInput = document.getElementById('pegawai-unit');     // BARU
+        const pegawaiSectorInput = document.getElementById('pegawai-sector');
+        const pegawaiUnitInput = document.getElementById('pegawai-unit');
         const pegawaiIcInput = document.getElementById('pegawai-ic');
         const pegawaiFieldsContainer = document.getElementById('pegawai-fields');
         const tambahBtn = document.getElementById('tambah-btn');
@@ -191,7 +191,7 @@
         // State
         let isSubmitting = false;
         let allPpdEntities = [];
-        let currentlyEditingId = null; // Untuk fungsi edit
+        let currentlyEditingId = null;
 
         // Pengesahan (Sign-in)
         onAuthStateChanged(auth, async (user) => {
@@ -200,10 +200,11 @@
                 fetchPpdOfficers();
             } else { 
                 try { 
+                    console.log("Mencuba sign in anonim di senaraippd.html");
                     await signInAnonymously(auth); 
                 } catch (error) { 
-                    console.error("Error signing in:", error); 
-                    errorMessage.textContent = "Gagal menyambung ke pangkalan data.";
+                    console.error("RALAT PENGESAHAN: Gagal sign in anonim:", error); 
+                    errorMessage.textContent = "Gagal menyambung ke pangkalan data (RALAT AUTH).";
                     errorMessage.classList.remove('hidden');
                 } 
             }
@@ -216,10 +217,8 @@
             const selectedCategory = pegawaiCategorySelect.value;
             const isPegawai = selectedCategory === 'pegawai';
             
-            // Toggle visibility
             pegawaiFieldsContainer.classList.toggle('hidden', !isPegawai);
             
-            // Set required attributes dynamically
             pegawaiPositionInput.required = isPegawai;
             pegawaiSectorInput.required = isPegawai;
         }
@@ -233,24 +232,26 @@
             allPpdEntities = [];
             
             try {
+                console.log(`--- DEBUG: Mencuba muat data dari ${PPD_COLLECTION_PATH} ---`);
                 const officersRef = collection(db, PPD_COLLECTION_PATH);
                 const q = query(officersRef, orderBy("name", "asc"));
                 const querySnapshot = await getDocs(q);
                 
                 if (querySnapshot.empty) {
                     senaraiPegawaiContainer.innerHTML = '<p class="text-center text-gray-500 mt-4 p-4 bg-gray-100 rounded-lg">Tiada rujukan PPD dalam senarai.</p>';
-                    return;
+                } else {
+                     querySnapshot.forEach(doc => {
+                        const entity = { id: doc.id, ...doc.data() };
+                        allPpdEntities.push(entity);
+                    });
                 }
-
-                querySnapshot.forEach(doc => {
-                    const entity = { id: doc.id, ...doc.data() };
-                    allPpdEntities.push(entity);
-                });
                 
+                console.log(`--- DEBUG: Muatan Berjaya. Jumlah Entiti: ${querySnapshot.size} ---`);
                 displayFilteredEntities();
 
             } catch (error) {
-                console.error("Error fetching PPD entities:", error);
+                console.error("RALAT KETIKA MEMUAT ENTITI PPD: ", error);
+                errorMessage.textContent = "Gagal memuatkan senarai rujukan. Sila semak rules Firebase.";
                 errorMessage.classList.remove('hidden');
             } finally {
                 loadingMessage.classList.add('hidden');
@@ -261,7 +262,7 @@
         function displayFilteredEntities() {
             const filter = filterCategorySelect.value;
             
-            senaraiPegawaiContainer.innerHTML = ''; // Kosongkan bekas
+            senaraiPegawaiContainer.innerHTML = '';
 
             const filteredList = allPpdEntities.filter(entity => {
                 if (filter === 'all') return true;
@@ -273,7 +274,6 @@
                  return;
             }
 
-            // Bina Jadual HTML
             let tableHtml = `
                 <div class="overflow-x-auto">
                     <table class="table-auto w-full table-ref-data text-sm">
@@ -323,7 +323,7 @@
             senaraiPegawaiContainer.innerHTML = tableHtml;
         }
 
-        // 3. Tambah Entiti Baharu (Single Entry)
+        // 3. Tambah/Kemaskini Entiti Baharu (Single Entry)
         async function handleAddEntity(event) {
             event.preventDefault();
             if (isSubmitting) return;
@@ -371,17 +371,15 @@
                 };
             }
             
-            // Tambah metadata
             newEntityData.added_by_uid = userId;
             newEntityData.createdAt = new Date().toISOString();
 
 
             isSubmitting = true;
             tambahBtn.disabled = true;
-            tambahBtn.textContent = 'Menyimpan...';
+            tambahBtn.textContent = (currentlyEditingId) ? 'Mengemaskini...' : 'Menyimpan...';
 
             try {
-                // 1. Jika Pegawai & ada IC, simpan dalam koleksi peserta
                 if (category === 'pegawai' && newEntityData.ic && newEntityData.ic.length === 12) {
                     const participantDocRef = doc(db, PARTICIPANTS_COLLECTION_PATH, newEntityData.ic);
                     await setDoc(participantDocRef, {
@@ -393,27 +391,23 @@
                     }, { merge: true });
                 }
                 
-                // 2. Simpan dalam koleksi rujukan PPD
                 if (currentlyEditingId) {
-                    // Jika dalam mod edit
                     const docRef = doc(db, PPD_COLLECTION_PATH, currentlyEditingId);
                     await updateDoc(docRef, newEntityData);
                     showMessage(`${name} berjaya dikemaskini!`, 'bg-blue-100 text-blue-700');
                 } else {
-                    // Jika mod tambah baru
                     await addDoc(collection(db, PPD_COLLECTION_PATH), newEntityData);
                     showMessage(`${name} (${category.toUpperCase()}) berjaya disimpan!`, 'bg-green-100 text-green-700');
                 }
                 
-                // Reset UI
                 formTambahPegawai.reset();
                 tambahBtn.textContent = 'Simpan Rujukan';
                 currentlyEditingId = null;
                 fetchPpdOfficers();
 
             } catch (error) {
-                console.error("Error saving entity:", error);
-                showMessage('Gagal menyimpan rujukan. Sila cuba lagi.', 'bg-red-100 text-red-700');
+                console.error("RALAT SAVE/UPDATE: ", error);
+                showMessage('Gagal menyimpan rujukan. Sila cuba lagi. (Semak rules Firebase)', 'bg-red-100 text-red-700');
             } finally {
                 isSubmitting = false;
                 tambahBtn.disabled = false;
@@ -445,13 +439,12 @@
             
             for (let i = 0; i < lines.length; i++) {
                 const line = lines[i];
-                const parts = line.split('\t').map(p => p.trim().toUpperCase()); // Split by tab (Excel format)
+                const parts = line.split('\t').map(p => p.trim().toUpperCase());
                 
                 let entityData = null;
                 
                 if (category === 'pegawai') {
-                    // Susunan: Nama | Jawatan | Sektor | Unit | IC
-                    if (parts.length < 3) { // Nama, Jawatan, Sektor adalah wajib (3)
+                    if (parts.length < 3) {
                         errorCount++;
                         errors.push(`Baris ${i + 1}: Data Pegawai tidak lengkap (Wajib: Nama, Jawatan, Sektor).`);
                         continue;
@@ -470,8 +463,7 @@
                         added_by_uid: userId,
                         createdAt: new Date().toISOString()
                     };
-                } else { // category === 'sektor'
-                    // Susunan: Nama Sektor (hanya Nama diperlukan)
+                } else {
                     if (parts.length < 1) {
                         errorCount++;
                         errors.push(`Baris ${i + 1}: Data Sektor tidak lengkap (Wajib: Nama).`);
@@ -493,7 +485,6 @@
                 try {
                      await addDoc(collection(db, PPD_COLLECTION_PATH), entityData);
                      
-                     // Jika Pegawai & ada IC, cuba simpan di peserta
                      if (entityData.category === 'pegawai' && entityData.ic) {
                         const participantDocRef = doc(db, PARTICIPANTS_COLLECTION_PATH, entityData.ic);
                         await setDoc(participantDocRef, {
@@ -507,7 +498,7 @@
 
                      successCount++;
                 } catch (e) {
-                    console.error("Error saving import entity:", e);
+                    console.error("RALAT IMPORT BARIS", i + 1, ": ", e);
                     errorCount++;
                     errors.push(`Baris ${i + 1} (${parts[0]}): Gagal simpan ke DB. Error: ${e.message}`);
                 }
@@ -543,7 +534,6 @@
                 return;
             }
 
-            // Set UI ke mod Edit
             currentlyEditingId = id;
             tambahBtn.textContent = 'Kemaskini Rujukan';
             pegawaiCategorySelect.value = entityToEdit.category;
@@ -557,14 +547,12 @@
                 pegawaiUnitInput.value = entityToEdit.unit || '';
                 pegawaiIcInput.value = entityToEdit.ic || '';
             } else {
-                // Untuk Sektor, clear field Pegawai
                 pegawaiPositionInput.value = '';
                 pegawaiSectorInput.value = entityToEdit.sector || entityToEdit.name || '';
                 pegawaiUnitInput.value = '';
                 pegawaiIcInput.value = '';
             }
             
-            // Fokus dan scroll ke borang
             pegawaiNameInput.focus();
             formTambahPegawai.scrollIntoView({ behavior: 'smooth' });
             showMessage('Anda sedang mengemaskini rekod. Tekan Simpan untuk kemaskini.', 'bg-blue-100 text-blue-700');
@@ -592,8 +580,8 @@
                 fetchPpdOfficers(); 
                 showMessage(`${category} ${name} berjaya dipadam.`, 'bg-yellow-100 text-yellow-700');
             } catch (error) {
-                console.error("Error deleting entity:", error);
-                alert('Gagal memadam rujukan.');
+                console.error("RALAT DELETE: ", error);
+                alert('Gagal memadam rujukan. (Semak rules Firebase)');
                 target.disabled = false;
                 target.classList.remove('opacity-50');
             }
