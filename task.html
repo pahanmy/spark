@@ -178,7 +178,9 @@
                     
                     <div class="card p-5">
                         <h3 class="text-lg font-semibold text-gray-800 flex items-center gap-2 mb-4">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-indigo-500" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h6a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h6a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd" />
+                            </svg>
                             Rumusan Tugasan
                         </h3>
                         <div class="grid grid-cols-3 gap-3 text-center text-sm">
@@ -245,7 +247,7 @@
                             </a>
                         </div>
                     </div>
-                    </div>
+                </div>
             </div>
         </div>
     </main>
@@ -405,15 +407,18 @@
         }
 
         function isApproximateMatch(str1, str2, threshold = 0.7) {
+            // Dalam konteks ini, kita hanya perlukan padanan 100% selepas normalisasi
             const norm1 = normalizeName(str1);
             const norm2 = normalizeName(str2);
-            
-            // Logik 70% fuzzy match di sini. Buat masa ini, kita guna perbandingan 100% normalized match.
             return norm1 === norm2;
         }
 
+        // FUNGSI isPPDGroupTask DIKEKALKAN (Walaupun logik di bawah mungkin menjadikannya tidak perlu)
         function isPPDGroupTask(task) {
-            return task && task.isPPDGroupTask === true; 
+             const isPPDName = task && task.skopSenaraiSekolah && 
+                               task.skopSenaraiSekolah.some(s => s.toUpperCase().includes('PEGAWAI PPD') || s.toUpperCase().includes('SEKTOR'));
+             
+             return !!task && task.skopSenaraiSekolah && task.skopSenaraiSekolah.length > 0 && isPPDName;
         }
         
         function formatTarikh(tarikhString) {
@@ -446,27 +451,7 @@
             }
         }
         
-        function generateTaskQRCode(taskId) {
-            // Placeholder: Dalam implementasi sebenar, anda perlu memasukkan 
-            // perpustakaan QR code (cth: qrcode.js) untuk menjana kod.
-            const qrContainer = document.getElementById('dashboard-qr-code');
-            const linkToTask = new URL(`selesai.html?id=${taskId}`, window.location.href).href;
-
-            // Logik placeholder untuk menunjukkan pautan
-            qrContainer.innerHTML = `
-                <div class="flex flex-col items-center">
-                    <svg class="h-24 w-24 text-gray-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <rect x="3" y="3" width="7" height="7"></rect>
-                        <rect x="14" y="3" width="7" height="7"></rect>
-                        <rect x="3" y="14" width="7" height="7"></rect>
-                    </svg>
-                    <p class="text-xs text-gray-500 mt-2">QR Code dipaparkan di sini</p>
-                </div>
-            `;
-            
-            const qrCard = document.getElementById('qr-code-card');
-            if(qrCard) qrCard.classList.remove('hidden');
-        }
+        // FUNGSI generateQRCodeUrl DIBUANG
 
         // --- FUNGSI UTAMA ---
 
@@ -497,8 +482,7 @@
             document.getElementById('sahkan-selesai-btn').href = `selesai.html?id=${taskId}`;
             document.getElementById('admin-task-btn').href = `admintask.html?id=${taskId}`; 
             
-            // PANGGIL QR CODE GENERATOR BARU
-            generateTaskQRCode(taskId);
+            // RUJUKAN KE QR CODE DIBUANG DARI SINI
 
             const copyBtn = document.getElementById('copy-link-btn');
             const copyText = document.getElementById('copy-link-text');
@@ -523,7 +507,6 @@
                             copyBtn.classList.add('bg-indigo-100', 'text-indigo-700', 'hover:bg-indigo-200');
                             copyBtn.classList.remove('bg-green-100', 'text-green-700');
                             copyIcon.classList.remove('hidden');
-                            successIcon.classList.add('hidden');
                             copyBtn.disabled = false;
                         }, 2500);
                     }).catch(err => {
@@ -582,8 +565,6 @@
             const total = document.getElementById('info-total').textContent;
             const peratus = (parseInt(total) === 0) ? 0 : Math.round((parseInt(jumlahSelesai) / parseInt(total)) * 100);
             const bakiHariInfo = kiraBakiHari(currentTask.tarikhSiap, peratus);
-            
-            // TELAH DIUBAH UNTUK MEMINDAHKAN BADGE KE KANAN ATAS
             document.getElementById('dashboard-countdown-badge').innerHTML = `
                  <span class="inline-block px-2 py-0.5 rounded-full text-sm font-bold ${bakiHariInfo.badgeClass}">
                     ${bakiHariInfo.teks}
@@ -597,13 +578,17 @@
         }
 
         function renderTaskProgress() {
-            const totalSkop = Array.isArray(currentTask.skopSenaraiSekolah) 
-                ? currentTask.skopSenaraiSekolah.map(s => s.toUpperCase()) 
+            // LANGKAH 1: Dapatkan data asal
+            const originalTotalSkop = Array.isArray(currentTask.skopSenaraiSekolah) 
+                ? currentTask.skopSenaraiSekolah 
+                : [];
+                
+            const allSelesai = Array.isArray(currentTask.skopSelesai) 
+                ? currentTask.skopSelesai 
                 : [];
             
-            const allSelesai = Array.isArray(currentTask.skopSelesai) 
-                ? currentTask.skopSelesai.map(s => s.toUpperCase()) 
-                : [];
+            // Peta skop selesai kepada SET NILAI yang dinormalisasi untuk carian pantas
+            const normalizedSelesaiSet = new Set(allSelesai.map(s => normalizeName(s)));
             
             let jumlahSelesai;
             let jumlahBelum;
@@ -612,7 +597,7 @@
             const selesaiBtn = document.querySelector('button[onclick="showSkopList(\'selesai\')"]');
             const belumBtn = document.querySelector('button[onclick="showSkopList(\'belum\')"]');
 
-            if (totalSkop.length === 0) {
+            if (originalTotalSkop.length === 0) {
                 // --- MOD MANUAL (Logik Sedia Ada) ---
                 jumlahSelesai = currentTask.jumlahSelesai || 0;
                 total = (currentTask.jumlahSelesai || 0) + (currentTask.jumlahBelum || 0);
@@ -624,44 +609,29 @@
                 
                 skopSelesaiList = [];
                 skopBelumList = [];
+                
             } else {
-                // --- MOD SKOP (Logik Baru/Dikemas Kini) ---
+                // --- MOD SKOP (Logik Baru/Dikemas Kini - Menggunakan padanan dinormalisasi) ---
+                
                 const completedSkopOriginalNames = new Set();
-                const totalSkopSet = new Set(totalSkop.map(s => normalizeName(s)));
-                const normalizedRecords = allSelesai.map(r => normalizeName(r));
-
-                if (isPPDGroupTask(currentTask)) {
-                    // Logik Kumpulan PPD (Pegawai/Sektor)
+                
+                originalTotalSkop.forEach(originalSkop => {
+                    const normalizedSkop = normalizeName(originalSkop);
                     
-                    totalSkop.forEach(skop => {
-                        const normalizedSkop = normalizeName(skop);
-                        let isCompleted = false;
-                        
-                        isCompleted = normalizedRecords.some(rekod => {
-                            // Gunakan isApproximateMatch (yang menggunakan 100% normalized match buat masa ini)
-                            return isApproximateMatch(normalizedSkop, rekod, 0.7);
-                        });
-                        
-                        if (isCompleted) {
-                            completedSkopOriginalNames.add(skop);
-                        }
-                    });
-
-                } else {
-                    // Logik Skop Sekolah Biasa (100% sama selepas normalisasi)
-                    
-                    normalizedRecords.forEach(rekod => {
-                         const originalSkop = totalSkop.find(s => normalizeName(s) === rekod);
-                         if (originalSkop) completedSkopOriginalNames.add(originalSkop);
-                    });
-                }
+                    // Semak jika versi normalisasi skop ini wujud dalam set skop yang telah disahkan.
+                    // Ini berfungsi untuk SEKOLAH dan PEGAWAI/SEKTOR PPD.
+                    if (normalizedSelesaiSet.has(normalizedSkop)) {
+                        completedSkopOriginalNames.add(originalSkop);
+                    }
+                });
                 
                 skopSelesaiList = Array.from(completedSkopOriginalNames);
-                skopBelumList = totalSkop.filter(skop => !completedSkopOriginalNames.has(skop));
+                // skopBelumList perlu menggunakan array asal tolak array completed
+                skopBelumList = originalTotalSkop.filter(skop => !completedSkopOriginalNames.has(skop));
                 
                 jumlahSelesai = skopSelesaiList.length; 
-                jumlahBelum = totalSkop.length - jumlahSelesai;
-                total = totalSkop.length;
+                jumlahBelum = originalTotalSkop.length - jumlahSelesai;
+                total = originalTotalSkop.length;
                 
                 if (selesaiBtn) selesaiBtn.disabled = (jumlahSelesai === 0);
                 if (belumBtn) belumBtn.disabled = (jumlahBelum === 0);
