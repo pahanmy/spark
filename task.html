@@ -138,7 +138,7 @@
                                 <tfoot id="completion-list-footer" class="hidden">
                                     <tr>
                                         <td colspan="2" class="px-4 py-3 text-center">
-                                            <button onclick="showAllCompletions()" class="btn text-sm text-indigo-600 font-semibold hover:text-indigo-800">
+                                            <button onclick="showAllCompletionsModal()" class="btn text-sm text-indigo-600 font-semibold hover:text-indigo-800">
                                                 Papar Semua Rekod
                                             </button>
                                         </td>
@@ -175,6 +175,17 @@
                             </svg>
                             <span id="copy-link-text">Salin Pautan</span>
                         </button>
+                    </div>
+
+                    <div class="card p-5 text-center">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-3 flex items-center justify-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v1m0 16v1m-6-13H4M3 12h1m16 0h1m-6 6v1m0-16V4M4 18h1m16 0h1m-6 0h-4m4 0h4m-8-8H4m16 0h-4m4 0h4M8 12h8m-4-4v8" /></svg>
+                            QR Pautan Pengesahan
+                        </h3>
+                        <div id="qrcode-container" class="p-4 bg-white inline-block border border-gray-200 rounded-lg shadow-inner">
+                            <img id="qrcode-image" src="" alt="QR Code" class="w-40 h-40" />
+                        </div>
+                        <p class="text-xs text-gray-500 mt-2">Imbas untuk Sahkan Tugasan</p>
                     </div>
                     <div class="card p-5">
                         <h3 class="text-lg font-semibold text-gray-800 flex items-center gap-2 mb-4">
@@ -347,12 +358,13 @@
         let currentTask = null;
         const appId = firebaseConfig.projectId;
         let currentTaskId = null;
-        let skopSelesaiList = []; // Senarai nama skop yang disahkan selesai
-        let skopBelumList = [];   // Senarai nama skop yang belum disahkan
+        let skopSelesaiList = []; 
+        let skopBelumList = [];   
         let currentModalSkopList = [];
         let currentModalSkopTitle = "";
         
         let completionItemsToShow = 5; 
+        let allCompletionRecords = []; // Simpan semua rekod untuk carian modal
 
         try {
             const app = initializeApp(firebaseConfig);
@@ -382,9 +394,9 @@
             normalized = normalized.replace(/\bSG\./g, 'SUNGAI'); 
             normalized = normalized.replace(/\bSG\b/g, 'SUNGAI'); 
             
-            normalized = normalized.replace(/[.,]/g, ''); // Buang titik dan koma
+            normalized = normalized.replace(/[.,]/g, ''); 
             
-            normalized = normalized.replace(/\s+/g, ''); // Buang semua spaces 
+            normalized = normalized.replace(/\s+/g, ''); 
             
             return normalized.trim(); 
         }
@@ -393,7 +405,7 @@
             const norm1 = normalizeName(str1);
             const norm2 = normalizeName(str2);
             
-            // Menggantikan 70% fuzzy match dengan 100% normalized match buat masa ini.
+            // Logik 70% fuzzy match di sini. Buat masa ini, kita guna perbandingan 100% normalized match.
             return norm1 === norm2;
         }
 
@@ -430,6 +442,19 @@
                 return { teks: `Terlewat ${Math.abs(bezaHari)} hari`, badgeClass: 'bg-red-100 text-red-800 font-semibold' };
             }
         }
+        
+        /**
+         * Menjana URL QR Code menggunakan Google Charts API.
+         */
+        function generateQRCodeUrl(taskId) {
+            const linkToVerify = `selesai.html?id=${taskId}`;
+            const absoluteLink = new URL(linkToVerify, window.location.href).href;
+            
+            // Parameter Google Charts API: 
+            // cht=qr (QR code), chs=150x150 (saiz), chl= (data)
+            const qrUrl = `https://chart.googleapis.com/chart?cht=qr&chs=150x150&chl=${encodeURIComponent(absoluteLink)}`;
+            return qrUrl;
+        }
 
         // --- FUNGSI UTAMA ---
 
@@ -449,7 +474,6 @@
                 versionInfo.textContent = `Versi 2.1 (${year})`;
             }
             
-            // Panggil setup listener modal
             setupDynamicFormListeners();
             loadSchoolsIntoDropdowns();
             loadPositionsIntoDropdown();
@@ -460,6 +484,10 @@
             
             document.getElementById('sahkan-selesai-btn').href = `selesai.html?id=${taskId}`;
             document.getElementById('admin-task-btn').href = `admintask.html?id=${taskId}`; 
+            
+            // Set sumber QR Code
+            document.getElementById('qrcode-image').src = generateQRCodeUrl(taskId);
+
 
             const copyBtn = document.getElementById('copy-link-btn');
             const copyText = document.getElementById('copy-link-text');
@@ -508,7 +536,9 @@
             unsubscribeTaskListener = onSnapshot(taskRef, (docSnap) => {
                 if (docSnap.exists()) {
                     currentTask = { id: docSnap.id, ...docSnap.data() };
-                    renderTaskProgress(); // Kira progres dahulu untuk dapat peratusan
+                    allCompletionRecords = currentTask.rekodSelesai || []; // Simpan semua rekod
+                    
+                    renderTaskProgress(); 
                     renderTaskDetails(); 
                     renderCompletionHistory();
                     renderSubTasks(); 
@@ -595,7 +625,7 @@
                         let isCompleted = false;
                         
                         isCompleted = normalizedRecords.some(rekod => {
-                            // Gunakan 70% match untuk memenuhi kriteria
+                            // Gunakan isApproximateMatch (yang menggunakan 100% normalized match buat masa ini)
                             return isApproximateMatch(normalizedSkop, rekod, 0.7);
                         });
                         
@@ -633,80 +663,12 @@
             document.getElementById('progress-circle').style.strokeDashoffset = 100 - peratus;
         }
 
-        // --- FUNGSI MODAL REKOD SELESAI PENUH (BARU) ---
-
-        function showAllCompletionsModal() {
-            const modal = document.getElementById('completion-list-modal');
-            const container = document.getElementById('full-completion-list-body');
-            const displayCount = document.getElementById('completion-count-display');
-            container.innerHTML = '';
-            
-            const list = currentTask.rekodSelesai || [];
-            if (list.length === 0) {
-                container.innerHTML = `<tr><td colspan="2" class="px-4 py-4 text-center text-sm text-gray-500 italic">Tiada rekod pengesahan.</td></tr>`;
-                displayCount.textContent = 'Menunjukkan 0 rekod.';
-                modal.classList.add('buka');
-                return;
-            }
-            
-            list.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-            
-            list.forEach((rekod, index) => {
-                const timestamp = new Date(rekod.timestamp).toLocaleString('ms-MY', { 
-                    day: 'numeric', month: 'long', year: 'numeric', 
-                    hour: 'numeric', minute: '2-digit' 
-                });
-                const nama = rekod.nama_pengesah || currentTask.pegawai || 'N/A';
-                const jawatan = rekod.jawatan_pengesah || 'N/A';
-                const stesen = rekod.stesen_pengesah || 'N/A';
-                
-                container.innerHTML += `
-                    <tr class="text-sm completion-item" data-search="${nama} ${stesen} ${jawatan}">
-                        <td class="px-4 py-3 align-top">
-                            <div class="font-medium text-gray-800">${nama}</div>
-                            <div class="text-gray-600">${jawatan}</div>
-                            <div class="text-gray-600">${stesen}</div>
-                        </td>
-                        <td class="px-4 py-3 text-gray-600 whitespace-nowrap align-top">${timestamp}</td>
-                    </tr>
-                `;
-            });
-            
-            document.getElementById('completion-search-input').value = '';
-            filterCompletionList(); // Paparkan semua dan set kiraan
-            modal.classList.add('buka');
-        }
-
-        function filterCompletionList() {
-            const input = document.getElementById('completion-search-input').value.toUpperCase();
-            const items = document.querySelectorAll('#full-completion-list-body .completion-item');
-            const displayCount = document.getElementById('completion-count-display');
-            let foundCount = 0;
-
-            items.forEach(item => {
-                const searchData = item.getAttribute('data-search').toUpperCase();
-                if (searchData.includes(input)) {
-                    item.style.display = '';
-                    foundCount++;
-                } else {
-                    item.style.display = 'none';
-                }
-            });
-            displayCount.textContent = `Menunjukkan ${foundCount} rekod yang ditemui.`;
-        }
-
-        function closeCompletionModal() {
-            document.getElementById('completion-list-modal').classList.remove('buka');
-        }
-
-        // --- END MODAL REKOD SELESAI PENUH ---
-
         function renderCompletionHistory() {
             const container = document.getElementById('completion-list');
             const footer = document.getElementById('completion-list-footer');
             container.innerHTML = '';
             
-            const list = currentTask.rekodSelesai || [];
+            const list = allCompletionRecords || [];
             if (list.length === 0) {
                 container.innerHTML = `<tr><td colspan="2" class="px-4 py-4 text-center text-sm text-gray-500 italic">Tiada pengesahan selesai direkodkan.</td></tr>`;
                 footer.classList.add('hidden');
@@ -750,6 +712,75 @@
             document.getElementById('completion-items-select').value = "999";
             renderCompletionHistory();
         }
+        
+        // --- MODAL REKOD SELESAI PENUH ---
+
+        function showAllCompletionsModal() {
+            const modal = document.getElementById('completion-list-modal');
+            const container = document.getElementById('full-completion-list-body');
+            const displayCount = document.getElementById('completion-count-display');
+            container.innerHTML = '';
+            
+            const list = allCompletionRecords || [];
+            if (list.length === 0) {
+                container.innerHTML = `<tr><td colspan="2" class="px-4 py-4 text-center text-sm text-gray-500 italic">Tiada rekod pengesahan.</td></tr>`;
+                displayCount.textContent = 'Menunjukkan 0 rekod.';
+                modal.classList.add('buka');
+                return;
+            }
+            
+            list.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+            
+            list.forEach((rekod, index) => {
+                const timestamp = new Date(rekod.timestamp).toLocaleString('ms-MY', { 
+                    day: 'numeric', month: 'long', year: 'numeric', 
+                    hour: 'numeric', minute: '2-digit' 
+                });
+                const nama = rekod.nama_pengesah || currentTask.pegawai || 'N/A';
+                const jawatan = rekod.jawatan_pengesah || 'N/A';
+                const stesen = rekod.stesen_pengesah || 'N/A';
+                const searchData = `${nama} ${stesen} ${jawatan}`.toUpperCase(); // Data carian
+                
+                container.innerHTML += `
+                    <tr class="text-sm completion-item" data-search="${searchData}">
+                        <td class="px-4 py-3 align-top">
+                            <div class="font-medium text-gray-800">${nama}</div>
+                            <div class="text-gray-600">${jawatan}</div>
+                            <div class="text-gray-600">${stesen}</div>
+                        </td>
+                        <td class="px-4 py-3 text-gray-600 whitespace-nowrap align-top">${timestamp}</td>
+                    </tr>
+                `;
+            });
+            
+            document.getElementById('completion-search-input').value = '';
+            filterCompletionList(); // Paparkan semua dan set kiraan
+            modal.classList.add('buka');
+        }
+
+        function filterCompletionList() {
+            const input = document.getElementById('completion-search-input').value.toUpperCase();
+            const items = document.querySelectorAll('#full-completion-list-body .completion-item');
+            const displayCount = document.getElementById('completion-count-display');
+            let foundCount = 0;
+
+            items.forEach(item => {
+                const searchData = item.getAttribute('data-search');
+                if (searchData.includes(input)) {
+                    item.style.display = '';
+                    foundCount++;
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+            displayCount.textContent = `Menunjukkan ${foundCount} rekod yang ditemui.`;
+        }
+
+        function closeCompletionModal() {
+            document.getElementById('completion-list-modal').classList.remove('buka');
+        }
+        
+        // --- END MODAL REKOD SELESAI PENUH ---
 
         function renderSubTasks() {
             const container = document.getElementById('sub-task-list');
@@ -1005,7 +1036,7 @@ Sekian, terima kasih.`;
             let textToCopy = `${currentModalSkopTitle} (Tugasan: ${currentTask.nama.toUpperCase() || 'N/A'}):\n\n`;
             visibleSkops.forEach((item, index) => {
                  // Hanya salin teks tanpa nombor asal dari DOM (nombor akan dijana semula dalam modal)
-                textToCopy += `${index + 1}. ${item.substring(item.indexOf('.') + 2)}\n`; 
+                textToCopy += `${index + 1}. ${item.substring(item.indexOf('.') + 2).trim()}\n`; 
             });
 
             navigator.clipboard.writeText(textToCopy).then(() => {
@@ -1026,15 +1057,15 @@ Sekian, terima kasih.`;
         
         // --- KOD TAMBAHAN (SETUP BORANG DINAMIK DI LATAR BELAKANG) ---
         function setupDynamicFormListeners() {
-            // (Hanya placeholder, fungsi sebenar diabaikan di dashboard)
+            // (Hanya placeholder)
         }
 
         async function loadSchoolsIntoDropdowns() {
-            // (Hanya placeholder, fungsi sebenar diabaikan di dashboard)
+            // (Hanya placeholder)
         }
 
         async function loadPositionsIntoDropdown() {
-             // (Hanya placeholder, fungsi sebenar diabaikan di dashboard)
+             // (Hanya placeholder)
         }
         // --- AKHIR KOD TAMBAHAN ---
 
@@ -1042,10 +1073,10 @@ Sekian, terima kasih.`;
             showSkopList,
             closeSkopModal,
             copySkopList,
-            filterSkopList, // Tambah fungsi filter
+            filterSkopList, 
             printSkopList,
             showAllCompletions,
-            showAllCompletionsModal, // Tambah modal kehadiran
+            showAllCompletionsModal, 
             closeCompletionModal,
             filterCompletionList,
             showShareModal,
