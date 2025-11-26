@@ -11,6 +11,39 @@
     
     <script src="https://cdn.jsdelivr.net/npm/qrcode@1/build/qrcode.min.js"></script>
     <style>
+        /* Peraturan CSS tambahan untuk menyokong UI baharu */
+        .type-button {
+            border: 1px solid #d1d5db; /* border-gray-300 */
+            background-color: #f9fafb; /* bg-gray-50 */
+            color: #4b5563; /* text-gray-700 */
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.5rem; /* rounded-lg */
+            font-size: 0.75rem; /* text-xs */
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+        .type-button:hover {
+            border-color: #a5b4fc; /* border-indigo-300 */
+            background-color: #eef2ff; /* bg-indigo-50 */
+            color: #4f46e5; /* text-indigo-700 */
+        }
+        .type-button.active {
+            border-color: #4f46e5; /* border-indigo-600 */
+            background-color: #e0e7ff; /* bg-indigo-100 */
+            color: #1e3a8a; /* text-blue-900 - lebih gelap untuk kontras */
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+        }
+        .type-button:disabled {
+             opacity: 0.7;
+             cursor: not-allowed;
+             background-color: #f3f4f6;
+             border-color: #e5e7eb;
+             color: #9ca3af;
+        }
+        
+        /* Gaya sedia ada */
         body { font-family: 'Poppins', sans-serif; background-color: #f8f9fa; }
         .card { background-color: white; border-radius: 0.75rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); }
         .btn { transition: all 0.3s; }
@@ -28,6 +61,14 @@
             body.is-printing-modal .no-print { display: none !important; }
             body.is-printing-modal #skop-modal-title { display: block; font-size: 1.5rem; font-weight: bold; margin-bottom: 1rem; color: black; }
             body.is-printing-modal #skop-modal-content div { color: black; background: white; border-bottom: 1px solid #ccc; padding: 4px; }
+        }
+        input[type="file"]::-webkit-file-upload-button {
+            visibility: hidden;
+            width: 0;
+            position: absolute;
+        }
+        #skop-list-textarea {
+            text-transform: uppercase;
         }
     </style>
 </head>
@@ -324,7 +365,7 @@
         };
         
         let db, auth, userId;
-        let unsubscribeTaskListener = null; // <-- Tukar 'TaskListener' kepada 'TaskListener' (jika beza)
+        let unsubscribeTaskListener = null;
         let currentTask = null;
         const appId = firebaseConfig.projectId;
         let currentTaskId = null;
@@ -332,33 +373,26 @@
         let skopBelumList = [];
         let currentModalSkopList = [];
         let currentModalSkopTitle = "";
-        let validatedIc = null; // <-- Pindahkan dari skop 'checkIc'
-        let participantInfo = null; // <-- Pindahkan dari skop 'checkIc'
-        
+        let validatedIc = null; 
+        let participantInfo = null;
         let completionItemsToShow = 5; 
+        
+        // STATUS SUB-TUGASAN MODAL EDIT (BARU)
+        let subTugasanList = []; // Senarai Sub-tugasan untuk modal edit
+        let pautanList = []; // Senarai Pautan untuk modal edit
+        let selectedSubTugasanType = '';
         
         // ▼▼▼ FUNGSI NORMALIZATION (SG. -> SUNGAI) ▼▼▼
         /**
          * Menyeragamkan nama stesen untuk perbandingan.
-         * 1. Tukar ke huruf besar.
-         * 2. Tukar 'SG.' atau 'SG' kepada 'SUNGAI'.
-         * 3. Buang semua tanda noktah.
-         * 4. Buang ruang kosong berlebihan.
          */
         function normalizeStationName(name) {
             if (typeof name !== 'string') return '';
             let normalized = name.toUpperCase();
             
-            // Standardize Sg. and Sg to SUNGAI
-            // Ganti "SG." (dengan noktah)
             normalized = normalized.replace(/\bSG\./g, 'SUNGAI'); 
-            // Ganti "SG" (tanpa noktah, sebagai perkataan penuh)
             normalized = normalized.replace(/\bSG\b/g, 'SUNGAI'); 
-            
-            // Buang semua noktah lain (cth: S.K. -> SK, P.P.D. -> PPD)
             normalized = normalized.replace(/\./g, '');
-            
-            // Buang ruang kosong berlebihan (cth: "SK  BAWAN" -> "SK BAWAN")
             normalized = normalized.replace(/\s+/g, ' ').trim();
             
             return normalized;
@@ -367,7 +401,6 @@
 
         // ▼▼▼ FUNGSI BARU UNTUK JANA QR CODE ▼▼▼
         function generateQRCode(taskId) {
-            // Pastikan library QRCode telah dimuat
             if (typeof QRCode === 'undefined') {
                 console.error("QR Code library (qrcode.min.js) not loaded.");
                 document.getElementById('qr-code-container').innerHTML = "<p class='text-xs text-red-500'>Gagal muat library QR.</p>";
@@ -382,31 +415,24 @@
                 return;
             }
 
-            // 1. Dapatkan pautan absolut dari butang "Sahkan Tugasan"
             const linkToEncode = new URL(document.getElementById('sahkan-selesai-btn').href, window.location.href).href;
             
-            // 2. Kosongkan container lama
             qrContainer.innerHTML = '';
             
-            // 3. Cipta elemen img untuk QR Code
             const img = document.createElement('img');
             img.alt = `QR Code for Task ${taskId}`;
             
-            // 4. Guna library QRCode untuk jana Data URL
             QRCode.toDataURL(linkToEncode, { 
-                errorCorrectionLevel: 'H', // Kualiti tinggi
-                width: 256, // Saiz imej (lebar)
+                errorCorrectionLevel: 'H', 
+                width: 256, 
                 margin: 2
             })
             .then(url => {
-                // 5. Paparkan QR Code dalam <img>
                 img.src = url;
                 qrContainer.appendChild(img);
                 
-                // 6. Tetapkan pautan muat turun
                 downloadBtn.href = url;
                 
-                // 7. Tetapkan nama fail muat turun (guna nama tugasan)
                 const taskName = (currentTask && currentTask.nama) ? currentTask.nama : `Task_${taskId}`;
                 const safeTaskName = taskName.replace(/[^a-z0-9]/gi, '_').substring(0, 30);
                 downloadBtn.download = `SparkTask_QR_${safeTaskName}.png`;
@@ -419,23 +445,7 @@
         }
         // ▲▲▲ TAMAT FUNGSI BARU ▲▲▲
 
-        // --- Salinan DOM Elements dari 'selesai.html' ---
-        const loadingState = document.getElementById('loading-state');
-        const checkInCard = document.getElementById('check-in-card');
-        const icForm = document.getElementById('ic-form');
-        const icInput = document.getElementById('participant-ic');
-        const icError = document.getElementById('ic-error');
-        const icSubmitBtn = document.getElementById('submit-ic-btn');
-        const confirmationDetails = document.getElementById('confirmation-details');
-        const participantDetails = document.getElementById('participant-details');
-        const completionForm = document.getElementById('completion-form');
-        const completionSubmitBtn = document.getElementById('submit-completion-btn');
-
-        const originalButtonText = `
-            <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <span>Sahkan Selesai</span>`;
+        // --- Salinan DOM Elements dari 'selesai.html' (dibuang kerana tidak digunakan di sini) ---
         // --- Tamat Salinan ---
 
 
@@ -448,9 +458,7 @@
         onAuthStateChanged(auth, async (user) => {
             if (user) { 
                 userId = user.uid;
-                // ▼▼▼ Panggil 'main' (gabungan 'main' dari task.html dan selesai.html) ▼▼▼
                 main(); 
-                // ▲▲▲ TAMAT PANGGILAN ▲▲▲
             } else { 
                 try { 
                     await signInAnonymously(auth); 
@@ -460,28 +468,22 @@
             }
         });
 
-        // ▼▼▼ FUNGSI MAIN DIGABUNGKAN ▼▼▼
+        // ▼▼▼ FUNGSI MAIN DIGABUNGKAN (diubahsuai untuk task.html) ▼▼▼
         async function main() { 
             if (!userId) return;
             const urlParams = new URLSearchParams(window.location.search);
             const taskId = urlParams.get('id');
-            currentTaskId = taskId; // Tetapkan untuk kedua-dua skrip
+            currentTaskId = taskId;
 
             const versionInfo = document.getElementById('version-info');
             if(versionInfo) {
                 const year = new Date().getFullYear();
-                // Semak kewujudan elemen sebelum tetapkan, kerana ia mungkin berada di footer berbeza
                 if(document.getElementById('version-info')) {
                     document.getElementById('version-info').textContent = `Versi 2.1 (${year})`;
                 }
             }
 
             if (!taskId) {
-                // Semak jika kita berada di 'selesai.html'
-                if(loadingState && checkInCard) {
-                    return showMessage('error', 'Pautan Tidak Sah', 'ID tugasan tidak ditemui dalam pautan.');
-                }
-                // Jika tidak, mungkin ini 'task.html'
                 if(document.getElementById('loading-dashboard')) {
                     document.getElementById('loading-dashboard').innerHTML = '<p class="text-red-500 text-center">Tiada ID tugasan ditemui. Sila kembali ke senarai.</p>';
                 }
@@ -492,52 +494,50 @@
             if (document.getElementById('full-dashboard-content')) {
                 initializeDashboard(taskId);
             }
-
-            // --- Logik untuk 'selesai.html' (Pengesahan) ---
-            if (document.getElementById('check-in-card') && loadingState) {
-                try {
-                    const taskRef = doc(db, `artifacts/${appId}/public/data/spark_tasks`, currentTaskId);
-                    const docSnap = await getDoc(taskRef);
-
-                    if (docSnap.exists()) {
-                        currentTask = { id: docSnap.id, ...docSnap.data() };
-                        
-                        // Isi kandungan untuk maklumat tugasan 'selesai.html'
-                        document.getElementById('program-name').textContent = currentTask.nama;
-                        document.getElementById('info-pegawai').textContent = currentTask.pegawai || 'N/A';
-                        document.getElementById('info-date-end').textContent = formatTarikh(currentTask.tarikhSiap) || 'N/A';
-                        
-                        loadingState.classList.add('hidden');
-                        checkInCard.classList.remove('hidden');
-                        
-                        confirmationDetails.classList.remove('hidden');
-                        renderProgressVisuals(); // Panggil visual progress
-
-                    } else {
-                        showMessage('error', 'Tugasan Tidak Ditemui', 'Sila pastikan anda menggunakan pautan yang betul.');
-                    }
-                } catch (error) {
-                    console.error("Error memuatkan tugasan: ", error);
-                    showMessage('error', 'Gagal Sambungan', 'Tidak dapat memuatkan maklumat tugasan.');
-                }
-            }
-
-            // --- Logik Tambahan 'task.html' (jika wujud) ---
-            if (document.getElementById('version-info')) {
-                // Ini mungkin bertindih, tetapi tidak mengapa
-            }
-            
-            // ▼▼▼ TAMBAHAN: Muatkan borang pendaftaran di latar belakang (jika wujud) ▼▼▼
-            if (typeof setupDynamicFormListeners === 'function') {
-                setupDynamicFormListeners();
-                loadSchoolsIntoDropdowns();
-                loadPositionsIntoDropdown();
-            }
-            // ▲▲▲ TAMAT TAMBAHAN ▲▲▲
         }
         // ▲▲▲ TAMAT FUNGSI MAIN GABUNGAN ▲▲▲
         
         // --- FUNGSI UNTUK 'task.html' ---
+        
+        // DOM ELEMENTS UNTUK MODAL EDIT (BARU DITAMBAH)
+        const modalTugasan = document.getElementById('modal-tugasan');
+        const borangModal = document.getElementById('borang-tugasan-modal');
+        const modalError = document.getElementById('modal-error');
+        const namaModal = document.getElementById('nama-modal');
+        const pegawaiDisplay = document.getElementById('pegawai-display');
+        const sektorModal = document.getElementById('sektor-modal');
+        const tarikhMulaModal = document.getElementById('tarikh-mula-modal');
+        const tarikhSiapModal = document.getElementById('tarikh-siap-modal');
+        const jumlahSelesaiModal = document.getElementById('jumlah-selesai-modal');
+        const jumlahBelumModal = document.getElementById('jumlah-belum-modal');
+        const skopListTextarea = document.getElementById('skop-list-textarea');
+        const perluPautanCheckbox = document.getElementById('perlu-pautan-checkbox');
+        const pautanSection = document.getElementById('pautan-section');
+        const pautanInput = document.getElementById('pautan-input');
+        const tambahPautanBtn = document.getElementById('tambah-pautan-btn');
+        const senaraiPautanContainer = document.getElementById('senarai-pautan-container');
+        const failInput = document.getElementById('fail-input');
+        const failInfo = document.getElementById('fail-info');
+        const modalTutupBtn = document.getElementById('modal-tutup-btn');
+        const modalBatalBtn = document.getElementById('modal-batal-btn');
+        const padamSahBtn = document.getElementById('padam-sah-btn');
+
+        // DOM BARU SUB-TUGASAN
+        const subTugasanTypeButtonsContainer = document.getElementById('sub-tugasan-type-buttons');
+        const inputTugasanSection = document.getElementById('input-tugasan-section');
+        const subTugasanTextInput = document.getElementById('sub-tugasan-text');
+        const perluWajibCheckbox = document.getElementById('perlu-wajib-checkbox'); 
+        const tambahSubTugasanBtn = document.getElementById('tambah-sub-tugasan-btn');
+        const senaraiSubTugasanContainer = document.getElementById('senarai-sub-tugasan-container');
+        const optionsInputContainer = document.getElementById('options-input-container');
+        const subTugasanOptionsInput = document.getElementById('sub-tugasan-options');
+        const scaleInputContainer = document.getElementById('scale-input-container');
+        const scaleMinInput = document.getElementById('scale-min');
+        const scaleMaxInput = document.getElementById('scale-max');
+        const scaleLabelMinInput = document.getElementById('scale-label-min');
+        const scaleLabelMaxInput = document.getElementById('scale-label-max');
+        // END DOM BARU SUB-TUGASAN
+
         function initializeDashboard(taskId) {
             if (unsubscribeTaskListener) unsubscribeTaskListener();
             
@@ -578,7 +578,7 @@
             }
 
             const completionSelect = document.getElementById('completion-items-select');
-            if(completionSelect) { // Pastikan elemen wujud
+            if(completionSelect) {
                 completionSelect.addEventListener('change', (e) => {
                     completionItemsToShow = parseInt(e.target.value, 10);
                     renderCompletionHistory();
@@ -589,10 +589,10 @@
             
             unsubscribeTaskListener = onSnapshot(taskRef, (docSnap) => {
                 if (docSnap.exists()) {
-                    currentTask = { id: docSnap.id, ...docSnap.data() }; // currentTask dikongsi
+                    currentTask = { id: docSnap.id, ...docSnap.data() }; 
                     renderTaskDetails();
                     
-                    generateQRCode(taskId); // Jana QR Code
+                    generateQRCode(taskId);
                     
                     renderTaskProgress(); 
                     renderCompletionHistory();
@@ -639,9 +639,8 @@
         }
 
         function renderTaskProgress() {
-            if(!document.getElementById('info-selesai')) return; // Hanya jalan jika di task.html
+            if(!document.getElementById('info-selesai')) return; 
 
-            // ▼▼▼ GUNA FUNGSI NORMALISASI ▼▼▼
             const totalSkop = Array.isArray(currentTask.skopSenaraiSekolah) 
                 ? currentTask.skopSenaraiSekolah.map(normalizeStationName) 
                 : [];
@@ -650,7 +649,6 @@
             const allSelesai = Array.isArray(currentTask.skopSelesai) 
                 ? currentTask.skopSelesai.map(normalizeStationName) 
                 : [];
-            // ▲▲▲ TAMAT UBAHSUAI ▲▲▲
 
             skopSelesaiList = allSelesai.filter(sekolah => totalSkopSet.has(sekolah));
             
@@ -695,7 +693,7 @@
 
         function renderCompletionHistory() {
             const container = document.getElementById('completion-list');
-            if(!container) return; // Hanya jalan jika di task.html
+            if(!container) return; 
             
             const footer = document.getElementById('completion-list-footer');
             container.innerHTML = '';
@@ -749,7 +747,7 @@
 
         function renderSubTasks() {
             const container = document.getElementById('sub-task-list');
-            if(!container) return; // Hanya jalan jika di task.html
+            if(!container) return; 
             
             container.innerHTML = '';
             const list = currentTask.senaraiSubTugasan || [];
@@ -765,22 +763,40 @@
                     case 'teks_panjang': return '<span class="text-xs font-medium bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full">Teks Panjang</span>';
                     case 'pautan_url': return '<span class="text-xs font-medium bg-green-100 text-green-800 px-2 py-0.5 rounded-full">Pautan</span>';
                     case 'tarikh': return '<span class="text-xs font-medium bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full">Tarikh</span>';
+                    case 'option_button': return '<span class="text-xs font-medium bg-pink-100 text-pink-800 px-2 py-0.5 rounded-full">Dropdown</span>';
+                    case 'radio_button': return '<span class="text-xs font-medium bg-red-100 text-red-800 px-2 py-0.5 rounded-full">Radio</span>';
+                    case 'multiselect': return '<span class="text-xs font-medium bg-teal-100 text-teal-800 px-2 py-0.5 rounded-full">Multiselect</span>';
+                    case 'skala': return '<span class="text-xs font-medium bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full">Skala</span>';
                     case 'arahan': return '<span class="text-xs font-medium bg-gray-100 text-gray-800 px-2 py-0.5 rounded-full">Arahan</span>';
                     default: return '';
                 }
+            };
+            
+            const getRequiredTag = (required) => {
+                const tagClass = "text-xs font-semibold px-2 py-0.5 rounded-full mr-2";
+                return required 
+                    ? `<span class="${tagClass} bg-red-100 text-red-700">[WAJIB]</span>`
+                    : `<span class="${tagClass} bg-gray-100 text-gray-500">(Pilihan)</span>`;
             };
 
             list.forEach((tugas, index) => {
                 let displayText = '';
                 let typeBadge = '';
+                let requiredTag = '';
+
                 if (typeof tugas === 'object' && tugas !== null && tugas.text) {
                     displayText = tugas.text;
                     typeBadge = getTypeBadge(tugas.type);
+                    requiredTag = getRequiredTag(tugas.required);
                 } else if (typeof tugas === 'string') {
                     displayText = tugas;
+                    typeBadge = getTypeBadge('arahan');
+                    requiredTag = getRequiredTag(true); 
                 } else {
                     displayText = "[Data perkara tidak sah]";
+                    requiredTag = getRequiredTag(true);
                 }
+                
                 container.innerHTML += `
                     <div class="bg-white border border-gray-200 p-4 rounded-lg flex items-start gap-4">
                         <div class="flex-shrink-0 w-8 h-8 flex items-center justify-center bg-indigo-100 text-indigo-700 rounded-full font-bold text-sm">
@@ -788,7 +804,7 @@
                         </div>
                         <div class="flex-1 min-w-0">
                             <p class="text-base font-medium text-gray-900" style="word-break: break-word;">
-                                ${displayText}
+                                ${requiredTag} ${displayText}
                             </p>
                             <div class="mt-2">
                                 ${typeBadge} 
@@ -800,7 +816,7 @@
         }
         function renderLinks() {
             const container = document.getElementById('link-list');
-            if(!container) return false; // Hanya jalan jika di task.html
+            if(!container) return false;
             
             container.innerHTML = '';
             const list = currentTask.senaraiPautan || [];
@@ -820,7 +836,7 @@
         }
         function renderFiles() {
             const container = document.getElementById('file-list');
-            if(!container) return false; // Hanya jalan jika di task.html
+            if(!container) return false; 
 
             container.innerHTML = '';
             const file = currentTask.fail;
@@ -844,7 +860,7 @@
             const modal = document.getElementById('share-modal');
             const textarea = document.getElementById('share-text');
             const shareBtn = document.getElementById('web-share-btn');
-            if(!modal || !textarea || !shareBtn) return; // Hanya jalan jika di task.html
+            if(!modal || !textarea || !shareBtn) return;
             
             const taskName = currentTask.nama;
             const pegawai = currentTask.pegawai;
@@ -982,494 +998,693 @@ Sekian, terima kasih.`;
             }, 250);
         }
         
-        // --- FUNGSI UNTUK 'selesai.html' ---
-        
-        // ▼▼▼ UBAHSUAI: Pastikan fungsi ini guna normalizeStationName ▼▼▼
-        function renderProgressVisuals() {
-            if (!document.getElementById('progress-container')) return; // Hanya jalan jika di selesai.html
-
-            const totalSkop = Array.isArray(currentTask.skopSenaraiSekolah) 
-                ? currentTask.skopSenaraiSekolah.map(normalizeStationName) // UBAHSUAI
-                : [];
+        function handleTindakanJadual(event) {
+            const targetButton = event.target.closest('button, a');
+            if (!targetButton) return;
             
-            let jumlahSelesai;
-            let total;
-
-            if (totalSkop.length > 0) {
-                // --- Mod Skop (berdasarkan senarai) ---
-                const totalSkopSet = new Set(totalSkop);
-                const allSelesai = (currentTask.skopSelesai || []).map(normalizeStationName); // UBAHSUAI
-                const skopSelesaiList = allSelesai.filter(sekolah => totalSkopSet.has(sekolah));
-                
-                jumlahSelesai = skopSelesaiList.length; 
-                total = totalSkop.length;
+            const id = targetButton.dataset.id;
+            if (!id) return;
             
-            } else if (currentTask.jumlahSelesai !== undefined && currentTask.jumlahBelum !== undefined) {
-                // --- Mod Manual (berdasarkan kiraan) ---
-                jumlahSelesai = currentTask.jumlahSelesai || 0;
-                total = (currentTask.jumlahSelesai || 0) + (currentTask.jumlahBelum || 0);
-            
-            } else {
-                // --- Tiada Skop & Tiada Kiraan Manual (fallback) ---
-                jumlahSelesai = (currentTask.rekodSelesai || []).length;
-                total = 0; 
-            }
-
-            const peratus = (total === 0) ? 0 : Math.round((jumlahSelesai / total) * 100);
-
-            const progressContainer = document.getElementById('progress-container');
-            const percentageEl = document.getElementById('progress-percentage');
-            const barEl = document.getElementById('progress-bar-inner');
-            const selesaiEl = document.getElementById('progress-selesai');
-            const totalEl = document.getElementById('progress-total');
-
-            if (total > 0) {
-                if (percentageEl) percentageEl.textContent = `${peratus}%`;
-                if (barEl) barEl.style.width = `${peratus}%`;
-                if (selesaiEl) selesaiEl.textContent = `Selesai: ${jumlahSelesai}`;
-                if (totalEl) totalEl.textContent = `Total: ${total}`;
-            } else {
-                progressContainer.innerHTML = `
-                    <div class="text-center text-sm font-medium text-gray-600 p-3 bg-gray-50 rounded-lg border">
-                        <span class="font-bold text-indigo-600 text-lg">${jumlahSelesai}</span> Pengesahan Telah Diterima
-                    </div>
-                `;
-            }
-        }
-        // ▲▲▲ TAMAT UBAHSUAI ▲▲▲
-        
-        function validateIcInput(input) {
-            input.value = input.value.replace(/[^0-9]/g, '');
-            const counter = document.getElementById('ic-counter');
-            if (counter) {
-                const currentLength = input.value.length;
-                counter.textContent = currentLength;
-                if (currentLength === 12) {
-                    counter.classList.add('text-green-600', 'font-bold');
+            if (targetButton.classList.contains('butang-edit')) {
+                // Gunakan logic pengesahan IC sebelum membuka modal edit
+                const modalPengesahanIc = document.getElementById('modal-pengesahan-ic');
+                if (modalPengesahanIc) {
+                    currentTaskId = id; // Tetapkan ID untuk proses pengesahan
+                    currentActionIntent = 'edit';
+                    document.getElementById('input-pengesahan-ic').value = ''; 
+                    document.getElementById('error-pengesahan-ic').classList.add('hidden');
+                    modalPengesahanIc.classList.add('buka');
+                    document.getElementById('input-pengesahan-ic').focus();
                 } else {
-                    counter.classList.remove('text-green-600', 'font-bold');
+                    bukaModalEdit(id);
                 }
             }
+            // Logic untuk padam atau tindakan lain yang memerlukan pengesahan IC
+            // ... (diabaikan buat masa ini kerana fungsi `padam` berada di `sparktask.html`)
         }
         
-        window.checkIc = async function(event) {
-            event.preventDefault();
-            icError.classList.add('hidden');
-            const ic = icInput.value.trim();
+        // --- LOGIK MODAL EDIT ---
 
-            if (!ic || ic.length !== 12) {
-                alert("Sila masukkan No. IC yang sah (12 digit).");
+        async function handleSimpanBorang(event) {
+            event.preventDefault();
+            if (isSubmitting || !currentTaskId) return;
+            if (!borangModal.checkValidity()) {
+                tunjukModalError('Sila isi semua medan yang diperlukan.');
+                borangModal.reportValidity();
+                return;
+            }
+            isSubmitting = true;
+            sembunyiModalError();
+            
+            const submitButton = borangModal.querySelector('button[type="submit"]');
+            submitButton.disabled = true;
+            submitButton.innerHTML = `<svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Menyimpan...`;
+            submitButton.classList.add('flex', 'items-center', 'justify-center');
+            
+            let failData = null;
+            const fail = failInput.files[0];
+            const tugasanLama = currentTask;
+            
+            if (fail) {
+                if (fail.size > 5 * 1024 * 1024) {
+                    tunjukModalError('Fail terlalu besar. Saiz maksimum adalah 5MB.');
+                    isSubmitting = false;
+                    submitButton.disabled = false;
+                    submitButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline-block mr-2 -ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-12 0h12m-6 0v4m-3 0h6" /></svg>Simpan Kemaskini`;
+                    submitButton.classList.remove('flex', 'items-center', 'justify-center');
+                    return;
+                }
+                try {
+                    failData = await bacaFail(fail);
+                } catch (err) {
+                    tunjukModalError('Gagal membaca fail.');
+                    isSubmitting = false;
+                    submitButton.disabled = false;
+                    submitButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline-block mr-2 -ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-12 0h12m-6 0v4m-3 0h6" /></svg>Simpan Kemaskini`;
+                    submitButton.classList.remove('flex', 'items-center', 'justify-center');
+                    return;
+                }
+            }
+            
+            const skopText = skopListTextarea.value;
+            const skopSenaraiSekolah = skopText.split('\n')
+                                             .map(line => line.trim().toUpperCase())
+                                             .filter(line => line.length > 0);
+            
+            let jumlahSelesai, jumlahBelum;
+
+            if (skopSenaraiSekolah.length > 0) {
+                jumlahSelesai = parseInt(jumlahSelesaiModal.value) || 0;
+                let totalSkop = skopSenaraiSekolah.length;
+                if (jumlahSelesai > totalSkop) {
+                    jumlahSelesai = totalSkop;
+                }
+                jumlahBelum = totalSkop - jumlahSelesai;
+            } else {
+                jumlahSelesai = parseInt(jumlahSelesaiModal.value) || 0;
+                jumlahBelum = parseInt(jumlahBelumModal.value) || 0;
+            }
+
+            const dataTugasanDikemaskini = {
+                nama: namaModal.value,
+                sektor: sektorModal.value,
+                tarikhMula: tarikhMulaModal.value,
+                tarikhSiap: tarikhSiapModal.value,
+                jumlahSelesai: jumlahSelesai,
+                jumlahBelum: jumlahBelum,
+                skopSenaraiSekolah: skopSenaraiSekolah,
+                senaraiSubTugasan: subTugasanList,
+                senaraiPautan: pautanList
+            };
+
+            if (failData) {
+                dataTugasanDikemaskini.fail = failData;
+            } else {
+                dataTugasanDikemaskini.fail = tugasanLama ? tugasanLama.fail : null;
+            }
+            
+            try {
+                const docRef = doc(db, `artifacts/${appId}/public/data/spark_tasks`, currentTaskId);
+                await updateDoc(docRef, dataTugasanDikemaskini);
+                tutupModalTugasan();
+            } catch (error) {
+                console.error("Error mengemaskini dokumen: ", error);
+                tunjukModalError("Gagal mengemaskini tugasan. Sila cuba lagi.");
+            } finally {
+                isSubmitting = false;
+                submitButton.disabled = false;
+                submitButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline-block mr-2 -ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-12 0h12m-6 0v4m-3 0h6" /></svg>Simpan Kemaskini`;
+                submitButton.classList.remove('flex', 'items-center', 'justify-center');
+            }
+        }
+        
+        function bukaModalEdit(id) {
+            const tugasan = currentTask;
+            if (!tugasan || tugasan.id !== id) return;
+            
+            borangModal.reset();
+            currentTaskId = id;
+            namaModal.value = tugasan.nama;
+            pegawaiDisplay.textContent = `${tugasan.pegawai || 'N/A'}`;
+            sektorModal.value = tugasan.sektor;
+            tarikhMulaModal.value = tugasan.tarikhMula;
+            tarikhSiapModal.value = tugasan.tarikhSiap;
+
+            jumlahSelesaiModal.value = tugasan.jumlahSelesai || 0;
+            jumlahBelumModal.value = tugasan.jumlahBelum || 0;
+            
+            skopListTextarea.value = (tugasan.skopSenaraiSekolah || []).join('\n');
+            
+            // KEMASKINI SUB-TUGASAN
+            subTugasanList = (tugasan.senaraiSubTugasan || []).map(item => {
+                if (typeof item === 'string') {
+                    return { text: item, type: 'arahan', required: true, options: [], scaleData: null };
+                }
+                return { 
+                    ...item, 
+                    required: item.required !== undefined ? item.required : true,
+                    options: item.options || [],
+                    scaleData: item.scaleData || null
+                };
+            });
+            
+            paparSenaraiSubTugasan(); 
+            
+            // RESET UI INPUT SUB-TUGASAN
+            if(subTugasanTextInput) subTugasanTextInput.value = '';
+            if(subTugasanOptionsInput) subTugasanOptionsInput.value = '';
+            if(scaleLabelMinInput) scaleLabelMinInput.value = '';
+            if(scaleLabelMaxInput) scaleLabelMaxInput.value = '';
+            if(scaleMinInput) scaleMinInput.value = '1';
+            if(scaleMaxInput) scaleMaxInput.value = '5';
+            if(perluWajibCheckbox) perluWajibCheckbox.checked = true;
+            
+            selectedSubTugasanType = '';
+            resetTypeButtons();
+            toggleOptionsInput();
+
+
+            pautanList = [...(tugasan.senaraiPautan || [])];
+            paparSenaraiPautan();
+            
+            if (pautanList.length > 0) {
+                perluPautanCheckbox.checked = true;
+                pautanSection.classList.remove('hidden');
+            } else {
+                perluPautanCheckbox.checked = false;
+                pautanSection.classList.add('hidden');
+            }
+            failInfo.innerHTML = '';
+            if (tugasan.fail) {
+                failInfo.innerHTML = `
+                    <span class="font-medium">${tugasan.fail.nama}</span>
+                    <a href="${tugasan.fail.data}" target="_blank" class="text-blue-600 ml-2">Lihat</a>
+                    <button type="button" class="text-red-600 ml-2 buang-fail-btn" data-id="${id}">(Buang)</button>
+                `;
+            }
+            document.getElementById('modal-title').textContent = "Edit Tugasan";
+            sembunyiModalError();
+            modalTugasan.classList.add('buka');
+        }
+        
+        function tutupModalTugasan() {
+            modalTugasan.classList.remove('buka');
+            borangModal.reset();
+            subTugasanList = [];
+            pautanList = [];
+            currentTaskId = null;
+            failInfo.innerHTML = '';
+            failInput.value = '';
+            skopListTextarea.value = '';
+            pautanSection.classList.add('hidden');
+            perluPautanCheckbox.checked = false;
+            isSubmitting = false;
+        }
+        
+        // FUNGSI BUTANG JENIS BARU (DISALIN DARI TUGASAN.HTML)
+        function handleTypeButtonClick(event) {
+            const button = event.target.closest('.type-button');
+            if (!button) return;
+            
+            const newType = button.getAttribute('data-type');
+            
+            if (selectedSubTugasanType === newType) {
+                selectedSubTugasanType = '';
+                button.classList.remove('active');
+            } else {
+                selectedSubTugasanType = newType;
+                document.querySelectorAll('#sub-tugasan-type-buttons .type-button').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                button.classList.add('active');
+            }
+            
+            toggleOptionsInput();
+        }
+
+        function resetTypeButtons() {
+            document.querySelectorAll('#sub-tugasan-type-buttons .type-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+        }
+        
+        // FUNGSI UNTUK MENGENDALIKAN KETERLIHATAN KOTAK PILIHAN/SKALA (DISALIN DARI TUGASAN.HTML)
+        function toggleOptionsInput() {
+            const selectedType = selectedSubTugasanType;
+            
+            const isTypeSelected = selectedType !== "";
+            if(inputTugasanSection) inputTugasanSection.classList.toggle('hidden', !isTypeSelected);
+            
+            if (isTypeSelected) {
+                 if(subTugasanTextInput) subTugasanTextInput.focus();
+            }
+            
+            const isOptionsNeeded = (
+                selectedType === 'option_button' || 
+                selectedType === 'radio_button' || 
+                selectedType === 'multiselect'
+            );
+            if(optionsInputContainer) optionsInputContainer.classList.toggle('hidden', !isOptionsNeeded);
+
+            const isScaleNeeded = (selectedType === 'skala');
+            if(scaleInputContainer) scaleInputContainer.classList.toggle('hidden', !isScaleNeeded);
+
+            if (!isOptionsNeeded && subTugasanOptionsInput) {
+                subTugasanOptionsInput.value = '';
+            }
+        }
+        
+        // FUNGSI TAMBAH SUB-TUGASAN (DIKEMAS KINI DARI TUGASAN.HTML)
+        function tambahSubTugasan() {
+            const text = subTugasanTextInput.value.trim();
+            const type = selectedSubTugasanType;
+            const isRequired = perluWajibCheckbox.checked;
+
+            let options = []; 
+            let scaleData = null;
+
+            if (!text) {
+                alert("Sila masukkan soalan atau arahan untuk sub-tugasan.");
+                subTugasanTextInput.focus();
                 return;
             }
             
-            icSubmitBtn.disabled = true;
-            icSubmitBtn.innerHTML = `<svg class="animate-spin h-5 w-5 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>`;
+             if (type === "") {
+                alert("Sila pilih Jenis Sub-Tugasan terlebih dahulu.");
+                subTugasanTypeButtonsContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                return;
+            }
 
-            let stesenPengesah = null;
+            if (type === 'option_button' || type === 'radio_button' || type === 'multiselect') {
+                const inputOptions = subTugasanOptionsInput.value.trim();
+                
+                if (inputOptions === "") {
+                    alert("Jenis ini memerlukan senarai pilihan. Sila masukkan pilihan (1 per baris).");
+                    optionsInputContainer.scrollIntoView({ behavior: 'smooth' });
+                    subTugasanOptionsInput.focus();
+                    return;
+                }
+                options = inputOptions.split('\n').map(opt => opt.trim()).filter(opt => opt.length > 0);
+                if (options.length === 0) {
+                    alert("Sila masukkan pilihan yang sah.");
+                    return;
+                }
+            }
 
-            try {
-                const participantsRef = collection(db, `artifacts/${appId}/public/data/spark_participants`);
-                const q = query(participantsRef, where("ic", "==", ic));
-                const querySnapshot = await getDocs(q);
-
-                if (querySnapshot.empty) {
-                    icError.classList.remove('hidden');
-                    icInput.focus();
-                    icSubmitBtn.disabled = false;
-                    icSubmitBtn.textContent = "Seterusnya";
+            if (type === 'skala') {
+                const min = parseInt(scaleMinInput.value);
+                const max = parseInt(scaleMaxInput.value);
+                
+                if (min >= max) {
+                    alert("Nilai 'Skala Mula' mesti lebih kecil dari 'Skala Tamat'.");
                     return;
                 }
                 
-                const docData = querySnapshot.docs[0].data();
-                participantInfo = {
-                    ic: ic,
-                    name: docData.name,
-                    position: docData.position,
-                    station: docData.station
+                scaleData = {
+                    min: min,
+                    max: max,
+                    minLabel: scaleLabelMinInput.value.trim(),
+                    maxLabel: scaleLabelMaxInput.value.trim()
                 };
-                validatedIc = ic;
-                stesenPengesah = docData.station || null;
-
-                // ▼▼▼ UBAHSUAI: Guna normalizeStationName untuk semakan 'skopSelesai' ▼▼▼
-                const skopSelesai = (currentTask.skopSelesai || []).map(normalizeStationName);
-                if (stesenPengesah && skopSelesai.includes(normalizeStationName(stesenPengesah))) {
-                     showMessage('warning', 'Telah Disahkan', `Seseorang dari stesen anda (${stesenPengesah}) telah pun membuat pengesahan untuk tugasan ini.`);
-                     icSubmitBtn.disabled = false;
-                     icSubmitBtn.textContent = "Seterusnya";
-                     return;
-                }
-                // ▲▲▲ TAMAT UBAHSUAI ▲▲▲
-
-
-                document.getElementById('participant-name').textContent = docData.name || 'N/A';
-                document.getElementById('participant-position').textContent = docData.position || 'TIADA JAWATAN';
-                document.getElementById('participant-station').textContent = docData.station || 'TIADA STESEN';
-
-                icForm.classList.add('hidden');
-                document.getElementById('progress-container').classList.add('hidden'); // Sembunyi progress bar
-                participantDetails.classList.remove('hidden');
-                
-                buildDynamicForm(currentTask.senaraiSubTugasan); 
-                
-                completionForm.classList.remove('hidden');
-                
-            } catch (error) {
-                console.error("Error verifying participant IC: ", error);
-                showMessage('error', 'Gagal!', 'Berlaku ralat semasa mengesahkan IC anda. Sila cuba lagi.');
-                icSubmitBtn.disabled = false;
-                icSubmitBtn.textContent = "Seterusnya";
             }
+            
+            const newSubTugas = { text: text, type: type, options: options, scaleData: scaleData, required: isRequired }; 
+            subTugasanList.push(newSubTugas);
+            paparSenaraiSubTugasan();
+            
+            // Reset UI
+            if(subTugasanTextInput) subTugasanTextInput.value = '';
+            if(subTugasanOptionsInput) subTugasanOptionsInput.value = '';
+            if(scaleLabelMinInput) scaleLabelMinInput.value = '';
+            if(scaleLabelMaxInput) scaleLabelMaxInput.value = '';
+            if(scaleMinInput) scaleMinInput.value = '1';
+            if(scaleMaxInput) scaleMaxInput.value = '5';
+            if(perluWajibCheckbox) perluWajibCheckbox.checked = true;
+            
+            // Reset butang jenis
+            selectedSubTugasanType = '';
+            resetTypeButtons();
+            
+            if(optionsInputContainer) optionsInputContainer.classList.add('hidden');
+            if(scaleInputContainer) scaleInputContainer.classList.add('hidden');
+            if(inputTugasanSection) inputTugasanSection.classList.add('hidden');
+            
+            senaraiSubTugasanContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
         
-        function buildDynamicForm(questions) {
-            const container = document.getElementById('dynamic-questions-container');
-            if(!container) return; // Hanya jalan jika di selesai.html
-            
-            container.innerHTML = '';
-            
-            if (!questions || questions.length === 0) {
-                container.innerHTML = '<p class="text-gray-500 italic text-center">Tiada arahan atau soalan khusus untuk tugasan ini. Sila tekan "Sahkan Selesai" di bawah untuk merekodkan pengesahan anda.</p>';
+        // FUNGSI UNTUK MENGENDALIKAN REORDER (DISALIN DARI TUGASAN.HTML)
+        function reorderSubTugasan(index, direction) {
+            if (direction === 'up' && index > 0) {
+                [subTugasanList[index], subTugasanList[index - 1]] = [subTugasanList[index - 1], subTugasanList[index]];
+            } else if (direction === 'down' && index < subTugasanList.length - 1) {
+                [subTugasanList[index], subTugasanList[index + 1]] = [subTugasanList[index + 1], subTugasanList[index]];
+            }
+            paparSenaraiSubTugasan();
+        }
+
+
+        // FUNGSI paparSenaraiSubTugasan() - DIKEMAS KINI DENGAN STATUS WAJIB & BUTANG REORDER
+        function paparSenaraiSubTugasan() {
+            senaraiSubTugasanContainer.innerHTML = '';
+            if (subTugasanList.length === 0) {
+                senaraiSubTugasanContainer.innerHTML = `<p class="text-xs text-gray-500 italic text-center">Tiada sub-tugasan ditambah.</p>`;
                 return;
             }
 
-            questions.forEach((q, index) => {
-                const wrapper = document.createElement('div');
-                wrapper.className = 'spark-question-wrapper';
-                
-                // Pastikan 'q' adalah objek
-                let questionText, questionType;
-                if (typeof q === 'object' && q !== null && q.text) {
-                    questionText = q.text;
-                    questionType = q.type || 'arahan';
-                } else if (typeof q === 'string') {
-                    questionText = q; // Data lama
-                    questionType = 'arahan'; // Anggap data lama sebagai arahan
+            const getTypeBadge = (type) => {
+                const badgeClass = "flex-shrink-0 text-xs font-medium px-2 py-0.5 rounded-full";
+                switch (type) {
+                    case 'ya_tidak': return `<span class="ml-2 ${badgeClass} bg-blue-100 text-blue-800">Ya/Tidak</span>`;
+                    case 'teks_ringkas': return `<span class="ml-2 ${badgeClass} bg-yellow-100 text-yellow-800">Teks Ringkas</span>`;
+                    case 'teks_panjang': return `<span class="ml-2 ${badgeClass} bg-yellow-100 text-yellow-800">Teks Panjang</span>`;
+                    case 'pautan_url': return `<span class="ml-2 ${badgeClass} bg-green-100 text-green-800">Pautan</span>`;
+                    case 'tarikh': return `<span class="ml-2 ${badgeClass} bg-purple-100 text-purple-800">Tarikh</span>`;
+                    case 'option_button': return `<span class="ml-2 ${badgeClass} bg-pink-100 text-pink-800">Dropdown</span>`;
+                    case 'radio_button': return `<span class="ml-2 ${badgeClass} bg-red-100 text-red-800">Radio</span>`;
+                    case 'multiselect': return `<span class="ml-2 ${badgeClass} bg-teal-100 text-teal-800">Multiselect</span>`;
+                    case 'skala': return `<span class="ml-2 ${badgeClass} bg-indigo-100 text-indigo-800">Skala</span>`;
+                    case 'arahan': return `<span class="ml-2 ${badgeClass} bg-gray-100 text-gray-800">Arahan</span>`;
+                    default: return '';
+                }
+            };
+            
+            const getRequiredTag = (required) => {
+                const tagClass = "text-xs font-semibold px-2 py-0.5 rounded-full mr-2 pt-0.5";
+                return required 
+                    ? `<span class="${tagClass} bg-red-100 text-red-700">[WAJIB]</span>`
+                    : `<span class="${tagClass} bg-gray-100 text-gray-500">(Pilihan)</span>`;
+            };
+
+            subTugasanList.forEach((tugas, index) => {
+                let displayText = '';
+                let typeBadge = '';
+                let requiredTag = '';
+                let detailsHtml = '';
+
+                // KENDALIKAN DATA LAMA & BARU
+                if (typeof tugas === 'object' && tugas !== null && (tugas.text || tugas.type)) {
+                    displayText = tugas.text || "[Teks Tiada]";
+                    typeBadge = getTypeBadge(tugas.type);
+                    requiredTag = getRequiredTag(tugas.required);
+                    
+                    if (tugas.options && tugas.options.length > 0) {
+                        detailsHtml = `<p class="text-xs text-gray-600 mt-1 italic pl-3">Pilihan: ${tugas.options.join(', ')}</p>`;
+                    } else if (tugas.scaleData) {
+                         const s = tugas.scaleData;
+                         const labelStr = (s.minLabel || s.maxLabel) ? ` (${s.min}=${s.minLabel || ''}, ${s.max}=${s.maxLabel || ''})` : '';
+                         detailsHtml = `<p class="text-xs text-gray-600 mt-1 italic pl-3">Julat Skala: ${s.min} hingga ${s.max}${labelStr}</p>`;
+                    }
+
+                } else if (typeof tugas === 'string') {
+                    displayText = tugas;
+                    typeBadge = getTypeBadge('arahan');
+                    requiredTag = getRequiredTag(true); // Default wajib untuk data string lama
                 } else {
-                    questionText = "[Soalan tidak sah]";
-                    questionType = 'arahan';
+                    displayText = "[Data tidak sah]";
+                    requiredTag = getRequiredTag(true);
                 }
 
-                wrapper.dataset.questionText = questionText;
-                wrapper.dataset.questionType = questionType;
-                wrapper.dataset.questionIndex = index;
 
-                let inputHtml = '';
-                const questionId = `q_${index}`;
-                
-                const inputClasses = "spark-question-input mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 text-base px-4 py-3";
-
-                switch(questionType) {
-                    case 'arahan':
-                        inputHtml = `<div class="arahan-only-box">
-                                        <p><b>${index + 1}.</b> ${questionText}</p>
-                                     </div>`;
-                        break;
-                    case 'ya_tidak':
-                        inputHtml = `
-                            <label class="block text-sm font-medium text-gray-700">${index + 1}. ${questionText}</label>
-                            <div class="mt-2 grid grid-cols-2 gap-3">
-                                <div>
-                                    <input type="radio" id="${questionId}_ya" name="${questionId}" value="Ya" class="spark-question-input">
-                                    <label for="${questionId}_ya" class="radio-btn-label">Ya</label>
-                                </div>
-                                <div>
-                                    <input type="radio" id="${questionId}_tidak" name="${questionId}" value="Tidak" class="spark-question-input">
-                                    <label for="${questionId}_tidak" class="radio-btn-label">Tidak</label>
-                                </div>
-                            </div>`;
-                        break;
-                    case 'teks_ringkas':
-                        inputHtml = `<label for="${questionId}" class="block text-sm font-medium text-gray-700">${index + 1}. ${questionText}</label>
-                                     <input type="text" id="${questionId}" class="${inputClasses}" placeholder="Isi jawapan anda...">`;
-                        break;
-                    case 'teks_panjang':
-                        inputHtml = `<label for="${questionId}" class="block text-sm font-medium text-gray-700">${index + 1}. ${questionText}</label>
-                                     <textarea id="${questionId}" rows="4" class="${inputClasses}" placeholder="Isi jawapan anda..."></textarea>`;
-                        break;
-                    case 'pautan_url':
-                        inputHtml = `<label for="${questionId}" class="block text-sm font-medium text-gray-700">${index + 1}. ${questionText}</label>
-                                     <input type="url" id="${questionId}" class="${inputClasses}" placeholder="https://...">`;
-                        break;
-                    case 'tarikh':
-                        inputHtml = `<label for="${questionId}" class="block text-sm font-medium text-gray-700">${index + 1}. ${questionText}</label>
-                                     <input type="date" id="${questionId}" class="${inputClasses}">`;
-                        break;
-                }
-                wrapper.innerHTML = inputHtml;
-                container.appendChild(wrapper);
+                senaraiSubTugasanContainer.innerHTML += `
+                    <div class="bg-white p-2 rounded border border-gray-200">
+                        <div class="flex justify-between items-start min-w-0">
+                            <div class="flex-1 flex items-start min-w-0 flex-wrap pt-1">
+                                ${requiredTag}
+                                <span class="text-sm truncate font-medium pt-0.5" title="${displayText}">${index + 1}. ${displayText}</span>
+                                ${typeBadge}
+                            </div>
+                            <div class="flex items-center space-x-2 flex-shrink-0">
+                                <button type="button" class="text-gray-500 hover:text-indigo-600 reorder-btn" data-index="${index}" data-direction="up" ${index === 0 ? 'disabled' : ''}>
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path></svg>
+                                </button>
+                                <button type="button" class="text-gray-500 hover:text-indigo-600 reorder-btn" data-index="${index}" data-direction="down" ${index === subTugasanList.length - 1 ? 'disabled' : ''}>
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                </button>
+                                <button type="button" class="text-red-500 hover:text-red-700 padam-sub-tugasan-btn" data-index="${index}">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                </button>
+                            </div>
+                        </div>
+                        ${detailsHtml}
+                    </div>
+                `;
+            });
+            // Attach event listeners for reordering after rendering
+            document.querySelectorAll('.reorder-btn').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    const target = e.currentTarget;
+                    const index = parseInt(target.dataset.index);
+                    const direction = target.dataset.direction;
+                    reorderSubTugasan(index, direction);
+                });
             });
         }
-        
-        window.sahkanSelesai = async function(event) {
+
+
+        function handleSubTugasanKlik(event) {
+            const target = event.target.closest('.padam-sub-tugasan-btn');
+            if (target) {
+                const index = parseInt(target.dataset.index);
+                subTugasanList.splice(index, 1);
+                paparSenaraiSubTugasan();
+            }
+        }
+        function tambahPautan() {
+            const url = pautanInput.value.trim();
+            if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
+                pautanList.push(url);
+                paparSenaraiPautan();
+                pautanInput.value = 'https://';
+                pautanInput.focus();
+            } else if (url) {
+                alert("Pautan tidak sah. Sila pastikan ia bermula dengan 'http://' atau 'https://'.");
+                pautanInput.focus();
+            }
+        }
+        function paparSenaraiPautan() {
+            senaraiPautanContainer.innerHTML = '';
+            if (pautanList.length === 0) {
+                senaraiPautanContainer.innerHTML = `<p class="text-xs text-gray-500 italic text-center">Tiada pautan ditambah.</p>`;
+                return;
+            }
+            pautanList.forEach((url, index) => {
+                senaraiPautanContainer.innerHTML += `
+                    <div class="flex justify-between items-center bg-white p-2 rounded">
+                        <a href="${url}" target="_blank" class="text-sm text-blue-600 hover:underline truncate" style="max-width: 90%;">${index + 1}. ${url}</a>
+                        <button type="button" class="text-red-500 hover:text-red-700 padam-pautan-btn ml-2 flex-shrink-0" data-index="${index}">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                        </button>
+                    </div>
+                `;
+            });
+        }
+        function handlePautanKlik(event) {
+            const target = event.target.closest('.padam-pautan-btn');
+            if (target) {
+                const index = parseInt(target.dataset.index);
+                pautanList.splice(index, 1);
+                paparSenaraiPautan();
+            }
+        }
+        function handleFailInfoKlik(event) {
+            const target = event.target.closest('.buang-fail-btn');
+            if(target && currentTaskId) {
+                // Buang fail dengan menetapkan fail kepada null
+                const task = currentTask; 
+                if (task) {
+                    task.fail = null; 
+                    failInfo.innerHTML = '<span class="text-red-500 text-xs">Fail akan dibuang selepas simpan.</span>';
+                }
+            }
+        }
+        function sahkanEditIC(event) {
             event.preventDefault();
+            if (!currentTaskId) return;
+            const inputIC = document.getElementById('input-pengesahan-ic').value;
+            const tugasan = currentTask;
+            const errorPengesahanIc = document.getElementById('error-pengesahan-ic');
             
-            if (!validatedIc) {
-                alert("Sila sahkan IC anda dahulu.");
-                return;
-            }
-            
-            completionSubmitBtn.disabled = true;
-            completionSubmitBtn.innerHTML = `<svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> <span>Menghantar...</span>`;
-
-            const jawapanSelesai = [];
-            const wrappers = document.querySelectorAll('.spark-question-wrapper');
-            
-            let isFormValid = true;
-
-            wrappers.forEach(wrapper => {
-                const questionText = wrapper.dataset.questionText;
-                const questionType = wrapper.dataset.questionType;
-                let value = '';
-                let inputElement = null;
-
-                if (questionType === 'ya_tidak') {
-                    const checkedRadio = wrapper.querySelector('input[type="radio"]:checked');
-                    if (checkedRadio) {
-                        value = checkedRadio.value;
-                    } else {
-                        value = "Tidak Dipilih"; 
-                    }
-                    wrapper.querySelectorAll('.radio-btn-label').forEach(lbl => lbl.classList.remove('border-red-500'));
-                
-                } else if (questionType === 'teks_ringkas' || questionType === 'pautan_url' || questionType === 'teks_panjang' || questionType === 'tarikh') {
-                    inputElement = wrapper.querySelector('.spark-question-input, textarea'); 
-                    if (inputElement) {
-                        value = inputElement.value.trim();
-                        if (value === '') {
-                            isFormValid = false; 
-                            inputElement.classList.add('border-red-500', 'ring-red-500');
-                        } else {
-                            inputElement.classList.remove('border-red-500', 'ring-red-500');
-                        }
-                    }
-                
-                } else if (questionType === 'arahan') {
-                    return; 
+            if (tugasan && tugasan.penyelaras_ic === inputIC) {
+                errorPengesahanIc.classList.add('hidden');
+                document.getElementById('modal-pengesahan-ic').classList.remove('buka');
+                if (currentActionIntent === 'edit') {
+                    bukaModalEdit(currentTaskId);
+                } else if (currentActionIntent === 'delete') {
+                    // Logic padam diletakkan di sparktask.html
+                    // Di sini kita hanya mengesahkan untuk meneruskan ke proses padam
+                    // Atau anda boleh teruskan ke modal padam di task.html
                 }
-
-                jawapanSelesai.push({
-                    soalan: questionText,
-                    jenis: questionType,
-                    jawapan: value
-                });
-            });
-
-            if (!isFormValid) {
-                alert("Sila isi semua jawapan yang diperlukan (selain Ya/Tidak).");
-                completionSubmitBtn.disabled = false;
-                completionSubmitBtn.innerHTML = originalButtonText;
-                return;
-            }
-            
-            const timestampSekarang = new Date();
-
-            const completionRecord = {
-                ic_pengesah: validatedIc,
-                nama_pengesah: participantInfo ? participantInfo.name : 'N/A',
-                jawatan_pengesah: participantInfo ? participantInfo.position : 'N/A',
-                stesen_pengesah: participantInfo ? participantInfo.station : 'N/A',
-                jawapan: jawapanSelesai,
-                timestamp: timestampSekarang.toISOString()
-            };
-
-            const stesenPengesah = participantInfo ? participantInfo.station : null;
-            let dataToUpdate = {
-                rekodSelesai: arrayUnion(completionRecord)
-            };
-
-            if (stesenPengesah) {
-                dataToUpdate.skopSelesai = arrayUnion(stesenPengesah);
-            }
-
-            const taskRef = doc(db, `artifacts/${appId}/public/data/spark_tasks`, currentTaskId);
-            try {
-                await updateDoc(taskRef, dataToUpdate);
-                
-                const bilanganSediaAda = (currentTask.rekodSelesai || []).length;
-                const bilanganBaru = bilanganSediaAda + 1; 
-
-                const tarikhMasa = timestampSekarang.toLocaleString('ms-MY', { 
-                    day: 'numeric', month: 'long', year: 'numeric', 
-                    hour: 'numeric', minute: '2-digit', second: '2-digit' 
-                });
-
-                let msgTitle = "Pengesahan Telah Direkodkan";
-                let msgBody = `Terima kasih. Data anda telah disahkan dan direkodkan pada ${tarikhMasa}. Anda adalah pengesah ke-${bilanganBaru} untuk tugasan ini.`;
-                
-                showMessage('success', msgTitle, msgBody);
-
-            } catch (error) {
-                console.error("Error saving completion record: ", error);
-                showMessage('error', 'Gagal!', 'Gagal menyimpan rekod. Sila cuba lagi.');
-                completionSubmitBtn.disabled = false;
-                completionSubmitBtn.innerHTML = originalButtonText;
+                currentActionIntent = null; 
+            } else {
+                errorPengesahanIc.classList.remove('hidden');
             }
         }
-        
-        function showMessage(type, title, body) {
-            if(loadingState) loadingState.classList.add('hidden');
-            if (checkInCard) checkInCard.classList.add('hidden');
-            
-            const msgCard = document.getElementById('message-card');
-            const msgIcon = document.getElementById('message-icon');
-            const msgTitle = document.getElementById('message-title');
-            const msgBody = document.getElementById('message-body');
-            if(!msgCard || !msgIcon || !msgTitle || !msgBody) return; // Hanya jalan jika di selesai.html
+        // --- Tamat LOGIK MODAL EDIT ---
 
-            msgTitle.textContent = title;
-            msgBody.textContent = body;
-            
-            let icon, color;
-            if (type === 'success') {
-                icon = `<svg class="h-8 w-8 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`;
-                color = 'bg-green-500';
-            } else if (type === 'warning') {
-                icon = `<svg class="h-8 w-8 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>`;
-                color = 'bg-yellow-500';
-            } else { // error
-                icon = `<svg class="h-8 w-8 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`;
-                color = 'bg-red-500';
-            }
-            
-            msgIcon.className = `w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${color}`;
-            msgIcon.innerHTML = icon;
-
-            const returnButton = document.getElementById('return-button');
-    		if (currentTaskId) {
-        		returnButton.onclick = () => {
-            		window.location.href = `task.html?id=${currentTaskId}`;
-        		};
-    		} else {
-        		returnButton.onclick = () => {
-            		window.location.href = 'sparktask.html';
-        		};
-    		}
-
-            msgCard.classList.remove('hidden');
+        // --- FUNGSI ADMIN ASAL (DIKEKALKAN) ---
+        async function sahkanPadam() {
+             // Fungsi ini hanya diperlukan di sparktask.html. Dibuang di sini.
         }
-        
-        // --- FUNGSI 'task.html' (Borang Dinamik Latar Belakang) ---
-        // (Ini adalah salinan dari kod task.html anda, ditambah di sini untuk 'gabungan')
-        function setupDynamicFormListeners() {
-            const radios = document.querySelectorAll('input[name="participant-category"]');
-            if(radios.length === 0) return; // Hanya jalan jika elemen wujud
+        // --- Tamat FUNGSI ADMIN ASAL ---
 
-            radios.forEach(radio => {
-                radio.addEventListener('change', (e) => {
-                    const category = e.target.value;
-                    ['warga', 'murid', 'awam'].forEach(cat => {
-                        const fieldset = document.getElementById(`${cat}-fields`);
-                        if(fieldset) {
-                            fieldset.classList.toggle('hidden', cat !== category);
-                            fieldset.querySelectorAll('input, select').forEach(el => el.disabled = (cat !== category));
-                        }
+        // --- FUNGSI HELPER (DIKEKALKAN) ---
+        function kiraBakiHari(tarikhString, peratus) {
+            if (peratus == 100) {
+                return { teks: 'Selesai', badgeClass: 'bg-green-100 text-green-800' };
+            }
+            const tarikhSiap = new Date(tarikhString);
+            if (isNaN(tarikhSiap.getTime())) {
+                return { teks: '-', badgeClass: 'bg-gray-100 text-gray-800' };
+            }
+            const hariIni = new Date();
+            hariIni.setHours(0, 0, 0, 0);
+            const tarikhSiapTengahMalam = new Date(tarikhString);
+            tarikhSiapTengahMalam.setHours(0, 0, 0, 0);
+            const bezaMasa = tarikhSiapTengahMalam.getTime() - hariIni.getTime();
+            const bezaHari = Math.ceil(bezaMasa / (1000 * 60 * 60 * 24));
+            if (bezaHari > 0) {
+                return { teks: `${bezaHari} hari lagi`, badgeClass: 'bg-indigo-100 text-indigo-800' };
+            } else if (bezaHari === 0) {
+                return { teks: 'Hari Ini', badgeClass: 'bg-amber-100 text-amber-800' };
+            } else {
+                return { teks: `Terlewat ${Math.abs(bezaHari)} hari`, badgeClass: 'bg-red-100 text-red-800' };
+            }
+        }
+        function formatTarikh(tarikhString) {
+            if (!tarikhString) return 'N/A';
+            const [tahun, bulan, hari] = tarikhString.split('-');
+            return `${hari}/${bulan}/${tahun}`;
+        }
+        function tunjukModalError(mesej) {
+            if(modalError) {
+                modalError.textContent = mesej;
+                modalError.classList.remove('hidden');
+            }
+        }
+        function sembunyiModalError() {
+            if(modalError) {
+                modalError.classList.add('hidden');
+                modalError.textContent = '';
+            }
+        }
+        function bacaFail(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    resolve({
+                        data: event.target.result,
+                        nama: file.name,
+                        jenis: file.type
                     });
-                });
+                };
+                reader.onerror = (error) => reject(error);
+                reader.readAsDataURL(file);
             });
-
-            const locationHandler = (prefix) => {
-                const locRadios = document.querySelectorAll(`input[name="${prefix}-location"]`);
-                if(locRadios.length === 0) return;
-
-                locRadios.forEach(radio => {
-                    radio.addEventListener('change', (e) => {
-                        const isMiri = e.target.value === 'miri';
-                        const miriContainer = document.getElementById(`${prefix}-station-miri-container`);
-                        const miriSelect = document.getElementById(`${prefix}-station-select`);
-                        const luarContainer = document.getElementById(`${prefix}-station-luar-container`);
-                        const luarManual = document.getElementById(`${prefix}-station-manual`);
-                        const districtInput = document.getElementById(`${prefix}-district-manual`);
-
-                        if(miriContainer) miriContainer.classList.toggle('hidden', !isMiri);
-                        if(miriSelect) miriSelect.disabled = !isMiri;
-                        if(luarContainer) luarContainer.classList.toggle('hidden', isMiri);
-                        if(luarManual) luarManual.disabled = isMiri;
-                        if(districtInput) districtInput.disabled = isMiri;
-                    });
-                });
-            };
-            locationHandler('warga');
-            locationHandler('murid');
         }
+        function normalizeStationName(name) {
+            if (typeof name !== 'string') return '';
+            let normalized = name.toUpperCase();
+            normalized = normalized.replace(/\bSG\./g, 'SUNGAI'); 
+            normalized = normalized.replace(/\bSG\b/g, 'SUNGAI'); 
+            normalized = normalized.replace(/\./g, '');
+            normalized = normalized.replace(/\s+/g, ' ').trim();
+            return normalized;
+        }
+        // --- Tamat FUNGSI HELPER ---
 
-        async function loadSchoolsIntoDropdowns() {
-            const selectors = ['#warga-station-select', '#murid-station-select'];
-            const selectElement = document.querySelector(selectors[0]);
-            if(!selectElement) return; // Hanya jalan jika elemen wujud
+        // --- EVENT LISTENERS ---
+        document.addEventListener('DOMContentLoaded', () => {
+            if(namaModal) {
+                 namaModal.addEventListener('input', (e) => {
+                    e.target.value = e.target.value.toUpperCase();
+                 });
+            }
+            if(skopListTextarea) {
+                 skopListTextarea.addEventListener('input', (e) => {
+                    e.target.value = e.target.value.toUpperCase();
+                 });
+            }
+            
+            if(perluPautanCheckbox) {
+                perluPautanCheckbox.addEventListener('change', () => {
+                    if(pautanSection) pautanSection.classList.toggle('hidden', !perluPautanCheckbox.checked);
+                });
+            }
+            
+            if(tambahPautanBtn) tambahPautanBtn.addEventListener('click', tambahPautan);
+            if(senaraiPautanContainer) senaraiPautanContainer.addEventListener('click', handlePautanKlik);
 
-            try {
-                const schoolsRef = collection(db, `artifacts/${appId}/public/data/spark_schools`);
-                const q = query(schoolsRef, orderBy("name", "asc"));
-                const querySnapshot = await getDocs(q);
-                
-                if (querySnapshot.empty) return;
+            if(document.getElementById('borang-pengesahan-ic')) {
+                document.getElementById('borang-pengesahan-ic').addEventListener('submit', sahkanEditIC);
+            }
+            if(document.getElementById('batal-pengesahan-ic')) {
+                document.getElementById('batal-pengesahan-ic').addEventListener('click', () => {
+                    document.getElementById('modal-pengesahan-ic').classList.remove('buka');
+                    currentTaskId = null;
+                    currentActionIntent = null;
+                });
+            }
 
-                const schools = querySnapshot.docs.map(doc => doc.data().name);
+            if(modalTutupBtn) modalTutupBtn.addEventListener('click', tutupModalTugasan);
+            if(modalBatalBtn) modalBatalBtn.addEventListener('click', tutupModalTugasan);
+            if(borangModal) borangModal.addEventListener('submit', handleSimpanBorang);
 
-                selectors.forEach(selector => {
-                    const el = document.querySelector(selector);
-                    if (el && el.options.length <= 1) { // Elak muat semula jika sudah ada
-                        schools.forEach(schoolName => {
-                            const option = document.createElement('option');
-                            option.value = schoolName;
-                            option.textContent = schoolName;
-                            el.appendChild(option);
-                        });
+            // ADMIN BUTTON HANDLER - Trigger pengesahan IC
+            if(document.getElementById('admin-task-btn')) {
+                document.getElementById('admin-task-btn').addEventListener('click', (e) => {
+                    e.preventDefault();
+                    if (!currentTaskId) return; 
+                    const modalPengesahanIc = document.getElementById('modal-pengesahan-ic');
+                    if (modalPengesahanIc) {
+                        currentActionIntent = 'admin'; // Tambah intent baru jika perlu
+                        document.getElementById('input-pengesahan-ic').value = ''; 
+                        document.getElementById('error-pengesahan-ic').classList.add('hidden');
+                        modalPengesahanIc.classList.add('buka');
+                        document.getElementById('input-pengesahan-ic').focus();
                     }
                 });
-            } catch (error) {
-                console.error("Error loading schools: ", error);
             }
-        }
-
-        async function loadPositionsIntoDropdown() {
-            const selectElement = document.querySelector('#warga-position');
-            if(!selectElement) return; // Hanya jalan jika elemen wujud
-
-            try {
-                const positionsRef = collection(db, `artifacts/${appId}/public/data/spark_positions`);
-                const q = query(positionsRef, orderBy("order", "asc"));
-                const querySnapshot = await getDocs(q);
-                
-                if (querySnapshot.empty) return;
-
-                const positions = querySnapshot.docs.map(doc => doc.data().name);
-                
-                if (selectElement.options.length <= 1) { // Elak muat semula jika sudah ada
-                    positions.forEach(positionName => {
-                        const option = document.createElement('option');
-                        option.value = positionName;
-                        option.textContent = positionName;
-                        selectElement.appendChild(option);
-                    });
-                }
-            } catch (error) {
-                console.error("Error loading positions: ", error);
+            
+            // EVENT LISTENER EDIT (Hanya ada satu tugasan)
+            const editButton = document.querySelector('.butang-edit');
+            if (editButton) {
+                editButton.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const id = e.currentTarget.dataset.id || currentTaskId;
+                    if (!id) return;
+                    
+                    const modalPengesahanIc = document.getElementById('modal-pengesahan-ic');
+                    if (modalPengesahanIc) {
+                        currentTaskId = id; 
+                        currentActionIntent = 'edit';
+                        document.getElementById('input-pengesahan-ic').value = ''; 
+                        document.getElementById('error-pengesahan-ic').classList.add('hidden');
+                        modalPengesahanIc.classList.add('buka');
+                        document.getElementById('input-pengesahan-ic').focus();
+                    }
+                });
             }
-        }
-        // --- Tamat Fungsi Latar Belakang ---
+            
+            // EVENT LISTENER SUB-TUGASAN BARU
+            if(tambahSubTugasanBtn) tambahSubTugasanBtn.addEventListener('click', tambahSubTugasan);
+            if(senaraiSubTugasanContainer) senaraiSubTugasanContainer.addEventListener('click', handleSubTugasanKlik);
+            if(subTugasanTypeButtonsContainer) subTugasanTypeButtonsContainer.addEventListener('click', handleTypeButtonClick);
+            if(failInfo) failInfo.addEventListener('click', handleFailInfoKlik);
 
-
-        // Mendedahkan fungsi ke window HANYA jika ia diperlukan oleh HTML
-        // Ini adalah amalan yang lebih baik daripada meletakkan semua di 'window'
-        if(document.getElementById('ic-form')) {
-             window.validateIcInput = validateIcInput;
-             window.checkIc = checkIc;
-             window.sahkanSelesai = sahkanSelesai;
-        }
-        if(document.getElementById('full-dashboard-content')) {
-            Object.assign(window, {
-                showSkopList,
-                closeSkopModal,
-                copySkopList,
-                printSkopList,
-                showAllCompletions,
-                showShareModal,
-                closeShareModal,
-                copyShareText,
-                webShareTask
-            });
-        }
+        });
+        
+        // Mendedahkan fungsi ke window
+        Object.assign(window, {
+            showSkopList,
+            closeSkopModal,
+            copySkopList,
+            printSkopList,
+            showAllCompletions,
+            showShareModal,
+            closeShareModal,
+            copyShareText,
+            webShareTask
+        });
 
     </script>
 </body>
