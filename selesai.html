@@ -86,11 +86,35 @@
             color: #065F46;
         }
         
-        .spark-question-wrapper input[type="radio"],
-        .spark-question-wrapper input[type="checkbox"] {
+        .spark-question-wrapper input[type="radio"] {
             display: none; 
         }
 
+        /* Stil untuk checkbox (multiselect) */
+        .multiselect-checkbox-label {
+            cursor: pointer;
+            padding: 0.75rem 1rem;
+            border: 2px solid #e5e7eb;
+            border-radius: 0.5rem;
+            transition: all 0.2s;
+            font-weight: 600;
+            text-align: left;
+            display: flex;
+            align-items: center;
+            color: #374151;
+        }
+        .multiselect-checkbox-label:hover {
+            background-color: #f9fafb;
+        }
+        .spark-question-wrapper input[type="checkbox"] {
+            display: none; 
+        }
+        input[type="checkbox"]:checked + .multiselect-checkbox-label {
+            border-color: #10B981;
+            background-color: #ECFDF5;
+            color: #065F46;
+        }
+        
         /* Stil untuk Skala */
         .scale-option {
             display: flex;
@@ -292,7 +316,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, updateDoc, arrayUnion, collection, query, where, getDocs, addDoc, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, updateDoc, arrayUnion, collection, query, where, getDocs, addDoc, orderBy, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM",
@@ -359,7 +383,7 @@
             try {
                 setupDynamicFormListeners();
                 loadSchoolsIntoDropdowns();
-                loadPositionsIntoDropdown();
+                loadPositionsIntoDropdowns();
 
                 const taskRef = doc(db, `artifacts/${appId}/public/data/spark_tasks`, currentTaskId);
                 const docSnap = await getDoc(taskRef);
@@ -641,7 +665,7 @@
                 let inputHtml = '';
                 const questionId = `q_${index}`;
                 const baseInputClasses = "spark-question-input mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 text-base px-4 py-3";
-                const labelHtml = `<label class="block text-sm font-medium text-gray-700">${index + 1}. ${questionText}${isRequired && questionType !== 'arahan' ? '<span class="required-tag">*WAJIB</span>' : ''}</label>`;
+                const labelHtml = `<label for="${questionId}" class="block text-sm font-medium text-gray-700">${index + 1}. ${questionText}${isRequired && questionType !== 'arahan' ? '<span class="required-tag">*WAJIB</span>' : ''}</label>`;
                 
                 switch(questionType) {
                     case 'arahan':
@@ -650,7 +674,7 @@
                                      </div>`;
                         break;
                     case 'ya_tidak':
-                        inputHtml = `${labelHtml}
+                        inputHtml = `<label class="block text-sm font-medium text-gray-700">${index + 1}. ${questionText}${isRequired && questionType !== 'arahan' ? '<span class="required-tag">*WAJIB</span>' : ''}</label>
                             <div class="mt-2 grid grid-cols-2 gap-3">
                                 <div>
                                     <input type="radio" id="${questionId}_ya" name="${questionId}" value="Ya" class="spark-question-input">
@@ -683,33 +707,35 @@
                                 <label for="${questionId}_opt_${optIndex}" class="radio-btn-label">${option}</label>
                             </div>
                         `).join('');
-                        inputHtml = `${labelHtml}<div class="mt-2 grid grid-cols-2 gap-3">${radioOptions}</div>`;
+                        inputHtml = `<label class="block text-sm font-medium text-gray-700">${index + 1}. ${questionText}${isRequired ? '<span class="required-tag">*WAJIB</span>' : ''}</label><div class="mt-2 grid grid-cols-2 gap-3">${radioOptions}</div>`;
                         break;
                         
                     case 'multiselect':
                         let checkboxOptions = options.map((option, optIndex) => `
                             <div>
-                                <input type="checkbox" id="${questionId}_opt_${optIndex}" name="${questionId}" value="${option}" class="spark-question-input">
-                                <label for="${questionId}_opt_${optIndex}" class="radio-btn-label !text-left flex items-center">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 text-gray-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9a1 1 0 000 2h6a1 1 0 100-2H7z" clip-rule="evenodd" /></svg>
-                                    ${option}
+                                <input type="checkbox" id="${questionId}_opt_${optIndex}" name="${questionId}_cb" value="${option}" class="spark-question-input">
+                                <label for="${questionId}_opt_${optIndex}" class="multiselect-checkbox-label">
+                                     <span class="mr-2 h-4 w-4 border-2 border-gray-400 rounded flex-shrink-0"></span> ${option}
                                 </label>
                             </div>
                         `).join('');
                         
-                        // Overwrite checked style for checkbox to look better
+                        // Menambah CSS untuk ikon semakan pada checkbox label
                         wrapper.innerHTML += `<style>
-                            input[type="checkbox"]:checked + .radio-btn-label {
+                            input[type="checkbox"]:checked + .multiselect-checkbox-label span {
+                                background-color: #10B981; 
                                 border-color: #10B981;
-                                background-color: #ECFDF5;
-                                color: #065F46;
                             }
-                            input[type="checkbox"]:checked + .radio-btn-label svg {
-                                color: #065F46 !important;
+                             input[type="checkbox"]:checked + .multiselect-checkbox-label span::before {
+                                content: '✓';
+                                color: white;
+                                font-size: 0.7rem;
+                                display: block;
+                                transform: translateY(-1px);
                             }
                         </style>`;
                         
-                        inputHtml = `${labelHtml}<div class="mt-2 space-y-2">${checkboxOptions}</div>`;
+                        inputHtml = `<label class="block text-sm font-medium text-gray-700">${index + 1}. ${questionText}${isRequired ? '<span class="required-tag">*WAJIB</span>' : ''}</label><div class="mt-2 space-y-2">${checkboxOptions}</div>`;
                         break;
 
                     case 'skala':
@@ -720,16 +746,15 @@
                         
                         let scaleOptionsHtml = scaleRange.map(val => `
                             <label for="${questionId}_${val}" class="scale-option">
-                                <input type="radio" id="${questionId}_${val}" name="${questionId}" value="${val}" class="scale-radio">
+                                <input type="radio" id="${questionId}_${val}" name="${questionId}_scale" value="${val}" class="scale-radio">
                                 <span class="scale-label">${val}</span>
                             </label>
                         `).join('');
 
-                        const scaleWidth = `${100 / numOptions}%`;
                         const labelMin = scaleData.minLabel ? `<span class="text-xs text-red-500">${scaleData.minLabel}</span>` : '';
                         const labelMax = scaleData.maxLabel ? `<span class="text-xs text-green-500">${scaleData.maxLabel}</span>` : '';
 
-                        inputHtml = `${labelHtml}
+                        inputHtml = `<label class="block text-sm font-medium text-gray-700">${index + 1}. ${questionText}${isRequired ? '<span class="required-tag">*WAJIB</span>' : ''}</label>
                             <div class="mt-4 flex justify-between w-full">
                                 <div class="scale-container-labels">
                                     ${labelMin}
@@ -744,7 +769,7 @@
                         `;
                         break;
                 }
-                wrapper.innerHTML = inputHtml;
+                wrapper.innerHTML += inputHtml;
                 container.appendChild(wrapper);
             });
         }
@@ -767,32 +792,37 @@
             let isFormValid = true;
             const requiredErrorClass = 'border-red-500 ring-red-500';
 
-            wrappers.forEach(wrapper => {
+            wrappers.forEach((wrapper, index) => {
                 const questionText = wrapper.dataset.questionText;
                 const questionType = wrapper.dataset.questionType;
                 const isRequired = wrapper.dataset.isRequired === 'true'; 
+                const questionId = `q_${index}`;
                 
                 let value = '';
-                let inputElement = null;
-
-                if (questionType === 'arahan') {
-                    return; // Skip arahan
-                }
 
                 // Reset error visuals
                 wrapper.querySelectorAll(`.${requiredErrorClass}`).forEach(el => el.classList.remove(requiredErrorClass));
 
+                if (questionType === 'arahan') {
+                    return; // Skip arahan
+                }
+                
                 if (questionType === 'ya_tidak' || questionType === 'option_button' || questionType === 'radio_button' || questionType === 'skala') {
-                    const checkedRadio = wrapper.querySelector('input[type="radio"]:checked');
+                    // Radio buttons (including scale)
+                    const checkedRadio = wrapper.querySelector(`input[name="${questionId}"], input[name="${questionId}_scale"]`);
                     if (checkedRadio) {
-                        value = checkedRadio.value;
-                    } else if (isRequired) {
-                         isFormValid = false;
-                         wrapper.querySelector('label').classList.add(requiredErrorClass); // Highlight label untuk soalan pilihan
+                        const checked = wrapper.querySelector(`input[name="${checkedRadio.name}"]:checked`);
+                        if (checked) {
+                             value = checked.value;
+                        } else if (isRequired) {
+                            isFormValid = false;
+                            wrapper.querySelector('label').classList.add(requiredErrorClass);
+                        }
                     }
                     
                 } else if (questionType === 'multiselect') {
-                    const checkedCheckboxes = Array.from(wrapper.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
+                    // Checkboxes
+                    const checkedCheckboxes = Array.from(wrapper.querySelectorAll(`input[name="${questionId}_cb"]:checked`)).map(cb => cb.value);
                     if (checkedCheckboxes.length > 0) {
                         value = checkedCheckboxes.join('; ');
                     } else if (isRequired) {
@@ -801,7 +831,8 @@
                     }
                     
                 } else { // teks_ringkas, pautan_url, teks_panjang, tarikh
-                    inputElement = wrapper.querySelector('.spark-question-input, textarea'); 
+                    // Text inputs
+                    const inputElement = wrapper.querySelector('.spark-question-input, textarea'); 
                     if (inputElement) {
                         value = inputElement.value.trim();
                         if (value === '' && isRequired) {
@@ -987,7 +1018,7 @@
             }
         }
 
-        async function loadPositionsIntoDropdown() {
+        async function loadPositionsIntoDropdowns() {
             const selectElement = document.querySelector('#warga-position');
             try {
                 const positionsRef = collection(db, `artifacts/${appId}/public/data/spark_positions`);
