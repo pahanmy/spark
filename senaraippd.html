@@ -6,6 +6,7 @@
     <title>Senarai Rujukan PPD - SparkTask Admin</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
     <style>
         body { font-family: 'Poppins', sans-serif; background-color: #f8f9fa; }
         .btn { transition: background-color 0.3s, transform 0.2s; }
@@ -22,6 +23,13 @@
         /* Style untuk tab */
         .tab-button.active { border-bottom: 2px solid #4f46e5; color: #4f46e5; font-weight: 600; }
         .tab-content { padding-top: 1rem; }
+        /* Style untuk drag and drop */
+        .sortable-ghost {
+            opacity: 0.4;
+            background-color: #f3e8ff; /* Warna ungu lembut */
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transform: translateY(-2px);
+        }
     </style>
 </head>
 <body class="bg-gray-50 text-gray-900 min-h-screen">
@@ -144,6 +152,14 @@
                     </div>
                 </div>
                 
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+                    <div class="sm:col-span-2">
+                        <input type="text" id="search-input" placeholder="Cari Nama Pegawai/Sektor..." class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2">
+                    </div>
+                    <select id="filter-position" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2">
+                        <option value="all">Tapis: Semua Jawatan</option>
+                        </select>
+                </div>
                 <div id="senarai-pegawai-container">
                     <p id="loading-message" class="text-center text-gray-500 flex items-center justify-center gap-2 pt-8">
                         <span class="loading-spinner border-4 border-blue-200 border-t-blue-500 h-5 w-5 rounded-full"></span> Memuatkan data...
@@ -223,6 +239,10 @@
         const errorMessage = document.getElementById('error-message');
         const refreshBtn = document.getElementById('refresh-btn');
         const filterCategorySelect = document.getElementById('filter-category');
+        
+        // DOM ELEMENTS BARU UNTUK CARIAN/PENAPIS
+        const searchInput = document.getElementById('search-input');
+        const filterPositionSelect = document.getElementById('filter-position');
 
         // State
         let isSubmitting = false;
@@ -294,7 +314,13 @@
             try {
                 console.log(`--- DEBUG: Mencuba muat data dari ${PPD_COLLECTION_PATH} ---`);
                 const officersRef = collection(db, PPD_COLLECTION_PATH);
-                const q = query(officersRef, orderBy("name", "asc"));
+                
+                // Susun mengikut medan 'order' (nombor) dan fallback ke 'name'
+                const q = query(
+                    officersRef, 
+                    orderBy("order", "asc"), 
+                    orderBy("name", "asc")
+                );
                 const querySnapshot = await getDocs(q);
                 
                 if (querySnapshot.empty) {
@@ -307,7 +333,11 @@
                 }
                 
                 console.log(`--- DEBUG: Muatan Berjaya. Jumlah Entiti: ${querySnapshot.size} ---`);
-                displayFilteredEntities();
+                
+                collectAllPositions(); // Kumpul dan isi dropdown Jawatan
+                displayFilteredEntities(); // Paparkan entiti yang ditapis
+                
+                initializeSortable(); // AKTIFKAN FUNGSI DRAG AND DROP
 
             } catch (error) {
                 console.error("RALAT KETIKA MEMUAT ENTITI PPD: ", error);
@@ -318,19 +348,63 @@
             }
         }
         
+        // FUNGSI BARU: Kumpul Semua Jawatan Unik
+        function collectAllPositions() {
+            const positions = new Set();
+            positions.add('SEKTOR PPD'); // Tambah Sektor PPD sebagai jawatan standard untuk sektor
+
+            allPpdEntities.forEach(entity => {
+                if (entity.position && entity.position.toUpperCase() !== 'SEKTOR PPD') {
+                    positions.add(entity.position.toUpperCase());
+                }
+            });
+
+            // Kosongkan dan isi dropdown Jawatan
+            filterPositionSelect.innerHTML = '<option value="all">Tapis: Semua Jawatan</option>';
+            Array.from(positions).sort().forEach(position => {
+                const option = document.createElement('option');
+                option.value = position;
+                option.textContent = position;
+                filterPositionSelect.appendChild(option);
+            });
+        }
+
+
         // 2. Paparkan Senarai Yang Ditapis (dalam format Jadual)
         function displayFilteredEntities() {
-            const filter = filterCategorySelect.value;
+            const categoryFilter = filterCategorySelect.value;
+            const positionFilter = filterPositionSelect.value;
+            const searchFilter = searchInput.value.trim().toUpperCase();
             
             senaraiPegawaiContainer.innerHTML = '';
 
             const filteredList = allPpdEntities.filter(entity => {
-                if (filter === 'all') return true;
-                return entity.category === filter;
+                // 1. Tapis mengikut Kategori (Pegawai/Sektor/Semua)
+                if (categoryFilter !== 'all' && entity.category !== categoryFilter) {
+                    return false;
+                }
+                
+                // 2. Tapis mengikut Jawatan
+                if (positionFilter !== 'all') {
+                    const entityPosition = entity.position ? entity.position.toUpperCase() : '';
+                    if (entityPosition !== positionFilter) {
+                        return false;
+                    }
+                }
+                
+                // 3. Tapis mengikut Carian Nama
+                if (searchFilter) {
+                    const entityName = entity.name ? entity.name.toUpperCase() : '';
+                    if (!entityName.includes(searchFilter)) {
+                        return false;
+                    }
+                }
+                
+                return true;
             });
             
             if (filteredList.length === 0) {
-                 senaraiPegawaiContainer.innerHTML = `<p class="text-center text-gray-500 mt-4 p-4 bg-gray-100 rounded-lg">Tiada rujukan kategori '${filter}' ditemui.</p>`;
+                 senaraiPegawaiContainer.innerHTML = `<p class="text-center text-gray-500 mt-4 p-4 bg-gray-100 rounded-lg">Tiada rujukan ditemui berdasarkan kriteria carian/tapis.</p>`;
                  return;
             }
 
@@ -355,15 +429,15 @@
                     ? `<span class="text-xs font-medium px-2 py-0.5 rounded-full bg-green-100 text-green-800">PEGAWAI</span>`
                     : `<span class="text-xs font-medium px-2 py-0.5 rounded-full bg-purple-100 text-purple-800">SEKTOR</span>`;
                 
-                // Note: The 'station' field is not displayed in this admin view, but is critical for filtering in tugasan.html
                 const sectorUnit = isPegawai 
                     ? `${entity.sector || 'T/A'} <br>(${entity.unit || 'Tiada Unit'})`
                     : `<span class="text-gray-500 italic">N/A</span>`;
 
-                const position = isPegawai ? entity.position.toUpperCase() : `<span class="text-gray-500 italic">N/A</span>`;
+                const position = (entity.position && entity.position.toUpperCase() !== 'SEKTOR PPD') ? entity.position.toUpperCase() : `<span class="text-gray-500 italic">N/A</span>`;
 
+                // Tambah data-id pada baris <tr> untuk diakses oleh SortableJS
                 tableHtml += `
-                    <tr class="data-row">
+                    <tr class="data-row" data-id="${entity.id}"> 
                         <td class="font-medium">${mainName}</td>
                         <td>${categoryBadge}</td>
                         <td>${sectorUnit}</td>
@@ -383,6 +457,75 @@
             tableHtml += `</tbody></table></div>`;
             senaraiPegawaiContainer.innerHTML = tableHtml;
         }
+
+        // FUNGSI BARU: Mengaktifkan Drag and Drop dan Menyimpan Susunan
+        function initializeSortable() {
+            const tableBody = document.querySelector('.table-ref-data tbody');
+            
+            // Hanya aktifkan Sortable jika TIADA penapisan/carian aktif
+            const isFilterActive = filterCategorySelect.value !== 'all' || filterPositionSelect.value !== 'all' || searchInput.value.trim().length > 0;
+            
+            if (tableBody && !isFilterActive) {
+                // Pastikan tiada Sortable instance yang sedia ada
+                if (tableBody.sortable) {
+                    tableBody.sortable.destroy();
+                }
+
+                tableBody.sortable = Sortable.create(tableBody, {
+                    animation: 150,
+                    ghostClass: 'sortable-ghost',
+                    
+                    onEnd: async function (evt) {
+                        if (evt.oldIndex === evt.newIndex) return; 
+
+                        // Dapatkan semua ID dalam susunan baru dari elemen <tr>
+                        const newOrderIds = Array.from(tableBody.children).map(row => row.dataset.id).filter(id => id);
+
+                        await updateOrderInDatabase(newOrderIds);
+                        
+                        // Muat semula data di UI untuk memastikan susunan baharu dimuat
+                        fetchPpdOfficers();
+                    }
+                });
+            } else if (tableBody && isFilterActive) {
+                // Matikan Sortable jika penapis aktif
+                if (tableBody.sortable) {
+                    tableBody.sortable.destroy();
+                    tableBody.sortable = null; 
+                }
+            }
+        }
+        
+        // FUNGSI BARU: Untuk menulis balik susunan ke Firebase
+        async function updateOrderInDatabase(newOrderIds) {
+            if (newOrderIds.length === 0) return;
+            
+            isSubmitting = true;
+            showImportMessage("Menyimpan susunan baharu, sila tunggu...", 'bg-yellow-100 text-yellow-800');
+
+            try {
+                // Kemaskini setiap dokumen dengan nilai 'order' baharu
+                for (let i = 0; i < newOrderIds.length; i++) {
+                    const docId = newOrderIds[i];
+                    const newOrderValue = i; // Nombor urutan bermula dari 0
+                    
+                    const docRef = doc(db, PPD_COLLECTION_PATH, docId);
+                    await updateDoc(docRef, { 
+                        order: newOrderValue,
+                        updatedAt: new Date().toISOString(),
+                    });
+                }
+
+                showImportMessage(`Susunan ${newOrderIds.length} rekod berjaya disimpan.`, 'bg-green-100 text-green-700');
+
+            } catch (error) {
+                console.error("RALAT KETIKA MENGEMASKINI SUSUNAN: ", error);
+                showImportMessage('Gagal menyimpan susunan baru. Sila semak rules Firebase dan hak akses.', 'bg-red-100 text-red-700');
+            } finally {
+                isSubmitting = false;
+            }
+        }
+
 
         // 3. Tambah/Kemaskini Entiti Baharu (Unified Function for Pegawai and Sektor)
         async function handleAddEntity(event) {
@@ -417,7 +560,6 @@
                     unit: unit,
                     ic: ic.length === 12 ? ic : '',
                     category: 'pegawai',
-                    // IMPORTANT: This 'station' value is used for filtering in tugasan.html
                     station: 'PEJABAT PENDIDIKAN DAERAH', 
                 };
             } else { // category === 'sektor'
@@ -433,7 +575,6 @@
                     unit: '',
                     ic: '',
                     category: 'sektor',
-                    // IMPORTANT: This 'station' value is used for filtering in tugasan.html
                     station: 'PEJABAT PENDIDIKAN DAERAH', 
                 };
             }
@@ -447,6 +588,11 @@
             submitButton.textContent = (currentlyEditingId) ? 'Mengemaskini...' : 'Menyimpan...';
 
             try {
+                // Tentukan nilai order: Jika baru, letak di hujung senarai. Jika kemaskini, kekalkan.
+                if (!currentlyEditingId) {
+                    newEntityData.order = allPpdEntities.length;
+                }
+                
                 // 2. Tambah/Kemaskini dokumen utama
                 if (currentlyEditingId) {
                     const docRef = doc(db, PPD_COLLECTION_PATH, currentlyEditingId);
@@ -507,6 +653,9 @@
             let errorCount = 0;
             const errors = [];
             
+            // Tentukan nombor order awal
+            let currentOrder = allPpdEntities.length;
+
             for (let i = 0; i < lines.length; i++) {
                 const line = lines[i];
                 const parts = line.split('\t').map(p => p.trim().toUpperCase());
@@ -529,9 +678,10 @@
                         unit: parts.length > 3 ? parts[3] : '',
                         ic: ic.length === 12 ? ic : '',
                         category: 'pegawai',
-                        station: 'PEJABAT PENDIDIKAN DAERAH', // DITETAPKAN UNTUK PENAPISAN
+                        station: 'PEJABAT PENDIDIKAN DAERAH', 
                         added_by_uid: userId,
-                        createdAt: new Date().toISOString()
+                        createdAt: new Date().toISOString(),
+                        order: currentOrder + i // Set order untuk rekod baru
                     };
                 } else {
                     if (parts.length < 1) {
@@ -546,9 +696,10 @@
                         unit: '',
                         ic: '',
                         category: 'sektor',
-                        station: 'PEJABAT PENDIDIKAN DAERAH', // DITETAPKAN UNTUK PENAPISAN
+                        station: 'PEJABAT PENDIDIKAN DAERAH', 
                         added_by_uid: userId,
-                        createdAt: new Date().toISOString()
+                        createdAt: new Date().toISOString(),
+                        order: currentOrder + i // Set order untuk rekod baru
                     };
                 }
 
@@ -681,10 +832,15 @@
                     switchTab(button.dataset.tab);
                 });
             });
+            
+            // Event Listeners untuk Penapis/Carian
+            // Apabila penapis/carian berubah, panggil displayFilteredEntities() untuk menapis data
+            filterCategorySelect.addEventListener('change', displayFilteredEntities);
+            filterPositionSelect.addEventListener('change', displayFilteredEntities);
+            searchInput.addEventListener('input', displayFilteredEntities);
+
         });
         
-        filterCategorySelect.addEventListener('change', displayFilteredEntities);
-
         formTambahPegawai.addEventListener('submit', handleAddEntity);
         formTambahSektor.addEventListener('submit', handleAddEntity);
         formImportPukal.addEventListener('submit', handleImportPukal);
