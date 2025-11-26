@@ -348,7 +348,7 @@
         let unsubscribeTaskListener = null;
         let currentTask = null;
         const appId = firebaseConfig.projectId;
-        let currentTaskId = null;
+        let currentTaskId = null; // Diisytihar di sini
         let skopSelesaiList = []; 
         let skopBelumList = [];   
         let currentModalSkopList = [];
@@ -378,10 +378,18 @@
 
         // --- FUNGSI BANTUAN (HELPER) BARU/DIKEMASKINI ---
 
+        /**
+         * Menyeragamkan nama stesen/entiti untuk perbandingan.
+         * 1. Tukar ke huruf besar.
+         * 2. Tukar 'SG.' atau 'SG' kepada 'SUNGAI'.
+         * 3. Buang semua tanda noktah.
+         * 4. Buang semua ruang kosong.
+         */
         function normalizeName(name) {
             if (typeof name !== 'string') return '';
             let normalized = name.toUpperCase();
             
+            // Standardize Sg. and Sg to SUNGAI
             normalized = normalized.replace(/\bSG\./g, 'SUNGAI'); 
             normalized = normalized.replace(/\bSG\b/g, 'SUNGAI'); 
             
@@ -392,21 +400,6 @@
             return normalized.trim(); 
         }
 
-        function isApproximateMatch(str1, str2, threshold = 0.7) {
-            // Dalam konteks ini, kita hanya perlukan padanan 100% selepas normalisasi
-            const norm1 = normalizeName(str1);
-            const norm2 = normalizeName(str2);
-            return norm1 === norm2;
-        }
-
-        // FUNGSI isPPDGroupTask HANYA UNTUK SEMAKAN LOGIK JIKA PERLU
-        function isPPDGroupTask(task) {
-             const isPPDName = task && task.skopSenaraiSekolah && 
-                               task.skopSenaraiSekolah.some(s => s.toUpperCase().includes('PEGAWAI PPD') || s.toUpperCase().includes('SEKTOR'));
-             
-             return !!task && task.skopSenaraiSekolah && task.skopSenaraiSekolah.length > 0 && isPPDName;
-        }
-        
         function formatTarikh(tarikhString) {
             if (!tarikhString) return 'N/A';
             const [tahun, bulan, hari] = tarikhString.split('-');
@@ -560,6 +553,7 @@
             document.getElementById('dashboard-date-end').textContent = formatTarikh(currentTask.tarikhSiap);
         }
 
+        // FUNGSI INI DISEMUA & DISAHKAN BETUL UNTUK MOD SKOP/MANUAL
         function renderTaskProgress() {
             const originalTotalSkop = Array.isArray(currentTask.skopSenaraiSekolah) 
                 ? currentTask.skopSenaraiSekolah 
@@ -588,12 +582,12 @@
                 skopBelumList = [];
                 
             } else {
-                // --- MOD SKOP (Logik Baru/Dikemas Kini - Menggunakan padanan Nama Pegawai/Sektor) ---
+                // --- MOD SKOP (Logik Baru/Dikemas Kini - Menggunakan padanan Nama Entiti yang dinormalisasi) ---
                 
                 const completedSkopOriginalNames = new Set();
                 
                 // Cipta Set Rekod Pengesahan yang dinormalisasi untuk perbandingan.
-                // Kita guna Nama Pegawai/Sektor untuk padanan yang lebih tepat.
+                // Kita guna Nama Pengesah atau Stesen Pengesah (kerana stesen mungkin sekolah/sektor)
                 const normalizedConfirmedNames = new Set(allRekodSelesai.map(rekod => {
                     const name = rekod.nama_pengesah || rekod.stesen_pengesah || '';
                     return normalizeName(name);
@@ -602,7 +596,7 @@
                 originalTotalSkop.forEach(originalSkop => {
                     const normalizedSkop = normalizeName(originalSkop);
                     
-                    // Semak jika versi normalisasi SKOP ASAL (Pegawai/Sektor) wujud dalam 
+                    // Semak jika versi normalisasi SKOP ASAL (Sekolah/Pegawai/Sektor) wujud dalam 
                     // set rekod pengesahan yang telah dinormalisasi.
                     if (normalizedConfirmedNames.has(normalizedSkop)) {
                         completedSkopOriginalNames.add(originalSkop);
@@ -610,7 +604,7 @@
                 });
                 
                 skopSelesaiList = Array.from(completedSkopOriginalNames);
-                // skopBelumList perlu menggunakan array asal tolak array completed
+                // skopBelumList menggunakan array asal tolak array completed
                 skopBelumList = originalTotalSkop.filter(skop => !completedSkopOriginalNames.has(skop));
                 
                 jumlahSelesai = skopSelesaiList.length; 
@@ -791,11 +785,13 @@
                 if (typeof tugas === 'object' && tugas !== null && tugas.text) {
                     displayText = tugas.text;
                     typeBadge = getTypeBadge(tugas.type);
-                    requiredTag = getRequiredTag(tugas.required !== undefined ? tugas.required : true);
+                    // Ambil status required, default kepada true jika tiada
+                    const isRequired = tugas.required !== undefined ? tugas.required : true;
+                    requiredTag = getRequiredTag(isRequired); 
                 } else if (typeof tugas === 'string') {
                     displayText = tugas;
                     typeBadge = getTypeBadge('arahan');
-                    requiredTag = getRequiredTag(true);
+                    requiredTag = getRequiredTag(true); // Default wajib untuk string lama
                 } else {
                     displayText = "[Data perkara tidak sah]";
                     requiredTag = getRequiredTag(true);
