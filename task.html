@@ -214,20 +214,6 @@
                         </div>
                     </div>
 
-                    <div id="qr-code-card" class="card p-5 hidden">
-                        <h3 class="text-lg font-semibold text-gray-800 flex items-center gap-2 mb-4">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.08a.9.9 0 00-1.734 0L8.51 7.276a.9.9 0 01-.643.585l-3.32.483a.9.9 0 00-.5 1.54l2.404 2.344a.9.9 0 01.258.8L6.46 16.59a.9.9 0 001.307.95L12 15.34a.9.9 0 01.927 0l4.233 2.193a.9.9 0 001.307-.95l-.577-3.362a.9.9 0 01.258-.8l2.404-2.344a.9.9 0 00-.5-1.54l-3.32-.483a.9.9 0 01-.643-.585L12 4.08z" />
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M4 11a7 7 0 1114 0 7 7 0 01-14 0z" />
-                            </svg>
-                            QR Code Pengesahan
-                        </h3>
-                        <p class="text-sm text-gray-600 mb-4">Papar QR code ini untuk pengesahan pantas menggunakan aplikasi SparkTask.</p>
-                        <div id="dashboard-qr-code" class="flex justify-center p-4 border border-gray-200 rounded-lg">
-                            <p class="text-gray-400 italic text-sm">QR Code akan muncul selepas pemuatan selesai.</p>
-                        </div>
-                    </div>
-
                     <div class="card p-5">
                         <h3 class="text-lg font-semibold text-gray-800 flex items-center gap-2 mb-4">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -247,7 +233,7 @@
                             </a>
                         </div>
                     </div>
-                </div>
+                    </div>
             </div>
         </div>
     </main>
@@ -413,7 +399,7 @@
             return norm1 === norm2;
         }
 
-        // FUNGSI isPPDGroupTask DIKEKALKAN (Walaupun logik di bawah mungkin menjadikannya tidak perlu)
+        // FUNGSI isPPDGroupTask HANYA UNTUK SEMAKAN LOGIK JIKA PERLU
         function isPPDGroupTask(task) {
              const isPPDName = task && task.skopSenaraiSekolah && 
                                task.skopSenaraiSekolah.some(s => s.toUpperCase().includes('PEGAWAI PPD') || s.toUpperCase().includes('SEKTOR'));
@@ -451,8 +437,6 @@
             }
         }
         
-        // FUNGSI generateQRCodeUrl DIBUANG
-
         // --- FUNGSI UTAMA ---
 
         function main() { 
@@ -482,8 +466,6 @@
             document.getElementById('sahkan-selesai-btn').href = `selesai.html?id=${taskId}`;
             document.getElementById('admin-task-btn').href = `admintask.html?id=${taskId}`; 
             
-            // RUJUKAN KE QR CODE DIBUANG DARI SINI
-
             const copyBtn = document.getElementById('copy-link-btn');
             const copyText = document.getElementById('copy-link-text');
             const copyIcon = document.getElementById('copy-link-icon');
@@ -507,6 +489,7 @@
                             copyBtn.classList.add('bg-indigo-100', 'text-indigo-700', 'hover:bg-indigo-200');
                             copyBtn.classList.remove('bg-green-100', 'text-green-700');
                             copyIcon.classList.remove('hidden');
+                            successIcon.classList.add('hidden');
                             copyBtn.disabled = false;
                         }, 2500);
                     }).catch(err => {
@@ -578,17 +561,11 @@
         }
 
         function renderTaskProgress() {
-            // LANGKAH 1: Dapatkan data asal
             const originalTotalSkop = Array.isArray(currentTask.skopSenaraiSekolah) 
                 ? currentTask.skopSenaraiSekolah 
                 : [];
                 
-            const allSelesai = Array.isArray(currentTask.skopSelesai) 
-                ? currentTask.skopSelesai 
-                : [];
-            
-            // Peta skop selesai kepada SET NILAI yang dinormalisasi untuk carian pantas
-            const normalizedSelesaiSet = new Set(allSelesai.map(s => normalizeName(s)));
+            const allRekodSelesai = currentTask.rekodSelesai || [];
             
             let jumlahSelesai;
             let jumlahBelum;
@@ -611,16 +588,23 @@
                 skopBelumList = [];
                 
             } else {
-                // --- MOD SKOP (Logik Baru/Dikemas Kini - Menggunakan padanan dinormalisasi) ---
+                // --- MOD SKOP (Logik Baru/Dikemas Kini - Menggunakan padanan Nama Pegawai/Sektor) ---
                 
                 const completedSkopOriginalNames = new Set();
                 
+                // Cipta Set Rekod Pengesahan yang dinormalisasi untuk perbandingan.
+                // Kita guna Nama Pegawai/Sektor untuk padanan yang lebih tepat.
+                const normalizedConfirmedNames = new Set(allRekodSelesai.map(rekod => {
+                    const name = rekod.nama_pengesah || rekod.stesen_pengesah || '';
+                    return normalizeName(name);
+                }));
+
                 originalTotalSkop.forEach(originalSkop => {
                     const normalizedSkop = normalizeName(originalSkop);
                     
-                    // Semak jika versi normalisasi skop ini wujud dalam set skop yang telah disahkan.
-                    // Ini berfungsi untuk SEKOLAH dan PEGAWAI/SEKTOR PPD.
-                    if (normalizedSelesaiSet.has(normalizedSkop)) {
+                    // Semak jika versi normalisasi SKOP ASAL (Pegawai/Sektor) wujud dalam 
+                    // set rekod pengesahan yang telah dinormalisasi.
+                    if (normalizedConfirmedNames.has(normalizedSkop)) {
                         completedSkopOriginalNames.add(originalSkop);
                     }
                 });
