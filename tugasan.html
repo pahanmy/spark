@@ -434,7 +434,7 @@
         let pautanList = []; 
         let allSchools = [], srSchools = [], smSchools = [];
         let ppdOfficers = [];
-        let ppdSectors = []; // Array BARU untuk Sektor PPD
+        let ppdSectors = [];
 
         // --- FUNCTIONS ---
 
@@ -459,7 +459,6 @@
             submitButton.disabled = true;
             submitButton.textContent = "Menyimpan...";
             
-            // LOGIK FAIL DIBUANG - failData kini sentiasa null
             let failData = null; 
             
             const textareaValue = document.getElementById('skop-list-textarea').value;
@@ -478,7 +477,7 @@
                 skopSenaraiSekolah: skopSenaraiSekolah,
                 senaraiSubTugasan: subTugasanList, 
                 senaraiPautan: pautanList,
-                fail: failData, // Kini sentiasa null
+                fail: failData,
                 createdAt: serverTimestamp(),
                 userId: userId,
                 penyelaras_ic: currentApplicant.ic,
@@ -506,7 +505,7 @@
             setupCategoryListeners();
             loadSchoolsIntoDropdown();
             loadPpdOfficers();
-            loadPpdSectors(); // Panggil fungsi BARU ini
+            loadPpdSectors(); 
         }
         function disableTaskForm() {
              borangBaru.querySelectorAll('input, select, textarea, button').forEach(el => {
@@ -516,7 +515,6 @@
                     if(label) label.classList.add('disabled-label');
                 }
              });
-             // Sembunyikan input sub-tugasan utama bila borang disable
              inputTugasanSection.classList.add('hidden');
         }
         function validateIcFormat() {
@@ -548,9 +546,8 @@
             paparSenaraiPautan();
             pautanInput.value = '';
             
-            // Reset state input sub-tugasan
-            subTugasanTypeInput.value = ''; // Set kepada 'Sila Pilih'
-            toggleOptionsInput(); // Sembunyikan semua input sub-tugasan
+            subTugasanTypeInput.value = '';
+            toggleOptionsInput();
         }
         async function validateAndFetchApplicantName() {
             validateIcFormat(); 
@@ -662,6 +659,7 @@
         
         // FUNGSI BARU: Muat Senarai Pegawai PPD
         async function loadPpdOfficers() {
+            console.log("--- DEBUG: Memuatkan Pegawai PPD (category: pegawai) ---");
             try {
                 const officersRef = collection(db, `artifacts/${appId}/public/data/spark_ppd_officers`);
                 const q = query(officersRef, where("category", "==", "pegawai"), orderBy("name", "asc"));
@@ -669,17 +667,17 @@
                 ppdOfficers = [];
                 querySnapshot.forEach(doc => {
                     const officer = doc.data();
-                    // Sesuaikan format mengikut keperluan anda
                     ppdOfficers.push(`${officer.name.toUpperCase()} (${officer.position || 'Pegawai PPD'})`);
                 });
-                console.log(`Berjaya memuatkan ${ppdOfficers.length} Pegawai PPD.`);
+                console.log(`Berjaya memuatkan ${ppdOfficers.length} Pegawai PPD. Query Result Size: ${querySnapshot.size}`);
             } catch (error) {
-                console.error("Error loading PPD officers:", error);
+                console.error("RALAT KETIKA MEMUAT PEGAWAI PPD. (Sila semak Rules & Index Firebase): ", error);
             }
         }
 
         // FUNGSI BARU: Muat Senarai Sektor PPD
         async function loadPpdSectors() {
+            console.log("--- DEBUG: Memuatkan Sektor PPD (category: sektor) ---");
             try {
                 const sectorsRef = collection(db, `artifacts/${appId}/public/data/spark_ppd_officers`);
                 const q = query(sectorsRef, where("category", "==", "sektor"), orderBy("name", "asc"));
@@ -687,12 +685,11 @@
                 ppdSectors = [];
                 querySnapshot.forEach(doc => {
                     const sector = doc.data();
-                    // Simpan nama sektor sahaja
                     ppdSectors.push(sector.name.toUpperCase());
                 });
-                console.log(`Berjaya memuatkan ${ppdSectors.length} Sektor PPD.`);
+                console.log(`Berjaya memuatkan ${ppdSectors.length} Sektor PPD. Query Result Size: ${querySnapshot.size}`);
             } catch (error) {
-                console.error("Error loading PPD sectors:", error);
+                console.error("RALAT KETIKA MEMUAT SEKTOR PPD. (Sila semak Rules & Index Firebase): ", error);
             }
         }
         
@@ -736,8 +733,6 @@
             document.querySelector('input[name="applicant-category"]:checked').dispatchEvent(new Event('change'));
             document.querySelector('input[name="work-location"]:checked').dispatchEvent(new Event('change'));
         }
-        // --- (TAMAT FUNGSI PENGESAHAN) ---
-
 
         // Fungsi loadReferenceSchools() DILENGKAPKAN UNTUK PPD & SEKTOR
         function loadReferenceSchools(type) {
@@ -768,7 +763,6 @@
             if (filteredList.length > 0) { 
                 textarea.value = filteredList.join('\n'); 
             } else if (type !== 'ppd' && type !== 'ppd-sektor') {
-                // Jika bukan PPD, dan tiada sekolah
                 textarea.value = (allSchools.length === 0) 
                     ? 'Data sekolah belum sedia. Sila tunggu sebentar dan cuba lagi.' 
                     : `Tiada sekolah jenis '${type}' ditemui.`;
@@ -779,7 +773,6 @@
         function toggleOptionsInput() {
             const selectedType = subTugasanTypeInput.value;
             
-            // LOGIK BARU: Sembunyikan/Paparkan bekas input soalan utama
             const isTypeSelected = selectedType !== "";
             inputTugasanSection.classList.toggle('hidden', !isTypeSelected);
             
@@ -787,7 +780,6 @@
                  subTugasanTextInput.focus();
             }
             
-            // Logic untuk Kotak Pilihan Teks
             const isOptionsNeeded = (
                 selectedType === 'option_button' || 
                 selectedType === 'radio_button' || 
@@ -795,11 +787,9 @@
             );
             optionsInputContainer.classList.toggle('hidden', !isOptionsNeeded);
 
-            // Logic untuk Kotak Skala
             const isScaleNeeded = (selectedType === 'skala');
             scaleInputContainer.classList.toggle('hidden', !isScaleNeeded);
 
-            // Reset input jika disembunyikan
             if (!isOptionsNeeded) {
                 subTugasanOptionsInput.value = '';
             }
@@ -824,7 +814,6 @@
                 return;
             }
 
-            // 1. HANDLER UNTUK PILIHAN BERBILANG (Option/Radio/Multiselect)
             if (type === 'option_button' || type === 'radio_button' || type === 'multiselect') {
                 const inputOptions = subTugasanOptionsInput.value.trim();
                 
@@ -841,7 +830,6 @@
                 }
             }
 
-            // 2. HANDLER UNTUK SKALA
             if (type === 'skala') {
                 const min = parseInt(scaleMinInput.value);
                 const max = parseInt(scaleMaxInput.value);
@@ -859,12 +847,10 @@
                 };
             }
             
-            // Tambah objek ke array
             const newSubTugas = { text: text, type: type, options: options, scaleData: scaleData }; 
             subTugasanList.push(newSubTugas);
             paparSenaraiSubTugasan();
             
-            // Reset UI
             subTugasanTextInput.value = '';
             subTugasanOptionsInput.value = '';
             scaleLabelMinInput.value = '';
@@ -872,12 +858,11 @@
             scaleMinInput.value = '1';
             scaleMaxInput.value = '5';
             
-            // Sembunyikan semula semua input tambahan selepas berjaya tambah
             optionsInputContainer.classList.add('hidden');
             scaleInputContainer.classList.add('hidden');
-            inputTugasanSection.classList.add('hidden'); // Sembunyi input utama
+            inputTugasanSection.classList.add('hidden');
             
-            subTugasanTypeInput.value = ''; // Reset Jenis kepada 'Sila Pilih'
+            subTugasanTypeInput.value = '';
             subTugasanTypeInput.focus();
         }
 
@@ -909,12 +894,10 @@
             subTugasanList.forEach((tugas, index) => {
                 let detailsHtml = '';
 
-                // Paparkan Pilihan Teks
                 if (tugas.options && tugas.options.length > 0) {
                     detailsHtml = `<p class="text-xs text-gray-600 mt-1 italic pl-3">Pilihan: ${tugas.options.join(', ')}</p>`;
                 }
                 
-                // Paparkan Butiran Skala
                 if (tugas.scaleData) {
                     const s = tugas.scaleData;
                     const labelStr = (s.minLabel || s.maxLabel) ? ` (${s.min}=${s.minLabel || ''}, ${s.max}=${s.maxLabel || ''})` : '';
@@ -989,8 +972,6 @@
             }
         }
 
-        // (FUNGSI BACA FAIL KEKAL DIBUANG)
-
         function tunjukRalatBorang(mesej) {
             borangError.textContent = mesej;
             borangError.classList.remove('hidden');
@@ -1004,14 +985,14 @@
         document.addEventListener('DOMContentLoaded', () => {
             const versionInfo = document.getElementById('version-info');
             if(versionInfo) {
-                versionInfo.textContent = `Versi 2.1 (2025) - Dikemaskini: Skala Linear, Fail Dibuang, UI Sub-Tugasan V2, Sokongan PPD & Sektor`;
+                versionInfo.textContent = `Versi 2.1 (2025) - Dikemaskini: UI Sub-Tugasan V2, Sokongan PPD & Sektor`;
             }
 
             document.getElementById('load-sr-btn').addEventListener('click', () => loadReferenceSchools('sr'));
             document.getElementById('load-sm-btn').addEventListener('click', () => loadReferenceSchools('sm'));
             document.getElementById('load-all-btn').addEventListener('click', () => loadReferenceSchools('all'));
             document.getElementById('load-ppd-btn').addEventListener('click', () => loadReferenceSchools('ppd'));
-            document.getElementById('load-ppd-sektor-btn').addEventListener('click', () => loadReferenceSchools('ppd-sektor')); // LISTENER BARU
+            document.getElementById('load-ppd-sektor-btn').addEventListener('click', () => loadReferenceSchools('ppd-sektor'));
             
             tarikhMulaModal.addEventListener('change', () => {
                 try {
@@ -1035,9 +1016,8 @@
             tambahPautanBtn.addEventListener('click', tambahPautan);
             senaraiPautanContainer.addEventListener('click', handlePautanKlik);
             
-            // LISTENER JENIS SUB-TUGASAN
             subTugasanTypeInput.addEventListener('change', toggleOptionsInput);
-            toggleOptionsInput(); // Tetapkan keadaan awal (semua hidden kecuali select)
+            toggleOptionsInput();
         });
 
         borangBaru.addEventListener('submit', handleSimpanBorangBaru);
@@ -1050,8 +1030,6 @@
         tambahSubTugasanBtn.addEventListener('click', tambahSubTugasan);
         senaraiSubTugasanContainer.addEventListener('click', handleSubTugasanKlik);
         
-        // FAIL INPUT LISTENER DIBUANG DARI SINI
-
     </script>
 </body>
 </html>
