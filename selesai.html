@@ -58,8 +58,14 @@
             color: #374151;
             line-height: 1.6;
         }
+        .required-tag {
+             color: #EF4444; /* text-red-500 */
+             font-size: 0.8rem;
+             font-weight: 600;
+             margin-left: 0.5rem;
+        }
 
-        /* Stil untuk butang radio Ya/Tidak */
+        /* Stil untuk butang radio Ya/Tidak & Pilihan */
         .radio-btn-label {
             cursor: pointer;
             padding: 0.75rem 1rem;
@@ -80,8 +86,51 @@
             color: #065F46;
         }
         
-        .spark-question-wrapper input[type="radio"] {
+        .spark-question-wrapper input[type="radio"],
+        .spark-question-wrapper input[type="checkbox"] {
             display: none; 
+        }
+
+        /* Stil untuk Skala */
+        .scale-option {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            cursor: pointer;
+        }
+        .scale-radio {
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            width: 2.5rem;
+            height: 2.5rem;
+            border: 2px solid #D1D5DB;
+            border-radius: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 1rem;
+            transition: all 0.2s;
+        }
+        .scale-radio:checked {
+            border-color: #10B981;
+            background-color: #ECFDF5;
+            color: #065F46;
+        }
+        .scale-label {
+            font-size: 0.7rem;
+            color: #6B7280;
+            margin-top: 0.25rem;
+            text-align: center;
+            max-width: 3.5rem;
+        }
+        .scale-container-labels {
+             display: flex;
+             justify-content: space-between;
+             margin-top: 0.5rem;
+             font-size: 0.8rem;
+             color: #6B7280;
         }
     </style>
 </head>
@@ -434,7 +483,7 @@
                     document.getElementById('new-participant-modal').classList.remove('hidden');
 
                     icSubmitBtn.disabled = false;
-                    icSubmitBtn.textContent = "Seterusnya";
+                    icSubmitBtn.innerHTML = "Seterusnya";
                     return;
                 }
                 
@@ -452,7 +501,7 @@
                 if (stesenPengesah && skopSelesai.includes(normalizeStationName(stesenPengesah))) {
                      showMessage('warning', 'Telah Disahkan', `Seseorang dari stesen anda (${stesenPengesah}) telah pun membuat pengesahan untuk tugasan ini.`);
                      icSubmitBtn.disabled = false;
-                     icSubmitBtn.textContent = "Seterusnya";
+                     icSubmitBtn.innerHTML = "Seterusnya";
                      return;
                 }
 
@@ -472,7 +521,7 @@
                 console.error("Error verifying participant IC: ", error);
                 showMessage('error', 'Gagal!', 'Berlaku ralat semasa mengesahkan IC anda. Sila cuba lagi.');
                 icSubmitBtn.disabled = false;
-                icSubmitBtn.textContent = "Seterusnya";
+                icSubmitBtn.innerHTML = "Seterusnya";
             }
         }
         
@@ -508,9 +557,19 @@
                 newParticipant.position = document.getElementById('awam-position').value.toUpperCase();
                 newParticipant.station = document.getElementById('awam-station').value.toUpperCase();
             }
+            
+            // VALIDASI MINIMUM UTK PENDAFTARAN
+            if (!newParticipant.name || !newParticipant.position || !newParticipant.station || newParticipant.station === "Sila Pilih Sekolah") {
+                alert("Sila lengkapkan semua medan yang diperlukan.");
+                submitBtn.disabled = false;
+                submitBtn.textContent = "Daftar & Teruskan";
+                return;
+            }
 
             try {
-                const docRef = await addDoc(collection(db, `artifacts/${appId}/public/data/spark_participants`), newParticipant);
+                // Menggunakan IC sebagai ID dokumen dalam koleksi spark_participants
+                const docRef = doc(db, `artifacts/${appId}/public/data/spark_participants`, newParticipant.ic);
+                await setDoc(docRef, newParticipant);
                 
                 document.getElementById('new-participant-modal').classList.add('hidden');
                 
@@ -541,7 +600,8 @@
                 submitBtn.textContent = "Daftar & Teruskan";
             }
         }
-
+        
+        // FUNGSI UTAMA BARU (Menambah jenis input dari tugasan.html)
         function buildDynamicForm(questions) {
             const container = document.getElementById('dynamic-questions-container');
             container.innerHTML = '';
@@ -555,27 +615,34 @@
                 const wrapper = document.createElement('div');
                 wrapper.className = 'spark-question-wrapper';
                 
-                let questionText, questionType;
-                if (typeof q === 'object' && q !== null && q.text) {
-                    questionText = q.text;
+                let questionText, questionType, isRequired, options, scaleData;
+                
+                if (typeof q === 'object' && q !== null) {
+                    questionText = q.text || "[Soalan tidak sah]";
                     questionType = q.type || 'arahan';
+                    isRequired = q.required !== false; // Default to true if not explicitly false
+                    options = q.options || [];
+                    scaleData = q.scaleData || {};
                 } else if (typeof q === 'string') {
                     questionText = q; 
                     questionType = 'arahan'; 
+                    isRequired = true; // Arahan selalu dianggap perlu
                 } else {
                     questionText = "[Soalan tidak sah]";
                     questionType = 'arahan';
+                    isRequired = true;
                 }
-
+                
                 wrapper.dataset.questionText = questionText;
                 wrapper.dataset.questionType = questionType;
                 wrapper.dataset.questionIndex = index;
+                wrapper.dataset.isRequired = isRequired;
 
                 let inputHtml = '';
                 const questionId = `q_${index}`;
+                const baseInputClasses = "spark-question-input mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 text-base px-4 py-3";
+                const labelHtml = `<label class="block text-sm font-medium text-gray-700">${index + 1}. ${questionText}${isRequired && questionType !== 'arahan' ? '<span class="required-tag">*WAJIB</span>' : ''}</label>`;
                 
-                const inputClasses = "spark-question-input mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 text-base px-4 py-3";
-
                 switch(questionType) {
                     case 'arahan':
                         inputHtml = `<div class="arahan-only-box">
@@ -583,8 +650,7 @@
                                      </div>`;
                         break;
                     case 'ya_tidak':
-                        inputHtml = `
-                            <label class="block text-sm font-medium text-gray-700">${index + 1}. ${questionText}</label>
+                        inputHtml = `${labelHtml}
                             <div class="mt-2 grid grid-cols-2 gap-3">
                                 <div>
                                     <input type="radio" id="${questionId}_ya" name="${questionId}" value="Ya" class="spark-question-input">
@@ -597,20 +663,85 @@
                             </div>`;
                         break;
                     case 'teks_ringkas':
-                        inputHtml = `<label for="${questionId}" class="block text-sm font-medium text-gray-700">${index + 1}. ${questionText}</label>
-                                     <input type="text" id="${questionId}" class="${inputClasses}" placeholder="Isi jawapan anda...">`;
+                        inputHtml = `${labelHtml}<input type="text" id="${questionId}" class="${baseInputClasses}" placeholder="Isi jawapan anda...">`;
                         break;
                     case 'teks_panjang':
-                        inputHtml = `<label for="${questionId}" class="block text-sm font-medium text-gray-700">${index + 1}. ${questionText}</label>
-                                     <textarea id="${questionId}" rows="4" class="${inputClasses}" placeholder="Isi jawapan anda..."></textarea>`;
+                        inputHtml = `${labelHtml}<textarea id="${questionId}" rows="4" class="${baseInputClasses}" placeholder="Isi jawapan anda..."></textarea>`;
                         break;
                     case 'pautan_url':
-                        inputHtml = `<label for="${questionId}" class="block text-sm font-medium text-gray-700">${index + 1}. ${questionText}</label>
-                                     <input type="url" id="${questionId}" class="${inputClasses}" placeholder="https://...">`;
+                        inputHtml = `${labelHtml}<input type="url" id="${questionId}" class="${baseInputClasses}" placeholder="https://...">`;
                         break;
                     case 'tarikh':
-                        inputHtml = `<label for="${questionId}" class="block text-sm font-medium text-gray-700">${index + 1}. ${questionText}</label>
-                                     <input type="date" id="${questionId}" class="${inputClasses}">`;
+                        inputHtml = `${labelHtml}<input type="date" id="${questionId}" class="${baseInputClasses}">`;
+                        break;
+                    
+                    case 'option_button':
+                    case 'radio_button':
+                        let radioOptions = options.map((option, optIndex) => `
+                            <div>
+                                <input type="radio" id="${questionId}_opt_${optIndex}" name="${questionId}" value="${option}" class="spark-question-input">
+                                <label for="${questionId}_opt_${optIndex}" class="radio-btn-label">${option}</label>
+                            </div>
+                        `).join('');
+                        inputHtml = `${labelHtml}<div class="mt-2 grid grid-cols-2 gap-3">${radioOptions}</div>`;
+                        break;
+                        
+                    case 'multiselect':
+                        let checkboxOptions = options.map((option, optIndex) => `
+                            <div>
+                                <input type="checkbox" id="${questionId}_opt_${optIndex}" name="${questionId}" value="${option}" class="spark-question-input">
+                                <label for="${questionId}_opt_${optIndex}" class="radio-btn-label !text-left flex items-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 text-gray-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9a1 1 0 000 2h6a1 1 0 100-2H7z" clip-rule="evenodd" /></svg>
+                                    ${option}
+                                </label>
+                            </div>
+                        `).join('');
+                        
+                        // Overwrite checked style for checkbox to look better
+                        wrapper.innerHTML += `<style>
+                            input[type="checkbox"]:checked + .radio-btn-label {
+                                border-color: #10B981;
+                                background-color: #ECFDF5;
+                                color: #065F46;
+                            }
+                            input[type="checkbox"]:checked + .radio-btn-label svg {
+                                color: #065F46 !important;
+                            }
+                        </style>`;
+                        
+                        inputHtml = `${labelHtml}<div class="mt-2 space-y-2">${checkboxOptions}</div>`;
+                        break;
+
+                    case 'skala':
+                        const min = scaleData.min || 1;
+                        const max = scaleData.max || 5;
+                        const numOptions = max - min + 1;
+                        const scaleRange = Array.from({ length: numOptions }, (_, i) => min + i);
+                        
+                        let scaleOptionsHtml = scaleRange.map(val => `
+                            <label for="${questionId}_${val}" class="scale-option">
+                                <input type="radio" id="${questionId}_${val}" name="${questionId}" value="${val}" class="scale-radio">
+                                <span class="scale-label">${val}</span>
+                            </label>
+                        `).join('');
+
+                        const scaleWidth = `${100 / numOptions}%`;
+                        const labelMin = scaleData.minLabel ? `<span class="text-xs text-red-500">${scaleData.minLabel}</span>` : '';
+                        const labelMax = scaleData.maxLabel ? `<span class="text-xs text-green-500">${scaleData.maxLabel}</span>` : '';
+
+                        inputHtml = `${labelHtml}
+                            <div class="mt-4 flex justify-between w-full">
+                                <div class="scale-container-labels">
+                                    ${labelMin}
+                                </div>
+                                <div class="scale-container-labels">
+                                    ${labelMax}
+                                </div>
+                            </div>
+                            <div class="flex mt-1 p-2 bg-gray-50 border border-gray-200 rounded-lg" style="justify-content: space-around;">
+                                ${scaleOptionsHtml}
+                            </div>
+                        `;
                         break;
                 }
                 wrapper.innerHTML = inputHtml;
@@ -618,6 +749,7 @@
             });
         }
         
+        // FUNGSI sahkanselesai() - DIKEMASKINI UNTUK VALIDASI DAN JAWAPAN BARU
         window.sahkanSelesai = async function(event) {
             event.preventDefault();
             
@@ -633,47 +765,65 @@
             const wrappers = document.querySelectorAll('.spark-question-wrapper');
             
             let isFormValid = true;
+            const requiredErrorClass = 'border-red-500 ring-red-500';
 
             wrappers.forEach(wrapper => {
                 const questionText = wrapper.dataset.questionText;
                 const questionType = wrapper.dataset.questionType;
+                const isRequired = wrapper.dataset.isRequired === 'true'; 
+                
                 let value = '';
                 let inputElement = null;
 
-                if (questionType === 'ya_tidak') {
+                if (questionType === 'arahan') {
+                    return; // Skip arahan
+                }
+
+                // Reset error visuals
+                wrapper.querySelectorAll(`.${requiredErrorClass}`).forEach(el => el.classList.remove(requiredErrorClass));
+
+                if (questionType === 'ya_tidak' || questionType === 'option_button' || questionType === 'radio_button' || questionType === 'skala') {
                     const checkedRadio = wrapper.querySelector('input[type="radio"]:checked');
                     if (checkedRadio) {
                         value = checkedRadio.value;
-                    } else {
-                        value = "Tidak Dipilih"; 
+                    } else if (isRequired) {
+                         isFormValid = false;
+                         wrapper.querySelector('label').classList.add(requiredErrorClass); // Highlight label untuk soalan pilihan
                     }
-                    wrapper.querySelectorAll('.radio-btn-label').forEach(lbl => lbl.classList.remove('border-red-500'));
-                
-                } else if (questionType === 'teks_ringkas' || questionType === 'pautan_url' || questionType === 'teks_panjang' || questionType === 'tarikh') {
+                    
+                } else if (questionType === 'multiselect') {
+                    const checkedCheckboxes = Array.from(wrapper.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
+                    if (checkedCheckboxes.length > 0) {
+                        value = checkedCheckboxes.join('; ');
+                    } else if (isRequired) {
+                        isFormValid = false;
+                        wrapper.querySelector('label').classList.add(requiredErrorClass);
+                    }
+                    
+                } else { // teks_ringkas, pautan_url, teks_panjang, tarikh
                     inputElement = wrapper.querySelector('.spark-question-input, textarea'); 
                     if (inputElement) {
                         value = inputElement.value.trim();
-                        if (value === '') {
+                        if (value === '' && isRequired) {
                             isFormValid = false; 
-                            inputElement.classList.add('border-red-500', 'ring-red-500');
+                            inputElement.classList.add(requiredErrorClass);
                         } else {
-                            inputElement.classList.remove('border-red-500', 'ring-red-500');
+                            inputElement.classList.remove(requiredErrorClass);
                         }
                     }
-                
-                } else if (questionType === 'arahan') {
-                    return; 
                 }
 
-                jawapanSelesai.push({
-                    soalan: questionText,
-                    jenis: questionType,
-                    jawapan: value
-                });
+                if (questionType !== 'arahan') {
+                    jawapanSelesai.push({
+                        soalan: questionText,
+                        jenis: questionType,
+                        jawapan: value
+                    });
+                }
             });
 
             if (!isFormValid) {
-                alert("Sila isi semua jawapan yang diperlukan (selain Ya/Tidak).");
+                alert("Sila isi / pilih semua jawapan yang ditandakan *WAJIB.");
                 completionSubmitBtn.disabled = false;
                 completionSubmitBtn.innerHTML = originalButtonText;
                 return;
@@ -696,13 +846,15 @@
             };
 
             if (stesenPengesah) {
-                dataToUpdate.skopSelesai = arrayUnion(stesenPengesah);
+                // Menggunakan normalizeStationName untuk mengemaskini skopSelesai
+                dataToUpdate.skopSelesai = arrayUnion(normalizeStationName(stesenPengesah));
             }
 
             const taskRef = doc(db, `artifacts/${appId}/public/data/spark_tasks`, currentTaskId);
             try {
                 await updateDoc(taskRef, dataToUpdate);
                 
+                // Tiada kemaskini bilangan selesai manual diperlukan jika guna skopSelesai
                 const bilanganSediaAda = (currentTask.rekodSelesai || []).length;
                 const bilanganBaru = bilanganSediaAda + 1; 
 
@@ -816,14 +968,12 @@
                 selectors.forEach(selector => {
                     const selectElement = document.querySelector(selector);
                     
-                    // ▼▼▼ KEMAS KINI DI SINI ▼▼▼
                     // Simpan opsyen pertama ("Sila Pilih Sekolah")
                     const firstOption = selectElement.options[0];
                     // Kosongkan senarai lama (untuk buang data cache)
                     selectElement.innerHTML = '';
                     // Tambah opsyen pertama kembali
                     selectElement.appendChild(firstOption);
-                    // ▲▲▲ TAMAT KEMAS KINI ▲▲▲
 
                     schools.forEach(schoolName => {
                         const option = document.createElement('option');
@@ -848,11 +998,10 @@
 
                 const positions = querySnapshot.docs.map(doc => doc.data().name);
                 
-                // ▼▼▼ KEMAS KINI DI SINI (Logik yang sama seperti sekolah) ▼▼▼
+                // Simpan opsyen pertama ("Sila Pilih Jawatan")
                 const firstOption = selectElement.options[0];
                 selectElement.innerHTML = '';
                 selectElement.appendChild(firstOption);
-                // ▲▲▲ TAMAT KEMAS KINI ▲▲▲
 
                 positions.forEach(positionName => {
                     const option = document.createElement('option');
