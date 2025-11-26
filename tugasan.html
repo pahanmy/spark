@@ -216,8 +216,9 @@
                                         <option value="tarikh">Jenis: Tarikh</option>
                                         <option value="option_button">Jenis: Dropdown (Pilihan Tunggal)</option>
                                         <option value="radio_button">Jenis: Radio Button (Pilihan Tunggal)</option>
-                                        <option value="multiselect">Jenis: Kotak Pilihan (Berbilang Pilihan)</option>
-                                        </select>
+                                        <option value="multiselect">Jenis: Kotak Pilihan (Berbilang)</option>
+                                        <option value="skala">Jenis: Skala Linear</option>
+                                    </select>
                                     
                                     <button type="button" id="tambah-sub-tugasan-btn" class="btn rounded-lg border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 w-full sm:w-48">
                                         Tambah
@@ -230,9 +231,46 @@
                                     Masukkan Senarai Pilihan (Options)
                                 </label>
                                 <p class="text-xs text-indigo-600 mb-2">
-                                    Sila masukkan **satu pilihan bagi setiap baris** untuk memastikan format yang betul.
+                                    Sila masukkan **satu pilihan bagi setiap baris**.
                                 </p>
                                 <textarea id="sub-tugasan-options" rows="4" class="w-full mt-1 p-3 border border-indigo-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" placeholder="Pilihan Pertama&#10;Pilihan Kedua&#10;Pilihan Ketiga"></textarea>
+                            </div>
+
+                            <div id="scale-input-container" class="mt-3 p-4 border border-purple-200 bg-purple-50 rounded-lg hidden">
+                                <label class="block text-sm font-medium text-purple-800 mb-3">
+                                    Tetapan Skala Linear
+                                </label>
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label for="scale-min" class="block text-xs font-medium text-gray-700">Skala Mula</label>
+                                        <select id="scale-min" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500 sm:text-sm">
+                                            <option value="0">0</option>
+                                            <option value="1" selected>1</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label for="scale-max" class="block text-xs font-medium text-gray-700">Skala Tamat</label>
+                                        <select id="scale-max" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500 sm:text-sm">
+                                            <option value="2">2</option>
+                                            <option value="3">3</option>
+                                            <option value="4">4</option>
+                                            <option value="5" selected>5</option>
+                                            <option value="6">6</option>
+                                            <option value="7">7</option>
+                                            <option value="8">8</option>
+                                            <option value="9">9</option>
+                                            <option value="10">10</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label for="scale-label-min" class="block text-xs font-medium text-gray-700">Label Mula (Pilihan)</label>
+                                        <input type="text" id="scale-label-min" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500 sm:text-sm" placeholder="cth: Sangat Teruk">
+                                    </div>
+                                    <div>
+                                        <label for="scale-label-max" class="block text-xs font-medium text-gray-700">Label Tamat (Pilihan)</label>
+                                        <input type="text" id="scale-label-max" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500 sm:text-sm" placeholder="cth: Sangat Bagus">
+                                    </div>
+                                </div>
                             </div>
                             <div id="senarai-sub-tugasan-container" class="mt-3 space-y-2 max-h-48 overflow-y-auto p-2 border rounded-lg bg-gray-50">
                                 <p class="text-xs text-gray-500 italic text-center">Tiada sub-tugasan ditambah.</p>
@@ -326,14 +364,14 @@
         let isSubmitting = false;
         let currentApplicant = null;
 
-        // Inisialisasi Firebase (kekal sama)
+        // Inisialisasi Firebase
         try {
             const app = initializeApp(firebaseConfig);
             db = getFirestore(app);
             auth = getAuth(app);
         } catch (e) { console.error("Error initializing Firebase:", e); }
         
-        // Pengesahan (Sign-in) (kekal sama)
+        // Pengesahan (Sign-in)
         onAuthStateChanged(auth, async (user) => {
             if (user) { 
                 userId = user.uid; 
@@ -368,15 +406,22 @@
         const failInput = document.getElementById('fail-input');
         const failInfo = document.getElementById('fail-info');
 
-        // DOM UNTUK SUB-TUGASAN
+        // DOM SUB-TUGASAN
         const subTugasanTextInput = document.getElementById('sub-tugasan-text');
         const subTugasanTypeInput = document.getElementById('sub-tugasan-type');
         const tambahSubTugasanBtn = document.getElementById('tambah-sub-tugasan-btn');
         const senaraiSubTugasanContainer = document.getElementById('senarai-sub-tugasan-container');
         
-        // DOM BARU UNTUK PILIHAN INTERAKTIF
+        // DOM INPUT PILIHAN DINAMIK
         const optionsInputContainer = document.getElementById('options-input-container');
         const subTugasanOptionsInput = document.getElementById('sub-tugasan-options');
+
+        // ▼▼▼ DOM BARU UNTUK SKALA DINAMIK ▼▼▼
+        const scaleInputContainer = document.getElementById('scale-input-container');
+        const scaleMinInput = document.getElementById('scale-min');
+        const scaleMaxInput = document.getElementById('scale-max');
+        const scaleLabelMinInput = document.getElementById('scale-label-min');
+        const scaleLabelMaxInput = document.getElementById('scale-label-max');
         
         const perluPautanCheckbox = document.getElementById('perlu-pautan-checkbox');
         const pautanSection = document.getElementById('pautan-section');
@@ -384,14 +429,14 @@
         const tambahPautanBtn = document.getElementById('tambah-pautan-btn');
         const senaraiPautanContainer = document.getElementById('senarai-pautan-container');
 
-        // --- State (Kekal Sama) ---
-        let subTugasanList = []; // { text: string, type: string, options: string[] }
+        // --- State ---
+        let subTugasanList = []; // { text: string, type: string, options: string[], scaleData: object }
         let pautanList = []; 
         let allSchools = [], srSchools = [], smSchools = [];
 
         // --- FUNCTIONS ---
 
-        // Fungsi handleSimpanBorangBaru() kekal sama
+        // Fungsi handleSimpanBorangBaru()
         async function handleSimpanBorangBaru(event) {
             event.preventDefault();
             if (isSubmitting) return;
@@ -686,30 +731,35 @@
             }
         }
 
-        // FUNGSI UNTUK MENGENDALIKAN KETERLIHATAN KOTAK PILIHAN
+        // ▼▼▼ KEMASKINI FUNGSI KETERLIHATAN KOTAK PILIHAN/SKALA ▼▼▼
         function toggleOptionsInput() {
             const selectedType = subTugasanTypeInput.value;
+            
+            // Logic untuk Kotak Pilihan Teks
             const isOptionsNeeded = (
                 selectedType === 'option_button' || 
                 selectedType === 'radio_button' || 
                 selectedType === 'multiselect'
             );
-
             optionsInputContainer.classList.toggle('hidden', !isOptionsNeeded);
 
-            // Kosongkan input jika ia disembunyikan
+            // Logic untuk Kotak Skala
+            const isScaleNeeded = (selectedType === 'skala');
+            scaleInputContainer.classList.toggle('hidden', !isScaleNeeded);
+
+            // Reset input jika disembunyikan
             if (!isOptionsNeeded) {
                 subTugasanOptionsInput.value = '';
-            } else {
-                subTugasanOptionsInput.focus();
             }
+            // (Kita biarkan nilai Skala default jika disembunyikan)
         }
 
-        // KEMASKINI FUNGSI tambahSubTugasan() - MENGAMBIL INPUT DARI TEXTAREA
+        // ▼▼▼ KEMASKINI FUNGSI tambahSubTugasan() ▼▼▼
         function tambahSubTugasan() {
             const text = subTugasanTextInput.value.trim();
             const type = subTugasanTypeInput.value;
             let options = []; 
+            let scaleData = null;
 
             if (!text) {
                 alert("Sila masukkan soalan atau arahan untuk sub-tugasan.");
@@ -717,6 +767,7 @@
                 return;
             }
 
+            // 1. HANDLER UNTUK PILIHAN BERBILANG (Option/Radio/Multiselect)
             if (type === 'option_button' || type === 'radio_button' || type === 'multiselect') {
                 const inputOptions = subTugasanOptionsInput.value.trim();
                 
@@ -726,30 +777,52 @@
                     subTugasanOptionsInput.focus();
                     return;
                 }
-
-                // Pecahkan input oleh baris baharu, buang ruang kosong, dan tapis yang kosong
                 options = inputOptions.split('\n').map(opt => opt.trim()).filter(opt => opt.length > 0);
-
                 if (options.length === 0) {
-                    alert("Sila masukkan pilihan yang sah. Sub-tugasan dibatalkan.");
+                    alert("Sila masukkan pilihan yang sah.");
                     return;
                 }
             }
+
+            // 2. HANDLER UNTUK SKALA
+            if (type === 'skala') {
+                const min = parseInt(scaleMinInput.value);
+                const max = parseInt(scaleMaxInput.value);
+                
+                if (min >= max) {
+                    alert("Nilai 'Skala Mula' mesti lebih kecil dari 'Skala Tamat'.");
+                    return;
+                }
+                
+                scaleData = {
+                    min: min,
+                    max: max,
+                    minLabel: scaleLabelMinInput.value.trim(),
+                    maxLabel: scaleLabelMaxInput.value.trim()
+                };
+            }
             
-            const newSubTugas = { text: text, type: type, options: options }; 
+            // Tambah objek ke array
+            const newSubTugas = { text: text, type: type, options: options, scaleData: scaleData }; 
             subTugasanList.push(newSubTugas);
             paparSenaraiSubTugasan();
             
-            // Reset input dan sembunyikan semula kotak pilihan
+            // Reset UI
             subTugasanTextInput.value = '';
             subTugasanOptionsInput.value = '';
+            scaleLabelMinInput.value = '';
+            scaleLabelMaxInput.value = '';
+            scaleMinInput.value = '1';
+            scaleMaxInput.value = '5';
+            
             optionsInputContainer.classList.add('hidden');
-            subTugasanTypeInput.value = 'arahan'; // Reset jenis kepada 'Arahan'
+            scaleInputContainer.classList.add('hidden');
+            
+            subTugasanTypeInput.value = 'arahan';
             subTugasanTextInput.focus();
         }
 
-
-        // KEMASKINI FUNGSI paparSenaraiSubTugasan()
+        // ▼▼▼ KEMASKINI FUNGSI paparSenaraiSubTugasan() ▼▼▼
         function paparSenaraiSubTugasan() {
             senaraiSubTugasanContainer.innerHTML = '';
             if (subTugasanList.length === 0) {
@@ -759,49 +832,54 @@
 
             const getTypeBadge = (type) => {
                 switch (type) {
-                    case 'ya_tidak': 
-                        return '<span class="ml-2 flex-shrink-0 text-xs font-medium bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">Ya/Tidak</span>';
-                    case 'teks_ringkas': 
-                        return '<span class="ml-2 flex-shrink-0 text-xs font-medium bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full">Teks Ringkas</span>';
-                    case 'teks_panjang':
-                        return '<span class="ml-2 flex-shrink-0 text-xs font-medium bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full">Teks Panjang</span>';
-                    case 'pautan_url': 
-                        return '<span class="ml-2 flex-shrink-0 text-xs font-medium bg-green-100 text-green-800 px-2 py-0.5 rounded-full">Pautan</span>';
-                    case 'tarikh':
-                        return '<span class="ml-2 flex-shrink-0 text-xs font-medium bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full">Tarikh</span>';
-                    // BARU: BADGE UNTUK JENIS INPUT BERTULIS
-                    case 'option_button':
-                        return '<span class="ml-2 flex-shrink-0 text-xs font-medium bg-pink-100 text-pink-800 px-2 py-0.5 rounded-full">Dropdown</span>';
-                    case 'radio_button':
-                        return '<span class="ml-2 flex-shrink-0 text-xs font-medium bg-red-100 text-red-800 px-2 py-0.5 rounded-full">Radio</span>';
-                    case 'multiselect':
-                        return '<span class="ml-2 flex-shrink-0 text-xs font-medium bg-teal-100 text-teal-800 px-2 py-0.5 rounded-full">Multiselect</span>';
-                    // TAMAT BARU
-                    case 'arahan': 
-                        return '<span class="ml-2 flex-shrink-0 text-xs font-medium bg-gray-100 text-gray-800 px-2 py-0.5 rounded-full">Arahan</span>';
+                    case 'ya_tidak': return '<span class="ml-2 badge bg-blue-100 text-blue-800">Ya/Tidak</span>';
+                    case 'teks_ringkas': return '<span class="ml-2 badge bg-yellow-100 text-yellow-800">Teks Ringkas</span>';
+                    case 'teks_panjang': return '<span class="ml-2 badge bg-yellow-100 text-yellow-800">Teks Panjang</span>';
+                    case 'pautan_url': return '<span class="ml-2 badge bg-green-100 text-green-800">Pautan</span>';
+                    case 'tarikh': return '<span class="ml-2 badge bg-purple-100 text-purple-800">Tarikh</span>';
+                    case 'option_button': return '<span class="ml-2 badge bg-pink-100 text-pink-800">Dropdown</span>';
+                    case 'radio_button': return '<span class="ml-2 badge bg-red-100 text-red-800">Radio</span>';
+                    case 'multiselect': return '<span class="ml-2 badge bg-teal-100 text-teal-800">Multiselect</span>';
+                    // BARU
+                    case 'skala': return '<span class="ml-2 badge bg-indigo-100 text-indigo-800">Skala</span>';
+                    case 'arahan': return '<span class="ml-2 badge bg-gray-100 text-gray-800">Arahan</span>';
                     default: return '';
                 }
             };
 
+            // Helper style untuk badge
+            const badgeClass = "flex-shrink-0 text-xs font-medium px-2 py-0.5 rounded-full";
+
             subTugasanList.forEach((tugas, index) => {
-                let optionsHtml = '';
-                // Paparkan senarai pilihan jika ada
+                let detailsHtml = '';
+
+                // Paparkan Pilihan Teks
                 if (tugas.options && tugas.options.length > 0) {
-                    optionsHtml = `<p class="text-xs text-gray-600 mt-1 italic pl-3">Pilihan: ${tugas.options.join(', ')}</p>`;
+                    detailsHtml = `<p class="text-xs text-gray-600 mt-1 italic pl-3">Pilihan: ${tugas.options.join(', ')}</p>`;
                 }
+                
+                // Paparkan Butiran Skala
+                if (tugas.scaleData) {
+                    const s = tugas.scaleData;
+                    const labelStr = (s.minLabel || s.maxLabel) ? ` (${s.min}=${s.minLabel || ''}, ${s.max}=${s.maxLabel || ''})` : '';
+                    detailsHtml = `<p class="text-xs text-gray-600 mt-1 italic pl-3">Julat: ${s.min} hingga ${s.max}${labelStr}</p>`;
+                }
+
+                // Ganti class badge secara manual dalam string HTML kerana helper function di atas return string
+                let badgeHtml = getTypeBadge(tugas.type).replace('badge', badgeClass);
 
                 senaraiSubTugasanContainer.innerHTML += `
                     <div class="bg-white p-2 rounded border border-gray-200">
                         <div class="flex justify-between items-start min-w-0">
                             <div class="flex-1 flex items-start min-w-0">
                                 <span class="text-sm truncate" title="${tugas.text}">${index + 1}. ${tugas.text}</span>
-                                ${getTypeBadge(tugas.type)}
+                                ${badgeHtml}
                             </div>
                             <button type="button" class="text-red-500 hover:text-red-700 padam-sub-tugasan-btn ml-2 flex-shrink-0" data-index="${index}">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                             </button>
                         </div>
-                        ${optionsHtml}
+                        ${detailsHtml}
                     </div>
                 `;
             });
@@ -884,7 +962,7 @@
         document.addEventListener('DOMContentLoaded', () => {
             const versionInfo = document.getElementById('version-info');
             if(versionInfo) {
-                versionInfo.textContent = `Versi 2.1 (2025) - Dikemaskini: Sub-Tugasan Interaktif`;
+                versionInfo.textContent = `Versi 2.1 (2025) - Dikemaskini: Skala Linear`;
             }
 
             document.getElementById('load-sr-btn').addEventListener('click', () => loadReferenceSchools('sr'));
