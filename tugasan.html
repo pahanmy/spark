@@ -156,13 +156,14 @@
 
                             <div class="md:col-span-2">
                                 <label for="skop-list-textarea" class="block text-sm font-medium text-gray-700">Skop Tugasan (Senarai Sekolah/PPD)</label>
-                                <p class="text-xs text-gray-500">Tampal senarai (Nama Sekolah/Pegawai sahaja, 1 per baris) atau gunakan butang untuk memuatkan senarai. 'Jumlah Belum' akan dikira dari sini.</p>
+                                <p class="text-xs text-gray-500">Tampal senarai (Nama Sekolah/Pegawai/Sektor sahaja, 1 per baris) atau gunakan butang untuk memuatkan senarai. 'Jumlah Belum' akan dikira dari sini.</p>
                                 <textarea id="skop-list-textarea" rows="4" class="w-full mt-1 p-3 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" placeholder="SK MIRI...&#10;SMK LUTONG..."></textarea>
                                 <div class="flex flex-wrap gap-2 mt-2">
                                     <button type="button" id="load-sr-btn" class="btn bg-gray-100 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-blue-100 hover:text-blue-800 text-sm">Muat Senarai SR</button>
                                     <button type="button" id="load-sm-btn" class="btn bg-gray-100 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-blue-100 hover:text-blue-800 text-sm">Muat Senarai SM</button>
                                     <button type="button" id="load-all-btn" class="btn bg-gray-100 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-blue-100 hover:text-blue-800 text-sm">Muat Senarai SR & SM</button>
-                                    <button type="button" id="load-ppd-btn" class="btn bg-gray-100 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-green-100 hover:text-green-800 text-sm">Muat Senarai PPD</button> 
+                                    <button type="button" id="load-ppd-btn" class="btn bg-gray-100 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-green-100 hover:text-green-800 text-sm">Muat Senarai Pegawai PPD</button> 
+                                    <button type="button" id="load-ppd-sektor-btn" class="btn bg-gray-100 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-purple-100 hover:text-purple-800 text-sm">Muat Senarai Sektor PPD</button>
                                 </div>
                             </div>
                             
@@ -432,7 +433,8 @@
         let subTugasanList = []; 
         let pautanList = []; 
         let allSchools = [], srSchools = [], smSchools = [];
-        let ppdOfficers = []; // Tambah array untuk Pegawai PPD
+        let ppdOfficers = [];
+        let ppdSectors = []; // Array BARU untuk Sektor PPD
 
         // --- FUNCTIONS ---
 
@@ -503,7 +505,8 @@
             newApplicantBatalBtn.addEventListener('click', () => closeModal('new-applicant-modal'));
             setupCategoryListeners();
             loadSchoolsIntoDropdown();
-            loadPpdOfficers(); // Muatkan senarai PPD di sini
+            loadPpdOfficers();
+            loadPpdSectors(); // Panggil fungsi BARU ini
         }
         function disableTaskForm() {
              borangBaru.querySelectorAll('input, select, textarea, button').forEach(el => {
@@ -661,7 +664,7 @@
         async function loadPpdOfficers() {
             try {
                 const officersRef = collection(db, `artifacts/${appId}/public/data/spark_ppd_officers`);
-                const q = query(officersRef, orderBy("name", "asc"));
+                const q = query(officersRef, where("category", "==", "pegawai"), orderBy("name", "asc"));
                 const querySnapshot = await getDocs(q);
                 ppdOfficers = [];
                 querySnapshot.forEach(doc => {
@@ -672,6 +675,24 @@
                 console.log(`Berjaya memuatkan ${ppdOfficers.length} Pegawai PPD.`);
             } catch (error) {
                 console.error("Error loading PPD officers:", error);
+            }
+        }
+
+        // FUNGSI BARU: Muat Senarai Sektor PPD
+        async function loadPpdSectors() {
+            try {
+                const sectorsRef = collection(db, `artifacts/${appId}/public/data/spark_ppd_officers`);
+                const q = query(sectorsRef, where("category", "==", "sektor"), orderBy("name", "asc"));
+                const querySnapshot = await getDocs(q);
+                ppdSectors = [];
+                querySnapshot.forEach(doc => {
+                    const sector = doc.data();
+                    // Simpan nama sektor sahaja
+                    ppdSectors.push(sector.name.toUpperCase());
+                });
+                console.log(`Berjaya memuatkan ${ppdSectors.length} Sektor PPD.`);
+            } catch (error) {
+                console.error("Error loading PPD sectors:", error);
             }
         }
         
@@ -718,13 +739,19 @@
         // --- (TAMAT FUNGSI PENGESAHAN) ---
 
 
-        // Fungsi loadReferenceSchools() DILENGKAPKAN UNTUK PPD
+        // Fungsi loadReferenceSchools() DILENGKAPKAN UNTUK PPD & SEKTOR
         function loadReferenceSchools(type) {
             const textarea = document.getElementById('skop-list-textarea');
             textarea.value = 'Memuatkan...';
             let filteredList = [];
             
-            if (type === 'ppd') { 
+            if (type === 'ppd-sektor') { 
+                if (ppdSectors.length === 0) {
+                    textarea.value = 'Data Sektor PPD belum sedia atau tiada data ditemui.';
+                } else {
+                    filteredList = ppdSectors;
+                }
+            } else if (type === 'ppd') { 
                 if (ppdOfficers.length === 0) {
                     textarea.value = 'Data Pegawai PPD belum sedia atau tiada data ditemui.';
                 } else {
@@ -740,7 +767,7 @@
 
             if (filteredList.length > 0) { 
                 textarea.value = filteredList.join('\n'); 
-            } else if (type !== 'ppd') {
+            } else if (type !== 'ppd' && type !== 'ppd-sektor') {
                 // Jika bukan PPD, dan tiada sekolah
                 textarea.value = (allSchools.length === 0) 
                     ? 'Data sekolah belum sedia. Sila tunggu sebentar dan cuba lagi.' 
@@ -854,7 +881,7 @@
             subTugasanTypeInput.focus();
         }
 
-        // FUNGSI paparSenaraiSubTugasan() kekal sama
+        // FUNGSI paparSenaraiSubTugasan()
         function paparSenaraiSubTugasan() {
             senaraiSubTugasanContainer.innerHTML = '';
             if (subTugasanList.length === 0) {
@@ -977,13 +1004,14 @@
         document.addEventListener('DOMContentLoaded', () => {
             const versionInfo = document.getElementById('version-info');
             if(versionInfo) {
-                versionInfo.textContent = `Versi 2.1 (2025) - Dikemaskini: Skala Linear, Fail Dibuang, UI Sub-Tugasan V2, Sokongan PPD`;
+                versionInfo.textContent = `Versi 2.1 (2025) - Dikemaskini: Skala Linear, Fail Dibuang, UI Sub-Tugasan V2, Sokongan PPD & Sektor`;
             }
 
             document.getElementById('load-sr-btn').addEventListener('click', () => loadReferenceSchools('sr'));
             document.getElementById('load-sm-btn').addEventListener('click', () => loadReferenceSchools('sm'));
             document.getElementById('load-all-btn').addEventListener('click', () => loadReferenceSchools('all'));
-            document.getElementById('load-ppd-btn').addEventListener('click', () => loadReferenceSchools('ppd')); // LISTENER BARU
+            document.getElementById('load-ppd-btn').addEventListener('click', () => loadReferenceSchools('ppd'));
+            document.getElementById('load-ppd-sektor-btn').addEventListener('click', () => loadReferenceSchools('ppd-sektor')); // LISTENER BARU
             
             tarikhMulaModal.addEventListener('change', () => {
                 try {
