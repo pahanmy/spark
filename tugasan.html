@@ -225,6 +225,15 @@
                                 </div>
                             </div>
                             
+                            <div id="options-input-container" class="mt-3 p-4 border border-indigo-200 bg-indigo-50 rounded-lg hidden">
+                                <label for="sub-tugasan-options" class="block text-sm font-medium text-indigo-800">
+                                    Masukkan Senarai Pilihan (Options)
+                                </label>
+                                <p class="text-xs text-indigo-600 mb-2">
+                                    Sila masukkan **satu pilihan bagi setiap baris** untuk memastikan format yang betul.
+                                </p>
+                                <textarea id="sub-tugasan-options" rows="4" class="w-full mt-1 p-3 border border-indigo-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" placeholder="Pilihan Pertama&#10;Pilihan Kedua&#10;Pilihan Ketiga"></textarea>
+                            </div>
                             <div id="senarai-sub-tugasan-container" class="mt-3 space-y-2 max-h-48 overflow-y-auto p-2 border rounded-lg bg-gray-50">
                                 <p class="text-xs text-gray-500 italic text-center">Tiada sub-tugasan ditambah.</p>
                             </div>
@@ -359,12 +368,15 @@
         const failInput = document.getElementById('fail-input');
         const failInfo = document.getElementById('fail-info');
 
-        // ▼▼▼ DOM UNTUK SUB-TUGASAN (KEKAL SAMA) ▼▼▼
+        // DOM UNTUK SUB-TUGASAN
         const subTugasanTextInput = document.getElementById('sub-tugasan-text');
         const subTugasanTypeInput = document.getElementById('sub-tugasan-type');
         const tambahSubTugasanBtn = document.getElementById('tambah-sub-tugasan-btn');
         const senaraiSubTugasanContainer = document.getElementById('senarai-sub-tugasan-container');
-        // ▲▲▲ TAMAT DOM SUB-TUGASAN ▲▲▲
+        
+        // DOM BARU UNTUK PILIHAN INTERAKTIF
+        const optionsInputContainer = document.getElementById('options-input-container');
+        const subTugasanOptionsInput = document.getElementById('sub-tugasan-options');
         
         const perluPautanCheckbox = document.getElementById('perlu-pautan-checkbox');
         const pautanSection = document.getElementById('pautan-section');
@@ -433,7 +445,7 @@
                 jumlahSelesai: 0,
                 jumlahBelum: jumlahBelum,
                 skopSenaraiSekolah: skopSenaraiSekolah,
-                senaraiSubTugasan: subTugasanList, // Ini kini mengandungi options
+                senaraiSubTugasan: subTugasanList, 
                 senaraiPautan: pautanList,
                 fail: failData,
                 createdAt: serverTimestamp(),
@@ -674,11 +686,30 @@
             }
         }
 
-        // ▼▼▼ KEMASKINI FUNGSI tambahSubTugasan() ▼▼▼
+        // FUNGSI UNTUK MENGENDALIKAN KETERLIHATAN KOTAK PILIHAN
+        function toggleOptionsInput() {
+            const selectedType = subTugasanTypeInput.value;
+            const isOptionsNeeded = (
+                selectedType === 'option_button' || 
+                selectedType === 'radio_button' || 
+                selectedType === 'multiselect'
+            );
+
+            optionsInputContainer.classList.toggle('hidden', !isOptionsNeeded);
+
+            // Kosongkan input jika ia disembunyikan
+            if (!isOptionsNeeded) {
+                subTugasanOptionsInput.value = '';
+            } else {
+                subTugasanOptionsInput.focus();
+            }
+        }
+
+        // KEMASKINI FUNGSI tambahSubTugasan() - MENGAMBIL INPUT DARI TEXTAREA
         function tambahSubTugasan() {
             const text = subTugasanTextInput.value.trim();
             const type = subTugasanTypeInput.value;
-            let options = []; // Senarai untuk menyimpan pilihan
+            let options = []; 
 
             if (!text) {
                 alert("Sila masukkan soalan atau arahan untuk sub-tugasan.");
@@ -686,38 +717,39 @@
                 return;
             }
 
-            // Minta input pilihan jika jenisnya adalah Dropdown, Radio, atau Multiselect
             if (type === 'option_button' || type === 'radio_button' || type === 'multiselect') {
-                const inputOptions = prompt(
-                    "Masukkan senarai pilihan (Options) untuk soalan ini.\n" +
-                    "Sila asingkan setiap pilihan dengan koma (contoh: Pilihan A, Pilihan B, Pilihan C)"
-                );
+                const inputOptions = subTugasanOptionsInput.value.trim();
                 
-                if (inputOptions === null || inputOptions.trim() === "") {
-                    alert("Jenis ini memerlukan sekurang-kurangnya satu pilihan. Sub-tugasan dibatalkan.");
+                if (inputOptions === "") {
+                    alert("Jenis ini memerlukan senarai pilihan. Sila masukkan pilihan (1 per baris).");
+                    optionsInputContainer.scrollIntoView({ behavior: 'smooth' });
+                    subTugasanOptionsInput.focus();
                     return;
                 }
 
-                // Pecahkan input oleh koma, buang ruang kosong, dan tapis yang kosong
-                options = inputOptions.split(',').map(opt => opt.trim()).filter(opt => opt.length > 0);
+                // Pecahkan input oleh baris baharu, buang ruang kosong, dan tapis yang kosong
+                options = inputOptions.split('\n').map(opt => opt.trim()).filter(opt => opt.length > 0);
 
                 if (options.length === 0) {
-                    alert("Jenis ini memerlukan sekurang-kurangnya satu pilihan. Sub-tugasan dibatalkan.");
+                    alert("Sila masukkan pilihan yang sah. Sub-tugasan dibatalkan.");
                     return;
                 }
             }
             
-            // Objek sub-tugasan kini termasuk medan 'options' (walaupun kosong untuk jenis lain)
             const newSubTugas = { text: text, type: type, options: options }; 
             subTugasanList.push(newSubTugas);
             paparSenaraiSubTugasan();
+            
+            // Reset input dan sembunyikan semula kotak pilihan
             subTugasanTextInput.value = '';
+            subTugasanOptionsInput.value = '';
+            optionsInputContainer.classList.add('hidden');
+            subTugasanTypeInput.value = 'arahan'; // Reset jenis kepada 'Arahan'
             subTugasanTextInput.focus();
         }
-        // ▲▲▲ TAMAT KEMASKINI FUNGSI tambahSubTugasan() ▲▲▲
 
 
-        // ▼▼▼ KEMASKINI FUNGSI paparSenaraiSubTugasan() ▼▼▼
+        // KEMASKINI FUNGSI paparSenaraiSubTugasan()
         function paparSenaraiSubTugasan() {
             senaraiSubTugasanContainer.innerHTML = '';
             if (subTugasanList.length === 0) {
@@ -737,14 +769,14 @@
                         return '<span class="ml-2 flex-shrink-0 text-xs font-medium bg-green-100 text-green-800 px-2 py-0.5 rounded-full">Pautan</span>';
                     case 'tarikh':
                         return '<span class="ml-2 flex-shrink-0 text-xs font-medium bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full">Tarikh</span>';
-                    // ▼▼▼ BARU: BADGE UNTUK JENIS INPUT BERTULIS ▼▼▼
+                    // BARU: BADGE UNTUK JENIS INPUT BERTULIS
                     case 'option_button':
                         return '<span class="ml-2 flex-shrink-0 text-xs font-medium bg-pink-100 text-pink-800 px-2 py-0.5 rounded-full">Dropdown</span>';
                     case 'radio_button':
                         return '<span class="ml-2 flex-shrink-0 text-xs font-medium bg-red-100 text-red-800 px-2 py-0.5 rounded-full">Radio</span>';
                     case 'multiselect':
                         return '<span class="ml-2 flex-shrink-0 text-xs font-medium bg-teal-100 text-teal-800 px-2 py-0.5 rounded-full">Multiselect</span>';
-                    // ▲▲▲ TAMAT BARU ▲▲▲
+                    // TAMAT BARU
                     case 'arahan': 
                         return '<span class="ml-2 flex-shrink-0 text-xs font-medium bg-gray-100 text-gray-800 px-2 py-0.5 rounded-full">Arahan</span>';
                     default: return '';
@@ -774,8 +806,6 @@
                 `;
             });
         }
-        // ▲▲▲ TAMAT KEMASKINI FUNGSI paparSenaraiSubTugasan() ▲▲▲
-
 
         // Fungsi handleSubTugasanKlik() kekal sama
         function handleSubTugasanKlik(event) {
@@ -850,11 +880,11 @@
             borangError.textContent = '';
         }
 
-        // --- EVENT LISTENERS (Kekal Sama) ---
+        // --- EVENT LISTENERS ---
         document.addEventListener('DOMContentLoaded', () => {
             const versionInfo = document.getElementById('version-info');
             if(versionInfo) {
-                versionInfo.textContent = `Versi 2.1 (2025) - Dikemaskini: Sub-Tugasan V3`;
+                versionInfo.textContent = `Versi 2.1 (2025) - Dikemaskini: Sub-Tugasan Interaktif`;
             }
 
             document.getElementById('load-sr-btn').addEventListener('click', () => loadReferenceSchools('sr'));
@@ -882,6 +912,10 @@
 
             tambahPautanBtn.addEventListener('click', tambahPautan);
             senaraiPautanContainer.addEventListener('click', handlePautanKlik);
+            
+            // LISTENER BARU UNTUK JENIS SUB-TUGASAN
+            subTugasanTypeInput.addEventListener('change', toggleOptionsInput);
+            toggleOptionsInput(); // Tetapkan keadaan awal
         });
 
         borangBaru.addEventListener('submit', handleSimpanBorangBaru);
