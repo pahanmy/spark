@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Senarai Pegawai PPD - SparkTask Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Poppins', sans-serif; background-color: #f8f9fa; }
+        .btn { transition: background-color 0.3s, transform 0.2s; }
+        .btn:hover:not(:disabled) { transform: translateY(-2px); }
+        .loading-spinner { border-top-color: #3b82f6; -webkit-animation: spin 1s ease-in-out infinite; animation: spin 1s ease-in-out infinite; }
+        @-webkit-keyframes spin { 0% { -webkit-transform: rotate(0deg); } 100% { -webkit-transform: rotate(360deg); } }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-900 min-h-screen">
+
+    <header class="bg-white shadow-sm">
+        <div class="max-w-screen-2xl mx-auto py-4 px-4 sm:px-6 lg:px-8 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <h1 class="text-2xl font-bold text-indigo-600">Senarai Pegawai PPD</h1>
+            </div>
+            <div class="flex gap-2">
+                <a href="tugasan.html" class="btn bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-gray-300">
+                    Kembali ke Tugasan
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <main class="container max-w-5xl mx-auto p-4 sm:p-6 lg:p-8">
+        
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            <div class="lg:col-span-1 bg-white p-6 rounded-xl shadow-lg h-fit">
+                <h2 class="text-xl font-semibold mb-4 text-indigo-700">➕ Tambah Pegawai Baharu</h2>
+                <form id="form-tambah-pegawai" class="space-y-4">
+                    <div>
+                        <label for="pegawai-name" class="block text-sm font-medium text-gray-700">Nama Penuh</label>
+                        <input type="text" id="pegawai-name" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 uppercase" required>
+                    </div>
+                    <div>
+                        <label for="pegawai-position" class="block text-sm font-medium text-gray-700">Jawatan</label>
+                        <input type="text" id="pegawai-position" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 uppercase" required>
+                    </div>
+                    <div>
+                        <label for="pegawai-ic" class="block text-sm font-medium text-gray-700">No. IC (Pengesahan)</label>
+                        <input type="text" id="pegawai-ic" placeholder="Cth: 900101131234 (Pilihan)" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2">
+                    </div>
+                    <button type="submit" id="tambah-btn" class="w-full btn bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-indigo-700 mt-4">
+                        Simpan Pegawai
+                    </button>
+                    <div id="form-message" class="mt-3 text-sm hidden p-2 rounded-lg"></div>
+                </form>
+            </div>
+            
+            <div class="lg:col-span-2 bg-white p-6 rounded-xl shadow-lg">
+                <div class="flex justify-between items-center mb-4 border-b pb-2">
+                    <h2 class="text-xl font-semibold text-gray-800">📋 Senarai Pegawai PPD Sedia Ada</h2>
+                    <button type="button" id="refresh-btn" class="text-gray-500 hover:text-indigo-600 transition duration-150 ease-in-out">
+                         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m15.356 2H20M11 15H9m4-4h2m4-4V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3m-3 0h-4a1 1 0 00-1 1v3m12-3v4m0-4V4m0 0H8m7 16h4a1 1 0 001-1v-4m-6-6h-2m-4 0H5a1 1 0 00-1 1v4m-6-6v4m0 0h4m-4 0v-4" /></svg>
+                    </button>
+                </div>
+                
+                <div id="senarai-pegawai-container" class="space-y-3 max-h-[600px] overflow-y-auto p-1">
+                    <p id="loading-message" class="text-center text-gray-500 flex items-center justify-center gap-2">
+                        <span class="loading-spinner border-4 border-blue-200 border-t-blue-500 h-5 w-5 rounded-full"></span> Memuatkan data...
+                    </p>
+                    <p id="error-message" class="text-red-600 text-center hidden">Gagal memuatkan senarai pegawai. Sila periksa sambungan atau konfigurasi Firebase.</p>
+                </div>
+            </div>
+        </div>
+        
+    </main>
+
+    <footer class="text-center py-4 mt-8 border-t border-gray-200">
+        <p class="text-sm text-gray-600">Projek Inovasi oleh Pahan</p>
+    </footer>
+
+    <script type="module">
+        // Import modul Firebase
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, addDoc, collection, getDocs, query, orderBy, deleteDoc, doc, where, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Konfigurasi Firebase (Mesti sama seperti di tugasan.html)
+        const firebaseConfig = {
+            apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM",
+            authDomain: "myqrhadir.firebaseapp.com",
+            projectId: "myqrhadir",
+            storageBucket: "myqrhadir.appspot.com",
+            messagingSenderId: "799691133747",
+            appId: "1:799691133747:web:835a5e3e9413eace806446"
+        };
+        
+        let db, auth, userId;
+        const appId = firebaseConfig.projectId;
+        const PPD_COLLECTION_PATH = `artifacts/${appId}/public/data/spark_ppd_officers`;
+        const PARTICIPANTS_COLLECTION_PATH = `artifacts/${appId}/public/data/spark_participants`; // Untuk semakan IC
+
+        // Inisialisasi Firebase
+        try {
+            const app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+        } catch (e) { 
+            console.error("Error initializing Firebase:", e); 
+        }
+
+        // DOM Elements
+        const formTambahPegawai = document.getElementById('form-tambah-pegawai');
+        const pegawaiNameInput = document.getElementById('pegawai-name');
+        const pegawaiPositionInput = document.getElementById('pegawai-position');
+        const pegawaiIcInput = document.getElementById('pegawai-ic');
+        const tambahBtn = document.getElementById('tambah-btn');
+        const formMessage = document.getElementById('form-message');
+        const senaraiPegawaiContainer = document.getElementById('senarai-pegawai-container');
+        const loadingMessage = document.getElementById('loading-message');
+        const errorMessage = document.getElementById('error-message');
+        const refreshBtn = document.getElementById('refresh-btn');
+
+        // State
+        let isSubmitting = false;
+
+        // Pengesahan (Sign-in)
+        onAuthStateChanged(auth, async (user) => {
+            if (user) { 
+                userId = user.uid; 
+                fetchPpdOfficers();
+            } else { 
+                try { 
+                    await signInAnonymously(auth); 
+                } catch (error) { 
+                    console.error("Error signing in:", error); 
+                    errorMessage.textContent = "Gagal menyambung ke pangkalan data.";
+                    errorMessage.classList.remove('hidden');
+                } 
+            }
+        });
+
+        // --- FUNCTIONS ---
+
+        // 1. Muat dan Paparkan Senarai
+        async function fetchPpdOfficers() {
+            if (!db) return;
+            loadingMessage.classList.remove('hidden');
+            errorMessage.classList.add('hidden');
+            senaraiPegawaiContainer.innerHTML = ''; // Clear existing list
+            
+            try {
+                const officersRef = collection(db, PPD_COLLECTION_PATH);
+                const q = query(officersRef, orderBy("name", "asc"));
+                const querySnapshot = await getDocs(q);
+                
+                if (querySnapshot.empty) {
+                    senaraiPegawaiContainer.innerHTML = '<p class="text-center text-gray-500 mt-4 p-4 bg-gray-100 rounded-lg">Tiada Pegawai PPD dalam senarai.</p>';
+                    return;
+                }
+
+                querySnapshot.forEach(doc => {
+                    const officer = { id: doc.id, ...doc.data() };
+                    displayOfficer(officer);
+                });
+
+            } catch (error) {
+                console.error("Error fetching PPD officers:", error);
+                errorMessage.classList.remove('hidden');
+            } finally {
+                loadingMessage.classList.add('hidden');
+            }
+        }
+
+        // 2. Paparkan Pegawai dalam Senarai
+        function displayOfficer(officer) {
+            const icDisplay = officer.ic ? `<span class="text-xs text-gray-500 ml-2">(${officer.ic})</span>` : '';
+            const item = document.createElement('div');
+            item.className = 'flex justify-between items-center bg-gray-50 p-3 rounded-lg border border-gray-200';
+            item.setAttribute('data-id', officer.id);
+            item.innerHTML = `
+                <div>
+                    <p class="font-semibold text-gray-800">${officer.name.toUpperCase()}</p>
+                    <p class="text-sm text-indigo-600">${officer.position.toUpperCase()} ${icDisplay}</p>
+                </div>
+                <button type="button" class="text-red-500 hover:text-red-700 delete-btn" data-id="${officer.id}" data-name="${officer.name}">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                </button>
+            `;
+            // Add the item to the beginning of the list for visual confirmation
+            senaraiPegawaiContainer.prepend(item); 
+        }
+
+        // 3. Tambah Pegawai Baharu
+        async function handleAddOfficer(event) {
+            event.preventDefault();
+            if (isSubmitting) return;
+
+            const name = pegawaiNameInput.value.trim().toUpperCase();
+            const position = pegawaiPositionInput.value.trim().toUpperCase();
+            const ic = pegawaiIcInput.value.trim().replace(/[^0-9]/g, '');
+
+            if (!name || !position) {
+                showMessage('Sila isi Nama Penuh dan Jawatan.', 'bg-red-100 text-red-700');
+                return;
+            }
+
+            isSubmitting = true;
+            tambahBtn.disabled = true;
+            tambahBtn.textContent = 'Menyimpan...';
+            showMessage('', '');
+
+            try {
+                const newOfficerData = {
+                    name: name,
+                    position: position,
+                    ic: ic,
+                    category: 'ppd',
+                    station: 'PEJABAT PENDIDIKAN DAERAH',
+                    added_by_uid: userId,
+                    createdAt: new Date().toISOString()
+                };
+
+                // Semak jika IC dimasukkan, kita simpan dalam koleksi peserta juga (jika tiada)
+                if (ic && ic.length === 12) {
+                    const participantDocRef = doc(db, PARTICIPANTS_COLLECTION_PATH, ic);
+                    await setDoc(participantDocRef, {
+                        ...newOfficerData,
+                        ic: ic,
+                        category: 'warga' 
+                    }, { merge: true });
+                }
+                
+                // Simpan dalam koleksi rujukan PPD (guna addDoc supaya ID unik)
+                const docRef = await addDoc(collection(db, PPD_COLLECTION_PATH), newOfficerData);
+                
+                showMessage(`Pegawai ${name} berjaya disimpan!`, 'bg-green-100 text-green-700');
+                
+                // Reset borang dan muat semula senarai
+                formTambahPegawai.reset();
+                fetchPpdOfficers();
+
+            } catch (error) {
+                console.error("Error adding new officer:", error);
+                showMessage('Gagal menyimpan pegawai. Sila cuba lagi.', 'bg-red-100 text-red-700');
+            } finally {
+                isSubmitting = false;
+                tambahBtn.disabled = false;
+                tambahBtn.textContent = 'Simpan Pegawai';
+            }
+        }
+
+        // 4. Padam Pegawai
+        async function handleDeleteOfficer(event) {
+            const target = event.target.closest('.delete-btn');
+            if (!target) return;
+
+            const id = target.dataset.id;
+            const name = target.dataset.name;
+
+            if (!confirm(`Anda pasti mahu memadam Pegawai ${name} dari senarai PPD?`)) {
+                return;
+            }
+            
+            // Disable button semasa memproses
+            target.disabled = true;
+            target.classList.add('opacity-50');
+
+            try {
+                // Padam dokumen dari koleksi PPD
+                await deleteDoc(doc(db, PPD_COLLECTION_PATH, id));
+                
+                // Keluarkan item dari DOM
+                const itemToRemove = document.querySelector(`[data-id="${id}"]`);
+                if (itemToRemove) {
+                    itemToRemove.remove();
+                }
+
+                showMessage(`${name} berjaya dipadam.`, 'bg-yellow-100 text-yellow-700');
+                
+                // Muat semula senarai untuk kemaskini
+                if(senaraiPegawaiContainer.children.length === 0) {
+                     fetchPpdOfficers();
+                }
+
+            } catch (error) {
+                console.error("Error deleting officer:", error);
+                alert('Gagal memadam pegawai.');
+                target.disabled = false;
+                target.classList.remove('opacity-50');
+            }
+        }
+
+        // 5. Mesej Borang
+        function showMessage(message, className) {
+            formMessage.textContent = message;
+            formMessage.className = `mt-3 text-sm p-2 rounded-lg ${className}`;
+            formMessage.classList.remove('hidden');
+        }
+
+        // --- EVENT LISTENERS ---
+        formTambahPegawai.addEventListener('submit', handleAddOfficer);
+        senaraiPegawaiContainer.addEventListener('click', handleDeleteOfficer);
+        refreshBtn.addEventListener('click', fetchPpdOfficers);
+        
+    </script>
+</body>
+</html>
