@@ -187,17 +187,7 @@
                                 </div>
                             </div>
                             
-                            <div class="md:col-span-2">
-                                <label class="block text-sm font-medium text-gray-700">Muat Naik Fail (Max 5MB)</label>
-                                <div id="fail-info" class="text-sm text-gray-600 mb-1"></div>
-                                <label class="mt-1 block w-full cursor-pointer text-sm">
-                                    <span class="py-2 px-3 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 shadow-sm">
-                                        Pilih Fail
-                                    </span>
-                                    <input type="file" id="fail-input" class="absolute w-0 h-0 overflow-hidden">
-                                </label>
                             </div>
-                        </div>
 
                         <div class="pt-4">
                             <label class="block text-sm font-medium text-gray-700">Senarai Sub-Tugasan / Soalan</label>
@@ -272,6 +262,7 @@
                                     </div>
                                 </div>
                             </div>
+
                             <div id="senarai-sub-tugasan-container" class="mt-3 space-y-2 max-h-48 overflow-y-auto p-2 border rounded-lg bg-gray-50">
                                 <p class="text-xs text-gray-500 italic text-center">Tiada sub-tugasan ditambah.</p>
                             </div>
@@ -349,7 +340,7 @@
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, addDoc, collection, serverTimestamp, getDocs, query, where, doc, setDoc, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Konfigurasi Firebase (kekal sama)
+        // Konfigurasi Firebase
         const firebaseConfig = {
             apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM",
             authDomain: "myqrhadir.firebaseapp.com",
@@ -403,8 +394,8 @@
         const sektorModal = document.getElementById('sektor-modal');
         const tarikhMulaModal = document.getElementById('tarikh-mula-modal');
         const tarikhSiapModal = document.getElementById('tarikh-siap-modal');
-        const failInput = document.getElementById('fail-input');
-        const failInfo = document.getElementById('fail-info');
+        // const failInput = document.getElementById('fail-input'); // DIBUANG
+        // const failInfo = document.getElementById('fail-info'); // DIBUANG
 
         // DOM SUB-TUGASAN
         const subTugasanTextInput = document.getElementById('sub-tugasan-text');
@@ -416,7 +407,7 @@
         const optionsInputContainer = document.getElementById('options-input-container');
         const subTugasanOptionsInput = document.getElementById('sub-tugasan-options');
 
-        // ▼▼▼ DOM BARU UNTUK SKALA DINAMIK ▼▼▼
+        // DOM BARU UNTUK SKALA DINAMIK
         const scaleInputContainer = document.getElementById('scale-input-container');
         const scaleMinInput = document.getElementById('scale-min');
         const scaleMaxInput = document.getElementById('scale-max');
@@ -430,13 +421,13 @@
         const senaraiPautanContainer = document.getElementById('senarai-pautan-container');
 
         // --- State ---
-        let subTugasanList = []; // { text: string, type: string, options: string[], scaleData: object }
+        let subTugasanList = []; 
         let pautanList = []; 
         let allSchools = [], srSchools = [], smSchools = [];
 
         // --- FUNCTIONS ---
 
-        // Fungsi handleSimpanBorangBaru()
+        // Fungsi handleSimpanBorangBaru() (Fail handling dibuskirikan)
         async function handleSimpanBorangBaru(event) {
             event.preventDefault();
             if (isSubmitting) return;
@@ -456,26 +447,10 @@
             const submitButton = borangBaru.querySelector('button[type="submit"]');
             submitButton.disabled = true;
             submitButton.textContent = "Menyimpan...";
-            let failData = null;
-            const fail = failInput.files[0];
-            if (fail) {
-                if (fail.size > 5 * 1024 * 1024) {
-                    tunjukRalatBorang('Fail terlalu besar. Saiz maksimum adalah 5MB.');
-                    isSubmitting = false;
-                    submitButton.disabled = false;
-                    submitButton.textContent = "Simpan Tugasan";
-                    return;
-                }
-                try {
-                    failData = await bacaFail(fail);
-                } catch (err) {
-                    tunjukRalatBorang('Gagal membaca fail.');
-                    isSubmitting = false;
-                    submitButton.disabled = false;
-                    submitButton.textContent = "Simpan Tugasan";
-                    return;
-                }
-            }
+            
+            // LOGIK FAIL DIBUANG - failData kini sentiasa null
+            let failData = null; 
+            
             const textareaValue = document.getElementById('skop-list-textarea').value;
             const skopSenaraiSekolah = textareaValue.split('\n')
                                                   .map(line => line.trim())
@@ -492,7 +467,7 @@
                 skopSenaraiSekolah: skopSenaraiSekolah,
                 senaraiSubTugasan: subTugasanList, 
                 senaraiPautan: pautanList,
-                fail: failData,
+                fail: failData, // Kini sentiasa null
                 createdAt: serverTimestamp(),
                 userId: userId,
                 penyelaras_ic: currentApplicant.ic,
@@ -731,7 +706,7 @@
             }
         }
 
-        // ▼▼▼ KEMASKINI FUNGSI KETERLIHATAN KOTAK PILIHAN/SKALA ▼▼▼
+        // FUNGSI UNTUK MENGENDALIKAN KETERLIHATAN KOTAK PILIHAN/SKALA
         function toggleOptionsInput() {
             const selectedType = subTugasanTypeInput.value;
             
@@ -751,10 +726,9 @@
             if (!isOptionsNeeded) {
                 subTugasanOptionsInput.value = '';
             }
-            // (Kita biarkan nilai Skala default jika disembunyikan)
         }
 
-        // ▼▼▼ KEMASKINI FUNGSI tambahSubTugasan() ▼▼▼
+        // FUNGSI tambahSubTugasan()
         function tambahSubTugasan() {
             const text = subTugasanTextInput.value.trim();
             const type = subTugasanTypeInput.value;
@@ -822,7 +796,7 @@
             subTugasanTextInput.focus();
         }
 
-        // ▼▼▼ KEMASKINI FUNGSI paparSenaraiSubTugasan() ▼▼▼
+        // FUNGSI paparSenaraiSubTugasan()
         function paparSenaraiSubTugasan() {
             senaraiSubTugasanContainer.innerHTML = '';
             if (subTugasanList.length === 0) {
@@ -831,24 +805,21 @@
             }
 
             const getTypeBadge = (type) => {
+                const badgeClass = "flex-shrink-0 text-xs font-medium px-2 py-0.5 rounded-full";
                 switch (type) {
-                    case 'ya_tidak': return '<span class="ml-2 badge bg-blue-100 text-blue-800">Ya/Tidak</span>';
-                    case 'teks_ringkas': return '<span class="ml-2 badge bg-yellow-100 text-yellow-800">Teks Ringkas</span>';
-                    case 'teks_panjang': return '<span class="ml-2 badge bg-yellow-100 text-yellow-800">Teks Panjang</span>';
-                    case 'pautan_url': return '<span class="ml-2 badge bg-green-100 text-green-800">Pautan</span>';
-                    case 'tarikh': return '<span class="ml-2 badge bg-purple-100 text-purple-800">Tarikh</span>';
-                    case 'option_button': return '<span class="ml-2 badge bg-pink-100 text-pink-800">Dropdown</span>';
-                    case 'radio_button': return '<span class="ml-2 badge bg-red-100 text-red-800">Radio</span>';
-                    case 'multiselect': return '<span class="ml-2 badge bg-teal-100 text-teal-800">Multiselect</span>';
-                    // BARU
-                    case 'skala': return '<span class="ml-2 badge bg-indigo-100 text-indigo-800">Skala</span>';
-                    case 'arahan': return '<span class="ml-2 badge bg-gray-100 text-gray-800">Arahan</span>';
+                    case 'ya_tidak': return `<span class="ml-2 ${badgeClass} bg-blue-100 text-blue-800">Ya/Tidak</span>`;
+                    case 'teks_ringkas': return `<span class="ml-2 ${badgeClass} bg-yellow-100 text-yellow-800">Teks Ringkas</span>`;
+                    case 'teks_panjang': return `<span class="ml-2 ${badgeClass} bg-yellow-100 text-yellow-800">Teks Panjang</span>`;
+                    case 'pautan_url': return `<span class="ml-2 ${badgeClass} bg-green-100 text-green-800">Pautan</span>`;
+                    case 'tarikh': return `<span class="ml-2 ${badgeClass} bg-purple-100 text-purple-800">Tarikh</span>`;
+                    case 'option_button': return `<span class="ml-2 ${badgeClass} bg-pink-100 text-pink-800">Dropdown</span>`;
+                    case 'radio_button': return `<span class="ml-2 ${badgeClass} bg-red-100 text-red-800">Radio</span>`;
+                    case 'multiselect': return `<span class="ml-2 ${badgeClass} bg-teal-100 text-teal-800">Multiselect</span>`;
+                    case 'skala': return `<span class="ml-2 ${badgeClass} bg-indigo-100 text-indigo-800">Skala</span>`;
+                    case 'arahan': return `<span class="ml-2 ${badgeClass} bg-gray-100 text-gray-800">Arahan</span>`;
                     default: return '';
                 }
             };
-
-            // Helper style untuk badge
-            const badgeClass = "flex-shrink-0 text-xs font-medium px-2 py-0.5 rounded-full";
 
             subTugasanList.forEach((tugas, index) => {
                 let detailsHtml = '';
@@ -865,8 +836,7 @@
                     detailsHtml = `<p class="text-xs text-gray-600 mt-1 italic pl-3">Julat: ${s.min} hingga ${s.max}${labelStr}</p>`;
                 }
 
-                // Ganti class badge secara manual dalam string HTML kerana helper function di atas return string
-                let badgeHtml = getTypeBadge(tugas.type).replace('badge', badgeClass);
+                let badgeHtml = getTypeBadge(tugas.type);
 
                 senaraiSubTugasanContainer.innerHTML += `
                     <div class="bg-white p-2 rounded border border-gray-200">
@@ -934,21 +904,8 @@
             }
         }
 
-        // (FUNGSI BACA FAIL & RALAT KEKAL SAMA)
-        function bacaFail(file) {
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = (event) => {
-                    resolve({
-                        data: event.target.result,
-                        nama: file.name,
-                        jenis: file.type
-                    });
-                };
-                reader.onerror = (error) => reject(error);
-                reader.readAsDataURL(file);
-            });
-        }
+        // (FUNGSI BACA FAIL KEKAL DIBUANG)
+
         function tunjukRalatBorang(mesej) {
             borangError.textContent = mesej;
             borangError.classList.remove('hidden');
@@ -962,7 +919,7 @@
         document.addEventListener('DOMContentLoaded', () => {
             const versionInfo = document.getElementById('version-info');
             if(versionInfo) {
-                versionInfo.textContent = `Versi 2.1 (2025) - Dikemaskini: Skala Linear`;
+                versionInfo.textContent = `Versi 2.1 (2025) - Dikemaskini: Skala Linear, Fail Dibuang`;
             }
 
             document.getElementById('load-sr-btn').addEventListener('click', () => loadReferenceSchools('sr'));
@@ -991,7 +948,7 @@
             tambahPautanBtn.addEventListener('click', tambahPautan);
             senaraiPautanContainer.addEventListener('click', handlePautanKlik);
             
-            // LISTENER BARU UNTUK JENIS SUB-TUGASAN
+            // LISTENER JENIS SUB-TUGASAN
             subTugasanTypeInput.addEventListener('change', toggleOptionsInput);
             toggleOptionsInput(); // Tetapkan keadaan awal
         });
@@ -1006,13 +963,7 @@
         tambahSubTugasanBtn.addEventListener('click', tambahSubTugasan);
         senaraiSubTugasanContainer.addEventListener('click', handleSubTugasanKlik);
         
-        failInput.addEventListener('change', () => {
-            if (failInput.files.length > 0) {
-                failInfo.textContent = failInput.files[0].name;
-            } else {
-                failInfo.textContent = '';
-            }
-        });
+        // FAIL INPUT LISTENER DIBUANG DARI SINI
 
     </script>
 </body>
