@@ -412,20 +412,30 @@
         };
         
         let db, auth, userId;
-        let unsubscribeTaskListener = null; 
         let currentTask = null;
-        const appId = firebaseConfig.projectId;
         let currentTaskId = null;
-        let skopSelesaiList = [];
-        let skopBelumList = [];
-        let currentModalSkopList = [];
-        let currentModalSkopTitle = "";
-        let validatedIc = null; 
-        let participantInfo = null; 
+        let validatedIc = null;
+        let participantInfo = null;
+        const appId = firebaseConfig.projectId;
+        let unsubscribeTaskListener = null; // Listener baru untuk masa nyata
         
-        let completionItemsToShow = 5; 
-        
-        // FUNGSI NORMALIZATION (SG. -> SUNGAI) - KRITIKAL
+        const loadingState = document.getElementById('loading-state');
+        const checkInCard = document.getElementById('check-in-card');
+        const icForm = document.getElementById('ic-form');
+        const icInput = document.getElementById('participant-ic');
+        const icError = document.getElementById('ic-error');
+        const icSubmitBtn = document.getElementById('submit-ic-btn');
+        const confirmationDetails = document.getElementById('confirmation-details');
+        const participantDetails = document.getElementById('participant-details');
+        const completionForm = document.getElementById('completion-form');
+        const completionSubmitBtn = document.getElementById('submit-completion-btn');
+
+        const originalButtonText = `
+            <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>Sahkan Selesai</span>`;
+
         function normalizeStationName(name) {
             if (typeof name !== 'string') return '';
             let normalized = name.toUpperCase();
@@ -447,491 +457,636 @@
                 userId = user.uid;
                 main(); 
             } else { 
-                try { 
-                    await signInAnonymously(auth); 
-                } catch (error) { 
-                    console.error("Error signing in:", error); 
-                } 
+                try { await signInAnonymously(auth); } catch (error) { console.error("Error signing in:", error); } 
             }
         });
 
-        async function main() { 
-            if (!userId) return;
+        // FUNGSI UTAMA KINI MENGGUNAKAN LISTENER
+        async function main() {
             const urlParams = new URLSearchParams(window.location.search);
-            const taskId = urlParams.get('id');
-            currentTaskId = taskId;
+            currentTaskId = urlParams.get('id');
 
             const versionInfo = document.getElementById('version-info');
             if(versionInfo) {
                 const year = new Date().getFullYear();
-                if(document.getElementById('version-info')) {
-                    document.getElementById('version-info').textContent = `Versi 2.1 (${year})`;
-                }
+                versionInfo.textContent = `Versi 2.1 (${year})`;
             }
 
-            if (!taskId) {
-                if(document.getElementById('loading-dashboard')) {
-                    document.getElementById('loading-dashboard').innerHTML = '<p class="text-red-500 text-center">Tiada ID tugasan ditemui. Sila kembali ke senarai.</p>';
-                }
-                return;
+            if (!currentTaskId) {
+                return showMessage('error', 'Pautan Tidak Sah', 'ID tugasan tidak ditemui dalam pautan.');
             }
 
-            if (document.getElementById('full-dashboard-content')) {
-                initializeDashboard(taskId);
-            }
-        }
+            try {
+                setupDynamicFormListeners();
+                loadSchoolsIntoDropdowns();
+                loadPositionsIntoDropdowns();
 
-        function generateQRCode(taskId) {
-            if (typeof QRCode === 'undefined') {
-                console.error("QR Code library (qrcode.min.js) not loaded.");
-                document.getElementById('qr-code-container').innerHTML = "<p class='text-xs text-red-500'>Gagal muat library QR.</p>";
-                return;
-            }
-
-            const qrContainer = document.getElementById('qr-code-container');
-            const downloadBtn = document.getElementById('download-qr-btn');
-            
-            if (!qrContainer || !downloadBtn) {
-                console.warn("Elemen QR Code tidak ditemui.");
-                return;
-            }
-
-            const linkToEncode = new URL(document.getElementById('sahkan-selesai-btn').href, window.location.href).href;
-            
-            qrContainer.innerHTML = '';
-            
-            const img = document.createElement('img');
-            img.alt = `QR Code for Task ${taskId}`;
-            
-            QRCode.toDataURL(linkToEncode, { 
-                errorCorrectionLevel: 'H',
-                width: 256,
-                margin: 2
-            })
-            .then(url => {
-                img.src = url;
-                qrContainer.appendChild(img);
+                const taskRef = doc(db, `artifacts/${appId}/public/data/spark_tasks`, currentTaskId);
                 
-                downloadBtn.href = url;
-                
-                const taskName = (currentTask && currentTask.nama) ? currentTask.nama : `Task_${taskId}`;
-                const safeTaskName = taskName.replace(/[^a-z0-9]/gi, '_').substring(0, 30);
-                downloadBtn.download = `SparkTask_QR_${safeTaskName}.png`;
-                
-            })
-            .catch(err => {
-                console.error("Failed to generate QR Code:", err);
-                qrContainer.innerHTML = "<p class='text-xs text-red-500'>Gagal jana QR Code.</p>";
-            });
-        }
+                // Gantikan getDoc dengan onSnapshot untuk kemas kini masa nyata (seperti task.html)
+                unsubscribeTaskListener = onSnapshot(taskRef, (docSnap) => {
+                    if (docSnap.exists()) {
+                        currentTask = { id: docSnap.id, ...docSnap.data() };
+                        
+                        document.getElementById('program-name').textContent = currentTask.nama;
+                        document.getElementById('info-pegawai').textContent = currentTask.pegawai || 'N/A';
+                        document.getElementById('info-date-end').textContent = formatTarikh(currentTask.tarikhSiap) || 'N/A';
+                        
+                        loadingState.classList.add('hidden');
+                        checkInCard.classList.remove('hidden');
+                        
+                        confirmationDetails.classList.remove('hidden');
+                        renderProgressVisuals(); // Panggil semula setiap kali data berubah
 
-        function initializeDashboard(taskId) {
-            if (unsubscribeTaskListener) unsubscribeTaskListener();
-            
-            document.getElementById('sahkan-selesai-btn').href = `selesai.html?id=${taskId}`;
-            document.getElementById('admin-task-btn').href = `admintask.html?id=${taskId}`; 
-
-            const copyBtn = document.getElementById('copy-link-btn');
-            const copyText = document.getElementById('copy-link-text');
-            const copyIcon = document.getElementById('copy-link-icon');
-            const successIcon = document.getElementById('copy-success-icon');
-            
-            if (copyBtn && copyText && copyIcon && successIcon) {
-                const originalText = copyText.textContent;
-                copyBtn.onclick = function() {
-                    if (copyBtn.disabled) return; 
-                    const linkToCopy = document.getElementById('sahkan-selesai-btn').href;
-                    const absoluteLink = new URL(linkToCopy, window.location.href).href;
-                    navigator.clipboard.writeText(absoluteLink).then(() => {
-                        copyText.textContent = 'Pautan Disalin!';
-                        copyBtn.classList.remove('bg-indigo-100', 'text-indigo-700', 'hover:bg-indigo-200');
-                        copyBtn.classList.add('bg-green-100', 'text-green-700');
-                        copyIcon.classList.add('hidden');
-                        successIcon.classList.remove('hidden');
-                        copyBtn.disabled = true;
-                        setTimeout(() => {
-                            copyText.textContent = originalText;
-                            copyBtn.classList.add('bg-indigo-100', 'text-indigo-700', 'hover:bg-indigo-200');
-                            copyBtn.classList.remove('bg-green-100', 'text-green-700');
-                            copyIcon.classList.remove('hidden');
-                            successIcon.classList.add('hidden');
-                            copyBtn.disabled = false;
-                        }, 2500);
-                    }).catch(err => {
-                        console.error('Gagal menyalin: ', err);
-                        alert('Gagal menyalin pautan.'); 
-                    });
-                }
-            }
-
-            const completionSelect = document.getElementById('completion-items-select');
-            if(completionSelect) {
-                completionSelect.addEventListener('change', (e) => {
-                    completionItemsToShow = parseInt(e.target.value, 10);
-                    renderCompletionHistory();
-                });
-            }
-
-            const taskRef = doc(db, `artifacts/${appId}/public/data/spark_tasks`, taskId);
-            
-            unsubscribeTaskListener = onSnapshot(taskRef, (docSnap) => {
-                if (docSnap.exists()) {
-                    currentTask = { id: docSnap.id, ...docSnap.data() };
-                    renderTaskDetails();
-                    
-                    generateQRCode(taskId);
-                    
-                    renderTaskProgress(); 
-                    renderCompletionHistory();
-                    renderSubTasks(); 
-                    const hasLinks = renderLinks();
-                    const hasFiles = renderFiles();
-                    const lampiranCard = document.getElementById('lampiran-pautan-card');
-                    if (lampiranCard) {
-                        if (hasLinks || hasFiles) {
-                            lampiranCard.classList.remove('hidden');
-                        } else {
-                            lampiranCard.classList.add('hidden');
-                        }
+                    } else {
+                        showMessage('error', 'Tugasan Tidak Ditemui', 'Sila pastikan anda menggunakan pautan yang betul.');
+                        if (unsubscribeTaskListener) unsubscribeTaskListener();
                     }
-                    if(document.getElementById('loading-dashboard')) {
-                        document.getElementById('loading-dashboard').classList.add('hidden');
-                    }
-                    if(document.getElementById('full-dashboard-content')) {
-                        document.getElementById('full-dashboard-content').classList.remove('hidden');
-                    }
-                } else {
-                    if(document.getElementById('loading-dashboard')) {
-                        document.getElementById('loading-dashboard').innerHTML = `<p class="text-red-500 text-center">Tugasan dengan ID "${taskId}" tidak ditemui.</p>`;
-                    }
-                    currentTask = null;
+                }, (error) => {
+                    console.error("Error listening to task changes:", error);
+                    showMessage('error', 'Gagal Sambungan', 'Tidak dapat memuatkan maklumat tugasan.');
                     if (unsubscribeTaskListener) unsubscribeTaskListener();
-                }
-            }, (error) => {
-                console.error("Error listening to task changes:", error);
-                if(document.getElementById('loading-dashboard')) {
-                    document.getElementById('loading-dashboard').innerHTML = `<p class="text-red-500 text-center">Gagal memuatkan tugasan. Sila semak konsol.</p>`;
-                }
-            });
+                });
+            } catch (error) {
+                console.error("Error memuatkan listener Firebase: ", error);
+                showMessage('error', 'Gagal Sistem', 'Ralat semasa memulakan sambungan.');
+            }
         }
         
-        function renderTaskDetails() {
-            if(document.getElementById('dashboard-task-name')) {
-                document.getElementById('dashboard-task-name').textContent = currentTask.nama.toUpperCase();
-                document.getElementById('dashboard-pegawai').textContent = currentTask.pegawai;
-                document.getElementById('dashboard-sektor').textContent = currentTask.sektor;
-                document.getElementById('dashboard-date-start').textContent = formatTarikh(currentTask.tarikhMula);
-                document.getElementById('dashboard-date-end').textContent = formatTarikh(currentTask.tarikhSiap);
-            }
-        }
-
-        // FUNGSI KRITIKAL UNTUK PENGIRAAN SKOP (DITINGKATKAN KETAHANAN)
-        function renderTaskProgress() {
-            if(!document.getElementById('info-selesai')) return;
-
-            // 1. Sasaran Skop: Normalisasi berganda (UNTUK KETAHANAN)
+        // FUNGSI PENGIRAAN YANG SAMA SEPERTI task.html (Logik perbandingan unik)
+        function renderProgressVisuals() {
+            // 1. Sasaran Skop: Ambil senarai yang disimpan (dinormalisasi dari tugasan.html)
             const totalSkop = Array.isArray(currentTask.skopSenaraiSekolah) 
-                ? currentTask.skopSenaraiSekolah.map(normalizeStationName) // Normalkan Sasaran
+                ? currentTask.skopSenaraiSekolah
                 : [];
             const totalSkopSet = new Set(totalSkop);
-
+            
             // 2. Rekod Selesai Skop: Pastikan rekod yang disahkan dinormalisasi
             const allSelesai = Array.isArray(currentTask.skopSelesai) 
                 ? currentTask.skopSelesai.map(normalizeStationName)
                 : [];
 
             // FILTER: Hanya kira selesai jika ia wujud dalam senarai skop SASARAN
-            skopSelesaiList = allSelesai.filter(sekolah => totalSkopSet.has(sekolah));
+            const skopSelesaiList = allSelesai.filter(sekolah => totalSkopSet.has(sekolah));
             
             const selesaiSet = new Set(skopSelesaiList);
-
+            
             // FILTER: Kira belum selesai (semua skop SASARAN tolak yang dah selesai)
-            skopBelumList = totalSkop.filter(sekolah => !selesaiSet.has(sekolah));
+            const skopBelumList = totalSkop.filter(sekolah => !selesaiSet.has(sekolah));
             
             let jumlahSelesai;
-            let jumlahBelum;
             let total;
 
-            const selesaiBtn = document.querySelector('button[onclick="showSkopList(\'selesai\')"]');
-            const belumBtn = document.querySelector('button[onclick="showSkopList(\'belum\')"]');
-            
-            if (totalSkop.length === 0) {
-                // Mod Manual (Fallback)
+            if (totalSkop.length > 0) {
+                jumlahSelesai = skopSelesaiList.length; 
+                total = totalSkop.length;
+            } else if (currentTask.jumlahSelesai !== undefined && currentTask.jumlahBelum !== undefined) {
                 jumlahSelesai = currentTask.jumlahSelesai || 0;
                 total = (currentTask.jumlahSelesai || 0) + (currentTask.jumlahBelum || 0);
-                jumlahBelum = total - jumlahSelesai;
-                if (jumlahBelum < 0) jumlahBelum = 0;
-                
-                if (selesaiBtn) selesaiBtn.disabled = true;
-                if (belumBtn) belumBtn.disabled = true;
             } else {
-                // Mod Skop (Konsisten)
-                jumlahSelesai = skopSelesaiList.length; 
-                jumlahBelum = skopBelumList.length;
-                total = totalSkop.length;
-                
-                if (selesaiBtn) selesaiBtn.disabled = (jumlahSelesai === 0);
-                if (belumBtn) belumBtn.disabled = (jumlahBelum === 0);
+                jumlahSelesai = (currentTask.rekodSelesai || []).length;
+                total = 0; 
             }
 
             const peratus = (total === 0) ? 0 : Math.round((jumlahSelesai / total) * 100);
-            
-            document.getElementById('info-selesai').textContent = jumlahSelesai;
-            document.getElementById('info-belum').textContent = jumlahBelum;
-            document.getElementById('info-total').textContent = total;
-            document.getElementById('info-peratus').textContent = `${peratus}%`;
-            document.getElementById('progress-circle').style.strokeDashoffset = 100 - peratus;
-        }
 
-        function renderCompletionHistory() {
-            const container = document.getElementById('completion-list');
-            if(!container) return;
-            
-            const footer = document.getElementById('completion-list-footer');
-            container.innerHTML = '';
-            
-            const list = currentTask.rekodSelesai || [];
-            if (list.length === 0) {
-                container.innerHTML = `<tr><td colspan="2" class="px-4 py-4 text-center text-sm text-gray-500 italic">Tiada pengesahan selesai direkodkan.</td></tr>`;
-                footer.classList.add('hidden');
+            const progressContainer = document.getElementById('progress-container');
+            const percentageEl = document.getElementById('progress-percentage');
+            const barEl = document.getElementById('progress-bar-inner');
+            const selesaiEl = document.getElementById('progress-selesai');
+            const totalEl = document.getElementById('progress-total');
+
+            if (total > 0) {
+                if (percentageEl) percentageEl.textContent = `${peratus}%`;
+                if (barEl) barEl.style.width = `${peratus}%`;
+                if (selesaiEl) selesaiEl.textContent = `Selesai: ${jumlahSelesai}`;
+                if (totalEl) totalEl.textContent = `Total: ${total}`;
+            } else {
+                progressContainer.innerHTML = `
+                    <div class="text-center text-sm font-medium text-gray-600 p-3 bg-gray-50 rounded-lg border">
+                        <span class="font-bold text-indigo-600 text-lg">${jumlahSelesai}</span> Pengesahan Telah Diterima
+                    </div>
+                `;
+            }
+        }
+        
+        function validateIcInput(input) {
+            input.value = input.value.replace(/[^0-9]/g, '');
+            const counter = document.getElementById('ic-counter');
+            if (counter) {
+                const currentLength = input.value.length;
+                counter.textContent = currentLength;
+                if (currentLength === 12) {
+                    counter.classList.add('text-green-600', 'font-bold');
+                } else {
+                    counter.classList.remove('text-green-600', 'font-bold');
+                }
+            }
+        }
+        
+        window.checkIc = async function(event) {
+            event.preventDefault();
+            icError.classList.add('hidden');
+            const ic = icInput.value.trim();
+
+            if (!ic || ic.length !== 12) {
+                alert("Sila masukkan No. IC yang sah (12 digit).");
                 return;
             }
             
-            list.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+            icSubmitBtn.disabled = true;
+            icSubmitBtn.innerHTML = `<svg class="animate-spin h-5 w-5 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>`;
 
-            const listToShow = list.slice(0, completionItemsToShow);
+            let stesenPengesah = null;
+
+            try {
+                const participantsRef = collection(db, `artifacts/${appId}/public/data/spark_participants`);
+                const q = query(participantsRef, where("ic", "==", ic));
+                const querySnapshot = await getDocs(q);
+
+                if (querySnapshot.empty) {
+                    icError.classList.remove('hidden');
+                    document.getElementById('new-ic').value = ic;
+                    document.getElementById('new-participant-modal').classList.remove('hidden');
+
+                    icSubmitBtn.disabled = false;
+                    icSubmitBtn.innerHTML = "Seterusnya";
+                    return;
+                }
+                
+                const docData = querySnapshot.docs[0].data();
+                participantInfo = {
+                    ic: ic,
+                    name: docData.name,
+                    position: docData.position,
+                    station: docData.station
+                };
+                validatedIc = ic;
+                
+                // PENGGUNAAN CURRENTTASK (data masa nyata dari listener)
+                const stesenAtauNamaUntukSkop = docData.name || docData.station; 
+                const skopSelesai = (currentTask.skopSelesai || []).map(normalizeStationName);
+                if (stesenAtauNamaUntukSkop && skopSelesai.includes(normalizeStationName(stesenAtauNamaUntukSkop))) {
+                     showMessage('warning', 'Telah Disahkan', `Seseorang dengan maklumat yang sama (${stesenAtauNamaUntukSkop}) telah pun membuat pengesahan untuk tugasan ini.`);
+                     icSubmitBtn.disabled = false;
+                     icSubmitBtn.innerHTML = "Seterusnya";
+                     return;
+                }
+
+                document.getElementById('participant-name').textContent = docData.name || 'N/A';
+                document.getElementById('participant-position').textContent = docData.position || 'TIADA JAWATAN';
+                document.getElementById('participant-station').textContent = docData.station || 'TIADA STESEN';
+
+                icForm.classList.add('hidden');
+                document.getElementById('progress-container').classList.add('hidden'); 
+                participantDetails.classList.remove('hidden');
+                
+                buildDynamicForm(currentTask.senaraiSubTugasan); 
+                
+                completionForm.classList.remove('hidden');
+                
+            } catch (error) {
+                console.error("Error verifying participant IC: ", error);
+                showMessage('error', 'Gagal!', 'Berlaku ralat semasa mengesahkan IC anda. Sila cuba lagi.');
+                icSubmitBtn.disabled = false;
+                icSubmitBtn.innerHTML = "Seterusnya";
+            }
+        }
+        
+        window.registerAndContinue = async function(event) {
+            event.preventDefault();
+            const submitBtn = document.getElementById('submit-new-participant-btn');
+            submitBtn.disabled = true;
+            submitBtn.textContent = "Mendaftar...";
+
+            const category = document.querySelector('input[name="participant-category"]:checked').value;
+            let newParticipant = {
+                ic: document.getElementById('new-ic').value
+            };
+
+            if (category === 'warga') {
+                const isMiri = document.querySelector('input[name="warga-location"]:checked').value === 'miri';
+                newParticipant.name = document.getElementById('warga-name').value.toUpperCase();
+                if (isMiri) {
+                    newParticipant.station = document.getElementById('warga-station-select').value;
+                } else {
+                    const stationName = document.getElementById('warga-station-manual').value.toUpperCase();
+                    const districtName = document.getElementById('warga-district-manual').value.toUpperCase();
+                    newParticipant.station = [stationName, districtName].filter(Boolean).join(', ');
+                }
+                newParticipant.position = document.getElementById('warga-position').value;
+            } else if (category === 'murid') {
+                const isMiri = document.querySelector('input[name="murid-location"]:checked').value === 'miri';
+                newParticipant.name = document.getElementById('murid-name').value.toUpperCase();
+                newParticipant.station = isMiri ? document.getElementById('murid-station-select').value : document.getElementById('murid-station-manual').value.toUpperCase();
+                newParticipant.position = "MURID/PELAJAR";
+            } else if (category === 'awam') {
+                newParticipant.name = document.getElementById('awam-name').value.toUpperCase();
+                newParticipant.position = document.getElementById('awam-position').value.toUpperCase();
+                newParticipant.station = document.getElementById('awam-station').value.toUpperCase();
+            }
             
-            if (list.length > listToShow.length) {
-                footer.classList.remove('hidden');
-            } else {
-                footer.classList.add('hidden');
+            if (!newParticipant.name || !newParticipant.position || !newParticipant.station || newParticipant.station === "Sila Pilih Sekolah") {
+                alert("Sila lengkapkan semua medan yang diperlukan.");
+                submitBtn.disabled = false;
+                submitBtn.textContent = "Daftar & Teruskan";
+                return;
             }
 
-            listToShow.forEach((rekod, index) => {
-                const timestamp = new Date(rekod.timestamp).toLocaleString('ms-MY', { 
-                    day: 'numeric', month: 'long', year: 'numeric', 
-                    hour: 'numeric', minute: '2-digit' 
-                });
-                const nama = rekod.nama_pengesah || currentTask.pegawai || 'N/A';
-                const jawatan = rekod.jawatan_pengesah || 'N/A';
-                const stesen = rekod.stesen_pengesah || 'N/A';
+            try {
+                const docRef = doc(db, `artifacts/${appId}/public/data/spark_participants`, newParticipant.ic);
+                await setDoc(docRef, newParticipant);
                 
-                container.innerHTML += `
-                    <tr class="text-sm">
-                        <td class="px-4 py-3 align-top">
-                            <div class="font-medium text-gray-800">${nama}</div>
-                            <div class="text-gray-600">${jawatan}</div>
-                            <div class="text-gray-600">${stesen}</div>
-                        </td>
-                        <td class="px-4 py-3 text-gray-600 whitespace-nowrap align-top">${timestamp}</td>
-                    </tr>
-                `;
+                document.getElementById('new-participant-modal').classList.add('hidden');
+                
+                participantInfo = {
+                    ic: newParticipant.ic,
+                    name: newParticipant.name,
+                    position: newParticipant.position,
+                    station: newParticipant.station
+                };
+                validatedIc = newParticipant.ic;
+                
+                document.getElementById('participant-name').textContent = participantInfo.name || 'N/A';
+                document.getElementById('participant-position').textContent = participantInfo.position || 'TIADA JAWATAN';
+                document.getElementById('participant-station').textContent = participantInfo.station || 'TIADA STESEN';
+
+                icForm.classList.add('hidden');
+                document.getElementById('progress-container').classList.add('hidden'); 
+                participantDetails.classList.remove('hidden');
+                
+                // Gunakan data currentTask terkini
+                buildDynamicForm(currentTask.senaraiSubTugasan); 
+                
+                completionForm.classList.remove('hidden');
+
+            } catch (error) {
+                console.error("Error registering new participant: ", error);
+                alert("Gagal mendaftar. Sila cuba lagi.");
+                submitBtn.disabled = false;
+                submitBtn.textContent = "Daftar & Teruskan";
+            }
+        }
+        
+        function buildDynamicForm(questions) {
+            const container = document.getElementById('dynamic-questions-container');
+            container.innerHTML = '';
+            
+            if (!questions || questions.length === 0) {
+                container.innerHTML = '<p class="text-gray-500 italic text-center">Tiada arahan atau soalan khusus untuk tugasan ini. Sila tekan "Sahkan Selesai" di bawah untuk merekodkan pengesahan anda.</p>';
+                return;
+            }
+
+            questions.forEach((q, index) => {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'spark-question-wrapper';
+                
+                let questionText, questionType, isRequired, options, scaleData;
+                
+                if (typeof q === 'object' && q !== null) {
+                    questionText = q.text || "[Soalan tidak sah]";
+                    questionType = q.type || 'arahan';
+                    isRequired = q.required !== false;
+                    options = q.options || [];
+                    scaleData = q.scaleData || {};
+                } else if (typeof q === 'string') {
+                    questionText = q; 
+                    questionType = 'arahan'; 
+                    isRequired = true; 
+                } else {
+                    questionText = "[Soalan tidak sah]";
+                    questionType = 'arahan';
+                    isRequired = true;
+                }
+                
+                wrapper.dataset.questionText = questionText;
+                wrapper.dataset.questionType = questionType;
+                wrapper.dataset.questionIndex = index;
+                wrapper.dataset.isRequired = isRequired;
+
+                let inputHtml = '';
+                const questionId = `q_${index}`;
+                const baseInputClasses = "spark-question-input mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 text-base px-4 py-3";
+                const labelHtml = `<label for="${questionId}" class="block text-sm font-medium text-gray-700">${index + 1}. ${questionText}${isRequired && questionType !== 'arahan' ? '<span class="required-tag">*WAJIB</span>' : ''}</label>`;
+                
+                switch(questionType) {
+                    case 'arahan':
+                        inputHtml = `<div class="arahan-only-box">
+                                        <p><b>${index + 1}.</b> ${questionText}</p>
+                                     </div>`;
+                        break;
+                    case 'ya_tidak':
+                        inputHtml = `<label class="block text-sm font-medium text-gray-700">${index + 1}. ${questionText}${isRequired && questionType !== 'arahan' ? '<span class="required-tag">*WAJIB</span>' : ''}</label>
+                            <div class="mt-2 grid grid-cols-2 gap-3">
+                                <div>
+                                    <input type="radio" id="${questionId}_ya" name="${questionId}_radio" value="Ya" class="spark-question-input">
+                                    <label for="${questionId}_ya" class="radio-btn-label">Ya</label>
+                                </div>
+                                <div>
+                                    <input type="radio" id="${questionId}_tidak" name="${questionId}_radio" value="Tidak" class="spark-question-input">
+                                    <label for="${questionId}_tidak" class="radio-btn-label">Tidak</label>
+                                </div>
+                            </div>`;
+                        break;
+                    case 'teks_ringkas':
+                        inputHtml = `${labelHtml}<input type="text" id="${questionId}" name="${questionId}" class="${baseInputClasses}" placeholder="Isi jawapan anda...">`;
+                        break;
+                    case 'teks_panjang':
+                        inputHtml = `${labelHtml}<textarea id="${questionId}" name="${questionId}" rows="4" class="${baseInputClasses}" placeholder="Isi jawapan anda..."></textarea>`;
+                        break;
+                    case 'pautan_url':
+                        inputHtml = `${labelHtml}<input type="url" id="${questionId}" name="${questionId}" class="${baseInputClasses}" placeholder="https://...">`;
+                        break;
+                    case 'tarikh':
+                        inputHtml = `${labelHtml}<input type="date" id="${questionId}" name="${questionId}" class="${baseInputClasses}">`;
+                        break;
+                    
+                    case 'option_button':
+                        let selectOptions = options.map(option => `<option value="${option}">${option}</option>`).join('');
+                        inputHtml = `${labelHtml}<select id="${questionId}" name="${questionId}" class="${baseInputClasses} spark-question-select"><option value="">Sila Pilih Jawapan</option>${selectOptions}</select>`;
+                        break;
+                        
+                    case 'radio_button':
+                        let radioOptions = options.map((option, optIndex) => `
+                            <div>
+                                <input type="radio" id="${questionId}_opt_${optIndex}" name="${questionId}_radio" value="${option}" class="spark-question-input">
+                                <label for="${questionId}_opt_${optIndex}" class="radio-btn-label">${option}</label>
+                            </div>
+                        `).join('');
+                        inputHtml = `<label class="block text-sm font-medium text-gray-700">${index + 1}. ${questionText}${isRequired ? '<span class="required-tag">*WAJIB</span>' : ''}</label><div class="mt-2 grid grid-cols-2 gap-3">${radioOptions}</div>`;
+                        break;
+                        
+                    case 'multiselect':
+                        let checkboxOptions = options.map((option, optIndex) => `
+                            <div>
+                                <input type="checkbox" id="${questionId}_opt_${optIndex}" name="${questionId}_cb" value="${option}" class="spark-question-input">
+                                <label for="${questionId}_opt_${optIndex}" class="multiselect-checkbox-label">
+                                     <span class="mr-2 h-4 w-4 border-2 border-gray-400 rounded flex-shrink-0"></span> ${option}
+                                </label>
+                            </div>
+                        `).join('');
+                        
+                        wrapper.innerHTML += `<style>
+                            .spark-question-wrapper input[type="radio"], .spark-question-wrapper input[type="checkbox"] {
+                                display: none; 
+                            }
+                            .spark-question-wrapper input.scale-radio {
+                                display: inline-flex !important; 
+                            }
+                            input[type="checkbox"]:checked + .multiselect-checkbox-label span {
+                                background-color: #10B981; 
+                                border-color: #10B981;
+                            }
+                             input[type="checkbox"]:checked + .multiselect-checkbox-label span::before {
+                                content: '✓';
+                                color: white;
+                                font-size: 0.7rem;
+                                display: block;
+                                transform: translateY(-1px);
+                            }
+                        </style>`;
+                        
+                        inputHtml = `<label class="block text-sm font-medium text-gray-700">${index + 1}. ${questionText}${isRequired ? '<span class="required-tag">*WAJIB</span>' : ''}</label><div class="mt-2 space-y-2">${checkboxOptions}</div>`;
+                        break;
+
+                    case 'skala':
+                        const min = scaleData.min || 1;
+                        const max = scaleData.max || 5;
+                        const minLabel = scaleData.minLabel || '';
+                        const maxLabel = scaleData.maxLabel || '';
+                        const step = 1;
+
+                        inputHtml = `<label class="block text-sm font-medium text-gray-700">${index + 1}. ${questionText}${isRequired ? '<span class="required-tag">*WAJIB</span>' : ''}</label>
+                            
+                            <div id="${questionId}_display" class="scale-value-display mt-2">${min}</div> 
+                            
+                            <input type="range" id="${questionId}" name="${questionId}" class="spark-question-input" min="${min}" max="${max}" step="${step}" value="${min}">
+                            
+                            <div class="flex justify-between text-sm text-gray-500 mt-2">
+                                <span class="text-left">${min} ${minLabel ? `(${minLabel})` : ''}</span>
+                                <span class="text-right">${max} ${maxLabel ? `(${maxLabel})` : ''}</span>
+                            </div>`;
+
+                        setTimeout(() => {
+                            const rangeInput = document.getElementById(questionId);
+                            const display = document.getElementById(`${questionId}_display`);
+                            if (rangeInput && display) {
+                                rangeInput.addEventListener('input', (e) => {
+                                    display.textContent = e.target.value;
+                                });
+                            }
+                        }, 0);
+                        
+                        break;
+                }
+                wrapper.innerHTML += inputHtml;
+                container.appendChild(wrapper);
             });
         }
         
-        function showAllCompletions() {
-            completionItemsToShow = 999;
-            if(document.getElementById('completion-items-select')) {
-                document.getElementById('completion-items-select').value = "999";
-            }
-            renderCompletionHistory();
-        }
-
-        function renderSubTasks() {
-            const container = document.getElementById('sub-task-list');
-            if(!container) return;
+        window.sahkanSelesai = async function(event) {
+            event.preventDefault();
             
-            container.innerHTML = '';
-            const list = currentTask.senaraiSubTugasan || [];
-            if (list.length === 0) {
-                container.innerHTML = `<p class="text-sm text-gray-500 italic">Tiada perkara.</p>`;
+            if (!validatedIc) {
+                alert("Sila sahkan IC anda dahulu.");
                 return;
             }
-
-            const getTypeBadge = (type) => {
-                const badgeClass = "text-xs font-medium px-2 py-0.5 rounded-full";
-                switch (type) {
-                    case 'ya_tidak': return `<span class="${badgeClass} bg-blue-100 text-blue-800">Ya/Tidak</span>`;
-                    case 'teks_ringkas': return `<span class="${badgeClass} bg-yellow-100 text-yellow-800">Teks Ringkas</span>`;
-                    case 'teks_panjang': return `<span class="${badgeClass} bg-yellow-100 text-yellow-800">Teks Panjang</span>`;
-                    case 'pautan_url': return `<span class="${badgeClass} bg-green-100 text-green-800">Pautan</span>`;
-                    case 'tarikh': return `<span class="${badgeClass} bg-purple-100 text-purple-800">Tarikh</span>`;
-                    case 'option_button': return `<span class="${badgeClass} bg-pink-100 text-pink-800">Dropdown</span>`;
-                    case 'radio_button': return `<span class="${badgeClass} bg-red-100 text-red-800">Radio</span>`;
-                    case 'multiselect': return `<span class="${badgeClass} bg-teal-100 text-teal-800">Multiselect</span>`;
-                    case 'skala': return `<span class="${badgeClass} bg-indigo-100 text-indigo-800">Skala</span>`;
-                    case 'arahan': return `<span class="${badgeClass} bg-gray-100 text-gray-800">Arahan</span>`;
-                    default: return '';
-                }
-            };
             
-            const getRequiredTag = (required) => {
-                const tagClass = "text-xs font-semibold px-2 py-0.5 rounded-full mr-2";
-                return required 
-                    ? `<span class="${tagClass} bg-red-100 text-red-700">[WAJIB]</span>`
-                    : ``;
-            };
+            completionSubmitBtn.disabled = true;
+            completionSubmitBtn.innerHTML = `<svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> <span>Menghantar...</span>`;
 
-            list.forEach((tugas, index) => {
-                let displayText = '';
-                let typeBadge = '';
-                let requiredTag = '';
-                let detailsHtml = '';
+            const jawapanSelesai = [];
+            const wrappers = document.querySelectorAll('.spark-question-wrapper');
+            
+            let isFormValid = true;
+            const errorClass = 'input-error';
 
-                if (typeof tugas === 'object' && tugas !== null && tugas.text) {
-                    displayText = tugas.text;
-                    typeBadge = getTypeBadge(tugas.type);
-                    requiredTag = getRequiredTag(tugas.required);
-                    
-                    if (tugas.options && tugas.options.length > 0 && tugas.type !== 'ya_tidak') {
-                        detailsHtml = `<p class="text-xs text-gray-600 mt-1 italic pl-3">Pilihan: ${tugas.options.join(', ')}</p>`;
-                    } else if (tugas.scaleData) {
-                        const s = tugas.scaleData;
-                        const labelStr = (s.minLabel || s.maxLabel) ? ` (${s.min}=${s.minLabel || ''}, ${s.max}=${s.maxLabel || ''})` : '';
-                        detailsHtml = `<p class="text-xs text-gray-600 mt-1 italic pl-3">Julat: ${s.min} hingga ${s.max}${labelStr}</p>`;
-                    }
+            wrappers.forEach((wrapper, index) => {
+                const questionText = wrapper.dataset.questionText;
+                const questionType = wrapper.dataset.questionType;
+                const isRequired = wrapper.dataset.isRequired === 'true'; 
+                const questionId = `q_${index}`;
+                
+                let value = '';
+                let isInputValid = true;
 
-                } else if (typeof tugas === 'string') {
-                    displayText = tugas;
-                    typeBadge = getTypeBadge('arahan');
-                } else {
-                    displayText = "[Data perkara tidak sah]";
-                    typeBadge = getTypeBadge('arahan');
+                wrapper.classList.remove('error');
+                wrapper.querySelectorAll(`.${errorClass}`).forEach(el => el.classList.remove(errorClass));
+
+                if (questionType === 'arahan') {
+                    return;
                 }
                 
-                container.innerHTML += `
-                    <div class="bg-white border border-gray-200 p-4 rounded-lg flex items-start gap-4">
-                        <div class="flex-shrink-0 w-8 h-8 flex items-center justify-center bg-indigo-100 text-indigo-700 rounded-full font-bold text-sm">
-                            ${index + 1}
-                        </div>
-                        <div class="flex-1 min-w-0">
-                            <p class="text-base font-medium text-gray-900" style="word-break: break-word;">
-                                ${requiredTag} ${displayText}
-                            </p>
-                            <div class="mt-2 flex items-center gap-2 flex-wrap">
-                                ${typeBadge}
-                            </div>
-                            ${detailsHtml}
-                        </div>
-                    </div>
-                `;
+                if (questionType === 'ya_tidak' || questionType === 'radio_button') {
+                    const radioName = `${questionId}_radio`;
+                    const checkedRadio = wrapper.querySelector(`input[name="${radioName}"]:checked`);
+                    
+                    if (checkedRadio) {
+                         value = checkedRadio.value;
+                    } else if (isRequired) {
+                        isInputValid = false;
+                        wrapper.classList.add('error');
+                    }
+                    
+                } else if (questionType === 'multiselect') {
+                    const checkboxName = `${questionId}_cb`;
+                    const checkedCheckboxes = Array.from(wrapper.querySelectorAll(`input[name="${checkboxName}"]:checked`)).map(cb => cb.value);
+                    
+                    if (checkedCheckboxes.length > 0) {
+                        value = checkedCheckboxes.join('; ');
+                    } else if (isRequired) {
+                         isInputValid = false;
+                         wrapper.classList.add('error');
+                    }
+                    
+                } else if (questionType === 'option_button') {
+                    const selectElement = wrapper.querySelector('.spark-question-select');
+                    
+                    if (selectElement) {
+                        value = selectElement.value.trim();
+                        if (value === '' && isRequired) {
+                            isInputValid = false; 
+                            selectElement.classList.add(errorClass);
+                        }
+                    }
+                
+                } else if (questionType === 'skala') {
+                    const rangeInput = wrapper.querySelector('input[type="range"]');
+                    if (rangeInput) {
+                        value = rangeInput.value;
+                    }
+                    
+                } else {
+                    const inputElement = wrapper.querySelector('.spark-question-input, textarea'); 
+                    if (inputElement) {
+                        value = inputElement.value.trim();
+                        if (value === '' && isRequired) {
+                            isInputValid = false; 
+                            inputElement.classList.add(errorClass);
+                        }
+                    }
+                }
+                
+                if (!isInputValid) {
+                     isFormValid = false;
+                }
+
+                if (questionType !== 'arahan') {
+                    jawapanSelesai.push({
+                        soalan: questionText,
+                        jenis: questionType,
+                        jawapan: value
+                    });
+                }
             });
-        }
-        function renderLinks() {
-            const container = document.getElementById('link-list');
-            if(!container) return false;
-            
-            container.innerHTML = '';
-            const list = currentTask.senaraiPautan || [];
-            if (list.length === 0) {
-                container.innerHTML = `<p class="text-sm text-gray-500 italic">Tiada pautan berkaitan.</p>`;
-                return false;
-            }
-            list.forEach((url, index) => {
-                container.innerHTML += `
-                    <div class="bg-gray-50 border border-gray-200 p-3 rounded-lg flex items-center gap-3">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-500 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z" clip-rule="evenodd" /></svg>
-                        <a href="${url}" target="_blank" class="text-sm font-medium text-blue-600 hover:underline truncate">${url}</a>
-                    </div>
-                `;
-            });
-            return true;
-        }
-        function renderFiles() {
-            const container = document.getElementById('file-list');
-            if(!container) return false;
 
-            container.innerHTML = '';
-            const file = currentTask.fail;
-            if (!file || !file.data) {
-                container.innerHTML = `<p class="text-sm text-gray-500 italic">Tiada fail dilampirkan.</p>`;
-                return false;
-            }
-            container.innerHTML = `
-                <div class="bg-gray-50 border border-gray-200 p-3 rounded-lg flex items-center justify-between gap-3">
-                    <span class="text-sm font-medium text-gray-800 truncate">${file.nama}</span>
-                    <a href="${file.data}" target="_blank" class="btn bg-indigo-100 text-indigo-700 text-xs font-semibold py-1 px-3 rounded-lg hover:bg-indigo-200 flex-shrink-0">
-                        Lihat/Muat Turun
-                    </a>
-                </div>
-            `;
-            return true;
-        }
+            if (!isFormValid) {
+                alert("Sila isi / pilih semua jawapan yang ditandakan *WAJIB.");
+                completionSubmitBtn.disabled = false;
+                completionSubmitBtn.innerHTML = originalButtonText;
+                
+                const firstErrorWrapper = document.querySelector('.spark-question-wrapper.error');
+                const firstErrorInput = document.querySelector(`.${errorClass}`);
+                
+                if (firstErrorWrapper) {
+                     firstErrorWrapper.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                } else if (firstErrorInput) {
+                    firstErrorInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    firstErrorInput.focus();
+                }
 
-        function showShareModal() {
-            if (!currentTask) return;
-            const modal = document.getElementById('share-modal');
-            const textarea = document.getElementById('share-text');
-            const shareBtn = document.getElementById('web-share-btn');
-            if(!modal || !textarea || !shareBtn) return;
-            
-            const taskName = currentTask.nama;
-            const pegawai = currentTask.pegawai;
-            const sektor = currentTask.sektor;
-            const link = new URL(document.getElementById('sahkan-selesai-btn').href, window.location.href).href;
-            
-            const shareMessage = `Assalamualaikum & Salam Sejahtera Tuan/Puan,
-
-*PERKARA: TUGASAN SPARKTASK*
-
-*Tugasan:* ${taskName}
-*Daripada:* ${pegawai} (${sektor})
-
-Tuan/Puan diminta untuk melengkapkan tugasan ini. 
-
-Sila klik pautan di bawah untuk membuat pengesahan dan menjawab soalan (jika ada).
-${link}
-
-Sekian, terima kasih.`;
-
-            textarea.value = shareMessage;
-            
-            if (!navigator.share) {
-                shareBtn.classList.add('hidden');
-            } else {
-                shareBtn.classList.remove('hidden');
+                return;
             }
             
-            modal.classList.add('buka');
-        }
+            const timestampSekarang = new Date();
 
-        function closeShareModal() {
-            const modal = document.getElementById('share-modal');
-            if(!modal) return;
-            modal.classList.remove('buka');
-            const copyBtnText = document.getElementById('copy-share-text');
-            copyBtnText.textContent = "Salin Teks";
-        }
-
-        function copyShareText() {
-            const textarea = document.getElementById('share-text');
-            const copyBtnText = document.getElementById('copy-share-text');
-            if(!textarea || !copyBtnText) return;
-            
-            navigator.clipboard.writeText(textarea.value).then(() => {
-                copyBtnText.textContent = 'Berjaya Disalin!';
-                setTimeout(() => {
-                    copyBtnText.textContent = 'Salin Teks';
-                }, 2000);
-            }).catch(err => {
-                console.error('Gagal menyalin: ', err);
-                alert('Gagal menyalin teks.');
-            });
-        }
-
-        async function webShareTask() {
-            const textarea = document.getElementById('share-text');
-            if(!textarea) return;
-            const shareData = {
-                title: `Tugasan: ${currentTask.nama}`,
-                text: textarea.value,
+            const completionRecord = {
+                ic_pengesah: validatedIc,
+                nama_pengesah: participantInfo ? participantInfo.name : 'N/A',
+                jawatan_pengesah: participantInfo ? participantInfo.position : 'N/A',
+                stesen_pengesah: participantInfo ? participantInfo.station : 'N/A',
+                jawapan: jawapanSelesai,
+                timestamp: timestampSekarang.toISOString()
             };
-            try {
-                await navigator.share(shareData);
-                closeShareModal();
-            } catch (err) {
-                console.error('Gagal berkongsi:', err);
+
+            const skopSelesaiRecord = participantInfo ? (participantInfo.name || participantInfo.station) : null;
+            
+            let dataToUpdate = {
+                rekodSelesai: arrayUnion(completionRecord)
+            };
+
+            if (skopSelesaiRecord) {
+                dataToUpdate.skopSelesai = arrayUnion(normalizeStationName(skopSelesaiRecord));
             }
+
+            const taskRef = doc(db, `artifacts/${appId}/public/data/spark_tasks`, currentTaskId);
+            try {
+                await updateDoc(taskRef, dataToUpdate);
+                
+                // DATA KINI TERKINI KERANA LISTENER SUDAH JALAN
+                const bilanganSediaAda = (currentTask.rekodSelesai || []).length;
+                const bilanganBaru = bilanganSediaAda + 1; 
+
+                const tarikhMasa = timestampSekarang.toLocaleString('ms-MY', { 
+                    day: 'numeric', month: 'long', year: 'numeric', 
+                    hour: 'numeric', minute: '2-digit', second: '2-digit' 
+                });
+
+                let msgTitle = "Pengesahan Telah Direkodkan";
+                let msgBody = `Terima kasih. Data anda telah disahkan dan direkodkan pada ${tarikhMasa}. Anda adalah pengesah ke-${bilanganBaru} untuk tugasan ini.`;
+                
+                showMessage('success', msgTitle, msgBody);
+
+            } catch (error) {
+                console.error("Error saving completion record: ", error);
+                showMessage('error', 'Gagal!', 'Gagal menyimpan rekod. Sila cuba lagi.');
+                completionSubmitBtn.disabled = false;
+                completionSubmitBtn.innerHTML = originalButtonText;
+            }
+        }
+        
+        function showMessage(type, title, body) {
+            // Jika ada listener, hentikan ia selepas pengesahan selesai
+            if (unsubscribeTaskListener) unsubscribeTaskListener(); 
+
+            loadingState.classList.add('hidden');
+            if (checkInCard) checkInCard.classList.add('hidden');
+            
+            const msgCard = document.getElementById('message-card');
+            const msgIcon = document.getElementById('message-icon');
+            const msgTitle = document.getElementById('message-title');
+            const msgBody = document.getElementById('message-body');
+
+            msgTitle.textContent = title;
+            msgBody.textContent = body;
+            
+            let icon, color;
+            if (type === 'success') {
+                icon = `<svg class="h-8 w-8 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`;
+                color = 'bg-green-500';
+            } else if (type === 'warning') {
+                icon = `<svg class="h-8 w-8 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>`;
+                color = 'bg-yellow-500';
+            } else { // error
+                icon = `<svg class="h-8 w-8 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`;
+                color = 'bg-red-500';
+            }
+            
+            msgIcon.className = `w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${color}`;
+            msgIcon.innerHTML = icon;
+
+            const returnButton = document.getElementById('return-button');
+    		if (currentTaskId) {
+        		returnButton.onclick = () => {
+            		window.location.href = `task.html?id=${currentTaskId}`;
+        		};
+    		} else {
+        		returnButton.onclick = () => {
+            		window.location.href = 'sparktask.html';
+        		};
+    		}
+
+            msgCard.classList.remove('hidden');
         }
         
         function formatTarikh(tarikhString) {
@@ -939,81 +1094,96 @@ Sekian, terima kasih.`;
             const [tahun, bulan, hari] = tarikhString.split('-');
             return `${hari}/${bulan}/${tahun}`;
         }
-        function showSkopList(status) {
-            const modal = document.getElementById('skop-list-modal');
-            const titleEl = document.getElementById('skop-modal-title');
-            const contentEl = document.getElementById('skop-modal-content');
-            if(!modal || !titleEl || !contentEl) return;
-            
-            let list = [];
-            if (status === 'selesai') {
-                titleEl.textContent = 'Senarai Selesai (Disahkan)';
-                list = skopSelesaiList;
-            } else {
-                titleEl.textContent = 'Senarai Belum Selesai (Sasaran)';
-                list = skopBelumList;
-            }
-            currentModalSkopList = list;
-            currentModalSkopTitle = titleEl.textContent;
-            contentEl.innerHTML = '';
-            if (list.length === 0) {
-                contentEl.innerHTML = `<p class="text-sm text-gray-500 italic">Tiada data untuk dipaparkan.</p>`;
-            } else {
-                list.sort().forEach((item, index) => { 
-                    contentEl.innerHTML += `
-                        <div class="text-sm text-gray-800 bg-white p-2 border-b last:border-b-0">
-                            ${index + 1}. ${item}
-                        </div>
-                    `;
-                });
-            }
-            modal.classList.add('buka');
-        }
-        
-        function closeSkopModal() {
-            const modal = document.getElementById('skop-list-modal');
-            if(!modal) return;
-            modal.classList.remove('buka');
-            document.body.classList.remove('is-printing-modal');
-        }
-        
-        function copySkopList() {
-            if (currentModalSkopList.length === 0) {
-                alert("Senarai kosong, tiada apa untuk disalin.");
-                return;
-            }
-            let textToCopy = `${currentModalSkopTitle} (Tugasan: ${currentTask.nama.toUpperCase() || 'N/A'}):\n\n`;
-            currentModalSkopList.forEach((item, index) => {
-                textToCopy += `${index + 1}. ${item}\n`;
-            });
-            navigator.clipboard.writeText(textToCopy).then(() => {
-                alert("Senarai telah disalin ke clipboard!");
-            }).catch(err => {
-                console.error("Gagal menyalin:", err);
-                alert("Gagal menyalin. Sila cuba lagi.");
-            });
-        }
-        function printSkopList() {
-            document.body.classList.add('is-printing-modal');
-            setTimeout(() => {
-                window.print();
-                document.body.classList.remove('is-printing-modal');
-            }, 250);
-        }
-        
-        // Mendedahkan fungsi ke window
-        Object.assign(window, {
-            showSkopList,
-            closeSkopModal,
-            copySkopList,
-            printSkopList,
-            showAllCompletions,
-            showShareModal,
-            closeShareModal,
-            copyShareText,
-            webShareTask
-        });
 
+        function setupDynamicFormListeners() {
+            document.querySelectorAll('input[name="participant-category"]').forEach(radio => {
+                radio.addEventListener('change', (e) => {
+                    const category = e.target.value;
+                    ['warga', 'murid', 'awam'].forEach(cat => {
+                        const fieldset = document.getElementById(`${cat}-fields`);
+                        fieldset.classList.toggle('hidden', cat !== category);
+                        fieldset.querySelectorAll('input, select').forEach(el => el.disabled = (cat !== category));
+                    });
+                });
+            });
+
+            const locationHandler = (prefix) => {
+                document.querySelectorAll(`input[name="${prefix}-location"]`).forEach(radio => {
+                    radio.addEventListener('change', (e) => {
+                        const isMiri = e.target.value === 'miri';
+                        document.getElementById(`${prefix}-station-miri-container`).classList.toggle('hidden', !isMiri);
+                        document.getElementById(`${prefix}-station-select`).disabled = !isMiri;
+                        document.getElementById(`${prefix}-station-luar-container`).classList.toggle('hidden', isMiri);
+                        document.getElementById(`${prefix}-station-manual`).disabled = isMiri;
+                        const districtInput = document.getElementById(`${prefix}-district-manual`);
+                        if(districtInput) {
+                            districtInput.disabled = isMiri;
+                        }
+                    });
+                });
+            };
+            locationHandler('warga');
+            locationHandler('murid');
+        }
+
+        async function loadSchoolsIntoDropdowns() {
+            const selectors = ['#warga-station-select', '#murid-station-select'];
+            try {
+                const schoolsRef = collection(db, `artifacts/${appId}/public/data/spark_schools`);
+                const q = query(schoolsRef, orderBy("name", "asc"));
+                const querySnapshot = await getDocs(q);
+                
+                if (querySnapshot.empty) return;
+
+                const schools = querySnapshot.docs.map(doc => doc.data().name);
+
+                selectors.forEach(selector => {
+                    const selectElement = document.querySelector(selector);
+                    
+                    const firstOption = selectElement.options[0];
+                    selectElement.innerHTML = '';
+                    selectElement.appendChild(firstOption);
+
+                    schools.forEach(schoolName => {
+                        const option = document.createElement('option');
+                        option.value = schoolName;
+                        option.textContent = schoolName;
+                        selectElement.appendChild(option);
+                    });
+                });
+            } catch (error) {
+                console.error("Error loading schools: ", error);
+            }
+        }
+
+        async function loadPositionsIntoDropdowns() {
+            const selectElement = document.querySelector('#warga-position');
+            try {
+                const positionsRef = collection(db, `artifacts/${appId}/public/data/spark_positions`);
+                const q = query(positionsRef, orderBy("order", "asc"));
+                const querySnapshot = await getDocs(q);
+
+                if (querySnapshot.empty) return;
+
+                const positions = querySnapshot.docs.map(doc => doc.data().name);
+                
+                const firstOption = selectElement.options[0];
+                selectElement.innerHTML = '';
+                selectElement.appendChild(firstOption);
+
+                positions.forEach(positionName => {
+                    const option = document.createElement('option');
+                    option.value = positionName;
+                    option.textContent = positionName;
+                    selectElement.appendChild(option);
+                });
+            } catch (error) {
+                console.error("Error loading positions: ", error);
+            }
+        }
+
+        window.validateIcInput = validateIcInput;
+        window.registerAndContinue = registerAndContinue;
     </script>
 </body>
 </html>
