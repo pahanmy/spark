@@ -49,6 +49,8 @@
         }
 
         /* Custom styles for list rendering (PEMBETULAN LIST STYLE) */
+        
+        /* Gaya untuk senarai Tindakan (1, 2, 3...) */
         ol.list-decimal.p-0.m-0 {
             padding-left: 20px !important; 
             margin-left: 0 !important;
@@ -58,6 +60,19 @@
             margin-left: 0; 
             padding-left: 0;
         }
+
+        /* Gaya BARU untuk Senarai Keterangan (a, b, c...) */
+        ol.list-alpha-keterangan {
+            list-style-type: lower-alpha;
+            padding-left: 20px !important; 
+            margin-left: 0 !important;
+        }
+        ol.list-alpha-keterangan li {
+            list-style-position: outside;
+            margin-left: 0; 
+            padding-left: 0;
+        }
+
         /* Style for editable list items and headers */
         .editable-text, .editable-header {
             cursor: pointer;
@@ -593,79 +608,6 @@
             addBtn.innerHTML = originalText;
         }
 
-        // --- TAMBAH ITEM KETERANGAN BARU (FUNGSI BARU) ---
-        async function addNewDescriptionItem(docId) {
-            if (isPermissionError) {
-                alert("Gagal menambah item keterangan kerana ralat keizinan Firebase.");
-                return;
-            }
-
-            const fieldName = 'description_list';
-            const placeholder = 'Item keterangan baharu (Klik untuk edit)...';
-            
-            const buttonEl = document.querySelector(`#kurikulum-table button[onclick="addNewDescriptionItem('${docId}')"]`);
-
-            const containerId = `inline-form-container-${docId}-${fieldName}`;
-            
-            const formHtml = `
-                <div id="${containerId}" class="inline-edit-form mt-2 p-3 bg-gray-50 border border-blue-200 rounded-lg">
-                    <label class="block text-xs font-medium text-gray-700 mb-1">Tambah Keterangan:</label>
-                    <textarea id="item-text-inline-desc" rows="2" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border text-sm resize-none" placeholder="${placeholder}"></textarea>
-                    <div class="flex justify-end space-x-2 mt-2">
-                        <button onclick="removeInlineForm()" class="btn bg-gray-200 text-gray-800 text-sm py-1 px-3 rounded-lg hover:bg-gray-300">Batal</button>
-                        <button id="save-item-btn-inline-desc" onclick="saveNewItemFromDescription('${docId}', '${fieldName}')" class="btn bg-blue-600 text-white text-sm py-1 px-3 rounded-lg hover:bg-blue-700">Simpan Item</button>
-                    </div>
-                </div>
-            `;
-            
-            removeInlineForm();
-            buttonEl.insertAdjacentHTML('beforebegin', formHtml);
-            buttonEl.classList.add('hidden'); 
-            buttonEl.disabled = true;
-            document.getElementById('item-text-inline-desc').focus();
-        }
-
-        async function saveNewItemFromDescription(docId, fieldName) {
-            if (isPermissionError) return;
-
-            const container = document.getElementById(`inline-form-container-${docId}-${fieldName}`);
-            if (!container) return;
-
-            const textarea = container.querySelector('textarea');
-            const text = textarea.value.trim();
-
-            if (!text) {
-                alert("Sila masukkan teks untuk item baru.");
-                return;
-            }
-
-            const saveBtn = container.querySelector('#save-item-btn-inline-desc');
-            const originalText = saveBtn.textContent;
-
-            saveBtn.disabled = true;
-            saveBtn.textContent = 'Menyimpan...';
-
-            const newItem = {
-                id: Math.random().toString(36).substring(2),
-                text: text,
-                links: []
-            };
-
-            try {
-                const docRef = doc(db, DATA_COLLECTION_PATH, docId);
-                await updateDoc(docRef, {
-                    [fieldName]: arrayUnion(newItem)
-                });
-                console.log("Item keterangan baru berjaya ditambah!");
-                removeInlineForm(); 
-            } catch (e) {
-                console.error("Ralat menambah item keterangan baru:", e);
-                alert("Gagal menambah item keterangan. Sila semak konsol.");
-                saveBtn.disabled = false;
-                saveBtn.textContent = originalText;
-            }
-        }
-
         // --- TEMPLATE & DATA MANAGEMENT ---
         
         // Fungsi untuk mendapatkan data template jika wujud
@@ -677,7 +619,13 @@
                     // Ambil semua dokumen dari template dan kembalikan sebagai array
                     const templateData = [];
                     snapshot.forEach(doc => {
-                        templateData.push({ id: doc.id, ...doc.data() });
+                        const rowData = doc.data();
+                        // Handle conversion from old 'description' string to 'description_list' array if needed
+                        if (rowData.description && !rowData.description_list) {
+                            rowData.description_list = mapList([rowData.description]);
+                            delete rowData.description;
+                        }
+                        templateData.push({ id: doc.id, ...rowData });
                     });
                     templateData.sort((a, b) => a.id.localeCompare(b.id)); 
                     return templateData;
@@ -698,7 +646,13 @@
                 const snapshot = await getDocs(q);
                 const data = [];
                 snapshot.forEach(doc => {
-                    data.push({ id: doc.id, ...doc.data() });
+                    const rowData = doc.data();
+                    // Handle conversion from old 'description' string to 'description_list' array if needed
+                    if (rowData.description && !rowData.description_list) {
+                         rowData.description_list = mapList([rowData.description]);
+                         delete rowData.description;
+                    }
+                    data.push({ id: doc.id, ...rowData });
                 });
                 data.sort((a, b) => a.id.localeCompare(b.id)); 
                 isPermissionError = false;
@@ -735,7 +689,7 @@
                 const docRef = doc(db, DATA_COLLECTION_PATH, docId);
                 
                 if (!itemId) {
-                    // Update field langsung (Aspek atau Description)
+                    // Update field langsung (Aspek)
                     await updateDoc(docRef, { [fieldName]: value });
                 } else {
                     // Update item dalam list (Tindakan, Follow Up, atau Keterangan List)
@@ -829,8 +783,8 @@
 
                 // Simpan data jadual
                 const batchPromises = currentDataCache.map(data => {
-                    // Ambil hanya bidang yang relevan untuk template (semua kecuali skor, kerana skor adalah input pengguna)
-                    const { id, aspek, description_list, tindakan_list, follow_up_list } = data; // description_list
+                    // Ambil hanya bidang yang relevan untuk template (description_list yang baru)
+                    const { id, aspek, description_list, tindakan_list, follow_up_list } = data; 
                     const docRef = doc(db, TEMPLATE_COLLECTION_PATH, id);
                     return setDoc(docRef, { id, aspek, description_list, tindakan_list, follow_up_list });
                 });
@@ -879,9 +833,9 @@
                             score_2023: 0.00, 
                             score_2024_tov: 0.00, 
                             score_2025_etr: 0.00,
-                            // Pastikan description_list wujud jika menggunakan template lama
+                            // Pastikan description_list wujud 
                             description_list: data.description_list || mapList([data.description || 'Keterangan belum ditetapkan']), 
-                            description: null // Buang medan lama jika ada (optional but clean)
+                            description: null 
                         });
                     });
                     await Promise.all(batchPromises);
@@ -913,9 +867,7 @@
                         // Adaptasi untuk data lama/baru: Jika 'description' wujud (data lama), tukar ke list
                         if (rowData.description && !rowData.description_list) {
                             rowData.description_list = mapList([rowData.description]);
-                            rowData.description = null;
-                            // CUBATRY: Cuba kemas kini Firestore untuk membuang field lama
-                            // updateDoc(doc(db, DATA_COLLECTION_PATH, doc.id), { description: null, description_list: rowData.description_list });
+                            delete rowData.description;
                         }
                         
                         data.push({ id: doc.id, ...rowData });
@@ -977,7 +929,7 @@
             const isListString = isList ? 'true' : 'false';
 
             const containerId = `inline-text-form-container-${docId}-${fieldName}-${itemIdString}`;
-            const isAspekOrDescription = fieldName === 'aspek' || fieldName === 'description'; // Biarkan ini untuk baris aspek
+            const isAspekOrDescription = fieldName === 'aspek' || fieldName === 'description'; // description field tidak lagi digunakan
 
             
             const formHtml = `
@@ -1041,7 +993,6 @@
                 // Kemas kini data cache secara manual untuk prestasi pantas (sebelum onSnapshot)
                 const docIndex = currentDataCache.findIndex(d => d.id === docId);
                 if (docIndex > -1) {
-                    // Update cache bergantung pada jenis medan
                     if (isList) {
                         const list = currentDataCache[docIndex][fieldName];
                         const itemIndex = list.findIndex(item => item.id === itemIdValue);
@@ -1067,7 +1018,7 @@
 
 
         // ------------------------------------
-        // 2. Tambah Item (Tindakan / Follow Up)
+        // 2. Tambah Item (Tindakan / Follow Up / Keterangan)
         // ------------------------------------
 
         async function saveNewItem(docId, fieldName) {
@@ -1252,9 +1203,10 @@
         function renderList(list, docId, fieldName) {
             const isTindakan = fieldName === 'tindakan_list';
             const isDescription = fieldName === 'description_list';
+            const isFollowUp = fieldName === 'follow_up_list';
 
-            // Keterangan akan menggunakan list tak bernombor (ul) untuk kejelasan
-            const ListTag = isTindakan ? 'ol' : 'ul'; 
+            // Keterangan kini menggunakan 'ol' dengan list-style-type: lower-alpha
+            const ListTag = isTindakan || isDescription ? 'ol' : 'ul'; 
 
             const listItemsHtml = list.map((item, index) => {
                 const itemTextHtml = `
@@ -1266,21 +1218,9 @@
                 
                 let contentHtml = '';
 
-                if (isTindakan) {
-                    // Senarai Bernombor (Tindakan)
+                if (isTindakan || isDescription) {
+                    // Senarai Bernombor (Tindakan: 1, 2, 3...) atau Keterangan (a, b, c...)
                     contentHtml = `
-                        <div class="flex items-start justify-between">
-                            <div class="list-item-flex-container">
-                                <p class="text-sm text-gray-800 font-medium">${itemTextHtml}</p>
-                            </div>
-                            <button class="delete-btn flex-shrink-0" onclick="deleteListItem('${docId}', '${fieldName}', '${item.id}')">
-                                X Hapus
-                            </button>
-                        </div>
-                    `;
-                } else if (isDescription) {
-                    // Senarai Keterangan (Tanpa Ikon, hanya item)
-                     contentHtml = `
                         <div class="flex items-start justify-between">
                             <div class="list-item-flex-container">
                                 <p class="text-sm text-gray-800 font-medium">${itemTextHtml}</p>
@@ -1333,8 +1273,13 @@
 
             }).join('');
 
-            // PENTING: Untuk Tindakan, gunakan list-decimal p-0 m-0 bersama CSS fix di <style>
-            const listStyle = isTindakan ? 'list-decimal p-0 m-0' : 'list-none p-0 m-0';
+            // Tentukan gaya list: list-decimal untuk Tindakan, list-alpha-keterangan untuk Keterangan, list-none untuk Follow Up
+            let listStyle = 'list-none p-0 m-0';
+            if (isTindakan) {
+                listStyle = 'list-decimal p-0 m-0';
+            } else if (isDescription) {
+                listStyle = 'list-alpha-keterangan p-0 m-0';
+            }
             
             return `
                 <${ListTag} class="mt-1 ${listStyle}">
@@ -1452,8 +1397,8 @@
             validateIC,
             updateScore,
             updateText,
-            showNewItemInput, // Kini menguruskan item Keterangan juga
-            saveNewItem, // Kini menguruskan item Keterangan juga
+            showNewItemInput, 
+            saveNewItem, 
             showNewLinkInput,
             saveNewLink,
             removeInlineForm,
