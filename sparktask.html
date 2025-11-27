@@ -616,11 +616,12 @@
                 return searchMatch && sektorMatch;
             });
             
-            let totalSelesai = 0;
-            let totalBelum = 0;
-            filteredList.forEach(tugasan => {
+            let totalSelesaiCount = 0;
+            let totalBelumCount = 0;
+            
+            const listWithProgress = filteredList.map(tugasan => {
                 
-                // ▼▼▼ UBAHSUAI LOGIK RUMUSAN DI SINI (1) ▼▼▼
+                // ▼▼▼ LOGIK PENGIRAAN PROGRES UNTUK KAD RINGKAS & JADUAL ▼▼▼
                 const totalSkop = Array.isArray(tugasan.skopSenaraiSekolah) 
                     ? tugasan.skopSenaraiSekolah.map(normalizeStationName) 
                     : [];
@@ -628,7 +629,7 @@
                 let jumlahSelesai, total;
 
                 if (totalSkop.length > 0) {
-                    // Mod Skop: Guna logik normalisasi
+                    // Mod Skop
                     const totalSkopSet = new Set(totalSkop);
                     const allSelesai = Array.isArray(tugasan.skopSelesai) 
                         ? tugasan.skopSelesai.map(normalizeStationName) 
@@ -639,30 +640,35 @@
                     jumlahSelesai = skopSelesaiList.length;
                     total = totalSkop.length;
                 } else {
-                    // Mod Manual: Guna logik sedia ada
+                    // Mod Manual
                     jumlahSelesai = tugasan.jumlahSelesai || 0;
                     total = (tugasan.jumlahSelesai || 0) + (tugasan.jumlahBelum || 0);
                 }
-                // ▲▲▲ TAMAT UBAHSUAI (1) ▲▲▲
-
+                
                 const peratus = (total === 0) ? 0 : Math.round((jumlahSelesai / total) * 100);
+                
                 if (total > 0 && peratus === 100) {
-                    totalSelesai++;
+                    totalSelesaiCount++;
                 } else {
-                    totalBelum++;
+                    totalBelumCount++;
                 }
-            });
-            totalTugasanEl.textContent = filteredList.length;
-            totalSelesaiEl.textContent = totalSelesai;
-            totalBelumEl.textContent = totalBelum;
+                // ▲▲▲ TAMAT LOGIK PENGIRAAN PROGRES ▲▲▲
 
-            const totalItems = filteredList.length;
+                return { ...tugasan, progress: { jumlahSelesai, total, peratus } };
+            });
+            
+            // KEMASKINI KAD RINGKAS
+            totalTugasanEl.textContent = filteredList.length;
+            totalSelesaiEl.textContent = totalSelesaiCount;
+            totalBelumEl.textContent = totalBelumCount;
+
+            const totalItems = listWithProgress.length;
             const totalPages = Math.ceil(totalItems / itemsPerPage);
             if (currentPage > totalPages) currentPage = totalPages;
             if (currentPage < 1) currentPage = 1;
             const startIndex = (currentPage - 1) * itemsPerPage;
             const endIndex = startIndex + itemsPerPage;
-            const paginatedList = filteredList.slice(startIndex, endIndex);
+            const paginatedList = listWithProgress.slice(startIndex, endIndex);
             
             
             if (paginatedList.length === 0) {
@@ -671,38 +677,13 @@
                 return;
             }
 
-            paginatedList.forEach((tugasan, index) => {
+            paginatedList.forEach((data, index) => {
                 const baris = document.createElement('tr');
-                // ▼▼▼ KESAN HOVER BARU ▼▼▼
                 baris.className = "hover:bg-gray-50 transition-colors duration-150";
                 
-                // ▼▼▼ UBAHSUAI LOGIK RUMUSAN DI SINI (2) ▼▼▼
-                const totalSkop = Array.isArray(tugasan.skopSenaraiSekolah) 
-                    ? tugasan.skopSenaraiSekolah.map(normalizeStationName) 
-                    : [];
-
-                let jumlahSelesai;
-                let total;
-
-                if (totalSkop.length > 0) {
-                    // Mod Skop: Guna logik normalisasi
-                    const totalSkopSet = new Set(totalSkop);
-                    const allSelesai = Array.isArray(tugasan.skopSelesai) 
-                        ? tugasan.skopSelesai.map(normalizeStationName) 
-                        : [];
-                    
-                    const skopSelesaiList = allSelesai.filter(sekolah => totalSkopSet.has(sekolah));
-                    
-                    jumlahSelesai = skopSelesaiList.length;
-                    total = totalSkop.length;
-                } else {
-                    // Mod Manual: Guna logik sedia ada
-                    jumlahSelesai = tugasan.jumlahSelesai || 0;
-                    total = (tugasan.jumlahSelesai || 0) + (tugasan.jumlahBelum || 0);
-                }
-                // ▲▲▲ TAMAT UBAHSUAI (2) ▲▲▲
+                const { jumlahSelesai, total, peratus } = data.progress;
+                const tugasan = data;
                 
-                const peratus = (total === 0) ? 0 : Math.round((jumlahSelesai / total) * 100);
                 const bakiHariInfo = kiraBakiHari(tugasan.tarikhSiap, peratus);
 
                 let newBadgeHtml = '';
@@ -730,8 +711,21 @@
                     progressColorClass = 'bg-amber-500';
                     progressTextColorClass = 'text-amber-700 font-medium';
                 }
-
-                // ▼▼▼ HTML BARIS DIKEMAS KINI ▼▼▼
+                
+                // Jika tiada total (mod asas/manual)
+                const rumusanDisplay = (total === 0) ? 
+                    `<div class="text-xs text-gray-500 text-center">Rekod: <span class="font-bold">${jumlahSelesai}</span></div>
+                     <div class="text-xs text-gray-400 text-center">Sasaran: N/A</div>`
+                    :
+                    `<div class="w-full bg-gray-200 rounded-full h-2.5">
+                        <div class="${progressColorClass} h-2.5 rounded-full" style="width: ${peratus}%"></div>
+                     </div>
+                     <div class="text-center text-xs mt-1">
+                        <span class="font-medium ${progressTextColorClass}">${peratus}%</span> 
+                        (${jumlahSelesai} / ${total})
+                     </div>`;
+                
+                // ▼▼▼ HTML BARIS DIKEMAS KINI - MEMBETULKAN RUMUSAN KESELURUHAN ▼▼▼
                 baris.innerHTML = `
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${startIndex + index + 1}</td>
                     
@@ -752,14 +746,8 @@
                         </span>
                     </td>
                     
-                    <td class="px-6 py-4 whitespace-nowrap text-sm ${progressTextColorClass}">
-                        <div class="w-full bg-gray-200 rounded-full h-2.5">
-                            <div class="${progressColorClass} h-2.5 rounded-full" style="width: ${peratus}%"></div>
-                        </div>
-                        <div class="text-center text-xs mt-1">
-                            <span class="font-medium">${peratus}%</span> 
-                            (${jumlahSelesai} / ${total})
-                        </div>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                        ${rumusanDisplay}
                     </td>
 
                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -1388,10 +1376,6 @@
         
         /**
          * Menyeragamkan nama stesen untuk perbandingan.
-         * 1. Tukar ke huruf besar.
-         * 2. Tukar 'SG.' atau 'SG' kepada 'SUNGAI'.
-         * 3. Buang semua tanda noktah.
-         * 4. Buang ruang kosong berlebihan.
          */
         function normalizeStationName(name) {
             if (typeof name !== 'string') return '';
