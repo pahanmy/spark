@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Standard 3.1 Pengurusan Kurikulum SMK Miri (2025)</title>
+    <!-- Muatkan Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Muatkan Font Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f9fb;
+        }
+        /* Style untuk jadual yang lebih baik dan responsif */
+        .scroll-container {
+            overflow-x: auto;
+            max-width: 100%;
+        }
+        .data-table {
+            min-width: 1200px; /* Pastikan jadual cukup lebar untuk desktop */
+            width: 100%;
+        }
+        .data-cell {
+            vertical-align: top;
+            padding: 8px 12px;
+            text-align: left;
+        }
+        .score-cell {
+            text-align: center;
+            width: 70px;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <div class="max-w-7xl mx-auto">
+        <header class="mb-6 pb-4 border-b border-blue-200">
+            <h1 class="text-3xl font-extrabold text-blue-800">Standard 3.1: Pengurusan Kurikulum SMK Miri (2025)</h1>
+            <p id="auth-status" class="text-sm text-gray-600 mt-1">Status Pengguna: Memuatkan...</p>
+        </header>
+
+        <div id="loading-spinner" class="text-center p-8 text-blue-500">
+            <svg class="animate-spin h-8 w-8 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <p class="mt-2">Memuatkan data...</p>
+        </div>
+
+        <div class="scroll-container bg-white shadow-lg rounded-xl overflow-hidden">
+            <table class="data-table border-collapse" id="kurikulum-table">
+                <thead class="bg-blue-600 text-white sticky top-0">
+                    <tr>
+                        <th class="p-3 border-r border-blue-500 w-1/4">Aspek & Keterangan</th>
+                        <th class="p-3 score-cell border-r border-blue-500">2023</th>
+                        <th class="p-3 score-cell border-r border-blue-500">2024 (TOV)</th>
+                        <th class="p-3 score-cell border-r border-blue-500">2025 (ETR)</th>
+                        <th class="p-3 border-r border-blue-500 w-1/4">Tindakan</th>
+                        <th class="p-3 w-1/4">Follow Up / Pendokumentasian</th>
+                    </tr>
+                </thead>
+                <tbody id="table-body">
+                    <!-- Data akan dimasukkan di sini oleh JavaScript -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- MODAL UNTUK TAMBAH ITEM/PAUTAN BARU -->
+    <div id="modal-backdrop" class="fixed inset-0 bg-gray-900 bg-opacity-70 hidden z-50 transition-opacity duration-300"></div>
+
+    <div id="action-modal" class="fixed inset-0 flex items-center justify-center p-4 hidden z-50">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg">
+            <div class="p-6">
+                <h3 class="text-xl font-bold text-blue-700 mb-4" id="modal-title">Tambah Item Baru</h3>
+                <div id="new-item-form">
+                    <label for="item-text" class="block text-sm font-medium text-gray-700">Perkara (Tindakan/Follow Up):</label>
+                    <textarea id="item-text" rows="3" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border"></textarea>
+                    <button id="save-item-btn" class="mt-4 w-full px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition duration-150">Simpan Item</button>
+                </div>
+                <div id="new-link-form" class="hidden">
+                    <label for="link-name" class="block text-sm font-medium text-gray-700">Nama Pautan:</label>
+                    <input type="text" id="link-name" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border mb-3">
+                    <label for="link-url" class="block text-sm font-medium text-gray-700">URL Pautan (Mesti bermula dengan http/https):</label>
+                    <input type="url" id="link-url" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border">
+                    <button id="save-link-btn" class="mt-4 w-full px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition duration-150">Simpan Pautan</button>
+                </div>
+                <button onclick="closeModal()" class="mt-4 w-full px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-100 transition duration-150">Tutup</button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Skrip Firebase dan Logik Aplikasi -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot, collection, query, runTransaction, arrayUnion, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Tetapan Global dari Canvas Environment
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        // Firebase Initialization
+        let app;
+        let db;
+        let auth;
+        let userId = null;
+        let isAuthReady = false;
+
+        const COLLECTION_PATH = `artifacts/${appId}/public/data/kurikulum_data`;
+
+        // Data Awal untuk Seeding (Parse dari dokumen)
+        const initialData = [
+            {
+                id: '311',
+                aspek: "3.1.1: KETETAPAN PELAKSANAAN KURIKULUM",
+                description: "3.1.1.1 Pelaksanaan kurikulum diurus secara sistematik dan terancang",
+                score_2023: 100.00, score_2024_tov: 93.75, score_2025_etr: 94.00,
+                tindakan_list: [{ id: crypto.randomUUID(), text: "Mematuhi arahan yang berkuatkuasa", links: [] }],
+                follow_up_list: [
+                    { id: crypto.randomUUID(), text: "Menyeluruh - penubuhan panitia MP, peruntukan kewangan, pentaksiran, penjaminan kualiti (4P), latihan/ tugasan, pembelajaran digital, PdPR/ remote learning, sumber pendidikan dan jadual waktu. Mengikut keperluan sekolah. Secara spesifik dan jelas.", links: [] },
+                    { id: crypto.randomUUID(), text: "Perancangan Strategik Kurikulum/Pelan Operasi/PInTaS Kualiti Guru (Standard 4), OPPM Kurikulum, Profil Akademik Sekolah, Buku Pengurusan Sekolah, Minit Mesyuarat Pengurusan Kurikulum, Jadual Waktu Persekolahan, Takwim Peperiksaan dan Pentaksiran, Papan Kenyataan Unit Kurikulum, Laporan Dialog Prestasi Kurikulum, Telegram Ketua Panitia.", links: [] }
+                ]
+            },
+            {
+                id: '3121',
+                aspek: "3.1.2: PENGURUSAN MATA PELAJARAN",
+                description: "3.1.2.1 Pelaksanaan mata pelajaran diurus secara sistematik dan terancang",
+                score_2023: 93.15, score_2024_tov: 92.98, score_2025_etr: 93.00,
+                tindakan_list: [
+                    { id: crypto.randomUUID(), text: "Menyelaras penyediaan RPT dan RPH", links: [] },
+                    { id: crypto.randomUUID(), text: "Menyelaras pentaksiran", links: [] },
+                    { id: crypto.randomUUID(), text: "Menyelaras tugasan murid", links: [] },
+                    { id: crypto.randomUUID(), text: "Menganalisis data dan maklumat pentaksiran", links: [] }
+                ],
+                follow_up_list: [
+                    { id: crypto.randomUUID(), text: "Berdasarkan keperluan pelaksanaan kurikulum. Secara menyeluruh meliputi semua tahun/ tingkatan.", links: [] },
+                    { id: crypto.randomUUID(), text: "Minit Mesyuarat Panitia, Dokumen Standard Kurikulum Prestasi, Jadual Peperiksaan / Pentaksiran, Analisis Pentaksiran dan Penilaian, Laporan Dialog Prestasi Panitia / maklumbalasPera, Borang Semakan Tugasan Murid, Standard Kecukupan Latihan.", links: [] }
+                ]
+            },
+            {
+                id: '3122',
+                aspek: "3.1.2.2 Program peningkatan kualiti pengajaran guru diurus secara terancang",
+                description: "",
+                score_2023: 88.25, score_2024_tov: 92.04, score_2025_etr: 93.00,
+                tindakan_list: [
+                    { id: crypto.randomUUID(), text: "Merancang dan melaksanakan program pembangunan profesionalisme yang berkaitan dengan mata pelajaran", links: [] },
+                    { id: crypto.randomUUID(), text: "Berfokus kepada keperluan guru/ panitia", links: [] },
+                    { id: crypto.randomUUID(), text: "Mengambil kira perkembangan pendidikan semasa dari semasa ke semasa", links: [] }
+                ],
+                follow_up_list: [
+                    { id: crypto.randomUUID(), text: "Buku Pengurusan Sekolah, Minit Mesyuarat Panitia, Takwim CPD Mata Pelajaran, OPPM Panitia, OPR Program Panitia, Laporan PLC Panitia / SPLKPM.", links: [] }
+                ]
+            },
+            {
+                id: '314',
+                aspek: "3.1.4: PENGURUSAN PENILAIAN MURID",
+                description: "3.1.4.1 Peperiksaan dan pentaksiran diurus secara sistematik dan terancang",
+                score_2023: 95.00, score_2024_tov: 95.00, score_2025_etr: 100.00,
+                tindakan_list: [
+                    { id: crypto.randomUUID(), text: "Merancang, menyelaras dan melaksanakan peperiksaan dan pentaksiran", links: [] },
+                    { id: crypto.randomUUID(), text: "Menganalisis data dan maklumat peperiksaan dan pentaksiran", links: [] },
+                    { id: crypto.randomUUID(), text: "Mengambil tindakan susulan/ intervensi", links: [] },
+                    { id: crypto.randomUUID(), text: "Mengikut arahan yang berkuatkuasa, Mengikut keperluan, Secara menyeluruh meliputi semua mata pelajaran dan murid dari semasa ke semasa", links: [] }
+                ],
+                follow_up_list: [
+                    { id: crypto.randomUUID(), text: "Minit Mesyuarat Pengurusan Kurikulum, Takwim / Jadual Peperiksaan dan Pentaksiran Sekolah, Analisis Data Peperiksaan dan Pentaksiran Sekolah, Dialog Prestasi, Laporan Penjaminan Kualiti PBD, Program Intervensi.", links: [] }
+                ]
+            }
+        ];
+
+        // --- FIREBASE SETUP AND AUTHENTICATION ---
+        try {
+            // Uncomment for debugging: setLogLevel('debug');
+            app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+
+            if (initialAuthToken) {
+                await signInWithCustomToken(auth, initialAuthToken);
+            } else {
+                await signInAnonymously(auth);
+            }
+
+            onAuthStateChanged(auth, (user) => {
+                if (user) {
+                    userId = user.uid;
+                    document.getElementById('auth-status').textContent = `Status Pengguna: ID Pengguna Aktif (${userId})`;
+                } else {
+                    userId = crypto.randomUUID(); // Fallback ID for unauthenticated access
+                    document.getElementById('auth-status').textContent = `Status Pengguna: Pengguna Anonim (${userId}).`;
+                }
+                isAuthReady = true;
+                initializeDataAndListener();
+            });
+        } catch (error) {
+            console.error("Ralat ketika memulakan Firebase atau Pengesahan:", error);
+            document.getElementById('auth-status').textContent = 'Ralat Pengesahan Firebase. Sila semak konsol.';
+            document.getElementById('loading-spinner').classList.add('hidden');
+        }
+
+        // --- DATA MANAGEMENT ---
+
+        async function seedInitialData() {
+            console.log("Memuatkan data awal ke Firestore...");
+            const batchPromises = initialData.map(data => {
+                const docRef = doc(db, COLLECTION_PATH, data.id);
+                return setDoc(docRef, data);
+            });
+            await Promise.all(batchPromises);
+            console.log("Data awal berjaya dimuatkan.");
+        }
+
+        async function initializeDataAndListener() {
+            if (!isAuthReady) return;
+
+            try {
+                // Cuba untuk mendapatkan satu dokumen untuk semak kewujudan koleksi
+                const docRef = doc(db, COLLECTION_PATH, initialData[0].id);
+                const docSnap = await runTransaction(db, async (transaction) => {
+                    return transaction.get(docRef);
+                });
+
+                if (!docSnap.exists()) {
+                    await seedInitialData();
+                }
+
+                // Sediakan pendengar masa nyata (onSnapshot)
+                const q = query(collection(db, COLLECTION_PATH));
+                onSnapshot(q, (snapshot) => {
+                    const data = [];
+                    snapshot.forEach(doc => {
+                        data.push({ id: doc.id, ...doc.data() });
+                    });
+                    data.sort((a, b) => a.id.localeCompare(b.id)); // Susun ikut ID
+                    renderTable(data);
+                    document.getElementById('loading-spinner').classList.add('hidden');
+                });
+
+            } catch (e) {
+                console.error("Ralat dalam data init/listener:", e);
+                document.getElementById('loading-spinner').innerHTML = `<p class="text-red-600">Ralat memuatkan data. Sila semak sambungan.</p>`;
+            }
+        }
+
+        // --- RENDERING FUNCTIONS ---
+
+        function renderList(list, docId, fieldName) {
+            return list.map((item, index) => `
+                <li class="mb-2 p-2 border border-gray-100 rounded-lg bg-gray-50 break-words">
+                    <p class="text-sm text-gray-800 font-medium">${item.text}</p>
+                    ${item.links && item.links.length > 0 ? `
+                        <div class="mt-1 flex flex-wrap gap-2 text-xs">
+                            ${item.links.map(link => `
+                                <a href="${link.url}" target="_blank" class="flex items-center text-blue-600 hover:text-blue-800 transition duration-150">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 mr-1" viewBox="0 0 20 20" fill="currentColor"><path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" /><path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z" /></svg>
+                                    ${link.name}
+                                </a>
+                            `).join('')}
+                        </div>
+                    ` : ''}
+                    <button class="mt-2 text-xs px-2 py-1 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition"
+                            onclick="openLinkModal('${docId}', '${fieldName}', '${item.id}')">
+                        + Tambah Pautan
+                    </button>
+                </li>
+            `).join('');
+        }
+
+        function renderTable(data) {
+            const tbody = document.getElementById('table-body');
+            tbody.innerHTML = data.map(row => `
+                <tr class="border-b hover:bg-gray-50 transition duration-100">
+                    <td class="data-cell border-r border-gray-200">
+                        <p class="font-semibold text-gray-900">${row.aspek}</p>
+                        <p class="text-sm text-gray-600 mt-1">${row.description}</p>
+                    </td>
+                    <td class="data-cell score-cell border-r border-gray-200 text-sm font-mono text-gray-700">${row.score_2023.toFixed(2)}</td>
+                    <td class="data-cell score-cell border-r border-gray-200 text-sm font-mono text-gray-700">${row.score_2024_tov.toFixed(2)}</td>
+                    <td class="data-cell score-cell border-r border-gray-200 text-lg font-bold ${row.score_2025_etr >= 95 ? 'text-green-600' : 'text-orange-500'}">${row.score_2025_etr.toFixed(2)}</td>
+                    
+                    <!-- Tindakan Column -->
+                    <td class="data-cell border-r border-gray-200">
+                        <ul class="list-none p-0 m-0">
+                            ${renderList(row.tindakan_list, row.id, 'tindakan_list')}
+                        </ul>
+                        <button class="mt-3 w-full px-3 py-2 text-sm bg-blue-100 text-blue-700 font-semibold rounded-lg hover:bg-blue-200 transition"
+                                onclick="openItemModal('${row.id}', 'tindakan_list')">
+                            + Tambah Tindakan
+                        </button>
+                    </td>
+
+                    <!-- Follow Up Column -->
+                    <td class="data-cell">
+                        <ul class="list-none p-0 m-0">
+                            ${renderList(row.follow_up_list, row.id, 'follow_up_list')}
+                        </ul>
+                        <button class="mt-3 w-full px-3 py-2 text-sm bg-blue-100 text-blue-700 font-semibold rounded-lg hover:bg-blue-200 transition"
+                                onclick="openItemModal('${row.id}', 'follow_up_list')">
+                            + Tambah Follow Up
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+
+        // --- MODAL & ACTION HANDLERS ---
+
+        let currentDocId = null;
+        let currentField = null; // 'tindakan_list' or 'follow_up_list'
+        let currentItemId = null; // For link addition
+
+        window.openItemModal = (docId, fieldName) => {
+            currentDocId = docId;
+            currentField = fieldName;
+            currentItemId = null; // Reset item ID
+
+            document.getElementById('modal-title').textContent = fieldName === 'tindakan_list' ? 'Tambah Item Tindakan Baru' : 'Tambah Item Follow Up/Pendokumentasian Baru';
+            document.getElementById('new-item-form').classList.remove('hidden');
+            document.getElementById('new-link-form').classList.add('hidden');
+            document.getElementById('item-text').value = '';
+
+            document.getElementById('modal-backdrop').classList.remove('hidden');
+            document.getElementById('action-modal').classList.remove('hidden');
+        };
+
+        window.openLinkModal = (docId, fieldName, itemId) => {
+            currentDocId = docId;
+            currentField = fieldName;
+            currentItemId = itemId;
+
+            document.getElementById('modal-title').textContent = 'Tambah Pautan (Link)';
+            document.getElementById('new-item-form').classList.add('hidden');
+            document.getElementById('new-link-form').classList.remove('hidden');
+            document.getElementById('link-name').value = '';
+            document.getElementById('link-url').value = 'https://';
+
+            document.getElementById('modal-backdrop').classList.remove('hidden');
+            document.getElementById('action-modal').classList.remove('hidden');
+        };
+
+        window.closeModal = () => {
+            document.getElementById('modal-backdrop').classList.add('hidden');
+            document.getElementById('action-modal').classList.add('hidden');
+            currentDocId = null;
+            currentField = null;
+            currentItemId = null;
+        };
+
+        document.getElementById('modal-backdrop').addEventListener('click', closeModal);
+
+        // Handler for adding a new list item (Tindakan/Follow Up)
+        document.getElementById('save-item-btn').addEventListener('click', async () => {
+            if (!currentDocId || !currentField) return;
+
+            const text = document.getElementById('item-text').value.trim();
+            if (!text) {
+                console.error("Sila masukkan teks untuk item baru.");
+                return;
+            }
+
+            const newItem = {
+                id: crypto.randomUUID(),
+                text: text,
+                links: []
+            };
+
+            try {
+                const docRef = doc(db, COLLECTION_PATH, currentDocId);
+                // Guna arrayUnion untuk menambah item ke dalam senarai
+                await updateDoc(docRef, {
+                    [currentField]: arrayUnion(newItem)
+                });
+                console.log("Item baru berjaya ditambah!");
+                closeModal();
+            } catch (e) {
+                console.error("Ralat menambah item baru:", e);
+                alert("Gagal menambah item. Sila semak konsol.");
+            }
+        });
+
+        // Handler for adding a new link to an existing item
+        document.getElementById('save-link-btn').addEventListener('click', async () => {
+            if (!currentDocId || !currentField || !currentItemId) return;
+
+            const linkName = document.getElementById('link-name').value.trim();
+            const linkUrl = document.getElementById('link-url').value.trim();
+
+            if (!linkName || !linkUrl || !linkUrl.startsWith('http')) {
+                console.error("Nama atau URL pautan tidak sah.");
+                return;
+            }
+
+            const newLink = { name: linkName, url: linkUrl };
+
+            try {
+                const docRef = doc(db, COLLECTION_PATH, currentDocId);
+
+                await runTransaction(db, async (transaction) => {
+                    const docSnap = await transaction.get(docRef);
+                    if (!docSnap.exists()) {
+                        throw "Dokumen tidak wujud!";
+                    }
+
+                    const data = docSnap.data();
+                    const list = data[currentField];
+                    const itemIndex = list.findIndex(item => item.id === currentItemId);
+
+                    if (itemIndex > -1) {
+                        // Tambah link baru ke dalam item yang dijumpai
+                        list[itemIndex].links.push(newLink);
+
+                        // Kemas kini keseluruhan senarai
+                        transaction.update(docRef, { [currentField]: list });
+                        console.log("Pautan baru berjaya ditambah!");
+                    } else {
+                        throw "Item ID tidak dijumpai dalam senarai.";
+                    }
+                });
+
+                closeModal();
+            } catch (e) {
+                console.error("Ralat menambah pautan baru:", e);
+                alert("Gagal menambah pautan. Sila semak konsol.");
+            }
+        });
+    </script>
+</body>
+</html>
