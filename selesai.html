@@ -400,7 +400,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, updateDoc, arrayUnion, collection, query, where, getDocs, addDoc, orderBy, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, onSnapshot, updateDoc, arrayUnion, collection, query, where, getDocs, orderBy, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM",
@@ -417,6 +417,7 @@
         let validatedIc = null;
         let participantInfo = null;
         const appId = firebaseConfig.projectId;
+        let unsubscribeTaskListener = null; // Listener baru untuk masa nyata
         
         const loadingState = document.getElementById('loading-state');
         const checkInCard = document.getElementById('check-in-card');
@@ -435,7 +436,6 @@
             </svg>
             <span>Sahkan Selesai</span>`;
 
-        // FUNGSI NORMALIZATION (SG. -> SUNGAI) - KRITIKAL
         function normalizeStationName(name) {
             if (typeof name !== 'string') return '';
             let normalized = name.toUpperCase();
@@ -461,6 +461,7 @@
             }
         });
 
+        // FUNGSI UTAMA KINI MENGGUNAKAN LISTENER
         async function main() {
             const urlParams = new URLSearchParams(window.location.search);
             currentTaskId = urlParams.get('id');
@@ -481,50 +482,67 @@
                 loadPositionsIntoDropdowns();
 
                 const taskRef = doc(db, `artifacts/${appId}/public/data/spark_tasks`, currentTaskId);
-                const docSnap = await getDoc(taskRef);
+                
+                // Gantikan getDoc dengan onSnapshot untuk kemas kini masa nyata (seperti task.html)
+                unsubscribeTaskListener = onSnapshot(taskRef, (docSnap) => {
+                    if (docSnap.exists()) {
+                        currentTask = { id: docSnap.id, ...docSnap.data() };
+                        
+                        document.getElementById('program-name').textContent = currentTask.nama;
+                        document.getElementById('info-pegawai').textContent = currentTask.pegawai || 'N/A';
+                        document.getElementById('info-date-end').textContent = formatTarikh(currentTask.tarikhSiap) || 'N/A';
+                        
+                        loadingState.classList.add('hidden');
+                        checkInCard.classList.remove('hidden');
+                        
+                        confirmationDetails.classList.remove('hidden');
+                        renderProgressVisuals(); // Panggil semula setiap kali data berubah
 
-                if (docSnap.exists()) {
-                    currentTask = { id: docSnap.id, ...docSnap.data() };
-                    
-                    document.getElementById('program-name').textContent = currentTask.nama;
-                    document.getElementById('info-pegawai').textContent = currentTask.pegawai || 'N/A';
-                    document.getElementById('info-date-end').textContent = formatTarikh(currentTask.tarikhSiap) || 'N/A';
-                    
-                    loadingState.classList.add('hidden');
-                    checkInCard.classList.remove('hidden');
-                    
-                    confirmationDetails.classList.remove('hidden');
-                    renderProgressVisuals();
-
-                } else {
-                    showMessage('error', 'Tugasan Tidak Ditemui', 'Sila pastikan anda menggunakan pautan yang betul.');
-                }
+                    } else {
+                        showMessage('error', 'Tugasan Tidak Ditemui', 'Sila pastikan anda menggunakan pautan yang betul.');
+                        if (unsubscribeTaskListener) unsubscribeTaskListener();
+                    }
+                }, (error) => {
+                    console.error("Error listening to task changes:", error);
+                    showMessage('error', 'Gagal Sambungan', 'Tidak dapat memuatkan maklumat tugasan.');
+                    if (unsubscribeTaskListener) unsubscribeTaskListener();
+                });
             } catch (error) {
-                console.error("Error memuatkan tugasan: ", error);
-                showMessage('error', 'Gagal Sambungan', 'Tidak dapat memuatkan maklumat tugasan.');
+                console.error("Error memuatkan listener Firebase: ", error);
+                showMessage('error', 'Gagal Sistem', 'Ralat semasa memulakan sambungan.');
             }
         }
         
+        // FUNGSI PENGIRAAN YANG SAMA SEPERTI task.html (Logik perbandingan unik)
         function renderProgressVisuals() {
+            // 1. Sasaran Skop: Ambil senarai yang disimpan (dinormalisasi dari tugasan.html)
             const totalSkop = Array.isArray(currentTask.skopSenaraiSekolah) 
-                ? currentTask.skopSenaraiSekolah.map(normalizeStationName) 
+                ? currentTask.skopSenaraiSekolah
                 : [];
+            const totalSkopSet = new Set(totalSkop);
+            
+            // 2. Rekod Selesai Skop: Pastikan rekod yang disahkan dinormalisasi
+            const allSelesai = Array.isArray(currentTask.skopSelesai) 
+                ? currentTask.skopSelesai.map(normalizeStationName)
+                : [];
+
+            // FILTER: Hanya kira selesai jika ia wujud dalam senarai skop SASARAN
+            const skopSelesaiList = allSelesai.filter(sekolah => totalSkopSet.has(sekolah));
+            
+            const selesaiSet = new Set(skopSelesaiList);
+            
+            // FILTER: Kira belum selesai (semua skop SASARAN tolak yang dah selesai)
+            const skopBelumList = totalSkop.filter(sekolah => !selesaiSet.has(sekolah));
             
             let jumlahSelesai;
             let total;
 
             if (totalSkop.length > 0) {
-                const totalSkopSet = new Set(totalSkop);
-                const allSelesai = (currentTask.skopSelesai || []).map(normalizeStationName);
-                const skopSelesaiList = allSelesai.filter(sekolah => totalSkopSet.has(sekolah));
-                
                 jumlahSelesai = skopSelesaiList.length; 
                 total = totalSkop.length;
-            
             } else if (currentTask.jumlahSelesai !== undefined && currentTask.jumlahBelum !== undefined) {
                 jumlahSelesai = currentTask.jumlahSelesai || 0;
                 total = (currentTask.jumlahSelesai || 0) + (currentTask.jumlahBelum || 0);
-            
             } else {
                 jumlahSelesai = (currentTask.rekodSelesai || []).length;
                 total = 0; 
@@ -601,16 +619,12 @@
                     ic: ic,
                     name: docData.name,
                     position: docData.position,
-                    station: docData.station // Ini adalah data dari rekod peserta
+                    station: docData.station
                 };
                 validatedIc = ic;
                 
-                // KRITIKAL: Guna NAMA PENUH Farhan (jika dia pegawai PPD) untuk semakan skop
-                // Jika skop tugasan adalah NAMA PENUH (seperti MUHAMMAD FARHAN BIN SARKAWI), maka kita ambil NAMA PENUH peserta untuk semakan.
-                // Jika skop tugasan adalah NAMA SEKOLAH, kita ambil NAMA STESEN peserta.
-                // Oleh kerana pendaftaran pegawai PPD direkodkan NAMA dan bukan Stesen PPD Miri, kita perlu guna NAMA.
+                // PENGGUNAAN CURRENTTASK (data masa nyata dari listener)
                 const stesenAtauNamaUntukSkop = docData.name || docData.station; 
-                
                 const skopSelesai = (currentTask.skopSelesai || []).map(normalizeStationName);
                 if (stesenAtauNamaUntukSkop && skopSelesai.includes(normalizeStationName(stesenAtauNamaUntukSkop))) {
                      showMessage('warning', 'Telah Disahkan', `Seseorang dengan maklumat yang sama (${stesenAtauNamaUntukSkop}) telah pun membuat pengesahan untuk tugasan ini.`);
@@ -701,6 +715,7 @@
                 document.getElementById('progress-container').classList.add('hidden'); 
                 participantDetails.classList.remove('hidden');
                 
+                // Gunakan data currentTask terkini
                 buildDynamicForm(currentTask.senaraiSubTugasan); 
                 
                 completionForm.classList.remove('hidden');
@@ -994,7 +1009,6 @@
                 timestamp: timestampSekarang.toISOString()
             };
 
-            // KRITIKAL: Guna NAMA PENUH Farhan (jika dia pegawai PPD) untuk kemas kini skopSelesai
             const skopSelesaiRecord = participantInfo ? (participantInfo.name || participantInfo.station) : null;
             
             let dataToUpdate = {
@@ -1002,7 +1016,6 @@
             };
 
             if (skopSelesaiRecord) {
-                // Tambah NAMA/STESEN yang dinormalisasi ke dalam rekod skopSelesai
                 dataToUpdate.skopSelesai = arrayUnion(normalizeStationName(skopSelesaiRecord));
             }
 
@@ -1010,6 +1023,7 @@
             try {
                 await updateDoc(taskRef, dataToUpdate);
                 
+                // DATA KINI TERKINI KERANA LISTENER SUDAH JALAN
                 const bilanganSediaAda = (currentTask.rekodSelesai || []).length;
                 const bilanganBaru = bilanganSediaAda + 1; 
 
@@ -1032,6 +1046,9 @@
         }
         
         function showMessage(type, title, body) {
+            // Jika ada listener, hentikan ia selepas pengesahan selesai
+            if (unsubscribeTaskListener) unsubscribeTaskListener(); 
+
             loadingState.classList.add('hidden');
             if (checkInCard) checkInCard.classList.add('hidden');
             
