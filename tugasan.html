@@ -392,7 +392,6 @@
     </div>
     
     <script type="module">
-        // Import modul Firebase
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, addDoc, collection, serverTimestamp, getDocs, query, where, doc, setDoc, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
@@ -411,7 +410,18 @@
         const appId = firebaseConfig.projectId;
         let isSubmitting = false;
         let currentApplicant = null;
-        let selectedSubTugasanType = ''; // Status baru untuk menyimpan jenis yang dipilih
+        let selectedSubTugasanType = ''; 
+
+        // Fungsi Normalisasi Nama (Kritikal untuk perbandingan skop)
+        function normalizeStationName(name) {
+            if (typeof name !== 'string') return '';
+            let normalized = name.toUpperCase();
+            normalized = normalized.replace(/\bSG\./g, 'SUNGAI'); 
+            normalized = normalized.replace(/\bSG\b/g, 'SUNGAI'); 
+            normalized = normalized.replace(/\./g, '');
+            normalized = normalized.replace(/\s+/g, ' ').trim();
+            return normalized;
+        }
 
         // Inisialisasi Firebase
         try {
@@ -452,37 +462,24 @@
         const sektorModal = document.getElementById('sektor-modal');
         const tarikhMulaModal = document.getElementById('tarikh-mula-modal');
         const tarikhSiapModal = document.getElementById('tarikh-siap-modal');
-        // const failInput = document.getElementById('fail-input'); // DIBUANG
-        // const failInfo = document.getElementById('fail-info'); // DIBUANG
-
-        // DOM SUB-TUGASAN
         const subTugasanTextInput = document.getElementById('sub-tugasan-text');
-        const subTugasanTypeInput = document.getElementById('sub-tugasan-type'); // Dropdown lama (disorokkan)
-        const subTugasanTypeButtonsContainer = document.getElementById('sub-tugasan-type-buttons'); // Kontena butang baru
+        const subTugasanTypeInput = document.getElementById('sub-tugasan-type'); 
+        const subTugasanTypeButtonsContainer = document.getElementById('sub-tugasan-type-buttons'); 
         const tambahSubTugasanBtn = document.getElementById('tambah-sub-tugasan-btn');
         const senaraiSubTugasanContainer = document.getElementById('senarai-sub-tugasan-container');
-        
-        // DOM INPUT UTAMA BAHARU (untuk dihide/show)
         const inputTugasanSection = document.getElementById('input-tugasan-section');
-        
-        // DOM INPUT PILIHAN DINAMIK
         const optionsInputContainer = document.getElementById('options-input-container');
         const subTugasanOptionsInput = document.getElementById('sub-tugasan-options');
-
-        // DOM BARU UNTUK SKALA DINAMIK
         const scaleInputContainer = document.getElementById('scale-input-container');
         const scaleMinInput = document.getElementById('scale-min');
         const scaleMaxInput = document.getElementById('scale-max');
         const scaleLabelMinInput = document.getElementById('scale-label-min');
         const scaleLabelMaxInput = document.getElementById('scale-label-max');
-        
         const perluPautanCheckbox = document.getElementById('perlu-pautan-checkbox');
         const pautanSection = document.getElementById('pautan-section');
         const pautanInput = document.getElementById('pautan-input');
         const tambahPautanBtn = document.getElementById('tambah-pautan-btn');
         const senaraiPautanContainer = document.getElementById('senarai-pautan-container');
-        
-        // DOM BARU UNTUK WAJIB/PILIHAN
         const perluWajibCheckbox = document.getElementById('perlu-wajib-checkbox');
 
         // --- State ---
@@ -494,7 +491,6 @@
 
         // --- FUNCTIONS ---
 
-        // Fungsi handleSimpanBorangBaru() (Fail handling dibuskirikan)
         async function handleSimpanBorangBaru(event) {
             event.preventDefault();
             if (isSubmitting) return;
@@ -514,15 +510,17 @@
             const submitButton = borangBaru.querySelector('button[type="submit"]');
             submitButton.disabled = true;
             submitButton.innerHTML = `<svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Menyimpan...`;
-            submitButton.classList.add('flex', 'items-center', 'justify-center'); // Kekalkan gaya flex semasa loading
+            submitButton.classList.add('flex', 'items-center', 'justify-center');
             
             let failData = null; 
             
             const textareaValue = document.getElementById('skop-list-textarea').value;
+            // KRITIKAL: Simpan senarai SKOP yang dinormalisasi untuk perbandingan di task.html
             const skopSenaraiSekolah = textareaValue.split('\n')
-                                                  .map(line => line.trim())
+                                                  .map(line => normalizeStationName(line)) // NORMALISASI
                                                   .filter(line => line.length > 0);
             const jumlahBelum = skopSenaraiSekolah.length;
+            
             const dataTugasan = {
                 nama: namaModal.value,
                 pegawai: currentApplicant.name,
@@ -531,7 +529,7 @@
                 tarikhSiap: tarikhSiapModal.value,
                 jumlahSelesai: 0,
                 jumlahBelum: jumlahBelum,
-                skopSenaraiSekolah: skopSenaraiSekolah,
+                skopSenaraiSekolah: skopSenaraiSekolah, // Simpan senarai yang dinormalisasi
                 senaraiSubTugasan: subTugasanList, 
                 senaraiPautan: pautanList,
                 fail: failData,
@@ -549,13 +547,12 @@
                 tunjukRalatBorang("Gagal menyimpan tugasan. Sila cuba lagi.");
                 isSubmitting = false;
                 submitButton.disabled = false;
-                // KEMBALIKAN BUTANG KE ICON ASAL
                 submitButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline-block mr-2 -ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-12 0h12m-6 0v4m-3 0h6" /></svg>Simpan Tugasan`;
                 submitButton.classList.remove('flex', 'items-center', 'justify-center');
             }
         }
 
-        // --- (FUNGSI PENGESAHAN & MODAL KEKAL SAMA) ---
+        // --- (FUNGSI LAIN KEKAL SAMA) ---
         function setupValidationListeners() {
             applicantIcInput.addEventListener('input', validateIcFormat);
             applicantIcInput.addEventListener('blur', validateAndFetchApplicantName);
@@ -574,7 +571,6 @@
                     if(label) label.classList.add('disabled-label');
                 }
              });
-             // Disable butang-butang jenis tugas
              document.querySelectorAll('#sub-tugasan-type-buttons .type-button').forEach(btn => btn.disabled = true);
              perluWajibCheckbox.disabled = true;
              inputTugasanSection.classList.add('hidden');
@@ -596,7 +592,6 @@
                  const label = el.closest('label') || document.querySelector(`label[for="${el.id}"]`);
                  if(label) label.classList.remove('disabled-label');
             });
-            // Enable butang-butang jenis tugas
             document.querySelectorAll('#sub-tugasan-type-buttons .type-button').forEach(btn => btn.disabled = false);
             perluWajibCheckbox.disabled = false;
 
@@ -612,7 +607,7 @@
             paparSenaraiPautan();
             pautanInput.value = '';
             
-            selectedSubTugasanType = ''; // Reset jenis yang dipilih
+            selectedSubTugasanType = ''; 
             resetTypeButtons();
             toggleOptionsInput();
         }
@@ -724,13 +719,9 @@
             }
         }
         
-        // FUNGSI BARU: Muat Senarai Pegawai PPD (DIKEMASKINI DENGAN PENAPIS PPD MIRI)
         async function loadPpdOfficers() {
-            console.log("--- DEBUG: Memuatkan Pegawai PPD (category: pegawai) untuk PPD MIRI ---");
             try {
                 const officersRef = collection(db, `artifacts/${appId}/public/data/spark_ppd_officers`);
-                
-                // Menambah penapis 'ppd' kepada 'PEJABAT PENDIDIKAN DAERAH' (nilai stesen di senaraippd.html)
                 const q = query(
                     officersRef, 
                     where("category", "==", "pegawai"), 
@@ -742,23 +733,17 @@
                 ppdOfficers = [];
                 querySnapshot.forEach(doc => {
                     const officer = doc.data();
-                    // PERUBAHAN DI SINI: HANYA NAMA PEGAWAI DI MASUKKAN
-                    ppdOfficers.push(officer.name.toUpperCase());
-                    // --------------------------------------------------
+                    // KRITIKAL: SIMPAN NAMA PEGAWAI SEBAGAI SKOP SASARAN
+                    ppdOfficers.push(officer.name.toUpperCase()); 
                 });
-                console.log(`Berjaya memuatkan ${ppdOfficers.length} Pegawai PPD. Query Result Size: ${querySnapshot.size}`);
             } catch (error) {
                 console.error("RALAT KETIKA MEMUAT PEGAWAI PPD. (Sila semak Rules & Index Firebase): ", error);
             }
         }
 
-        // FUNGSI BARU: Muat Senarai Sektor PPD (DIKEMASKINI DENGAN PENAPIS PPD MIRI)
         async function loadPpdSectors() {
-            console.log("--- DEBUG: Memuatkan Sektor PPD (category: sektor) untuk PPD MIRI ---");
             try {
                 const sectorsRef = collection(db, `artifacts/${appId}/public/data/spark_ppd_officers`);
-                
-                // MODIFIKASI: Menambah penapis 'ppd' kepada 'PEJABAT PENDIDIKAN DAERAH' (nilai stesen di senaraippd.html)
                 const q = query(
                     sectorsRef, 
                     where("category", "==", "sektor"),
@@ -772,7 +757,6 @@
                     const sector = doc.data();
                     ppdSectors.push(sector.name.toUpperCase());
                 });
-                console.log(`Berjaya memuatkan ${ppdSectors.length} Sektor PPD. Query Result Size: ${querySnapshot.size}`);
             } catch (error) {
                 console.error("RALAT KETIKA MEMUAT SEKTOR PPD. (Sila semak Rules & Index Firebase): ", error);
             }
@@ -819,7 +803,6 @@
             document.querySelector('input[name="work-location"]:checked').dispatchEvent(new Event('change'));
         }
 
-        // Fungsi loadReferenceSchools() DILENGKAPKAN UNTUK PPD & SEKTOR
         function loadReferenceSchools(type) {
             const textarea = document.getElementById('skop-list-textarea');
             textarea.value = 'Memuatkan...';
@@ -854,20 +837,16 @@
             }
         }
         
-        // FUNGSI BUTANG JENIS BARU
         function handleTypeButtonClick(event) {
             const button = event.target.closest('.type-button');
             if (!button || button.disabled) return;
             
             const newType = button.getAttribute('data-type');
             
-            // Toggle active state
             if (selectedSubTugasanType === newType) {
-                // Nyahpilih jika diklik semula
                 selectedSubTugasanType = '';
                 button.classList.remove('active');
             } else {
-                // Pilih butang baru
                 selectedSubTugasanType = newType;
                 document.querySelectorAll('#sub-tugasan-type-buttons .type-button').forEach(btn => {
                     btn.classList.remove('active');
@@ -884,8 +863,6 @@
             });
         }
 
-
-        // FUNGSI UNTUK MENGENDALIKAN KETERLIHATAN KOTAK PILIHAN/SKALA
         function toggleOptionsInput() {
             const selectedType = selectedSubTugasanType;
             
@@ -911,11 +888,10 @@
             }
         }
 
-        // FUNGSI tambahSubTugasan() - DIKEMASKINI MENGGUNAKAN selectedSubTugasanType DAN REQUIRED STATUS
         function tambahSubTugasan() {
             const text = subTugasanTextInput.value.trim();
-            const type = selectedSubTugasanType; // Guna state baru
-            const isRequired = perluWajibCheckbox.checked; // Status Wajib/Pilihan
+            const type = selectedSubTugasanType; 
+            const isRequired = perluWajibCheckbox.checked; 
 
             let options = []; 
             let scaleData = null;
@@ -969,16 +945,14 @@
             subTugasanList.push(newSubTugas);
             paparSenaraiSubTugasan();
             
-            // Reset UI
             subTugasanTextInput.value = '';
             subTugasanOptionsInput.value = '';
             scaleLabelMinInput.value = '';
             scaleLabelMaxInput.value = '';
             scaleMinInput.value = '1';
             scaleMaxInput.value = '5';
-            perluWajibCheckbox.checked = true; // Set semula ke default Wajib (checked)
+            perluWajibCheckbox.checked = true;
             
-            // Reset butang jenis
             selectedSubTugasanType = '';
             resetTypeButtons();
             
@@ -989,7 +963,6 @@
             subTugasanTypeButtonsContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
         
-        // FUNGSI UNTUK MENGENDALIKAN REORDER
         function reorderSubTugasan(index, direction) {
             if (direction === 'up' && index > 0) {
                 [subTugasanList[index], subTugasanList[index - 1]] = [subTugasanList[index - 1], subTugasanList[index]];
@@ -999,8 +972,6 @@
             paparSenaraiSubTugasan();
         }
 
-
-        // FUNGSI paparSenaraiSubTugasan() - DIKEMASKINI DENGAN STATUS WAJIB & BUTANG REORDER
         function paparSenaraiSubTugasan() {
             senaraiSubTugasanContainer.innerHTML = '';
             if (subTugasanList.length === 0) {
@@ -1072,7 +1043,6 @@
                     </div>
                 `;
             });
-            // Attach event listeners for reordering after rendering
             document.querySelectorAll('.reorder-btn').forEach(button => {
                 button.addEventListener('click', (e) => {
                     const target = e.currentTarget;
@@ -1084,7 +1054,6 @@
         }
 
 
-        // Fungsi handleSubTugasanKlik() kekal sama
         function handleSubTugasanKlik(event) {
             const target = event.target.closest('.padam-sub-tugasan-btn');
             if (target) {
@@ -1094,7 +1063,6 @@
             }
         }
         
-        // (FUNGSI LAIN KEKAL SAMA)
         function tambahPautan() {
             const url = pautanInput.value.trim();
             if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
@@ -1146,7 +1114,7 @@
         document.addEventListener('DOMContentLoaded', () => {
             const versionInfo = document.getElementById('version-info');
             if(versionInfo) {
-                versionInfo.textContent = `Versi 2.1 (2025)`; // KEMASKINI: Dibuang teks tambahan
+                versionInfo.textContent = `Versi 2.1 (2025)`; 
             }
 
             document.getElementById('load-sr-btn').addEventListener('click', () => loadReferenceSchools('sr'));
@@ -1177,7 +1145,6 @@
             tambahPautanBtn.addEventListener('click', tambahPautan);
             senaraiPautanContainer.addEventListener('click', handlePautanKlik);
             
-            // Gantikan event listener dropdown lama dengan kontena butang baru
             subTugasanTypeButtonsContainer.addEventListener('click', handleTypeButtonClick);
             toggleOptionsInput();
         });
