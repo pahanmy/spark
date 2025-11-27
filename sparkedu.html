@@ -145,29 +145,8 @@
                 </div>
             </div>
             
-            <!-- MODAL UNTUK TAMBAH ITEM/PAUTAN BARU (disertakan dari pengurusan.html) -->
-            <div id="modal-backdrop" class="fixed inset-0 bg-gray-900 bg-opacity-70 hidden z-50 transition-opacity duration-300"></div>
-
-            <div id="action-modal" class="fixed inset-0 flex items-center justify-center p-4 hidden z-50">
-                <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg">
-                    <div class="p-6">
-                        <h3 class="text-xl font-bold text-blue-700 mb-4" id="modal-title">Tambah Item Baru</h3>
-                        <div id="new-item-form">
-                            <label for="item-text" class="block text-sm font-medium text-gray-700">Perkara (Tindakan/Follow Up):</label>
-                            <textarea id="item-text" rows="3" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border"></textarea>
-                            <button id="save-item-btn" class="mt-4 w-full px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition duration-150">Simpan Item</button>
-                        </div>
-                        <div id="new-link-form" class="hidden">
-                            <label for="link-name" class="block text-sm font-medium text-gray-700">Nama Pautan:</label>
-                            <input type="text" id="link-name" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border mb-3">
-                            <label for="link-url" class="block text-sm font-medium text-gray-700">URL Pautan (Mesti bermula dengan http/https):</label>
-                            <input type="url" id="link-url" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border">
-                            <button id="save-link-btn" class="mt-4 w-full px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition duration-150">Simpan Pautan</button>
-                        </div>
-                        <button onclick="closeModal()" class="mt-4 w-full px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-100 transition duration-150">Tutup</button>
-                    </div>
-                </div>
-            </div>
+            <!-- Modal HTML telah DIBUANG sepenuhnya -->
+            
             <!-- ================================== -->
             <!-- END: KANDUNGAN dari pengurusan.html -->
             <!-- ================================== -->
@@ -571,7 +550,173 @@
             }
         }
 
-        // --- RENDERING FUNCTIONS (DIKEMASKINI UNTUK LIST STYLE 100% FIDELITY) ---
+        // --- INLINE EDITING LOGIC ---
+
+        function removeInlineForm() {
+            const existingForm = document.querySelector('.inline-edit-form');
+            if (existingForm) {
+                // Re-enable the button that was disabled
+                const disabledButton = existingForm.previousElementSibling;
+                if (disabledButton && disabledButton.tagName === 'BUTTON') {
+                    disabledButton.disabled = false;
+                    disabledButton.classList.remove('hidden');
+                }
+                existingForm.remove();
+            }
+        }
+
+        // ------------------------------------
+        // 1. Tambah Item (Tindakan / Follow Up)
+        // ------------------------------------
+
+        async function saveNewItem(docId, fieldName) {
+            const container = document.getElementById(`inline-form-container-${docId}-${fieldName}`);
+            const textarea = container.querySelector('textarea');
+            const text = textarea.value.trim();
+
+            if (!text) {
+                alert("Sila masukkan teks untuk item baru.");
+                return;
+            }
+
+            const saveBtn = container.querySelector('#save-item-btn-inline');
+            saveBtn.disabled = true;
+            saveBtn.textContent = 'Menyimpan...';
+
+            const newItem = {
+                id: Math.random().toString(36).substring(2),
+                text: text,
+                links: []
+            };
+
+            try {
+                const docRef = doc(db, COLLECTION_PATH, docId);
+                await updateDoc(docRef, {
+                    [fieldName]: arrayUnion(newItem)
+                });
+                console.log("Item baru berjaya ditambah!");
+                // onSnapshot akan mencetuskan renderTable() secara automatik
+                removeInlineForm(); 
+            } catch (e) {
+                console.error("Ralat menambah item baru:", e);
+                alert("Gagal menambah item. Sila semak konsol.");
+                saveBtn.disabled = false;
+                saveBtn.textContent = 'Simpan Item';
+            }
+        }
+
+        function showNewItemInput(docId, fieldName, buttonEl) {
+            removeInlineForm(); // Tutup borang sedia ada
+
+            const isTindakan = fieldName === 'tindakan_list';
+            const placeholder = isTindakan ? 'Masukkan item tindakan baru...' : 'Masukkan item follow up / pendokumentasian baru...';
+            
+            const containerId = `inline-form-container-${docId}-${fieldName}`;
+            
+            const formHtml = `
+                <div id="${containerId}" class="inline-edit-form mt-2 p-3 bg-gray-50 border border-blue-200 rounded-lg">
+                    <label class="block text-xs font-medium text-gray-700 mb-1">${isTindakan ? 'Tambah Tindakan' : 'Tambah Follow Up'}:</label>
+                    <textarea id="item-text-inline" rows="3" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border text-sm" placeholder="${placeholder}"></textarea>
+                    <div class="flex justify-end space-x-2 mt-2">
+                        <button onclick="removeInlineForm()" class="btn bg-gray-200 text-gray-800 text-sm py-1 px-3 rounded-lg hover:bg-gray-300">Batal</button>
+                        <button id="save-item-btn-inline" onclick="saveNewItem('${docId}', '${fieldName}')" class="btn bg-blue-600 text-white text-sm py-1 px-3 rounded-lg hover:bg-blue-700">Simpan Item</button>
+                    </div>
+                </div>
+            `;
+            
+            // Masukkan borang di atas butang yang ditekan
+            buttonEl.insertAdjacentHTML('beforebegin', formHtml);
+            buttonEl.classList.add('hidden'); // Sembunyikan butang asal
+            buttonEl.disabled = true;
+        }
+
+        // ------------------------------------
+        // 2. Tambah Pautan (Link)
+        // ------------------------------------
+
+        async function saveNewLink(docId, fieldName, itemId) {
+            const container = document.getElementById(`inline-link-form-container-${itemId}`);
+            const linkNameInput = container.querySelector('#link-name-inline');
+            const linkUrlInput = container.querySelector('#link-url-inline');
+            
+            const linkName = linkNameInput.value.trim();
+            const linkUrl = linkUrlInput.value.trim();
+
+            if (!linkName || !linkUrl || !linkUrl.startsWith('http')) {
+                alert("Sila masukkan Nama Pautan dan URL yang sah (bermula dengan http/https).");
+                return;
+            }
+            
+            const saveBtn = container.querySelector('#save-link-btn-inline');
+            saveBtn.disabled = true;
+            saveBtn.textContent = 'Menyimpan...';
+
+            const newLink = { name: linkName, url: linkUrl };
+
+            try {
+                const docRef = doc(db, COLLECTION_PATH, docId);
+
+                await runTransaction(db, async (transaction) => {
+                    const docSnap = await transaction.get(docRef);
+                    if (!docSnap.exists()) {
+                        throw "Dokumen tidak wujud!";
+                    }
+
+                    const data = docSnap.data();
+                    const list = data[fieldName];
+                    const itemIndex = list.findIndex(item => item.id === itemId);
+
+                    if (itemIndex > -1) {
+                        if (!list[itemIndex].links) {
+                            list[itemIndex].links = [];
+                        }
+                        list[itemIndex].links.push(newLink);
+                        transaction.update(docRef, { [fieldName]: list });
+                    } else {
+                        throw "Item ID tidak dijumpai dalam senarai.";
+                    }
+                });
+
+                console.log("Pautan baru berjaya ditambah!");
+                // onSnapshot akan mencetuskan renderTable() secara automatik
+                removeInlineForm(); 
+            } catch (e) {
+                console.error("Ralat menambah pautan baru:", e);
+                alert("Gagal menambah pautan. Sila semak konsol.");
+                saveBtn.disabled = false;
+                saveBtn.textContent = 'Simpan Pautan';
+            }
+        }
+        
+        function showNewLinkInput(docId, fieldName, itemId, buttonEl) {
+            removeInlineForm(); // Tutup borang sedia ada
+            
+            const containerId = `inline-link-form-container-${itemId}`;
+            
+            const formHtml = `
+                <div id="${containerId}" class="inline-edit-form mt-2 p-3 bg-green-50 border border-green-300 rounded-lg">
+                    <label class="block text-xs font-medium text-gray-700 mb-1">Nama Pautan:</label>
+                    <input type="text" id="link-name-inline" class="w-full rounded-lg border-gray-300 shadow-sm p-2 border text-sm mb-2" placeholder="Nama Pautan">
+                    <label class="block text-xs font-medium text-gray-700 mb-1">URL Pautan:</label>
+                    <input type="url" id="link-url-inline" class="w-full rounded-lg border-gray-300 shadow-sm p-2 border text-sm" placeholder="https://..." value="https://">
+                    <div class="flex justify-end space-x-2 mt-2">
+                        <button onclick="removeInlineForm()" class="btn bg-gray-200 text-gray-800 text-sm py-1 px-3 rounded-lg hover:bg-gray-300">Batal</button>
+                        <button id="save-link-btn-inline" onclick="saveNewLink('${docId}', '${fieldName}', '${itemId}')" class="btn bg-green-600 text-white text-sm py-1 px-3 rounded-lg hover:bg-green-700">Simpan Pautan</button>
+                    </div>
+                </div>
+            `;
+            
+            // Masukkan borang di bawah pautan yang lain atau di akhir item
+            buttonEl.insertAdjacentHTML('beforebegin', formHtml);
+            buttonEl.classList.add('hidden'); // Sembunyikan butang asal
+            buttonEl.disabled = true;
+            
+            // Fokus pada input nama
+            document.getElementById('link-name-inline').focus();
+        }
+
+
+        // --- RENDERING FUNCTIONS ---
 
         function renderList(list, docId, fieldName) {
             const isTindakan = fieldName === 'tindakan_list';
@@ -601,7 +746,7 @@
                         </div>
                     ` : ''}
                     <button class="mt-2 text-xs px-2 py-1 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition"
-                            onclick="openLinkModal('${docId}', '${fieldName}', '${item.id}')">
+                            onclick="showNewLinkInput('${docId}', '${fieldName}', '${item.id}', this)">
                         + Tambah Pautan
                     </button>
                 `;
@@ -626,7 +771,7 @@
             `;
         }
         
-        // Fungsi untuk menjana input skor - DIUBAH DI SINI
+        // Fungsi untuk menjana input skor
         function generateScoreInput(docId, fieldName, score) {
             const displayScore = score.toFixed(2); // Pastikan 2 titik perpuluhan dipaparkan
             const isETR = fieldName === 'score_2025_etr';
@@ -682,7 +827,7 @@
                     <td class="data-cell border-r border-gray-200">
                         ${renderList(row.tindakan_list, row.id, 'tindakan_list')}
                         <button class="mt-3 w-full px-3 py-2 text-sm bg-blue-100 text-blue-700 font-semibold rounded-lg hover:bg-blue-200 transition"
-                                onclick="openItemModal('${row.id}', 'tindakan_list')">
+                                onclick="showNewItemInput('${row.id}', 'tindakan_list', this)">
                             + Tambah Tindakan
                         </button>
                     </td>
@@ -691,7 +836,7 @@
                     <td class="data-cell">
                         ${renderList(row.follow_up_list, row.id, 'follow_up_list')}
                         <button class="mt-3 w-full px-3 py-2 text-sm bg-blue-100 text-blue-700 font-semibold rounded-lg hover:bg-blue-200 transition"
-                                onclick="openItemModal('${row.id}', 'follow_up_list')">
+                                onclick="showNewItemInput('${row.id}', 'follow_up_list', this)">
                             + Tambah Follow Up
                         </button>
                     </td>
@@ -729,134 +874,15 @@
         }
 
 
-        // --- MODAL & ACTION HANDLERS (TIDAK BERUBAH) ---
-
-        let currentDocId = null;
-        let currentField = null; 
-        let currentItemId = null; 
-
-        window.openItemModal = (docId, fieldName) => {
-            currentDocId = docId;
-            currentField = fieldName;
-            currentItemId = null; 
-
-            document.getElementById('modal-title').textContent = fieldName === 'tindakan_list' ? 'Tambah Item Tindakan Baru' : 'Tambah Item Follow Up/Pendokumentasian Baru';
-            document.getElementById('new-item-form').classList.remove('hidden');
-            document.getElementById('new-link-form').classList.add('hidden');
-            document.getElementById('item-text').value = '';
-
-            document.getElementById('modal-backdrop').classList.remove('hidden');
-            document.getElementById('action-modal').classList.remove('hidden');
-        };
-
-        window.openLinkModal = (docId, fieldName, itemId) => {
-            currentDocId = docId;
-            currentField = fieldName;
-            currentItemId = itemId;
-
-            document.getElementById('modal-title').textContent = 'Tambah Pautan (Link)';
-            document.getElementById('new-item-form').classList.add('hidden');
-            document.getElementById('new-link-form').classList.remove('hidden');
-            document.getElementById('link-name').value = '';
-            document.getElementById('link-url').value = 'https://';
-
-            document.getElementById('modal-backdrop').classList.remove('hidden');
-            document.getElementById('action-modal').classList.remove('hidden');
-        };
-
-        window.closeModal = () => {
-            document.getElementById('modal-backdrop').classList.add('hidden');
-            document.getElementById('action-modal').classList.add('hidden');
-            currentDocId = null;
-            currentField = null;
-            currentItemId = null;
-        };
-
-        document.getElementById('modal-backdrop').addEventListener('click', closeModal);
-
-        // Handler for adding a new list item (Tindakan/Follow Up)
-        document.getElementById('save-item-btn').addEventListener('click', async () => {
-            if (!currentDocId || !currentField) return;
-
-            const text = document.getElementById('item-text').value.trim();
-            if (!text) {
-                console.error("Sila masukkan teks untuk item baru.");
-                return;
-            }
-
-            const newItem = {
-                id: Math.random().toString(36).substring(2),
-                text: text,
-                links: []
-            };
-
-            try {
-                const docRef = doc(db, COLLECTION_PATH, currentDocId);
-                await updateDoc(docRef, {
-                    [currentField]: arrayUnion(newItem)
-                });
-                console.log("Item baru berjaya ditambah!");
-                closeModal();
-            } catch (e) {
-                console.error("Ralat menambah item baru:", e);
-                console.error("Gagal menambah item. Sila semak konsol.");
-            }
-        });
-
-        // Handler for adding a new link to an existing item
-        document.getElementById('save-link-btn').addEventListener('click', async () => {
-            if (!currentDocId || !currentField || !currentItemId) return;
-
-            const linkName = document.getElementById('link-name').value.trim();
-            const linkUrl = document.getElementById('link-url').value.trim();
-
-            if (!linkName || !linkUrl || !linkUrl.startsWith('http')) {
-                console.error("Nama atau URL pautan tidak sah.");
-                return;
-            }
-
-            const newLink = { name: linkName, url: linkUrl };
-
-            try {
-                const docRef = doc(db, COLLECTION_PATH, currentDocId);
-
-                await runTransaction(db, async (transaction) => {
-                    const docSnap = await transaction.get(docRef);
-                    if (!docSnap.exists()) {
-                        throw "Dokumen tidak wujud!";
-                    }
-
-                    const data = docSnap.data();
-                    const list = data[currentField];
-                    const itemIndex = list.findIndex(item => item.id === currentItemId);
-
-                    if (itemIndex > -1) {
-                        if (!list[itemIndex].links) {
-                            list[itemIndex].links = [];
-                        }
-                        list[itemIndex].links.push(newLink);
-
-                        transaction.update(docRef, { [currentField]: list });
-                        console.log("Pautan baru berjaya ditambah!");
-                    } else {
-                        throw "Item ID tidak dijumpai dalam senarai.";
-                    }
-                });
-
-                closeModal();
-            } catch (e) {
-                console.error("Ralat menambah pautan baru:", e);
-                console.error("Gagal menambah pautan. Sila semak konsol.");
-            }
-        });
-        
         // PENTING: Mendedahkan fungsi ke window untuk diakses oleh onclick di HTML
         Object.assign(window, {
-            openItemModal,
-            openLinkModal,
-            closeModal,
             validateIC,
-            updateScore // Tambah fungsi updateScore
+            updateScore,
+            showNewItemInput,
+            saveNewItem,
+            showNewLinkInput,
+            saveNewLink,
+            removeInlineForm
         });
     </script>
 </body>
