@@ -231,13 +231,13 @@
         
         let fullSkopBelumList = []; 
         let fullRekodSelesaiList = []; 
-        let uniqueStesenList = []; // Senarai stesen unik untuk filter
+        let uniqueStesenList = []; 
 
         let currentPageBelum = 1;
         let itemsPerPageBelum = 10;
         let currentPageSelesai = 1;
         let itemsPerPageSelesai = 10;
-        let currentFilterStesen = ''; // State untuk filter stesen
+        let currentFilterStesen = ''; 
 
         const carianBelumInput = document.getElementById('carian-belum-input');
         const itemsBelumSelect = document.getElementById('items-belum-select');
@@ -245,7 +245,7 @@
         const carianSelesaiInput = document.getElementById('carian-selesai-input');
         const itemsSelesaiSelect = document.getElementById('items-selesai-select');
         const paginationSelesai = document.getElementById('pagination-selesai');
-        const filterStesenSelesai = document.getElementById('filter-stesen-selesai'); // Elemen baru
+        const filterStesenSelesai = document.getElementById('filter-stesen-selesai'); 
 
         try {
             const app = initializeApp(firebaseConfig);
@@ -316,7 +316,6 @@
                 populateSubmissionsTable();
             });
             
-            // LISTENER BARU UNTUK FILTER STESEN
             filterStesenSelesai.addEventListener('change', (e) => {
                 currentFilterStesen = e.target.value;
                 currentPageSelesai = 1;
@@ -382,32 +381,25 @@
             
             currentTaskData = docSnap.data();
 
-            // 1. Sasaran Skop: Ambil senarai yang disimpan (dinormalisasi dari tugasan.html)
             const normalizedTotalSkop = Array.isArray(currentTaskData.skopSenaraiSekolah) 
                 ? currentTaskData.skopSenaraiSekolah
                 : [];
             const totalSkopSet = new Set(normalizedTotalSkop);
             
-            // 2. Rekod Selesai Skop: Pastikan rekod yang disahkan dinormalisasi
             const skopSelesaiList = Array.isArray(currentTaskData.skopSelesai) 
                 ? currentTaskData.skopSelesai.map(normalizeStationName) 
                 : [];
             const selesaiSet = new Set(skopSelesaiList);
 
-            // 3. Tentukan senarai BELUM (Sasaran Total - Rekod Selesai Unik)
             fullSkopBelumList = normalizedTotalSkop.filter(sekolah => !selesaiSet.has(sekolah)).sort();
             
-            // 4. Rekod Hantaran KESELURUHAN (untuk tab Rekod Selesai/Audit)
-            // Susun ikut tarikh & masa (terbaru dahulu) secara default
             fullRekodSelesaiList = [...(currentTaskData.rekodSelesai || [])].sort((a, b) => 
                 new Date(b.timestamp) - new Date(a.timestamp)
             );
             
-            // 5. Bina senarai stesen unik untuk Filter
             uniqueStesenList = [...new Set(fullRekodSelesaiList.map(r => r.stesen_pengesah).filter(s => s).map(s => s.toUpperCase()))].sort();
             renderStesenFilterOptions();
 
-            // 6. Kemas kini kiraan pada Tab
             document.getElementById('count-belum').textContent = fullSkopBelumList.length;
             document.getElementById('count-selesai').textContent = fullRekodSelesaiList.length;
 
@@ -415,7 +407,6 @@
             populateSubmissionsTable();
         }
         
-        // FUNGSI BARU UNTUK RENDER FILTER STESEN
         function renderStesenFilterOptions() {
             filterStesenSelesai.innerHTML = '<option value="">-- Tapis Mengikut Stesen --</option>';
             uniqueStesenList.forEach(stesen => {
@@ -436,14 +427,12 @@
 
             tableBody.innerHTML = '';
             
-            // 1. Tapis
             const filteredList = fullSkopBelumList.filter(item => {
                 return item.toLowerCase().includes(searchTerm);
             });
 
             countEl.textContent = filteredList.length;
 
-            // 2. Paginasi
             const totalItems = filteredList.length;
             const totalPages = Math.ceil(totalItems / itemsPerPageBelum);
             if (currentPageBelum > totalPages) currentPageBelum = totalPages;
@@ -453,7 +442,6 @@
             const endIndex = startIndex + itemsPerPageBelum;
             const paginatedList = filteredList.slice(startIndex, endIndex);
 
-            // 3. Papar
             if (paginatedList.length === 0) {
                 tableBody.innerHTML = `<tr><td colspan="2" class="px-4 py-4 text-center text-sm text-gray-500 italic">Tiada data.</td></tr>`;
             } else {
@@ -467,7 +455,6 @@
                 });
             }
             
-            // 4. Render Kawalan Paginasi
             renderPaginationControls(paginationBelum, totalItems, totalPages, currentPageBelum, 'goToPageBelum');
         }
         
@@ -483,19 +470,15 @@
                 const nama = (rekod.nama_pengesah || '').toLowerCase();
                 const stesen = (rekod.stesen_pengesah || '').toLowerCase();
                 
-                // Carian Nama/Stesen
                 const passesSearch = nama.includes(searchTerm) || stesen.includes(searchTerm);
                 
-                // Filter Stesen
                 const passesFilter = !currentFilterStesen || stesen.toUpperCase() === currentFilterStesen;
                 
                 return passesSearch && passesFilter;
             });
             
-            // Gunakan total list length untuk count-selesai (jumlah hantaran)
             document.getElementById('count-selesai').textContent = fullRekodSelesaiList.length;
             
-            // 2. Paginasi
             const totalItems = filteredList.length;
             const totalPages = Math.ceil(totalItems / itemsPerPageSelesai);
             if (currentPageSelesai > totalPages) currentPageSelesai = totalPages;
@@ -523,7 +506,6 @@
                         day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
                     });
                     
-                    // Semak Duplikasi
                     const uniqueKey = normalizeStationName(rekod.nama_pengesah || rekod.stesen_pengesah);
                     const count = completionCountMap[uniqueKey];
                     const isDuplicate = count > 1;
@@ -671,12 +653,10 @@
                 };
                 
                 if (normalizedStationToRemove) {
-                    // Cek jika masih ada rekod lain dari sasaran yang sama
                     const isStillCompletedByOthers = fullRekodSelesaiList.some((r, i) => 
                         i !== index && normalizeStationName(r.nama_pengesah || r.stesen_pengesah) === normalizedStationToRemove
                     );
 
-                    // Hanya padam dari skopSelesai jika ini adalah rekod terakhir dari sasaran tersebut
                     if (!isStillCompletedByOthers) {
                         updates.skopSelesai = arrayRemove(normalizedStationToRemove);
                     }
