@@ -5,16 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SparkEdu - Pengurusan Kurikulum Pendidikan</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    
     <style>
         /* Gaya asas dan animasi */
-        body { font-family: 'Arial', sans-serif; background-color: #f8f9fa; } /* FONT TUKAR KEPADA ARIALL */
+        body { font-family: 'Arial', sans-serif; background-color: #f8f9fa; } 
         .btn { transition: background-color 0.3s, transform 0.2s; }
         .btn:hover:not(:disabled) { transform: translateY(-2px); }
         @keyframes pulse-animation { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
         .logo-pulse { animation: pulse-animation 2s infinite; }
         
         /* Gaya untuk konten utama */
-        #kurikulum-content { font-family: 'Arial', sans-serif; background-color: #f7f9fb; } /* FONT TUKAR KEPADA ARIALL */
+        #kurikulum-content { font-family: 'Arial', sans-serif; background-color: #f7f9fb; } 
         .scroll-container {
             overflow-x: auto;
             max-width: 100%;
@@ -39,7 +40,7 @@
             padding: 4px;
             border: 1px solid #e5e7eb;
             border-radius: 4px;
-            font-family: 'Arial', sans-serif; /* FONT TUKAR KEPADA ARIALL */
+            font-family: 'Arial', sans-serif; 
         }
         .score-input:focus, .text-input:focus {
             border-color: #3b82f6; 
@@ -48,9 +49,8 @@
         }
 
         /* Custom styles for list rendering (PEMBETULAN LIST STYLE) */
-        /* Membetulkan list-decimal agar nombor masuk ke dalam */
         ol.list-decimal.p-0.m-0 {
-            padding-left: 20px !important; /* Tambah padding supaya nombor tidak terkeluar */
+            padding-left: 20px !important; 
             margin-left: 0 !important;
         }
         ol.list-decimal.p-0.m-0 li {
@@ -79,11 +79,25 @@
         .list-item-content {
              word-wrap: break-word;
              word-break: break-word;
-             font-size: 0.875rem; /* Diseragamkan kepada text-sm */
+             font-size: 0.875rem; 
         }
         .follow-up-icon {
             display: inline-block;
-            vertical-align: top; /* PENTING: Untuk memastikan ikon selari dengan baris pertama teks */
+            vertical-align: top; 
+        }
+
+        /* Gaya butang delete (BARU) */
+        .delete-btn {
+            padding: 2px 6px;
+            margin-left: 8px;
+            font-size: 0.75rem; /* text-xs */
+            background-color: #fecaca; /* red-200 */
+            color: #b91c1c; /* red-700 */
+            border-radius: 4px;
+            transition: background-color 0.15s;
+        }
+        .delete-btn:hover {
+            background-color: #fca5a5; /* red-300 */
         }
     </style>
 </head>
@@ -166,7 +180,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot, collection, query, runTransaction, arrayUnion, setLogLevel, updateDoc, where, getDocs, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, onSnapshot, collection, query, runTransaction, arrayUnion, arrayRemove, setLogLevel, updateDoc, where, getDocs, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Konfigurasi Firebase (MENGGUNAKAN KONFIGURASI SEDAIA ADA)
         const firebaseConfig = {
@@ -340,7 +354,7 @@
                 errorEl.textContent = "Sila masukkan 12 digit No. IC yang sah.";
                 errorEl.classList.remove('hidden');
                 submitButton.disabled = false;
-                submitButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 7 0 1114 0H3z" clip-rule="evenodd" /></svg> Sahkan & Akses';
+                submitButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd" /></svg> Sahkan & Akses';
                 return;
             }
             
@@ -621,6 +635,42 @@
                 console.error(`Ralat mengemaskini teks ${fieldName} untuk ${docId} (mungkin keizinan):`, e.message);
                 alert(`Gagal menyimpan teks. Sila semak keizinan Firebase. ${e.message}`);
                 throw new Error("Update Text failed"); // Buang ralat untuk ditangkap oleh saveEditedText/saveNewItem
+            }
+        }
+
+        // FUNGSI BARU: Memadam Item Senarai
+        async function deleteListItem(docId, fieldName, itemId) {
+             if (isPermissionError) {
+                alert("Gagal memadam item kerana ralat keizinan Firebase. Perubahan tidak dapat dikekalkan.");
+                return;
+            }
+
+            if (!confirm("Adakah anda pasti mahu memadam item ini? Tindakan ini tidak boleh diundur.")) {
+                return;
+            }
+
+            try {
+                const docRef = doc(db, DATA_COLLECTION_PATH, docId);
+
+                await runTransaction(db, async (transaction) => {
+                    const docSnap = await transaction.get(docRef);
+                    if (!docSnap.exists()) { throw "Dokumen tidak wujud!"; }
+
+                    const data = docSnap.data();
+                    const list = data[fieldName];
+                    const itemIndex = list.findIndex(item => item.id === itemId);
+
+                    if (itemIndex > -1) {
+                        // Buang item dari senarai
+                        list.splice(itemIndex, 1);
+                        transaction.update(docRef, { [fieldName]: list });
+                    } else { throw "Item ID tidak dijumpai dalam senarai."; }
+                });
+
+                console.log("Item senarai berjaya dipadam!");
+            } catch (e) {
+                console.error("Ralat memadam item senarai:", e);
+                alert(`Gagal memadam item. Sila semak keizinan Firebase. ${e.message}`);
             }
         }
         
@@ -1066,13 +1116,27 @@
 
                 if (isTindakan) {
                     // Senarai Bernombor (Tindakan): Menggunakan text-sm
-                    contentHtml = `<p class="text-sm text-gray-800 font-medium">${itemTextHtml}</p>`;
+                    contentHtml = `
+                        <div class="flex items-start justify-between">
+                            <p class="text-sm text-gray-800 font-medium w-full">${itemTextHtml}</p>
+                            <button class="delete-btn flex-shrink-0" onclick="deleteListItem('${docId}', '${fieldName}', '${item.id}')">
+                                X Hapus
+                            </button>
+                        </div>
+                    `;
                 } else {
                     // Senarai Tak Bernombor (Follow Up): Menggunakan text-sm dan ikon arrow
-                    contentHtml = `<p class="text-sm text-gray-800 font-medium flex items-start">
-                        <span class="text-blue-600 font-bold pr-1 follow-up-icon pt-1">➤</span>
-                        ${itemTextHtml}
-                    </p>`;
+                    contentHtml = `
+                        <div class="flex items-start justify-between">
+                            <p class="text-sm text-gray-800 font-medium flex items-start w-full">
+                                <span class="text-blue-600 font-bold pr-1 follow-up-icon pt-1">➤</span>
+                                ${itemTextHtml}
+                            </p>
+                             <button class="delete-btn flex-shrink-0" onclick="deleteListItem('${docId}', '${fieldName}', '${item.id}')">
+                                X Hapus
+                            </button>
+                        </div>
+                    `;
                 }
                 
                 // Common interactive elements and links structure
@@ -1230,7 +1294,8 @@
             saveEditedText,
             saveCurrentDataAsTemplate,
             showHeaderEditInput,
-            saveEditedHeader
+            saveEditedHeader,
+            deleteListItem // FUNGSI BARU DEDAHKAN KE GLOBAL SCOPE
         });
     </script>
 </body>
