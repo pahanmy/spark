@@ -509,12 +509,8 @@
                         confirmationDetails.classList.remove('hidden');
                         
                         // *** PEMBETULAN KRITIKAL: PAPARKAN STATUS PENGISIAN PADA MULANYA ***
-                        const progressContainer = document.getElementById('task-progress-summary-container');
-                        if (progressContainer) {
-                            progressContainer.classList.remove('hidden'); 
-                        }
-                        
-                        renderProgressVisuals(); // Panggil semula setiap kali data berubah
+                        // PANGGIL FUNGSI UNTUK MEMAPARKAN VISUAL RUMUSAN TUGASAN
+                        renderProgressVisuals(); 
 
                     } else {
                         showMessage('error', 'Tugasan Tidak Ditemui', 'Sila pastikan anda menggunakan pautan yang betul.');
@@ -537,63 +533,102 @@
             const totalSkop = Array.isArray(currentTask.skopSenaraiSekolah) 
                 ? currentTask.skopSenaraiSekolah
                 : [];
-            const totalSkopSet = new Set(totalSkop);
+            
+            // Normalize ALL target scope names for accurate Set lookup
+            const normalizedTotalSkopSet = new Set(totalSkop.map(normalizeStationName)); 
             
             // 2. Rekod Selesai Skop: Pastikan rekod yang disahkan dinormalisasi
-            const allSelesai = Array.isArray(currentTask.skopSelesai) 
-                ? currentTask.skopSelesai.map(normalizeStationName)
+            const allSelesai = Array.isArray(currentTask.rekodSelesai) 
+                ? currentTask.rekodSelesai
                 : [];
+            
+            // Get the normalized station/name from EACH completion record
+            const completedRecordsNormalizedKeys = new Set(allSelesai.map(rekod => 
+                normalizeStationName(rekod.stesen_pengesah || rekod.nama_pengesah || '')
+            ));
 
-            // FILTER: Hanya kira selesai jika ia wujud dalam senarai skop SASARAN
-            // KESILAPAN DIBETULKAN: allSelesai sudah dinormalisasi, jadi hanya semak kewujudan dalam totalSkopSet
-            const skopSelesaiList = allSelesai.filter(sekolah => totalSkopSet.has(sekolah));
-            
-            const selesaiSet = new Set(skopSelesaiList);
-            
-            // FILTER: Kira belum selesai (semua skop SASARAN tolak yang dah selesai)
-            const skopBelumList = totalSkop.filter(sekolah => !selesaiSet.has(normalizeStationName(sekolah))); // Memastikan perbandingan juga dinormalisasi
-            
             let jumlahSelesai;
             let total;
-            let jumlahBelum; // New variable declaration
+            let jumlahBelum;
 
-            if (totalSkop.length > 0) {
-                // Mod Skop: Kira berdasarkan senarai sasaran
-                jumlahSelesai = skopSelesaiList.length; 
-                total = totalSkop.length;
-                jumlahBelum = skopBelumList.length; // New calculation
+            if (normalizedTotalSkopSet.size > 0) {
+                // Mod Skop: Kira berdasarkan senarai sasaran (normalized)
+                
+                // Count how many target scopes have a matching confirmed key in the completedRecordsNormalizedKeys set
+                let countCompletedInScope = 0;
+                normalizedTotalSkopSet.forEach(targetScopeKey => {
+                    if (completedRecordsNormalizedKeys.has(targetScopeKey)) {
+                        countCompletedInScope++;
+                    }
+                });
+                
+                jumlahSelesai = countCompletedInScope;
+                total = normalizedTotalSkopSet.size;
+                jumlahBelum = total - jumlahSelesai;
+                
             } else if (currentTask.jumlahSelesai !== undefined && currentTask.jumlahBelum !== undefined) {
                 // Mod Manual (Fallback jika tiada skop): Kira berdasarkan field manual
                 jumlahSelesai = currentTask.jumlahSelesai || 0;
                 total = (currentTask.jumlahSelesai || 0) + (currentTask.jumlahBelum || 0);
-                jumlahBelum = currentTask.jumlahBelum || 0; // New calculation
+                jumlahBelum = currentTask.jumlahBelum || 0;
+                
             } else {
                 // Mod Paling Asas (Hanya kira bilangan rekod jika tiada total)
-                jumlahSelesai = (currentTask.rekodSelesai || []).length;
+                jumlahSelesai = allSelesai.length;
                 total = 0; 
-                jumlahBelum = 0; // New calculation
+                jumlahBelum = 0;
             }
 
             const peratus = (total === 0) ? 0 : Math.round((jumlahSelesai / total) * 100);
 
-            const progressContainer = document.getElementById('task-progress-summary-container'); // UPDATED ID
             const percentageEl = document.getElementById('progress-percentage');
             const barEl = document.getElementById('progress-bar-inner');
             const selesaiEl = document.getElementById('progress-selesai');
             const totalEl = document.getElementById('progress-total');
-            const belumEl = document.getElementById('progress-belum'); // NEW ELEMENT
+            const belumEl = document.getElementById('progress-belum');
 
             if (total > 0) {
                 if (percentageEl) percentageEl.textContent = `${peratus}%`;
                 if (barEl) barEl.style.width = `${peratus}%`;
-                if (selesaiEl) selesaiEl.textContent = `${jumlahSelesai}`; // Removed 'Selesai: ' prefix
-                if (belumEl) belumEl.textContent = `${jumlahBelum}`; // Added belum count
+                if (selesaiEl) selesaiEl.textContent = `${jumlahSelesai}`; 
+                if (belumEl) belumEl.textContent = `${jumlahBelum}`; 
                 if (totalEl) totalEl.textContent = `Total: ${total}`;
                 
-                // Pastikan progress container dipaparkan jika mod skop/manual aktif
+                // Pastikan progress container dipaparkan
                 progressContainer.classList.remove('hidden'); 
-            } else {
-                // Paparkan jumlah rekod jika tiada total yang ditetapkan (untuk mod asas)
+                
+                // Reset inner HTML if it was replaced by fallback
+                const fallbackCheck = progressContainer.querySelector('.text-center.text-base');
+                if (fallbackCheck) {
+                    // Re-insert standard progress bar structure if it was replaced
+                    progressContainer.innerHTML = `
+                        <h3 class="text-lg font-bold text-indigo-800 mb-3 flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            </svg>
+                            Rumusan Tugasan
+                        </h3>
+                        
+                        <div class="flex justify-between text-sm font-medium text-gray-700 mb-1">
+                            <span>Status Selesai: <strong id="progress-percentage" class="font-bold text-green-600">${peratus}%</strong></span>
+                            <span id="progress-total" class="font-bold text-gray-600">Total: ${total}</span>
+                        </div>
+
+                        <div class="w-full bg-red-400 rounded-full h-4 overflow-hidden shadow-inner border border-red-500">
+                            <div id="progress-bar-inner" class="bg-green-600 h-4 flex items-center justify-end pr-2" style="width: ${peratus}%; transition: width 0.5s ease-out;">
+                            </div>
+                        </div>
+
+                        <div class="flex justify-between text-xs font-medium mt-2">
+                            <span class="text-green-700">Selesai: <strong id="progress-selesai">${jumlahSelesai}</strong></span>
+                            <span class="text-red-700">Belum Selesai: <strong id="progress-belum">${jumlahBelum}</strong></span>
+                        </div>
+                    `;
+                }
+
+
+            } else if (jumlahSelesai > 0 && total === 0) {
+                 // Paparkan jumlah rekod jika tiada total yang ditetapkan (untuk mod asas)
                 if (progressContainer) {
                     // Updated fallback for new container structure for 'Mod Paling Asas'
                     progressContainer.innerHTML = `
@@ -604,6 +639,9 @@
                     `;
                     progressContainer.classList.remove('hidden');
                 }
+            } else {
+                // Total 0 dan Selesai 0
+                progressContainer.classList.add('hidden');
             }
         }
         
@@ -661,16 +699,18 @@
                 validatedIc = ic;
                 
                 // PENGESAHAN DUPLIKASI SKOP
-                const skopSelesai = (currentTask.skopSelesai || []).map(normalizeStationName);
-                
-                // Kritikal: Utamakan Stesen untuk semakan duplikasi
                 const stesenAtauNamaUntukSkop = participantInfo.station || participantInfo.name; 
+                
+                if (stesenAtauNamaUntukSkop) {
+                     // Check against the normalized skopSelesai list
+                    const normalizedSkopSelesai = (currentTask.skopSelesai || []).map(normalizeStationName);
 
-                if (stesenAtauNamaUntukSkop && skopSelesai.includes(normalizeStationName(stesenAtauNamaUntukSkop))) {
-                     showMessage('warning', 'Telah Disahkan', `Seseorang dengan maklumat stesen/organisasi yang sama (${stesenAtauNamaUntukSkop}) telah pun membuat pengesahan untuk tugasan ini.`);
-                     icSubmitBtn.disabled = false;
-                     icSubmitBtn.innerHTML = "Seterusnya";
-                     return;
+                    if (normalizedSkopSelesai.includes(normalizeStationName(stesenAtauNamaUntukSkop))) {
+                        showMessage('warning', 'Telah Disahkan', `Seseorang dengan maklumat stesen/organisasi yang sama (${stesenAtauNamaUntukSkop}) telah pun membuat pengesahan untuk tugasan ini.`);
+                        icSubmitBtn.disabled = false;
+                        icSubmitBtn.innerHTML = "Seterusnya";
+                        return;
+                    }
                 }
 
                 document.getElementById('participant-name').textContent = docData.name || 'N/A';
