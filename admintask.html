@@ -372,7 +372,7 @@
                             <p class="text-xs text-indigo-600 mb-2">
                                 Sila masukkan **satu pilihan bagi setiap baris**.
                             </p>
-                            <textarea id="sub-tugasan-options" rows="4" class="w-full mt-1 p-3 border border-indigo-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" placeholder="Pilihan Pertama&#10;Pilihan Kedua&#10;Pilihan Ketiga"></textarea>
+                            <textarea id="sub-tugasan-options" rows="4" class="w-full mt-1 p-3 border border-indigo-300 rounded-md focus:ring-indigo-500 focus:ring-indigo-500" placeholder="Pilihan Pertama&#10;Pilihan Kedua&#10;Pilihan Ketiga"></textarea>
                         </div>
 
                         <div id="scale-input-container" class="mt-3 p-4 border border-purple-200 bg-purple-50 rounded-lg hidden">
@@ -621,26 +621,47 @@
             
             const listWithProgress = filteredList.map(tugasan => {
                 
-                // ▼▼▼ LOGIK PENGIRAAN PROGRES UNTUK KAD RINGKAS & JADUAL ▼▼▼
-                const totalSkop = Array.isArray(tugasan.skopSenaraiSekolah) 
-                    ? tugasan.skopSenaraiSekolah.map(normalizeStationName) 
+                // ▼▼▼ LOGIK PENGIRAAN PROGRES UNTUK KAD RINGKAS & JADUAL (KONSISTEN DENGAN task.html) ▼▼▼
+                const originalTotalSkop = Array.isArray(tugasan.skopSenaraiSekolah) 
+                    ? tugasan.skopSenaraiSekolah 
                     : [];
+                const allRekodSelesai = tugasan.rekodSelesai || [];
                 
                 let jumlahSelesai, total;
 
-                if (totalSkop.length > 0) {
-                    // Mod Skop
-                    const totalSkopSet = new Set(totalSkop);
-                    const allSelesai = Array.isArray(tugasan.skopSelesai) 
-                        ? tugasan.skopSelesai.map(normalizeStationName) 
-                        : [];
+                if (originalTotalSkop.length > 0) {
+                    // --- 1. Tentukan Kunci Padanan Berdasarkan Data Skop Sasaran ---
+                    const skopSample = originalTotalSkop[0] || '';
+                    const isSchoolSkop = skopSample.toUpperCase().match(/^(SK|SMK|SJK|KOLEJ|KV|SMAP|SABK|SRK|SRC|SRB)/) && originalTotalSkop.length > 0;
                     
-                    const skopSelesaiList = allSelesai.filter(sekolah => totalSkopSet.has(sekolah));
+                    // --- 2. Bina Set Kunci Pengesahan (Memilih Nama Pegawai atau Stesen) ---
+                    const normalizedConfirmedKeys = new Set(allRekodSelesai.map(rekod => {
+                        let keyToNormalize;
+                        
+                        if (isSchoolSkop) {
+                            keyToNormalize = rekod.stesen_pengesah; 
+                        } else {
+                            keyToNormalize = rekod.nama_pengesah; 
+                        }
+                        
+                        keyToNormalize = keyToNormalize || rekod.stesen_pengesah || rekod.nama_pengesah;
+                        
+                        return normalizeName(keyToNormalize || '');
+                    }));
                     
-                    jumlahSelesai = skopSelesaiList.length;
-                    total = totalSkop.length;
+                    // --- 3. Laksanakan Padanan dan Pengiraan Skop ---
+                    const completedSkopOriginalNames = new Set();
+                    originalTotalSkop.forEach(originalSkop => {
+                        if (normalizedConfirmedKeys.has(normalizeName(originalSkop))) {
+                            completedSkopOriginalNames.add(originalSkop);
+                        }
+                    });
+
+                    jumlahSelesai = completedSkopOriginalNames.size;
+                    total = originalTotalSkop.length;
+                    
                 } else {
-                    // Mod Manual
+                    // Mod Manual/Asas
                     jumlahSelesai = tugasan.jumlahSelesai || 0;
                     total = (tugasan.jumlahSelesai || 0) + (tugasan.jumlahBelum || 0);
                 }
@@ -725,7 +746,7 @@
                         (${jumlahSelesai} / ${total})
                      </div>`;
                 
-                // ▼▼▼ HTML BARIS DIKEMAS KINI - MEMBETULKAN RUMUSAN KESELURUHAN ▼▼▼
+                // ▼▼▼ HTML BARIS DIKEMAS KINI - MENGGUNAKAN LOGIK BARU ▼▼▼
                 baris.innerHTML = `
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${startIndex + index + 1}</td>
                     
@@ -1375,21 +1396,21 @@
         }
         
         /**
-         * Menyeragamkan nama stesen untuk perbandingan.
+         * Menyeragamkan nama stesen untuk perbandingan (KONSISTEN DGN TASK.HTML).
          */
-        function normalizeStationName(name) {
+        function normalizeName(name) {
             if (typeof name !== 'string') return '';
             let normalized = name.toUpperCase();
             
-            // Standardize Sg. and Sg to SUNGAI
             normalized = normalized.replace(/\bSG\./g, 'SUNGAI'); 
             normalized = normalized.replace(/\bSG\b/g, 'SUNGAI'); 
             
-            normalized = normalized.replace(/\./g, '');
+            normalized = normalized.replace(/[.,]/g, ''); 
             
-            normalized = normalized.replace(/\s+/g, ' ').trim();
+            // Perbezaan KRITIKAL: Buang SEMUA spasi untuk padanan yang ketat (seperti task.html)
+            normalized = normalized.replace(/\s+/g, ''); 
             
-            return normalized;
+            return normalized.trim();
         }
         // ▲▲▲ TAMAT TAMBAHAN FUNGSI BANTUAN ▲▲▲
 
