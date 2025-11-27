@@ -310,14 +310,22 @@
             }
         });
 
+        // FUNGSI NORMALISASI YANG KONSISTEN DENGAN task.html
         function normalizeStationName(name) {
             if (typeof name !== 'string') return '';
             let normalized = name.toUpperCase();
+            
+            // Normalisasi SG. dan SG kepada SUNGAI
             normalized = normalized.replace(/\bSG\./g, 'SUNGAI'); 
             normalized = normalized.replace(/\bSG\b/g, 'SUNGAI'); 
-            normalized = normalized.replace(/\./g, '');
-            normalized = normalized.replace(/\s+/g, ' ').trim();
-            return normalized;
+            
+            // Buang tanda bacaan umum
+            normalized = normalized.replace(/[.,]/g, ''); 
+            
+            // KRITIKAL: Buang semua spasi untuk padanan yang ketat (seperti task.html)
+            normalized = normalized.replace(/\s+/g, ''); 
+            
+            return normalized.trim();
         }
 
         function main() { 
@@ -440,22 +448,24 @@
                 : [];
             const totalSkopSet = new Set(normalizedTotalSkop);
             
+            // Senarai skop selesai perlu dinormalisasi menggunakan fungsi yang KONSISTEN
             const skopSelesaiList = Array.isArray(currentTaskData.skopSelesai) 
                 ? currentTaskData.skopSelesai.map(normalizeStationName) 
                 : [];
             const selesaiSet = new Set(skopSelesaiList);
 
             fullRekodSelesaiList = [...(currentTaskData.rekodSelesai || [])].sort((a, b) => 
-                new Date(b.timestamp) - new Date(a.timestamp)
+                new Date(b.timestamp) - new Date(b.timestamp)
             );
             
             latestCompletionMap = buildLatestCompletionMap(fullRekodSelesaiList);
             
             reportDataList = [];
             
+            // Logik membina reportDataList (padanan skop sasaran dengan set selesai)
             normalizedTotalSkop.forEach(sasaran => {
-                const isCompleted = selesaiSet.has(sasaran);
-                const latestRecord = latestCompletionMap[sasaran] || null;
+                const isCompleted = selesaiSet.has(normalizeStationName(sasaran)); // Padanan perlu guna normalisasi
+                const latestRecord = latestCompletionMap[normalizeStationName(sasaran)] || null;
                 
                 reportDataList.push({
                     sasaran: sasaran,
@@ -473,6 +483,7 @@
             
             fullSkopBelumList = reportDataList.filter(r => !r.isCompleted).map(r => r.sasaran);
             
+            // Senarai stesen unik untuk filter perlu guna nama stesen yang belum dinormalisasi (untuk paparan)
             uniqueStesenList = [...new Set(fullRekodSelesaiList.map(r => r.stesen_pengesah).filter(s => s).map(s => s.toUpperCase()))].sort();
             renderStesenFilterOptions();
 
@@ -486,10 +497,11 @@
         
         function buildLatestCompletionMap(allRecords) {
             const map = {};
+            // Susun mengikut masa menaik (lama ke baru) supaya rekod terkini overwrite yang lama
             const sortedByAscendingTime = [...allRecords].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
             
             sortedByAscendingTime.forEach(rekod => {
-                // KRITIKAL: Gunakan HANYA NAMA STESEN untuk kunci unik (seperti permintaan)
+                // KRITIKAL: Gunakan NAMA STESEN yang dinormalisasi untuk kunci unik
                 const key = normalizeStationName(rekod.stesen_pengesah); 
                 if (key) {
                    map[key] = rekod; 
@@ -641,7 +653,7 @@
             
             // 3. Buat Peta Pengesahan Berulang (BERASASKAN STESEN)
             const completionCountMap = fullRekodSelesaiList.reduce((acc, rekod) => {
-                // KRITIKAL: Guna HANYA NAMA STESEN untuk kunci unik duplikasi
+                // KRITIKAL: Guna HANYA NAMA STESEN yang dinormalisasi untuk kunci unik duplikasi
                 const key = normalizeStationName(rekod.stesen_pengesah); 
                 acc[key] = (acc[key] || 0) + 1;
                 return acc;
