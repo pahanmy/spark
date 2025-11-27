@@ -156,6 +156,19 @@
              font-size: 0.8rem;
              color: #6B7280;
         }
+
+        /* CSS untuk error highlighting */
+        .input-error {
+            border-color: #EF4444 !important;
+            box-shadow: 0 0 0 3px #FEE2E2 !important; 
+        }
+        .spark-question-wrapper.error .radio-btn-label,
+        .spark-question-wrapper.error .multiselect-checkbox-label,
+        .spark-question-wrapper.error .scale-radio {
+            border-color: #EF4444 !important;
+            box-shadow: 0 0 0 2px #FEE2E2 !important;
+        }
+
     </style>
 </head>
 <body class="flex flex-col min-h-screen">
@@ -677,33 +690,37 @@
                         inputHtml = `<label class="block text-sm font-medium text-gray-700">${index + 1}. ${questionText}${isRequired && questionType !== 'arahan' ? '<span class="required-tag">*WAJIB</span>' : ''}</label>
                             <div class="mt-2 grid grid-cols-2 gap-3">
                                 <div>
-                                    <input type="radio" id="${questionId}_ya" name="${questionId}" value="Ya" class="spark-question-input">
+                                    <input type="radio" id="${questionId}_ya" name="${questionId}_radio" value="Ya" class="spark-question-input">
                                     <label for="${questionId}_ya" class="radio-btn-label">Ya</label>
                                 </div>
                                 <div>
-                                    <input type="radio" id="${questionId}_tidak" name="${questionId}" value="Tidak" class="spark-question-input">
+                                    <input type="radio" id="${questionId}_tidak" name="${questionId}_radio" value="Tidak" class="spark-question-input">
                                     <label for="${questionId}_tidak" class="radio-btn-label">Tidak</label>
                                 </div>
                             </div>`;
                         break;
                     case 'teks_ringkas':
-                        inputHtml = `${labelHtml}<input type="text" id="${questionId}" class="${baseInputClasses}" placeholder="Isi jawapan anda...">`;
+                        inputHtml = `${labelHtml}<input type="text" id="${questionId}" name="${questionId}" class="${baseInputClasses}" placeholder="Isi jawapan anda...">`;
                         break;
                     case 'teks_panjang':
-                        inputHtml = `${labelHtml}<textarea id="${questionId}" rows="4" class="${baseInputClasses}" placeholder="Isi jawapan anda..."></textarea>`;
+                        inputHtml = `${labelHtml}<textarea id="${questionId}" name="${questionId}" rows="4" class="${baseInputClasses}" placeholder="Isi jawapan anda..."></textarea>`;
                         break;
                     case 'pautan_url':
-                        inputHtml = `${labelHtml}<input type="url" id="${questionId}" class="${baseInputClasses}" placeholder="https://...">`;
+                        inputHtml = `${labelHtml}<input type="url" id="${questionId}" name="${questionId}" class="${baseInputClasses}" placeholder="https://...">`;
                         break;
                     case 'tarikh':
-                        inputHtml = `${labelHtml}<input type="date" id="${questionId}" class="${baseInputClasses}">`;
+                        inputHtml = `${labelHtml}<input type="date" id="${questionId}" name="${questionId}" class="${baseInputClasses}">`;
                         break;
                     
                     case 'option_button':
+                        let selectOptions = options.map(option => `<option value="${option}">${option}</option>`).join('');
+                        inputHtml = `${labelHtml}<select id="${questionId}" name="${questionId}" class="${baseInputClasses} spark-question-select"><option value="">Sila Pilih Jawapan</option>${selectOptions}</select>`;
+                        break;
+                        
                     case 'radio_button':
                         let radioOptions = options.map((option, optIndex) => `
                             <div>
-                                <input type="radio" id="${questionId}_opt_${optIndex}" name="${questionId}" value="${option}" class="spark-question-input">
+                                <input type="radio" id="${questionId}_opt_${optIndex}" name="${questionId}_radio" value="${option}" class="spark-question-input">
                                 <label for="${questionId}_opt_${optIndex}" class="radio-btn-label">${option}</label>
                             </div>
                         `).join('');
@@ -720,7 +737,6 @@
                             </div>
                         `).join('');
                         
-                        // Menambah CSS untuk ikon semakan pada checkbox label
                         wrapper.innerHTML += `<style>
                             input[type="checkbox"]:checked + .multiselect-checkbox-label span {
                                 background-color: #10B981; 
@@ -746,7 +762,7 @@
                         
                         let scaleOptionsHtml = scaleRange.map(val => `
                             <label for="${questionId}_${val}" class="scale-option">
-                                <input type="radio" id="${questionId}_${val}" name="${questionId}_scale" value="${val}" class="scale-radio">
+                                <input type="radio" id="${questionId}_${val}" name="${questionId}_radio" value="${val}" class="spark-question-input scale-radio">
                                 <span class="scale-label">${val}</span>
                             </label>
                         `).join('');
@@ -790,7 +806,7 @@
             const wrappers = document.querySelectorAll('.spark-question-wrapper');
             
             let isFormValid = true;
-            const requiredErrorClass = 'border-red-500 ring-red-500';
+            const errorClass = 'input-error';
 
             wrappers.forEach((wrapper, index) => {
                 const questionText = wrapper.dataset.questionText;
@@ -799,49 +815,66 @@
                 const questionId = `q_${index}`;
                 
                 let value = '';
+                let isInputValid = true;
 
                 // Reset error visuals
-                wrapper.querySelectorAll(`.${requiredErrorClass}`).forEach(el => el.classList.remove(requiredErrorClass));
+                wrapper.classList.remove('error');
+                wrapper.querySelectorAll(`.${errorClass}`).forEach(el => el.classList.remove(errorClass));
 
                 if (questionType === 'arahan') {
                     return; // Skip arahan
                 }
                 
-                if (questionType === 'ya_tidak' || questionType === 'option_button' || questionType === 'radio_button' || questionType === 'skala') {
+                if (questionType === 'ya_tidak' || questionType === 'radio_button' || questionType === 'skala') {
                     // Radio buttons (including scale)
-                    const checkedRadio = wrapper.querySelector(`input[name="${questionId}"], input[name="${questionId}_scale"]`);
+                    const radioName = `${questionId}_radio`;
+                    const checkedRadio = wrapper.querySelector(`input[name="${radioName}"]:checked`);
+                    
                     if (checkedRadio) {
-                        const checked = wrapper.querySelector(`input[name="${checkedRadio.name}"]:checked`);
-                        if (checked) {
-                             value = checked.value;
-                        } else if (isRequired) {
-                            isFormValid = false;
-                            wrapper.querySelector('label').classList.add(requiredErrorClass);
-                        }
+                         value = checkedRadio.value;
+                    } else if (isRequired) {
+                        isInputValid = false;
+                        wrapper.classList.add('error');
                     }
                     
                 } else if (questionType === 'multiselect') {
                     // Checkboxes
-                    const checkedCheckboxes = Array.from(wrapper.querySelectorAll(`input[name="${questionId}_cb"]:checked`)).map(cb => cb.value);
+                    const checkboxName = `${questionId}_cb`;
+                    const checkedCheckboxes = Array.from(wrapper.querySelectorAll(`input[name="${checkboxName}"]:checked`)).map(cb => cb.value);
+                    
                     if (checkedCheckboxes.length > 0) {
                         value = checkedCheckboxes.join('; ');
                     } else if (isRequired) {
-                        isFormValid = false;
-                        wrapper.querySelector('label').classList.add(requiredErrorClass);
+                        isInputValid = false;
+                        wrapper.classList.add('error');
                     }
                     
+                } else if (questionType === 'option_button') {
+                    // Dropdown / Select
+                    const selectElement = wrapper.querySelector('.spark-question-select');
+                    
+                    if (selectElement) {
+                        value = selectElement.value.trim();
+                        if (value === '' && isRequired) {
+                            isInputValid = false; 
+                            selectElement.classList.add(errorClass);
+                        }
+                    }
+                
                 } else { // teks_ringkas, pautan_url, teks_panjang, tarikh
                     // Text inputs
                     const inputElement = wrapper.querySelector('.spark-question-input, textarea'); 
                     if (inputElement) {
                         value = inputElement.value.trim();
                         if (value === '' && isRequired) {
-                            isFormValid = false; 
-                            inputElement.classList.add(requiredErrorClass);
-                        } else {
-                            inputElement.classList.remove(requiredErrorClass);
+                            isInputValid = false; 
+                            inputElement.classList.add(errorClass);
                         }
                     }
+                }
+                
+                if (!isInputValid) {
+                     isFormValid = false;
                 }
 
                 if (questionType !== 'arahan') {
@@ -857,6 +890,18 @@
                 alert("Sila isi / pilih semua jawapan yang ditandakan *WAJIB.");
                 completionSubmitBtn.disabled = false;
                 completionSubmitBtn.innerHTML = originalButtonText;
+                
+                // Fokus pada elemen pertama yang mempunyai ralat
+                const firstErrorWrapper = document.querySelector('.spark-question-wrapper.error');
+                const firstErrorInput = document.querySelector(`.${errorClass}`);
+                
+                if (firstErrorWrapper) {
+                     firstErrorWrapper.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                } else if (firstErrorInput) {
+                    firstErrorInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    firstErrorInput.focus();
+                }
+
                 return;
             }
             
