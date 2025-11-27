@@ -435,6 +435,17 @@
             </svg>
             <span>Sahkan Selesai</span>`;
 
+        // FUNGSI NORMALIZATION (SG. -> SUNGAI) - KRITIKAL
+        function normalizeStationName(name) {
+            if (typeof name !== 'string') return '';
+            let normalized = name.toUpperCase();
+            normalized = normalized.replace(/\bSG\./g, 'SUNGAI'); 
+            normalized = normalized.replace(/\bSG\b/g, 'SUNGAI'); 
+            normalized = normalized.replace(/\./g, '');
+            normalized = normalized.replace(/\s+/g, ' ').trim();
+            return normalized;
+        }
+
         try {
             const app = initializeApp(firebaseConfig);
             db = getFirestore(app);
@@ -494,16 +505,6 @@
             }
         }
         
-        function normalizeStationName(name) {
-            if (typeof name !== 'string') return '';
-            let normalized = name.toUpperCase();
-            normalized = normalized.replace(/\bSG\./g, 'SUNGAI'); 
-            normalized = normalized.replace(/\bSG\b/g, 'SUNGAI'); 
-            normalized = normalized.replace(/\./g, '');
-            normalized = normalized.replace(/\s+/g, ' ').trim();
-            return normalized;
-        }
-
         function renderProgressVisuals() {
             const totalSkop = Array.isArray(currentTask.skopSenaraiSekolah) 
                 ? currentTask.skopSenaraiSekolah.map(normalizeStationName) 
@@ -600,14 +601,19 @@
                     ic: ic,
                     name: docData.name,
                     position: docData.position,
-                    station: docData.station
+                    station: docData.station // Ini adalah data dari rekod peserta
                 };
                 validatedIc = ic;
-                stesenPengesah = docData.station || null;
-
+                
+                // KRITIKAL: Guna NAMA PENUH Farhan (jika dia pegawai PPD) untuk semakan skop
+                // Jika skop tugasan adalah NAMA PENUH (seperti MUHAMMAD FARHAN BIN SARKAWI), maka kita ambil NAMA PENUH peserta untuk semakan.
+                // Jika skop tugasan adalah NAMA SEKOLAH, kita ambil NAMA STESEN peserta.
+                // Oleh kerana pendaftaran pegawai PPD direkodkan NAMA dan bukan Stesen PPD Miri, kita perlu guna NAMA.
+                const stesenAtauNamaUntukSkop = docData.name || docData.station; 
+                
                 const skopSelesai = (currentTask.skopSelesai || []).map(normalizeStationName);
-                if (stesenPengesah && skopSelesai.includes(normalizeStationName(stesenPengesah))) {
-                     showMessage('warning', 'Telah Disahkan', `Seseorang dari stesen anda (${stesenPengesah}) telah pun membuat pengesahan untuk tugasan ini.`);
+                if (stesenAtauNamaUntukSkop && skopSelesai.includes(normalizeStationName(stesenAtauNamaUntukSkop))) {
+                     showMessage('warning', 'Telah Disahkan', `Seseorang dengan maklumat yang sama (${stesenAtauNamaUntukSkop}) telah pun membuat pengesahan untuk tugasan ini.`);
                      icSubmitBtn.disabled = false;
                      icSubmitBtn.innerHTML = "Seterusnya";
                      return;
@@ -666,7 +672,6 @@
                 newParticipant.station = document.getElementById('awam-station').value.toUpperCase();
             }
             
-            // VALIDASI MINIMUM UTK PENDAFTARAN
             if (!newParticipant.name || !newParticipant.position || !newParticipant.station || newParticipant.station === "Sila Pilih Sekolah") {
                 alert("Sila lengkapkan semua medan yang diperlukan.");
                 submitBtn.disabled = false;
@@ -675,7 +680,6 @@
             }
 
             try {
-                // Menggunakan IC sebagai ID dokumen dalam koleksi spark_participants
                 const docRef = doc(db, `artifacts/${appId}/public/data/spark_participants`, newParticipant.ic);
                 await setDoc(docRef, newParticipant);
                 
@@ -709,7 +713,6 @@
             }
         }
         
-        // FUNGSI UTAMA BARU (Menambah jenis input dari tugasan.html)
         function buildDynamicForm(questions) {
             const container = document.getElementById('dynamic-questions-container');
             container.innerHTML = '';
@@ -728,7 +731,7 @@
                 if (typeof q === 'object' && q !== null) {
                     questionText = q.text || "[Soalan tidak sah]";
                     questionType = q.type || 'arahan';
-                    isRequired = q.required !== false; // Default to true if not explicitly false
+                    isRequired = q.required !== false;
                     options = q.options || [];
                     scaleData = q.scaleData || {};
                 } else if (typeof q === 'string') {
@@ -809,11 +812,9 @@
                         `).join('');
                         
                         wrapper.innerHTML += `<style>
-                            /* Mesti kekal di sini untuk override CSS global yang menyembunyikan input radio/checkbox */
                             .spark-question-wrapper input[type="radio"], .spark-question-wrapper input[type="checkbox"] {
                                 display: none; 
                             }
-                            /* Pastikan input skala (jika masih guna radio) kelihatan */
                             .spark-question-wrapper input.scale-radio {
                                 display: inline-flex !important; 
                             }
@@ -838,7 +839,7 @@
                         const max = scaleData.max || 5;
                         const minLabel = scaleData.minLabel || '';
                         const maxLabel = scaleData.maxLabel || '';
-                        const step = 1; // Default step 1
+                        const step = 1;
 
                         inputHtml = `<label class="block text-sm font-medium text-gray-700">${index + 1}. ${questionText}${isRequired ? '<span class="required-tag">*WAJIB</span>' : ''}</label>
                             
@@ -851,7 +852,6 @@
                                 <span class="text-right">${max} ${maxLabel ? `(${maxLabel})` : ''}</span>
                             </div>`;
 
-                        // Add listener to update display value in real-time
                         setTimeout(() => {
                             const rangeInput = document.getElementById(questionId);
                             const display = document.getElementById(`${questionId}_display`);
@@ -869,7 +869,6 @@
             });
         }
         
-        // FUNGSI sahkanselesai() - DIKEMASKINI UNTUK VALIDASI DAN JAWAPAN BARU
         window.sahkanSelesai = async function(event) {
             event.preventDefault();
             
@@ -896,16 +895,14 @@
                 let value = '';
                 let isInputValid = true;
 
-                // Reset error visuals
                 wrapper.classList.remove('error');
                 wrapper.querySelectorAll(`.${errorClass}`).forEach(el => el.classList.remove(errorClass));
 
                 if (questionType === 'arahan') {
-                    return; // Skip arahan
+                    return;
                 }
                 
                 if (questionType === 'ya_tidak' || questionType === 'radio_button') {
-                    // Radio buttons (Ya/Tidak, Radio Button)
                     const radioName = `${questionId}_radio`;
                     const checkedRadio = wrapper.querySelector(`input[name="${radioName}"]:checked`);
                     
@@ -917,19 +914,17 @@
                     }
                     
                 } else if (questionType === 'multiselect') {
-                    // Checkboxes
                     const checkboxName = `${questionId}_cb`;
                     const checkedCheckboxes = Array.from(wrapper.querySelectorAll(`input[name="${checkboxName}"]:checked`)).map(cb => cb.value);
                     
                     if (checkedCheckboxes.length > 0) {
                         value = checkedCheckboxes.join('; ');
                     } else if (isRequired) {
-                        isInputValid = false;
-                        wrapper.classList.add('error');
+                         isInputValid = false;
+                         wrapper.classList.add('error');
                     }
                     
                 } else if (questionType === 'option_button') {
-                    // Dropdown / Select
                     const selectElement = wrapper.querySelector('.spark-question-select');
                     
                     if (selectElement) {
@@ -941,15 +936,12 @@
                     }
                 
                 } else if (questionType === 'skala') {
-                    // Slider/Range
                     const rangeInput = wrapper.querySelector('input[type="range"]');
                     if (rangeInput) {
-                        value = rangeInput.value; // Range input sentiasa ada nilai
+                        value = rangeInput.value;
                     }
-                    // Tiada validation isRequired khas diperlukan kerana range sentiasa mempunyai nilai default
                     
-                } else { // teks_ringkas, pautan_url, teks_panjang, tarikh
-                    // Text inputs
+                } else {
                     const inputElement = wrapper.querySelector('.spark-question-input, textarea'); 
                     if (inputElement) {
                         value = inputElement.value.trim();
@@ -978,7 +970,6 @@
                 completionSubmitBtn.disabled = false;
                 completionSubmitBtn.innerHTML = originalButtonText;
                 
-                // Fokus pada elemen pertama yang mempunyai ralat
                 const firstErrorWrapper = document.querySelector('.spark-question-wrapper.error');
                 const firstErrorInput = document.querySelector(`.${errorClass}`);
                 
@@ -1003,13 +994,16 @@
                 timestamp: timestampSekarang.toISOString()
             };
 
-            const stesenPengesah = participantInfo ? participantInfo.station : null;
+            // KRITIKAL: Guna NAMA PENUH Farhan (jika dia pegawai PPD) untuk kemas kini skopSelesai
+            const skopSelesaiRecord = participantInfo ? (participantInfo.name || participantInfo.station) : null;
+            
             let dataToUpdate = {
                 rekodSelesai: arrayUnion(completionRecord)
             };
 
-            if (stesenPengesah) {
-                dataToUpdate.skopSelesai = arrayUnion(normalizeStationName(stesenPengesah));
+            if (skopSelesaiRecord) {
+                // Tambah NAMA/STESEN yang dinormalisasi ke dalam rekod skopSelesai
+                dataToUpdate.skopSelesai = arrayUnion(normalizeStationName(skopSelesaiRecord));
             }
 
             const taskRef = doc(db, `artifacts/${appId}/public/data/spark_tasks`, currentTaskId);
@@ -1129,11 +1123,8 @@
                 selectors.forEach(selector => {
                     const selectElement = document.querySelector(selector);
                     
-                    // Simpan opsyen pertama ("Sila Pilih Sekolah")
                     const firstOption = selectElement.options[0];
-                    // Kosongkan senarai lama (untuk buang data cache)
                     selectElement.innerHTML = '';
-                    // Tambah opsyen pertama kembali
                     selectElement.appendChild(firstOption);
 
                     schools.forEach(schoolName => {
@@ -1159,7 +1150,6 @@
 
                 const positions = querySnapshot.docs.map(doc => doc.data().name);
                 
-                // Simpan opsyen pertama ("Sila Pilih Jawatan")
                 const firstOption = selectElement.options[0];
                 selectElement.innerHTML = '';
                 selectElement.appendChild(firstOption);
