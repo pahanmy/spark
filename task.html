@@ -376,7 +376,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, onSnapshot, getDocs, collection, query, where, addDoc, orderBy, getDoc, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"; // <-- Pastikan getDoc, updateDoc, arrayUnion ada
+        import { getFirestore, doc, onSnapshot, getDocs, collection, query, where, addDoc, orderBy, getDoc, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM",
@@ -401,38 +401,63 @@
         
         let completionItemsToShow = 5; 
         
-        // ▼▼▼ FUNGSI NORMALIZATION (SG. -> SUNGAI) ▼▼▼
-        /**
-         * Menyeragamkan nama stesen/nama penuh untuk perbandingan.
-         * 1. Tukar ke huruf besar.
-         * 2. Tukar 'SG.' atau 'SG' kepada 'SUNGAI'.
-         * 3. Buang semua tanda noktah.
-         * 4. Buang ruang kosong berlebihan.
-         * FUNGSI INI AKAN DIGUNAKAN UNTUK MENORMALKAN NAMA INDIVIDU & NAMA SASARAN
-         */
+        // FUNGSI NORMALIZATION (SG. -> SUNGAI) - KRITIKAL
         function normalizeStationName(name) {
             if (typeof name !== 'string') return '';
             let normalized = name.toUpperCase();
-            
-            // Standardize Sg. and Sg to SUNGAI
-            // Ganti "SG." (dengan noktah)
             normalized = normalized.replace(/\bSG\./g, 'SUNGAI'); 
-            // Ganti "SG" (tanpa noktah, sebagai perkataan penuh)
             normalized = normalized.replace(/\bSG\b/g, 'SUNGAI'); 
-            
-            // Buang semua noktah lain (cth: S.K. -> SK, P.P.D. -> PPD)
             normalized = normalized.replace(/\./g, '');
-            
-            // Buang ruang kosong berlebihan (cth: "SK  BAWAN" -> "SK BAWAN")
             normalized = normalized.replace(/\s+/g, ' ').trim();
-            
             return normalized;
         }
-        // ▲▲▲ TAMAT: FUNGSI NORMALIZATION ▲▲▲
 
-        // ▼▼▼ FUNGSI BARU UNTUK JANA QR CODE ▼▼▼
+        try {
+            const app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+        } catch (e) { console.error("Error initializing Firebase:", e); }
+        
+        onAuthStateChanged(auth, async (user) => {
+            if (user) { 
+                userId = user.uid;
+                main(); 
+            } else { 
+                try { 
+                    await signInAnonymously(auth); 
+                } catch (error) { 
+                    console.error("Error signing in:", error); 
+                } 
+            }
+        });
+
+        async function main() { 
+            if (!userId) return;
+            const urlParams = new URLSearchParams(window.location.search);
+            const taskId = urlParams.get('id');
+            currentTaskId = taskId;
+
+            const versionInfo = document.getElementById('version-info');
+            if(versionInfo) {
+                const year = new Date().getFullYear();
+                if(document.getElementById('version-info')) {
+                    document.getElementById('version-info').textContent = `Versi 2.1 (${year})`;
+                }
+            }
+
+            if (!taskId) {
+                if(document.getElementById('loading-dashboard')) {
+                    document.getElementById('loading-dashboard').innerHTML = '<p class="text-red-500 text-center">Tiada ID tugasan ditemui. Sila kembali ke senarai.</p>';
+                }
+                return;
+            }
+
+            if (document.getElementById('full-dashboard-content')) {
+                initializeDashboard(taskId);
+            }
+        }
+
         function generateQRCode(taskId) {
-            // Pastikan library QRCode telah dimuat
             if (typeof QRCode === 'undefined') {
                 console.error("QR Code library (qrcode.min.js) not loaded.");
                 document.getElementById('qr-code-container').innerHTML = "<p class='text-xs text-red-500'>Gagal muat library QR.</p>";
@@ -447,31 +472,24 @@
                 return;
             }
 
-            // 1. Dapatkan pautan absolut dari butang "Sahkan Tugasan"
             const linkToEncode = new URL(document.getElementById('sahkan-selesai-btn').href, window.location.href).href;
             
-            // 2. Kosongkan container lama
             qrContainer.innerHTML = '';
             
-            // 3. Cipta elemen img untuk QR Code
             const img = document.createElement('img');
             img.alt = `QR Code for Task ${taskId}`;
             
-            // 4. Guna library QRCode untuk jana Data URL
             QRCode.toDataURL(linkToEncode, { 
-                errorCorrectionLevel: 'H', // Kualiti tinggi
-                width: 256, // Saiz imej (lebar)
+                errorCorrectionLevel: 'H',
+                width: 256,
                 margin: 2
             })
             .then(url => {
-                // 5. Paparkan QR Code dalam <img>
                 img.src = url;
                 qrContainer.appendChild(img);
                 
-                // 6. Tetapkan pautan muat turun
                 downloadBtn.href = url;
                 
-                // 7. Tetapkan nama fail muat turun (guna nama tugasan)
                 const taskName = (currentTask && currentTask.nama) ? currentTask.nama : `Task_${taskId}`;
                 const safeTaskName = taskName.replace(/[^a-z0-9]/gi, '_').substring(0, 30);
                 downloadBtn.download = `SparkTask_QR_${safeTaskName}.png`;
@@ -482,127 +500,7 @@
                 qrContainer.innerHTML = "<p class='text-xs text-red-500'>Gagal jana QR Code.</p>";
             });
         }
-        // ▲▲▲ TAMAT FUNGSI BARU ▲▲▲
 
-        // --- Salinan DOM Elements dari 'selesai.html' ---
-        const loadingState = document.getElementById('loading-state');
-        const checkInCard = document.getElementById('check-in-card');
-        const icForm = document.getElementById('ic-form');
-        const icInput = document.getElementById('participant-ic');
-        const icError = document.getElementById('ic-error');
-        const icSubmitBtn = document.getElementById('submit-ic-btn');
-        const confirmationDetails = document.getElementById('confirmation-details');
-        const participantDetails = document.getElementById('participant-details');
-        const completionForm = document.getElementById('completion-form');
-        const completionSubmitBtn = document.getElementById('submit-completion-btn');
-
-        const originalButtonText = `
-            <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <span>Sahkan Selesai</span>`;
-        // --- Tamat Salinan ---
-
-
-        try {
-            const app = initializeApp(firebaseConfig);
-            db = getFirestore(app);
-            auth = getAuth(app);
-        } catch (e) { console.error("Error initializing Firebase:", e); }
-        
-        onAuthStateChanged(auth, async (user) => {
-            if (user) { 
-                userId = user.uid;
-                // ▼▼▼ Panggil 'main' (gabungan 'main' dari task.html dan selesai.html) ▼▼▼
-                main(); 
-                // ▲▲▲ TAMAT PANGGILAN ▲▲▲
-            } else { 
-                try { 
-                    await signInAnonymously(auth); 
-                } catch (error) { 
-                    console.error("Error signing in:", error); 
-                } 
-            }
-        });
-
-        // ▼▼▼ FUNGSI MAIN DIGABUNGKAN ▼▼▼
-        async function main() { 
-            if (!userId) return;
-            const urlParams = new URLSearchParams(window.location.search);
-            const taskId = urlParams.get('id');
-            currentTaskId = taskId; // Tetapkan untuk kedua-dua skrip
-
-            const versionInfo = document.getElementById('version-info');
-            if(versionInfo) {
-                const year = new Date().getFullYear();
-                // Semak kewujudan elemen sebelum tetapkan, kerana ia mungkin berada di footer berbeza
-                if(document.getElementById('version-info')) {
-                    document.getElementById('version-info').textContent = `Versi 2.1 (${year})`;
-                }
-            }
-
-            if (!taskId) {
-                // Semak jika kita berada di 'selesai.html'
-                if(loadingState && checkInCard) {
-                    return showMessage('error', 'Pautan Tidak Sah', 'ID tugasan tidak ditemui dalam pautan.');
-                }
-                // Jika tidak, mungkin ini 'task.html'
-                if(document.getElementById('loading-dashboard')) {
-                    document.getElementById('loading-dashboard').innerHTML = '<p class="text-red-500 text-center">Tiada ID tugasan ditemui. Sila kembali ke senarai.</p>';
-                }
-                return;
-            }
-
-            // --- Logik untuk 'task.html' (Papan Pemuka) ---
-            if (document.getElementById('full-dashboard-content')) {
-                initializeDashboard(taskId);
-            }
-
-            // --- Logik untuk 'selesai.html' (Pengesahan) ---
-            if (document.getElementById('check-in-card') && loadingState) {
-                try {
-                    const taskRef = doc(db, `artifacts/${appId}/public/data/spark_tasks`, currentTaskId);
-                    const docSnap = await getDoc(taskRef);
-
-                    if (docSnap.exists()) {
-                        currentTask = { id: docSnap.id, ...docSnap.data() };
-                        
-                        // Isi kandungan untuk maklumat tugasan 'selesai.html'
-                        document.getElementById('program-name').textContent = currentTask.nama;
-                        document.getElementById('info-pegawai').textContent = currentTask.pegawai || 'N/A';
-                        document.getElementById('info-date-end').textContent = formatTarikh(currentTask.tarikhSiap) || 'N/A';
-                        
-                        loadingState.classList.add('hidden');
-                        checkInCard.classList.remove('hidden');
-                        
-                        confirmationDetails.classList.remove('hidden');
-                        renderProgressVisuals(); // Panggil visual progress
-
-                    } else {
-                        showMessage('error', 'Tugasan Tidak Ditemui', 'Sila pastikan anda menggunakan pautan yang betul.');
-                    }
-                } catch (error) {
-                    console.error("Error memuatkan tugasan: ", error);
-                    showMessage('error', 'Gagal Sambungan', 'Tidak dapat memuatkan maklumat tugasan.');
-                }
-            }
-
-            // --- Logik Tambahan 'task.html' (jika wujud) ---
-            if (document.getElementById('version-info')) {
-                // Ini mungkin bertindih, tetapi tidak mengapa
-            }
-            
-            // ▼▼▼ TAMBAHAN: Muatkan borang pendaftaran di latar belakang (jika wujud) ▼▼▼
-            if (typeof setupDynamicFormListeners === 'function') {
-                setupDynamicFormListeners();
-                loadSchoolsIntoDropdowns();
-                loadPositionsIntoDropdown();
-            }
-            // ▲▲▲ TAMAT TAMBAHAN ▲▲▲
-        }
-        // ▲▲▲ TAMAT FUNGSI MAIN GABUNGAN ▲▲▲
-        
-        // --- FUNGSI UNTUK 'task.html' ---
         function initializeDashboard(taskId) {
             if (unsubscribeTaskListener) unsubscribeTaskListener();
             
@@ -643,7 +541,7 @@
             }
 
             const completionSelect = document.getElementById('completion-items-select');
-            if(completionSelect) { // Pastikan elemen wujud
+            if(completionSelect) {
                 completionSelect.addEventListener('change', (e) => {
                     completionItemsToShow = parseInt(e.target.value, 10);
                     renderCompletionHistory();
@@ -654,12 +552,12 @@
             
             unsubscribeTaskListener = onSnapshot(taskRef, (docSnap) => {
                 if (docSnap.exists()) {
-                    currentTask = { id: docSnap.id, ...docSnap.data() }; // currentTask dikongsi
+                    currentTask = { id: docSnap.id, ...docSnap.data() };
                     renderTaskDetails();
                     
-                    generateQRCode(taskId); // Jana QR Code
+                    generateQRCode(taskId);
                     
-                    renderTaskProgress(); 
+                    renderTaskProgress(); // KRITIKAL: Panggil pengiraan skop
                     renderCompletionHistory();
                     renderSubTasks(); 
                     const hasLinks = renderLinks();
@@ -703,24 +601,25 @@
             }
         }
 
+        // FUNGSI KRITIKAL UNTUK PENGIRAAN SKOP
         function renderTaskProgress() {
-            if(!document.getElementById('info-selesai')) return; // Hanya jalan jika di task.html
+            if(!document.getElementById('info-selesai')) return;
 
-            // ▼▼▼ FUNGSI INI MENGGUNAKAN normalizeStationName UNTUK PADANAN NAMA ▼▼▼
             const totalSkop = Array.isArray(currentTask.skopSenaraiSekolah) 
-                ? currentTask.skopSenaraiSekolah.map(normalizeStationName) 
+                ? currentTask.skopSenaraiSekolah // INI SUDAH DINORMALISASI DI tugasan.html
                 : [];
             const totalSkopSet = new Set(totalSkop);
 
             const allSelesai = Array.isArray(currentTask.skopSelesai) 
-                ? currentTask.skopSelesai.map(normalizeStationName) 
+                ? currentTask.skopSelesai.map(normalizeStationName) // Pastikan rekod selesai dinormalisasi
                 : [];
-            // ▲▲▲ Fungsi ini membolehkan padanan NAMA PENUH jika ia diletakkan sebagai sasaran dan stesen kerja. ▲▲▲
 
+            // FILTER: Hanya kira selesai jika ia wujud dalam senarai skop
             skopSelesaiList = allSelesai.filter(sekolah => totalSkopSet.has(sekolah));
             
             const selesaiSet = new Set(skopSelesaiList);
 
+            // FILTER: Kira belum selesai (semua skop tolak yang dah selesai)
             skopBelumList = totalSkop.filter(sekolah => !selesaiSet.has(sekolah));
             
             let jumlahSelesai;
@@ -731,7 +630,7 @@
             const belumBtn = document.querySelector('button[onclick="showSkopList(\'belum\')"]');
             
             if (totalSkop.length === 0) {
-                // Mod Manual
+                // Mod Manual (Fallback)
                 jumlahSelesai = currentTask.jumlahSelesai || 0;
                 total = (currentTask.jumlahSelesai || 0) + (currentTask.jumlahBelum || 0);
                 jumlahBelum = total - jumlahSelesai;
@@ -760,7 +659,7 @@
 
         function renderCompletionHistory() {
             const container = document.getElementById('completion-list');
-            if(!container) return; // Hanya jalan jika di task.html
+            if(!container) return;
             
             const footer = document.getElementById('completion-list-footer');
             container.innerHTML = '';
@@ -814,7 +713,7 @@
 
         function renderSubTasks() {
             const container = document.getElementById('sub-task-list');
-            if(!container) return; // Hanya jalan jika di task.html
+            if(!container) return;
             
             container.innerHTML = '';
             const list = currentTask.senaraiSubTugasan || [];
@@ -844,7 +743,7 @@
                 const tagClass = "text-xs font-semibold px-2 py-0.5 rounded-full mr-2";
                 return required 
                     ? `<span class="${tagClass} bg-red-100 text-red-700">[WAJIB]</span>`
-                    : ``; // Tiada tag jika pilihan
+                    : ``;
             };
 
             list.forEach((tugas, index) => {
@@ -894,7 +793,7 @@
         }
         function renderLinks() {
             const container = document.getElementById('link-list');
-            if(!container) return false; // Hanya jalan jika di task.html
+            if(!container) return false;
             
             container.innerHTML = '';
             const list = currentTask.senaraiPautan || [];
@@ -914,7 +813,7 @@
         }
         function renderFiles() {
             const container = document.getElementById('file-list');
-            if(!container) return false; // Hanya jalan jika di task.html
+            if(!container) return false;
 
             container.innerHTML = '';
             const file = currentTask.fail;
@@ -938,7 +837,7 @@
             const modal = document.getElementById('share-modal');
             const textarea = document.getElementById('share-text');
             const shareBtn = document.getElementById('web-share-btn');
-            if(!modal || !textarea || !shareBtn) return; // Hanya jalan jika di task.html
+            if(!modal || !textarea || !shareBtn) return;
             
             const taskName = currentTask.nama;
             const pegawai = currentTask.pegawai;
@@ -1022,10 +921,10 @@ Sekian, terima kasih.`;
             
             let list = [];
             if (status === 'selesai') {
-                titleEl.textContent = 'Senarai Selesai';
+                titleEl.textContent = 'Senarai Selesai (Disahkan)';
                 list = skopSelesaiList;
             } else {
-                titleEl.textContent = 'Senarai Belum Selesai';
+                titleEl.textContent = 'Senarai Belum Selesai (Sasaran)';
                 list = skopBelumList;
             }
             currentModalSkopList = list;
@@ -1034,7 +933,8 @@ Sekian, terima kasih.`;
             if (list.length === 0) {
                 contentEl.innerHTML = `<p class="text-sm text-gray-500 italic">Tiada data untuk dipaparkan.</p>`;
             } else {
-                list.sort().forEach((item, index) => {
+                // PAPARKAN LIST DENGAN NAMA PENUH
+                list.sort().forEach((item, index) => { 
                     contentEl.innerHTML += `
                         <div class="text-sm text-gray-800 bg-white p-2 border-b last:border-b-0">
                             ${index + 1}. ${item}
@@ -1076,624 +976,18 @@ Sekian, terima kasih.`;
             }, 250);
         }
         
-        // --- FUNGSI UNTUK 'selesai.html' ---
-        
-        // ▼▼▼ UBAHSUAI: Pastikan fungsi ini guna normalizeStationName ▼▼▼
-        function renderProgressVisuals() {
-            if (!document.getElementById('progress-container')) return; // Hanya jalan jika di selesai.html
-
-            const totalSkop = Array.isArray(currentTask.skopSenaraiSekolah) 
-                ? currentTask.skopSenaraiSekolah.map(normalizeStationName) // UBAHSUAI
-                : [];
-            
-            let jumlahSelesai;
-            let total;
-
-            if (totalSkop.length > 0) {
-                // --- Mod Skop (berdasarkan senarai) ---
-                const totalSkopSet = new Set(totalSkop);
-                const allSelesai = (currentTask.skopSelesai || []).map(normalizeStationName); // UBAHSUAI
-                const skopSelesaiList = allSelesai.filter(sekolah => totalSkopSet.has(sekolah));
-                
-                jumlahSelesai = skopSelesaiList.length; 
-                total = totalSkop.length;
-            
-            } else if (currentTask.jumlahSelesai !== undefined && currentTask.jumlahBelum !== undefined) {
-                // --- Mod Manual (berdasarkan kiraan) ---
-                jumlahSelesai = currentTask.jumlahSelesai || 0;
-                total = (currentTask.jumlahSelesai || 0) + (currentTask.jumlahBelum || 0);
-            
-            } else {
-                // --- Tiada Skop & Tiada Kiraan Manual (fallback) ---
-                jumlahSelesai = (currentTask.rekodSelesai || []).length;
-                total = 0; 
-            }
-
-            const peratus = (total === 0) ? 0 : Math.round((jumlahSelesai / total) * 100);
-
-            const progressContainer = document.getElementById('progress-container');
-            const percentageEl = document.getElementById('progress-percentage');
-            const barEl = document.getElementById('progress-bar-inner');
-            const selesaiEl = document.getElementById('progress-selesai');
-            const totalEl = document.getElementById('progress-total');
-
-            if (total > 0) {
-                if (percentageEl) percentageEl.textContent = `${peratus}%`;
-                if (barEl) barEl.style.width = `${peratus}%`;
-                if (selesaiEl) selesaiEl.textContent = `Selesai: ${jumlahSelesai}`;
-                if (totalEl) totalEl.textContent = `Total: ${total}`;
-            } else {
-                progressContainer.innerHTML = `
-                    <div class="text-center text-sm font-medium text-gray-600 p-3 bg-gray-50 rounded-lg border">
-                        <span class="font-bold text-indigo-600 text-lg">${jumlahSelesai}</span> Pengesahan Telah Diterima
-                    </div>
-                `;
-            }
-        }
-        // ▲▲▲ TAMAT UBAHSUAI ▲▲▲
-        
-        function validateIcInput(input) {
-            input.value = input.value.replace(/[^0-9]/g, '');
-            const counter = document.getElementById('ic-counter');
-            if (counter) {
-                const currentLength = input.value.length;
-                counter.textContent = currentLength;
-                if (currentLength === 12) {
-                    counter.classList.add('text-green-600', 'font-bold');
-                } else {
-                    counter.classList.remove('text-green-600', 'font-bold');
-                }
-            }
-        }
-        
-        window.checkIc = async function(event) {
-            event.preventDefault();
-            icError.classList.add('hidden');
-            const ic = icInput.value.trim();
-
-            if (!ic || ic.length !== 12) {
-                alert("Sila masukkan No. IC yang sah (12 digit).");
-                return;
-            }
-            
-            icSubmitBtn.disabled = true;
-            icSubmitBtn.innerHTML = `<svg class="animate-spin h-5 w-5 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>`;
-
-            let stesenPengesah = null;
-
-            try {
-                const participantsRef = collection(db, `artifacts/${appId}/public/data/spark_participants`);
-                const q = query(participantsRef, where("ic", "==", ic));
-                const querySnapshot = await getDocs(q);
-
-                if (querySnapshot.empty) {
-                    icError.classList.remove('hidden');
-                    icInput.focus();
-                    icSubmitBtn.disabled = false;
-                    icSubmitBtn.textContent = "Seterusnya";
-                    return;
-                }
-                
-                const docData = querySnapshot.docs[0].data();
-                participantInfo = {
-                    ic: ic,
-                    name: docData.name,
-                    position: docData.position,
-                    station: docData.station
-                };
-                validatedIc = ic;
-                stesenPengesah = docData.station || null;
-
-                // ▼▼▼ UBAHSUAI: Guna normalizeStationName untuk semakan 'skopSelesai' ▼▼▼
-                const skopSelesai = (currentTask.skopSelesai || []).map(normalizeStationName);
-                if (stesenPengesah && skopSelesai.includes(normalizeStationName(stesenPengesah))) {
-                     showMessage('warning', 'Telah Disahkan', `Seseorang dari stesen anda (${stesenPengesah}) telah pun membuat pengesahan untuk tugasan ini.`);
-                     icSubmitBtn.disabled = false;
-                     icSubmitBtn.textContent = "Seterusnya";
-                     return;
-                }
-                // ▲▲▲ TAMAT UBAHSUAI ▲▲▲
-
-
-                document.getElementById('participant-name').textContent = docData.name || 'N/A';
-                document.getElementById('participant-position').textContent = docData.position || 'TIADA JAWATAN';
-                document.getElementById('participant-station').textContent = docData.station || 'TIADA STESEN';
-
-                icForm.classList.add('hidden');
-                document.getElementById('progress-container').classList.add('hidden'); // Sembunyi progress bar
-                participantDetails.classList.remove('hidden');
-                
-                buildDynamicForm(currentTask.senaraiSubTugasan); 
-                
-                completionForm.classList.remove('hidden');
-                
-            } catch (error) {
-                console.error("Error verifying participant IC: ", error);
-                showMessage('error', 'Gagal!', 'Berlaku ralat semasa mengesahkan IC anda. Sila cuba lagi.');
-                icSubmitBtn.disabled = false;
-                icSubmitBtn.textContent = "Seterusnya";
-            }
-        }
-        
-        // Gantikan keseluruhan fungsi ini dalam task (4).html
-        function buildDynamicForm(questions) {
-            const container = document.getElementById('dynamic-questions-container');
-            if(!container) return; // Hanya jalan jika di selesai.html
-            
-            container.innerHTML = '';
-            
-            if (!questions || questions.length === 0) {
-                container.innerHTML = '<p class="text-gray-500 italic text-center">Tiada arahan atau soalan khusus untuk tugasan ini. Sila tekan "Sahkan Selesai" di bawah untuk merekodkan pengesahan anda.</p>';
-                return;
-            }
-
-            questions.forEach((q, index) => {
-                const wrapper = document.createElement('div');
-                wrapper.className = 'spark-question-wrapper p-4 bg-white shadow-sm rounded-lg border border-gray-200'; // Kelas tambahan
-                
-                let questionText, questionType, isRequired, options, scaleData;
-                
-                // Pastikan 'q' adalah objek dan tentukan nilai default
-                if (typeof q === 'object' && q !== null && q.text) {
-                    questionText = q.text;
-                    questionType = q.type || 'arahan';
-                    isRequired = q.required !== undefined ? q.required : false; // Ambil nilai required
-                    options = q.options || [];
-                    scaleData = q.scaleData || null;
-                } else if (typeof q === 'string') {
-                    questionText = q; 
-                    questionType = 'arahan'; 
-                    isRequired = false;
-                    options = [];
-                    scaleData = null;
-                } else {
-                    questionText = "[Soalan tidak sah]";
-                    questionType = 'arahan';
-                    isRequired = false;
-                    options = [];
-                    scaleData = null;
-                }
-
-                wrapper.dataset.questionText = questionText;
-                wrapper.dataset.questionType = questionType;
-                wrapper.dataset.questionIndex = index;
-                wrapper.dataset.isRequired = isRequired; // Simpan status required
-
-                let inputHtml = '';
-                const questionId = `q_${index}`;
-                const requiredStar = isRequired ? '<span class="required-star">*</span>' : '';
-                
-                const inputClasses = "spark-question-input mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 text-base px-4 py-3";
-                const baseLabelHtml = `<label for="${questionId}" class="block text-sm font-medium text-gray-700">${index + 1}. ${questionText}${requiredStar}</label>`;
-                const isSelectionType = questionType === 'ya_tidak' || questionType === 'option_button' || questionType === 'radio_button' || questionType === 'multiselect' || questionType === 'skala';
-
-                // Styling untuk bukan input biasa
-                if (isSelectionType) {
-                    inputHtml += baseLabelHtml;
-                }
-
-                switch(questionType) {
-                    case 'arahan':
-                        inputHtml = `<div class="arahan-only-box">
-                                        <p><b>${index + 1}.</b> ${questionText}</p>
-                                     </div>`;
-                        wrapper.classList.remove('p-4', 'bg-white', 'shadow-sm', 'border'); // Buang padding/shadow untuk arahan
-                        break;
-                    case 'ya_tidak':
-                        inputHtml += `
-                            <div class="mt-2 grid grid-cols-2 gap-3" data-name="${questionId}">
-                                <input type="radio" id="${questionId}_ya" name="${questionId}" value="Ya" class="spark-question-input">
-                                <label for="${questionId}_ya" class="radio-btn-label">Ya</label>
-                                <input type="radio" id="${questionId}_tidak" name="${questionId}" value="Tidak" class="spark-question-input">
-                                <label for="${questionId}_tidak" class="radio-btn-label">Tidak</label>
-                            </div>`;
-                        break;
-                    case 'teks_ringkas':
-                        inputHtml = `${baseLabelHtml}<input type="text" id="${questionId}" class="${inputClasses}" placeholder="Isi jawapan anda..." ${isRequired ? 'data-required="true"' : ''}>`;
-                        break;
-                    case 'teks_panjang':
-                        inputHtml = `${baseLabelHtml}<textarea id="${questionId}" rows="4" class="${inputClasses}" placeholder="Isi jawapan anda..." ${isRequired ? 'data-required="true"' : ''}></textarea>`;
-                        break;
-                    case 'pautan_url':
-                        inputHtml = `${baseLabelHtml}<input type="url" id="${questionId}" class="${inputClasses}" placeholder="https://..." ${isRequired ? 'data-required="true"' : ''}>`;
-                        break;
-                    case 'tarikh':
-                        inputHtml = `${baseLabelHtml}<input type="date" id="${questionId}" class="${inputClasses}" ${isRequired ? 'data-required="true"' : ''}>`;
-                        break;
-                    case 'option_button': // Dropdown
-                        inputHtml += `
-                            <select id="${questionId}" class="${inputClasses} spark-question-select" ${isRequired ? 'data-required="true"' : ''}>
-                                <option value="">Sila Pilih Jawapan</option>
-                                ${options.map(opt => `<option value="${opt}">${opt}</option>`).join('')}
-                            </select>`;
-                        break;
-                    case 'radio_button': // Radio Buttons (Custom UI)
-                        inputHtml += `<div class="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-3" data-name="${questionId}">
-                                ${options.map((opt, optIndex) => `
-                                    <input type="radio" id="${questionId}_${optIndex}" name="${questionId}" value="${opt}" class="spark-question-input">
-                                    <label for="${questionId}_${optIndex}" class="radio-btn-label">${opt}</label>
-                                `).join('')}
-                            </div>`;
-                        break;
-                    case 'multiselect': // Checkboxes (Custom UI)
-                        inputHtml += `<div class="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-3" data-name="${questionId}">
-                                ${options.map((opt, optIndex) => `
-                                    <input type="checkbox" id="${questionId}_${optIndex}" name="${questionId}" value="${opt}" class="spark-question-input">
-                                    <label for="${questionId}_${optIndex}" class="radio-btn-label">${opt}</label>
-                                `).join('')}
-                            </div>`;
-                        break;
-                    case 'skala': // Skala Linear (Radio Custom)
-                        let min = 1, max = 5;
-                        let minLabel = '', maxLabel = '';
-                        if (scaleData) {
-                            min = scaleData.min || 1;
-                            max = scaleData.max || 5;
-                            minLabel = scaleData.minLabel || '';
-                            maxLabel = scaleData.maxLabel || '';
-                        }
-                        
-                        let scaleHtml = '<div class="mt-2 flex justify-between items-start gap-1">';
-                        for (let i = min; i <= max; i++) {
-                            scaleHtml += `
-                                <div class="flex-1 text-center">
-                                    <input type="radio" id="${questionId}_${i}" name="${questionId}" value="${i}" class="spark-question-input">
-                                    <label for="${questionId}_${i}" class="radio-btn-label scale-label">${i}</label>
-                                </div>
-                            `;
-                        }
-                        scaleHtml += '</div>';
-
-                        if (minLabel || maxLabel) {
-                            scaleHtml += `<div class="flex justify-between text-xs text-gray-500 mt-1 px-1">
-                                            <span class="text-left">${minLabel}</span>
-                                            <span class="text-right">${maxLabel}</span>
-                                          </div>`;
-                        }
-                        inputHtml += scaleHtml;
-                        break;
-                }
-                
-                // Untuk input yang tiada baseLabelHtml di atas (iaitu input biasa)
-                if (!isSelectionType && questionType !== 'arahan') {
-                    wrapper.innerHTML = inputHtml;
-                } else if (isSelectionType) {
-                    // Untuk input yang mempunyai baseLabelHtml, kita letakkan label di luar inputHtml
-                    const content = document.createElement('div');
-                    content.innerHTML = inputHtml;
-                    wrapper.appendChild(content);
-                } else if (questionType === 'arahan') {
-                    wrapper.innerHTML = inputHtml; // Arahan sudah termasuk label/header
-                }
-
-                container.appendChild(wrapper);
-            });
-        }
-
-        // Gantikan keseluruhan fungsi ini dalam task (4).html
-        window.sahkanSelesai = async function(event) {
-            event.preventDefault();
-            
-            if (!validatedIc) {
-                alert("Sila sahkan IC anda dahulu.");
-                return;
-            }
-            
-            completionSubmitBtn.disabled = true;
-            completionSubmitBtn.innerHTML = `<svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> <span>Menghantar...</span>`;
-
-            const jawapanSelesai = [];
-            const wrappers = document.querySelectorAll('.spark-question-wrapper');
-            
-            let isFormValid = true;
-
-            wrappers.forEach(wrapper => {
-                const questionText = wrapper.dataset.questionText;
-                const questionType = wrapper.dataset.questionType;
-                const isRequired = wrapper.dataset.isRequired === 'true'; // Ambil status required
-                
-                let value = '';
-                let isInputValid = true;
-
-                // Reset visual ralat
-                wrapper.querySelectorAll('.spark-question-input, .spark-question-select').forEach(el => {
-                    el.classList.remove('border-red-500', 'ring-red-500');
-                });
-                wrapper.querySelectorAll('.radio-btn-label').forEach(lbl => lbl.classList.remove('border-red-500'));
-                
-                
-                if (questionType === 'arahan') {
-                    return; // Tiada input, langkau
-                }
-
-                // --- VALIDATION & PENGAMBILAN NILAI ---
-                if (questionType === 'ya_tidak' || questionType === 'radio_button' || questionType === 'skala') {
-                    const checkedRadio = wrapper.querySelector('input[type="radio"]:checked');
-                    if (checkedRadio) {
-                        value = checkedRadio.value;
-                    } else if (isRequired) {
-                        isInputValid = false;
-                        wrapper.querySelectorAll('.radio-btn-label').forEach(lbl => lbl.classList.add('border-red-500'));
-                    } else {
-                         value = "Tidak Dijawab (Pilihan)"; // Nilai lalai jika pilihan
-                    }
-
-                } else if (questionType === 'multiselect') {
-                    const checkedCheckboxes = Array.from(wrapper.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
-                    value = checkedCheckboxes.join('; ');
-                    
-                    if (isRequired && checkedCheckboxes.length === 0) {
-                         isInputValid = false;
-                         wrapper.querySelectorAll('.radio-btn-label').forEach(lbl => lbl.classList.add('border-red-500'));
-                    }
-
-                } else if (questionType === 'option_button') {
-                    const selectElement = wrapper.querySelector('.spark-question-select');
-                    value = selectElement ? selectElement.value.trim() : '';
-
-                    if (isRequired && value === '') {
-                        isInputValid = false;
-                        selectElement.classList.add('border-red-500', 'ring-red-500');
-                    }
-                
-                } else { // teks_ringkas, pautan_url, teks_panjang, tarikh
-                    const inputElement = wrapper.querySelector('.spark-question-input, textarea'); 
-                    if (inputElement) {
-                        value = inputElement.value.trim();
-                        
-                        if (isRequired && value === '') {
-                            isInputValid = false;
-                            inputElement.classList.add('border-red-500', 'ring-red-500');
-                        }
-                    }
-                }
-
-                if (!isInputValid) {
-                    isFormValid = false;
-                }
-
-                jawapanSelesai.push({
-                    soalan: questionText,
-                    jenis: questionType,
-                    jawapan: value
-                });
-            });
-
-            if (!isFormValid) {
-                alert("Sila isi/pilih semua medan bertanda (*) yang wajib diisi.");
-                completionSubmitBtn.disabled = false;
-                completionSubmitBtn.innerHTML = originalButtonText;
-                // Tumpukan pada elemen pertama yang mempunyai ralat
-                const firstErrorElement = document.querySelector('.border-red-500, .ring-red-500');
-                if (firstErrorElement) {
-                    firstErrorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    if (firstErrorElement.tagName === 'INPUT' || firstErrorElement.tagName === 'TEXTAREA' || firstErrorElement.tagName === 'SELECT') {
-                        firstErrorElement.focus();
-                    } else {
-                         // Jika label (untuk radio/checkbox), fokus pada wrapper
-                         firstErrorElement.closest('.spark-question-wrapper').scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    }
-                }
-                return;
-            }
-            
-            // ... (Logik penyimpanan kekal sama) ...
-            
-            const timestampSekarang = new Date();
-
-            const completionRecord = {
-                ic_pengesah: validatedIc,
-                nama_pengesah: participantInfo ? participantInfo.name : 'N/A',
-                jawatan_pengesah: participantInfo ? participantInfo.position : 'N/A',
-                stesen_pengesah: participantInfo ? participantInfo.station : 'N/A',
-                jawapan: jawapanSelesai,
-                timestamp: timestampSekarang.toISOString()
-            };
-
-            const stesenPengesah = participantInfo ? participantInfo.station : null;
-            let dataToUpdate = {
-                rekodSelesai: arrayUnion(completionRecord)
-            };
-            
-            // ▼▼▼ PERUBAHAN KRITIKAL (untuk padanan nama yang lebih konsisten) ▼▼▼
-            // UNTUK MEMASTIKAN PADANAN NAMA BERGUNA:
-            // Jika stesen yang disimpan ialah Nama Penuh, ia perlu digunakan untuk padanan skop.
-            // Kod ini sedia menggunakan 'station' (stesen) untuk padanan skop.
-            // Oleh itu, pastikan 'station' peserta adalah NAMA PENUH yang anda ingin semak.
-            if (stesenPengesah) {
-                dataToUpdate.skopSelesai = arrayUnion(stesenPengesah);
-            }
-            // ▲▲▲ JIKA NAMA INDIVIDU ADALAH SASARAN ANDA, NAMA ITU MESTI JADI NILAI 'station' MEREKA. ▲▲▲
-
-            const taskRef = doc(db, `artifacts/${appId}/public/data/spark_tasks`, currentTaskId);
-            try {
-                await updateDoc(taskRef, dataToUpdate);
-                
-                const bilanganSediaAda = (currentTask.rekodSelesai || []).length;
-                const bilanganBaru = bilanganSediaAda + 1; 
-
-                const tarikhMasa = timestampSekarang.toLocaleString('ms-MY', { 
-                    day: 'numeric', month: 'long', year: 'numeric', 
-                    hour: 'numeric', minute: '2-digit', second: '2-digit' 
-                });
-
-                let msgTitle = "Pengesahan Telah Direkodkan";
-                let msgBody = `Terima kasih. Data anda telah disahkan dan direkodkan pada ${tarikhMasa}. Anda adalah pengesah ke-${bilanganBaru} untuk tugasan ini.`;
-                
-                showMessage('success', msgTitle, msgBody);
-
-            } catch (error) {
-                console.error("Error saving completion record: ", error);
-                showMessage('error', 'Gagal!', 'Gagal menyimpan rekod. Sila cuba lagi.');
-                completionSubmitBtn.disabled = false;
-                completionSubmitBtn.innerHTML = originalButtonText;
-            }
-        }
-        
-        function showMessage(type, title, body) {
-            if(loadingState) loadingState.classList.add('hidden');
-            if (checkInCard) checkInCard.classList.add('hidden');
-            
-            const msgCard = document.getElementById('message-card');
-            const msgIcon = document.getElementById('message-icon');
-            const msgTitle = document.getElementById('message-title');
-            const msgBody = document.getElementById('message-body');
-            if(!msgCard || !msgIcon || !msgTitle || !msgBody) return; // Hanya jalan jika di selesai.html
-
-            msgTitle.textContent = title;
-            msgBody.textContent = body;
-            
-            let icon, color;
-            if (type === 'success') {
-                icon = `<svg class="h-8 w-8 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`;
-                color = 'bg-green-500';
-            } else if (type === 'warning') {
-                icon = `<svg class="h-8 w-8 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>`;
-                color = 'bg-yellow-500';
-            } else { // error
-                icon = `<svg class="h-8 w-8 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`;
-                color = 'bg-red-500';
-            }
-            
-            msgIcon.className = `w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${color}`;
-            msgIcon.innerHTML = icon;
-
-            const returnButton = document.getElementById('return-button');
-    		if (currentTaskId) {
-        		returnButton.onclick = () => {
-            		window.location.href = `task.html?id=${currentTaskId}`;
-        		};
-    		} else {
-        		returnButton.onclick = () => {
-            		window.location.href = 'sparktask.html';
-        		};
-    		}
-
-            msgCard.classList.remove('hidden');
-        }
-        
-        // --- FUNGSI 'task.html' (Borang Dinamik Latar Belakang) ---
-        // (Ini adalah salinan dari kod task.html anda, ditambah di sini untuk 'gabungan')
-        function setupDynamicFormListeners() {
-            const radios = document.querySelectorAll('input[name="participant-category"]');
-            if(radios.length === 0) return; // Hanya jalan jika elemen wujud
-
-            radios.forEach(radio => {
-                radio.addEventListener('change', (e) => {
-                    const category = e.target.value;
-                    ['warga', 'murid', 'awam'].forEach(cat => {
-                        const fieldset = document.getElementById(`${cat}-fields`);
-                        if(fieldset) {
-                            fieldset.classList.toggle('hidden', cat !== category);
-                            fieldset.querySelectorAll('input, select').forEach(el => el.disabled = (cat !== category));
-                        }
-                    });
-                });
-            });
-
-            const locationHandler = (prefix) => {
-                const locRadios = document.querySelectorAll(`input[name="${prefix}-location"]`);
-                if(locRadios.length === 0) return;
-
-                locRadios.forEach(radio => {
-                    radio.addEventListener('change', (e) => {
-                        const isMiri = e.target.value === 'miri';
-                        const miriContainer = document.getElementById(`${prefix}-station-miri-container`);
-                        const miriSelect = document.getElementById(`${prefix}-station-select`);
-                        const luarContainer = document.getElementById(`${prefix}-station-luar-container`);
-                        const luarManual = document.getElementById(`${prefix}-station-manual`);
-                        const districtInput = document.getElementById(`${prefix}-district-manual`);
-
-                        if(miriContainer) miriContainer.classList.toggle('hidden', !isMiri);
-                        if(miriSelect) miriSelect.disabled = !isMiri;
-                        if(luarContainer) luarContainer.classList.toggle('hidden', isMiri);
-                        if(luarManual) luarManual.disabled = isMiri;
-                        if(districtInput) districtInput.disabled = isMiri;
-                    });
-                });
-            };
-            locationHandler('warga');
-            locationHandler('murid');
-        }
-
-        async function loadSchoolsIntoDropdowns() {
-            const selectors = ['#warga-station-select', '#murid-station-select'];
-            const selectElement = document.querySelector(selectors[0]);
-            if(!selectElement) return; // Hanya jalan jika elemen wujud
-
-            try {
-                const schoolsRef = collection(db, `artifacts/${appId}/public/data/spark_schools`);
-                const q = query(schoolsRef, orderBy("name", "asc"));
-                const querySnapshot = await getDocs(q);
-                
-                if (querySnapshot.empty) return;
-
-                const schools = querySnapshot.docs.map(doc => doc.data().name);
-
-                selectors.forEach(selector => {
-                    const el = document.querySelector(selector);
-                    if (el && el.options.length <= 1) { // Elak muat semula jika sudah ada
-                        schools.forEach(schoolName => {
-                            const option = document.createElement('option');
-                            option.value = schoolName;
-                            option.textContent = schoolName;
-                            el.appendChild(option);
-                        });
-                    }
-                });
-            } catch (error) {
-                console.error("Error loading schools: ", error);
-            }
-        }
-
-        async function loadPositionsIntoDropdown() {
-            const selectElement = document.querySelector('#warga-position');
-            if(!selectElement) return; // Hanya jalan jika elemen wujud
-
-            try {
-                const positionsRef = collection(db, `artifacts/${appId}/public/data/spark_positions`);
-                const q = query(positionsRef, orderBy("order", "asc"));
-                const querySnapshot = await getDocs(q);
-                
-                if (querySnapshot.empty) return;
-
-                const positions = querySnapshot.docs.map(doc => doc.data().name);
-                
-                if (selectElement.options.length <= 1) { // Elak muat semula jika sudah ada
-                    positions.forEach(positionName => {
-                        const option = document.createElement('option');
-                        option.value = positionName;
-                        option.textContent = positionName;
-                        selectElement.appendChild(option);
-                    });
-                }
-            } catch (error) {
-                console.error("Error loading positions: ", error);
-            }
-        }
-        // --- Tamat Fungsi Latar Belakang ---
-
-
-        // Mendedahkan fungsi ke window HANYA jika ia diperlukan oleh HTML
-        // Ini adalah amalan yang lebih baik daripada meletakkan semua di 'window'
-        if(document.getElementById('ic-form')) {
-             window.validateIcInput = validateIcInput;
-             window.checkIc = checkIc;
-             window.sahkanSelesai = sahkanSelesai;
-        }
-        if(document.getElementById('full-dashboard-content')) {
-            Object.assign(window, {
-                showSkopList,
-                closeSkopModal,
-                copySkopList,
-                printSkopList,
-                showAllCompletions,
-                showShareModal,
-                closeShareModal,
-                copyShareText,
-                webShareTask
-            });
-        }
+        // Mendedahkan fungsi ke window
+        Object.assign(window, {
+            showSkopList,
+            closeSkopModal,
+            copySkopList,
+            printSkopList,
+            showAllCompletions,
+            showShareModal,
+            closeShareModal,
+            copyShareText,
+            webShareTask
+        });
 
     </script>
 </body>
