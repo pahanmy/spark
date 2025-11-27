@@ -376,7 +376,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, onSnapshot, getDocs, collection, query, where, addDoc, orderBy, getDoc, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, updateDoc, arrayRemove } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM",
@@ -388,29 +388,36 @@
         };
         
         let db, auth, userId;
-        let unsubscribeTaskListener = null; 
-        let currentTask = null;
         const appId = firebaseConfig.projectId;
         let currentTaskId = null;
-        let skopSelesaiList = [];
-        let skopBelumList = [];
-        let currentModalSkopList = [];
-        let currentModalSkopTitle = "";
-        let validatedIc = null; 
-        let participantInfo = null; 
+        let correctPenyelarasIc = null;
+        let currentTaskData = null;
         
-        let completionItemsToShow = 5; 
+        let fullSkopBelumList = []; 
+        let fullRekodSelesaiList = []; 
+        let uniqueStesenList = []; 
+        let latestCompletionMap = {}; 
+        let reportDataList = []; 
+
+        let currentPageBelum = 1;
+        let itemsPerPageBelum = 10;
+        let currentPageSelesai = 1;
+        let itemsPerPageSelesai = 10;
+        let currentFilterStesen = ''; 
+        let currentPageLaporan = 1;
+        let itemsPerPageLaporan = 10;
+
+        const carianBelumInput = document.getElementById('carian-belum-input');
+        const itemsBelumSelect = document.getElementById('items-belum-select');
+        const paginationBelum = document.getElementById('pagination-belum');
+        const carianSelesaiInput = document.getElementById('carian-selesai-input');
+        const itemsSelesaiSelect = document.getElementById('items-selesai-select');
+        const paginationSelesai = document.getElementById('pagination-selesai');
+        const filterStesenSelesai = document.getElementById('filter-stesen-selesai'); 
         
-        // FUNGSI NORMALIZATION (SG. -> SUNGAI) - KRITIKAL
-        function normalizeStationName(name) {
-            if (typeof name !== 'string') return '';
-            let normalized = name.toUpperCase();
-            normalized = normalized.replace(/\bSG\./g, 'SUNGAI'); 
-            normalized = normalized.replace(/\bSG\b/g, 'SUNGAI'); 
-            normalized = normalized.replace(/\./g, '');
-            normalized = normalized.replace(/\s+/g, ' ').trim();
-            return normalized;
-        }
+        const carianLaporanInput = document.getElementById('carian-laporan-input');
+        const itemsLaporanSelect = document.getElementById('items-laporan-select');
+        const paginationLaporan = document.getElementById('pagination-laporan');
 
         try {
             const app = initializeApp(firebaseConfig);
@@ -420,7 +427,7 @@
         
         onAuthStateChanged(auth, async (user) => {
             if (user) { 
-                userId = user.uid;
+                userId = user.uid; 
                 main(); 
             } else { 
                 try { 
@@ -431,564 +438,579 @@
             }
         });
 
-        async function main() { 
+        function normalizeStationName(name) {
+            if (typeof name !== 'string') return '';
+            let normalized = name.toUpperCase();
+            normalized = normalized.replace(/\bSG\./g, 'SUNGAI'); 
+            normalized = normalized.replace(/\bSG\b/g, 'SUNGAI'); 
+            normalized = normalized.replace(/\./g, '');
+            normalized = normalized.replace(/\s+/g, ' ').trim();
+            return normalized;
+        }
+
+        function main() { 
             if (!userId) return;
+            
             const urlParams = new URLSearchParams(window.location.search);
-            const taskId = urlParams.get('id');
-            currentTaskId = taskId;
-
-            const versionInfo = document.getElementById('version-info');
-            if(versionInfo) {
-                const year = new Date().getFullYear();
-                if(document.getElementById('version-info')) {
-                    document.getElementById('version-info').textContent = `Versi 2.1 (${year})`;
-                }
-            }
-
-            if (!taskId) {
-                if(document.getElementById('loading-dashboard')) {
-                    document.getElementById('loading-dashboard').innerHTML = '<p class="text-red-500 text-center">Tiada ID tugasan ditemui. Sila kembali ke senarai.</p>';
-                }
+            currentTaskId = urlParams.get('id');
+            
+            if (!currentTaskId) {
+                document.body.innerHTML = '<p class="text-red-500 text-center p-8">Tiada ID tugasan ditemui. Pautan tidak sah.</p>';
                 return;
             }
-
-            if (document.getElementById('full-dashboard-content')) {
-                initializeDashboard(taskId);
-            }
-        }
-
-        function generateQRCode(taskId) {
-            if (typeof QRCode === 'undefined') {
-                console.error("QR Code library (qrcode.min.js) not loaded.");
-                document.getElementById('qr-code-container').innerHTML = "<p class='text-xs text-red-500'>Gagal muat library QR.</p>";
-                return;
-            }
-
-            const qrContainer = document.getElementById('qr-code-container');
-            const downloadBtn = document.getElementById('download-qr-btn');
             
-            if (!qrContainer || !downloadBtn) {
-                console.warn("Elemen QR Code tidak ditemui.");
-                return;
-            }
-
-            const linkToEncode = new URL(document.getElementById('sahkan-selesai-btn').href, window.location.href).href;
+            document.getElementById('back-to-dashboard-btn').href = `task.html?id=${currentTaskId}`;
             
-            qrContainer.innerHTML = '';
-            
-            const img = document.createElement('img');
-            img.alt = `QR Code for Task ${taskId}`;
-            
-            QRCode.toDataURL(linkToEncode, { 
-                errorCorrectionLevel: 'H',
-                width: 256,
-                margin: 2
-            })
-            .then(url => {
-                img.src = url;
-                qrContainer.appendChild(img);
-                
-                downloadBtn.href = url;
-                
-                const taskName = (currentTask && currentTask.nama) ? currentTask.nama : `Task_${taskId}`;
-                const safeTaskName = taskName.replace(/[^a-z0-9]/gi, '_').substring(0, 30);
-                downloadBtn.download = `SparkTask_QR_${safeTaskName}.png`;
-                
-            })
-            .catch(err => {
-                console.error("Failed to generate QR Code:", err);
-                qrContainer.innerHTML = "<p class='text-xs text-red-500'>Gagal jana QR Code.</p>";
+            document.getElementById('ic-submit-btn').addEventListener('click', verifyIcAndLoad);
+            document.getElementById('ic-input').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') verifyIcAndLoad();
             });
-        }
-
-        function initializeDashboard(taskId) {
-            if (unsubscribeTaskListener) unsubscribeTaskListener();
             
-            document.getElementById('sahkan-selesai-btn').href = `selesai.html?id=${taskId}`;
-            document.getElementById('admin-task-btn').href = `admintask.html?id=${taskId}`; 
+            document.getElementById('download-excel-btn').addEventListener('click', downloadExcel);
 
-            const copyBtn = document.getElementById('copy-link-btn');
-            const copyText = document.getElementById('copy-link-text');
-            const copyIcon = document.getElementById('copy-link-icon');
-            const successIcon = document.getElementById('copy-success-icon');
+            carianBelumInput.addEventListener('input', () => {
+                currentPageBelum = 1;
+                populateTableBelum();
+            });
+            itemsBelumSelect.addEventListener('change', () => {
+                itemsPerPageBelum = parseInt(itemsBelumSelect.value);
+                currentPageBelum = 1;
+                populateTableBelum();
+            });
             
-            if (copyBtn && copyText && copyIcon && successIcon) {
-                const originalText = copyText.textContent;
-                copyBtn.onclick = function() {
-                    if (copyBtn.disabled) return; 
-                    const linkToCopy = document.getElementById('sahkan-selesai-btn').href;
-                    const absoluteLink = new URL(linkToCopy, window.location.href).href;
-                    navigator.clipboard.writeText(absoluteLink).then(() => {
-                        copyText.textContent = 'Pautan Disalin!';
-                        copyBtn.classList.remove('bg-indigo-100', 'text-indigo-700', 'hover:bg-indigo-200');
-                        copyBtn.classList.add('bg-green-100', 'text-green-700');
-                        copyIcon.classList.add('hidden');
-                        successIcon.classList.remove('hidden');
-                        copyBtn.disabled = true;
-                        setTimeout(() => {
-                            copyText.textContent = originalText;
-                            copyBtn.classList.add('bg-indigo-100', 'text-indigo-700', 'hover:bg-indigo-200');
-                            copyBtn.classList.remove('bg-green-100', 'text-green-700');
-                            copyIcon.classList.remove('hidden');
-                            successIcon.classList.add('hidden');
-                            copyBtn.disabled = false;
-                        }, 2500);
-                    }).catch(err => {
-                        console.error('Gagal menyalin: ', err);
-                        alert('Gagal menyalin pautan.'); 
-                    });
-                }
-            }
-
-            const completionSelect = document.getElementById('completion-items-select');
-            if(completionSelect) {
-                completionSelect.addEventListener('change', (e) => {
-                    completionItemsToShow = parseInt(e.target.value, 10);
-                    renderCompletionHistory();
-                });
-            }
-
-            const taskRef = doc(db, `artifacts/${appId}/public/data/spark_tasks`, taskId);
+            carianSelesaiInput.addEventListener('input', () => {
+                currentPageSelesai = 1;
+                populateSubmissionsTable();
+            });
+            itemsSelesaiSelect.addEventListener('change', () => {
+                itemsPerPageSelesai = parseInt(itemsSelesaiSelect.value);
+                currentPageSelesai = 1;
+                populateSubmissionsTable();
+            });
             
-            unsubscribeTaskListener = onSnapshot(taskRef, (docSnap) => {
-                if (docSnap.exists()) {
-                    currentTask = { id: docSnap.id, ...docSnap.data() };
-                    renderTaskDetails();
-                    
-                    generateQRCode(taskId);
-                    
-                    renderTaskProgress(); // KRITIKAL: Panggil pengiraan skop
-                    renderCompletionHistory();
-                    renderSubTasks(); 
-                    const hasLinks = renderLinks();
-                    const hasFiles = renderFiles();
-                    const lampiranCard = document.getElementById('lampiran-pautan-card');
-                    if (lampiranCard) {
-                        if (hasLinks || hasFiles) {
-                            lampiranCard.classList.remove('hidden');
-                        } else {
-                            lampiranCard.classList.add('hidden');
-                        }
-                    }
-                    if(document.getElementById('loading-dashboard')) {
-                        document.getElementById('loading-dashboard').classList.add('hidden');
-                    }
-                    if(document.getElementById('full-dashboard-content')) {
-                        document.getElementById('full-dashboard-content').classList.remove('hidden');
-                    }
-                } else {
-                    if(document.getElementById('loading-dashboard')) {
-                        document.getElementById('loading-dashboard').innerHTML = `<p class="text-red-500 text-center">Tugasan dengan ID "${taskId}" tidak ditemui.</p>`;
-                    }
-                    currentTask = null;
-                    if (unsubscribeTaskListener) unsubscribeTaskListener();
-                }
-            }, (error) => {
-                console.error("Error listening to task changes:", error);
-                if(document.getElementById('loading-dashboard')) {
-                    document.getElementById('loading-dashboard').innerHTML = `<p class="text-red-500 text-center">Gagal memuatkan tugasan. Sila semak konsol.</p>`;
-                }
+            filterStesenSelesai.addEventListener('change', (e) => {
+                currentFilterStesen = e.target.value;
+                currentPageSelesai = 1;
+                populateSubmissionsTable();
+            });
+            
+            carianLaporanInput.addEventListener('input', () => {
+                currentPageLaporan = 1;
+                populateLaporanTable();
+            });
+            itemsLaporanSelect.addEventListener('change', () => {
+                itemsPerPageLaporan = parseInt(itemsLaporanSelect.value);
+                currentPageLaporan = 1;
+                populateLaporanTable();
             });
         }
         
-        function renderTaskDetails() {
-            if(document.getElementById('dashboard-task-name')) {
-                document.getElementById('dashboard-task-name').textContent = currentTask.nama.toUpperCase();
-                document.getElementById('dashboard-pegawai').textContent = currentTask.pegawai;
-                document.getElementById('dashboard-sektor').textContent = currentTask.sektor;
-                document.getElementById('dashboard-date-start').textContent = formatTarikh(currentTask.tarikhMula);
-                document.getElementById('dashboard-date-end').textContent = formatTarikh(currentTask.tarikhSiap);
+        async function verifyIcAndLoad() {
+            const enteredIc = document.getElementById('ic-input').value;
+            const errorEl = document.getElementById('ic-error');
+            const formEl = document.getElementById('ic-form');
+            const loadingEl = document.getElementById('loading-ic-check');
+
+            if (!enteredIc) {
+                errorEl.textContent = "Sila masukkan No. IC.";
+                errorEl.classList.remove('hidden');
+                return;
+            }
+
+            formEl.classList.add('hidden');
+            loadingEl.classList.remove('hidden');
+            errorEl.classList.add('hidden');
+
+            try {
+                if (!correctPenyelarasIc) {
+                    const taskRef = doc(db, `artifacts/${appId}/public/data/spark_tasks`, currentTaskId);
+                    const docSnap = await getDoc(taskRef);
+                    
+                    if (!docSnap.exists()) {
+                        throw new Error("Tugasan tidak ditemui.");
+                    }
+                    currentTaskData = docSnap.data();
+                    correctPenyelarasIc = currentTaskData.penyelaras_ic;
+                    
+                    document.getElementById('admin-task-name').textContent = currentTaskData.nama.toUpperCase();
+                }
+
+                if (enteredIc === correctPenyelarasIc) {
+                    await loadContentData();
+                    document.getElementById('ic-verification-modal').classList.add('hidden');
+                    document.getElementById('admin-content').classList.remove('hidden');
+                    document.getElementById('download-excel-btn').disabled = false;
+                } else {
+                    throw new Error("No. IC tidak sepadan.");
+                }
+
+            } catch (error) {
+                console.error("Error verifying IC:", error);
+                errorEl.textContent = error.message || "Gagal mengesahkan IC.";
+                errorEl.classList.remove('hidden');
+                formEl.classList.remove('hidden');
+                loadingEl.classList.add('hidden');
             }
         }
 
-        // FUNGSI KRITIKAL UNTUK PENGIRAAN SKOP
-        function renderTaskProgress() {
-            if(!document.getElementById('info-selesai')) return;
-
-            const totalSkop = Array.isArray(currentTask.skopSenaraiSekolah) 
-                ? currentTask.skopSenaraiSekolah // INI SUDAH DINORMALISASI DI tugasan.html
-                : [];
-            const totalSkopSet = new Set(totalSkop);
-
-            const allSelesai = Array.isArray(currentTask.skopSelesai) 
-                ? currentTask.skopSelesai.map(normalizeStationName) // Pastikan rekod selesai dinormalisasi
-                : [];
-
-            // FILTER: Hanya kira selesai jika ia wujud dalam senarai skop
-            skopSelesaiList = allSelesai.filter(sekolah => totalSkopSet.has(sekolah));
+        async function loadContentData() {
+            const taskRef = doc(db, `artifacts/${appId}/public/data/spark_tasks`, currentTaskId);
+            const docSnap = await getDoc(taskRef);
             
+            if (!docSnap.exists()) {
+                throw new Error("Gagal memuatkan data tugasan.");
+            }
+            
+            currentTaskData = docSnap.data();
+
+            const normalizedTotalSkop = Array.isArray(currentTaskData.skopSenaraiSekolah) 
+                ? currentTaskData.skopSenaraiSekolah
+                : [];
+            const totalSkopSet = new Set(normalizedTotalSkop);
+            
+            const skopSelesaiList = Array.isArray(currentTaskData.skopSelesai) 
+                ? currentTaskData.skopSelesai.map(normalizeStationName) 
+                : [];
             const selesaiSet = new Set(skopSelesaiList);
 
-            // FILTER: Kira belum selesai (semua skop tolak yang dah selesai)
-            skopBelumList = totalSkop.filter(sekolah => !selesaiSet.has(sekolah));
+            fullRekodSelesaiList = [...(currentTaskData.rekodSelesai || [])].sort((a, b) => 
+                new Date(b.timestamp) - new Date(a.timestamp)
+            );
             
-            let jumlahSelesai;
-            let jumlahBelum;
-            let total;
-
-            const selesaiBtn = document.querySelector('button[onclick="showSkopList(\'selesai\')"]');
-            const belumBtn = document.querySelector('button[onclick="showSkopList(\'belum\')"]');
+            latestCompletionMap = buildLatestCompletionMap(fullRekodSelesaiList);
             
-            if (totalSkop.length === 0) {
-                // Mod Manual (Fallback)
-                jumlahSelesai = currentTask.jumlahSelesai || 0;
-                total = (currentTask.jumlahSelesai || 0) + (currentTask.jumlahBelum || 0);
-                jumlahBelum = total - jumlahSelesai;
-                if (jumlahBelum < 0) jumlahBelum = 0;
+            reportDataList = [];
+            
+            normalizedTotalSkop.forEach(sasaran => {
+                const isCompleted = selesaiSet.has(sasaran);
+                const latestRecord = latestCompletionMap[normalizeStationName(sasaran)] || null; // Kunci guna sasaran yang dinormalisasi
                 
-                if (selesaiBtn) selesaiBtn.disabled = true;
-                if (belumBtn) belumBtn.disabled = true;
-            } else {
-                // Mod Skop
-                jumlahSelesai = skopSelesaiList.length; 
-                jumlahBelum = skopBelumList.length;
-                total = totalSkop.length;
-                
-                if (selesaiBtn) selesaiBtn.disabled = (jumlahSelesai === 0);
-                if (belumBtn) belumBtn.disabled = (jumlahBelum === 0);
-            }
-
-            const peratus = (total === 0) ? 0 : Math.round((jumlahSelesai / total) * 100);
-            
-            document.getElementById('info-selesai').textContent = jumlahSelesai;
-            document.getElementById('info-belum').textContent = jumlahBelum;
-            document.getElementById('info-total').textContent = total;
-            document.getElementById('info-peratus').textContent = `${peratus}%`;
-            document.getElementById('progress-circle').style.strokeDashoffset = 100 - peratus;
-        }
-
-        function renderCompletionHistory() {
-            const container = document.getElementById('completion-list');
-            if(!container) return;
-            
-            const footer = document.getElementById('completion-list-footer');
-            container.innerHTML = '';
-            
-            const list = currentTask.rekodSelesai || [];
-            if (list.length === 0) {
-                container.innerHTML = `<tr><td colspan="2" class="px-4 py-4 text-center text-sm text-gray-500 italic">Tiada pengesahan selesai direkodkan.</td></tr>`;
-                footer.classList.add('hidden');
-                return;
-            }
-            
-            list.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-
-            const listToShow = list.slice(0, completionItemsToShow);
-            
-            if (list.length > listToShow.length) {
-                footer.classList.remove('hidden');
-            } else {
-                footer.classList.add('hidden');
-            }
-
-            listToShow.forEach((rekod, index) => {
-                const timestamp = new Date(rekod.timestamp).toLocaleString('ms-MY', { 
-                    day: 'numeric', month: 'long', year: 'numeric', 
-                    hour: 'numeric', minute: '2-digit' 
+                reportDataList.push({
+                    sasaran: sasaran,
+                    isCompleted: isCompleted,
+                    latestRecord: latestRecord
                 });
-                const nama = rekod.nama_pengesah || currentTask.pegawai || 'N/A';
-                const jawatan = rekod.jawatan_pengesah || 'N/A';
-                const stesen = rekod.stesen_pengesah || 'N/A';
-                
-                container.innerHTML += `
-                    <tr class="text-sm">
-                        <td class="px-4 py-3 align-top">
-                            <div class="font-medium text-gray-800">${nama}</div>
-                            <div class="text-gray-600">${jawatan}</div>
-                            <div class="text-gray-600">${stesen}</div>
-                        </td>
-                        <td class="px-4 py-3 text-gray-600 whitespace-nowrap align-top">${timestamp}</td>
-                    </tr>
-                `;
             });
+            
+            reportDataList.sort((a, b) => {
+                if (a.isCompleted !== b.isCompleted) {
+                    return b.isCompleted - a.isCompleted;
+                }
+                return a.sasaran.localeCompare(b.sasaran);
+            });
+            
+            fullSkopBelumList = reportDataList.filter(r => !r.isCompleted).map(r => r.sasaran);
+            
+            uniqueStesenList = [...new Set(fullRekodSelesaiList.map(r => r.stesen_pengesah).filter(s => s).map(s => s.toUpperCase()))].sort();
+            renderStesenFilterOptions();
+
+            document.getElementById('count-belum').textContent = fullSkopBelumList.length;
+            document.getElementById('count-selesai').textContent = fullRekodSelesaiList.length;
+
+            populateTableBelum();
+            populateSubmissionsTable();
+            populateLaporanTable();
         }
         
-        function showAllCompletions() {
-            completionItemsToShow = 999;
-            if(document.getElementById('completion-items-select')) {
-                document.getElementById('completion-items-select').value = "999";
-            }
-            renderCompletionHistory();
+        // FUNGSI BARU: Bina Peta Rekod Terakhir (HANYA GUNA STESEN untuk kunci unik)
+        function buildLatestCompletionMap(allRecords) {
+            const map = {};
+            // Susun secara ascending (lama ke baru)
+            const sortedByAscendingTime = [...allRecords].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+            
+            sortedByAscendingTime.forEach(rekod => {
+                // KRITIKAL: Guna stesen/nama pengesah sebagai KUNCI
+                const key = normalizeStationName(rekod.nama_pengesah || rekod.stesen_pengesah); 
+                if (key) {
+                   // Simpan rekod terakhir
+                   map[key] = rekod; 
+                }
+            });
+            return map;
         }
 
-        function renderSubTasks() {
-            const container = document.getElementById('sub-task-list');
-            if(!container) return;
+
+        function populateLaporanTable() {
+            const tableBody = document.getElementById('table-laporan');
+            const searchTerm = carianLaporanInput.value.toLowerCase();
             
-            container.innerHTML = '';
-            const list = currentTask.senaraiSubTugasan || [];
-            if (list.length === 0) {
-                container.innerHTML = `<p class="text-sm text-gray-500 italic">Tiada perkara.</p>`;
-                return;
-            }
-
-            const getTypeBadge = (type) => {
-                const badgeClass = "text-xs font-medium px-2 py-0.5 rounded-full";
-                switch (type) {
-                    case 'ya_tidak': return `<span class="${badgeClass} bg-blue-100 text-blue-800">Ya/Tidak</span>`;
-                    case 'teks_ringkas': return `<span class="${badgeClass} bg-yellow-100 text-yellow-800">Teks Ringkas</span>`;
-                    case 'teks_panjang': return `<span class="${badgeClass} bg-yellow-100 text-yellow-800">Teks Panjang</span>`;
-                    case 'pautan_url': return `<span class="${badgeClass} bg-green-100 text-green-800">Pautan</span>`;
-                    case 'tarikh': return `<span class="${badgeClass} bg-purple-100 text-purple-800">Tarikh</span>`;
-                    case 'option_button': return `<span class="${badgeClass} bg-pink-100 text-pink-800">Dropdown</span>`;
-                    case 'radio_button': return `<span class="${badgeClass} bg-red-100 text-red-800">Radio</span>`;
-                    case 'multiselect': return `<span class="${badgeClass} bg-teal-100 text-teal-800">Multiselect</span>`;
-                    case 'skala': return `<span class="${badgeClass} bg-indigo-100 text-indigo-800">Skala</span>`;
-                    case 'arahan': return `<span class="${badgeClass} bg-gray-100 text-gray-800">Arahan</span>`;
-                    default: return '';
-                }
-            };
+            tableBody.innerHTML = '';
             
-            const getRequiredTag = (required) => {
-                const tagClass = "text-xs font-semibold px-2 py-0.5 rounded-full mr-2";
-                return required 
-                    ? `<span class="${tagClass} bg-red-100 text-red-700">[WAJIB]</span>`
-                    : ``;
-            };
+            const filteredList = reportDataList.filter(data => {
+                return data.sasaran.toLowerCase().includes(searchTerm);
+            });
 
-            list.forEach((tugas, index) => {
-                let displayText = '';
-                let typeBadge = '';
-                let requiredTag = '';
-                let detailsHtml = '';
+            const totalItems = filteredList.length;
+            const itemsPerPage = parseInt(itemsLaporanSelect.value);
+            const totalPages = Math.ceil(totalItems / itemsPerPage);
+            if (currentPageLaporan > totalPages) currentPageLaporan = totalPages;
+            if (currentPageLaporan < 1) currentPageLaporan = 1;
+            
+            const startIndex = (currentPageLaporan - 1) * itemsPerPage;
+            const endIndex = startIndex + itemsPerPage;
+            const paginatedList = filteredList.slice(startIndex, endIndex);
 
-                if (typeof tugas === 'object' && tugas !== null && tugas.text) {
-                    displayText = tugas.text;
-                    typeBadge = getTypeBadge(tugas.type);
-                    requiredTag = getRequiredTag(tugas.required);
+            if (paginatedList.length === 0) {
+                tableBody.innerHTML = `<tr><td colspan="4" class="px-4 py-4 text-center text-sm text-gray-500 italic">Tiada data sasaran ditemui.</td></tr>`;
+            } else {
+                paginatedList.forEach((data, index) => {
+                    const statusClass = data.isCompleted ? 'bg-teal-100 text-teal-800' : 'bg-amber-100 text-amber-800';
+                    const statusText = data.isCompleted ? 'Selesai' : 'Belum Selesai';
                     
-                    if (tugas.options && tugas.options.length > 0 && tugas.type !== 'ya_tidak') {
-                        detailsHtml = `<p class="text-xs text-gray-600 mt-1 italic pl-3">Pilihan: ${tugas.options.join(', ')}</p>`;
-                    } else if (tugas.scaleData) {
-                        const s = tugas.scaleData;
-                        const labelStr = (s.minLabel || s.maxLabel) ? ` (${s.min}=${s.minLabel || ''}, ${s.max}=${s.maxLabel || ''})` : '';
-                        detailsHtml = `<p class="text-xs text-gray-600 mt-1 italic pl-3">Julat: ${s.min} hingga ${s.max}${labelStr}</p>`;
+                    let rekodHtml = '';
+                    if (data.latestRecord) {
+                        const timestamp = new Date(data.latestRecord.timestamp).toLocaleString('ms-MY', {
+                            day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+                        });
+                        rekodHtml = `
+                            <p class="text-sm text-gray-800">${data.latestRecord.nama_pengesah}</p>
+                            <p class="text-xs text-gray-600">${timestamp}</p>
+                        `;
+                    } else {
+                        rekodHtml = `<p class="text-xs text-gray-500 italic">Tiada pengesahan diterima.</p>`;
                     }
-
-                } else if (typeof tugas === 'string') {
-                    displayText = tugas;
-                    typeBadge = getTypeBadge('arahan');
-                } else {
-                    displayText = "[Data perkara tidak sah]";
-                    typeBadge = getTypeBadge('arahan');
-                }
-                
-                container.innerHTML += `
-                    <div class="bg-white border border-gray-200 p-4 rounded-lg flex items-start gap-4">
-                        <div class="flex-shrink-0 w-8 h-8 flex items-center justify-center bg-indigo-100 text-indigo-700 rounded-full font-bold text-sm">
-                            ${index + 1}
-                        </div>
-                        <div class="flex-1 min-w-0">
-                            <p class="text-base font-medium text-gray-900" style="word-break: break-word;">
-                                ${requiredTag} ${displayText}
-                            </p>
-                            <div class="mt-2 flex items-center gap-2 flex-wrap">
-                                ${typeBadge}
-                            </div>
-                            ${detailsHtml}
-                        </div>
-                    </div>
-                `;
-            });
-        }
-        function renderLinks() {
-            const container = document.getElementById('link-list');
-            if(!container) return false;
-            
-            container.innerHTML = '';
-            const list = currentTask.senaraiPautan || [];
-            if (list.length === 0) {
-                container.innerHTML = `<p class="text-sm text-gray-500 italic">Tiada pautan berkaitan.</p>`;
-                return false;
-            }
-            list.forEach((url, index) => {
-                container.innerHTML += `
-                    <div class="bg-gray-50 border border-gray-200 p-3 rounded-lg flex items-center gap-3">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-500 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z" clip-rule="evenodd" /></svg>
-                        <a href="${url}" target="_blank" class="text-sm font-medium text-blue-600 hover:underline truncate">${url}</a>
-                    </div>
-                `;
-            });
-            return true;
-        }
-        function renderFiles() {
-            const container = document.getElementById('file-list');
-            if(!container) return false;
-
-            container.innerHTML = '';
-            const file = currentTask.fail;
-            if (!file || !file.data) {
-                container.innerHTML = `<p class="text-sm text-gray-500 italic">Tiada fail dilampirkan.</p>`;
-                return false;
-            }
-            container.innerHTML = `
-                <div class="bg-gray-50 border border-gray-200 p-3 rounded-lg flex items-center justify-between gap-3">
-                    <span class="text-sm font-medium text-gray-800 truncate">${file.nama}</span>
-                    <a href="${file.data}" target="_blank" class="btn bg-indigo-100 text-indigo-700 text-xs font-semibold py-1 px-3 rounded-lg hover:bg-indigo-200 flex-shrink-0">
-                        Lihat/Muat Turun
-                    </a>
-                </div>
-            `;
-            return true;
-        }
-
-        function showShareModal() {
-            if (!currentTask) return;
-            const modal = document.getElementById('share-modal');
-            const textarea = document.getElementById('share-text');
-            const shareBtn = document.getElementById('web-share-btn');
-            if(!modal || !textarea || !shareBtn) return;
-            
-            const taskName = currentTask.nama;
-            const pegawai = currentTask.pegawai;
-            const sektor = currentTask.sektor;
-            const link = new URL(document.getElementById('sahkan-selesai-btn').href, window.location.href).href;
-            
-            const shareMessage = `Assalamualaikum & Salam Sejahtera Tuan/Puan,
-
-*PERKARA: TUGASAN SPARKTASK*
-
-*Tugasan:* ${taskName}
-*Daripada:* ${pegawai} (${sektor})
-
-Tuan/Puan diminta untuk melengkapkan tugasan ini. 
-
-Sila klik pautan di bawah untuk membuat pengesahan dan menjawab soalan (jika ada).
-${link}
-
-Sekian, terima kasih.`;
-
-            textarea.value = shareMessage;
-            
-            if (!navigator.share) {
-                shareBtn.classList.add('hidden');
-            } else {
-                shareBtn.classList.remove('hidden');
-            }
-            
-            modal.classList.add('buka');
-        }
-
-        function closeShareModal() {
-            const modal = document.getElementById('share-modal');
-            if(!modal) return;
-            modal.classList.remove('buka');
-            const copyBtnText = document.getElementById('copy-share-text');
-            copyBtnText.textContent = "Salin Teks";
-        }
-
-        function copyShareText() {
-            const textarea = document.getElementById('share-text');
-            const copyBtnText = document.getElementById('copy-share-text');
-            if(!textarea || !copyBtnText) return;
-            
-            navigator.clipboard.writeText(textarea.value).then(() => {
-                copyBtnText.textContent = 'Berjaya Disalin!';
-                setTimeout(() => {
-                    copyBtnText.textContent = 'Salin Teks';
-                }, 2000);
-            }).catch(err => {
-                console.error('Gagal menyalin: ', err);
-                alert('Gagal menyalin teks.');
-            });
-        }
-
-        async function webShareTask() {
-            const textarea = document.getElementById('share-text');
-            if(!textarea) return;
-            const shareData = {
-                title: `Tugasan: ${currentTask.nama}`,
-                text: textarea.value,
-            };
-            try {
-                await navigator.share(shareData);
-                closeShareModal();
-            } catch (err) {
-                console.error('Gagal berkongsi:', err);
-            }
-        }
-        
-        function formatTarikh(tarikhString) {
-            if (!tarikhString) return 'N/A';
-            const [tahun, bulan, hari] = tarikhString.split('-');
-            return `${hari}/${bulan}/${tahun}`;
-        }
-        function showSkopList(status) {
-            const modal = document.getElementById('skop-list-modal');
-            const titleEl = document.getElementById('skop-modal-title');
-            const contentEl = document.getElementById('skop-modal-content');
-            if(!modal || !titleEl || !contentEl) return;
-            
-            let list = [];
-            if (status === 'selesai') {
-                titleEl.textContent = 'Senarai Selesai (Disahkan)';
-                list = skopSelesaiList;
-            } else {
-                titleEl.textContent = 'Senarai Belum Selesai (Sasaran)';
-                list = skopBelumList;
-            }
-            currentModalSkopList = list;
-            currentModalSkopTitle = titleEl.textContent;
-            contentEl.innerHTML = '';
-            if (list.length === 0) {
-                contentEl.innerHTML = `<p class="text-sm text-gray-500 italic">Tiada data untuk dipaparkan.</p>`;
-            } else {
-                // PAPARKAN LIST DENGAN NAMA PENUH
-                list.sort().forEach((item, index) => { 
-                    contentEl.innerHTML += `
-                        <div class="text-sm text-gray-800 bg-white p-2 border-b last:border-b-0">
-                            ${index + 1}. ${item}
-                        </div>
+                    
+                    tableBody.innerHTML += `
+                        <tr class="text-sm">
+                            <td class="px-4 py-3 text-gray-500 w-12">${startIndex + index + 1}.</td>
+                            <td class="px-4 py-3 text-gray-800 font-medium">${data.sasaran}</td>
+                            <td class="px-4 py-3">
+                                <span class="px-2 py-0.5 rounded-full text-xs font-semibold ${statusClass}">
+                                    ${statusText}
+                                </span>
+                            </td>
+                            <td class="px-4 py-3">
+                                ${rekodHtml}
+                            </td>
+                        </tr>
                     `;
                 });
             }
+            
+            renderPaginationControls(paginationLaporan, totalItems, totalPages, currentPageLaporan, 'goToPageLaporan');
+        }
+
+        function renderStesenFilterOptions() {
+            filterStesenSelesai.innerHTML = '<option value="">-- Tapis Mengikut Stesen --</option>';
+            uniqueStesenList.forEach(stesen => {
+                const option = document.createElement('option');
+                option.value = stesen;
+                option.textContent = stesen;
+                if (stesen === currentFilterStesen) {
+                    option.selected = true;
+                }
+                filterStesenSelesai.appendChild(option);
+            });
+        }
+
+        function populateTableBelum() {
+            const tableBody = document.getElementById('table-belum');
+            const countEl = document.getElementById('count-belum');
+            const searchTerm = carianBelumInput.value.toLowerCase();
+
+            tableBody.innerHTML = '';
+            
+            const filteredList = fullSkopBelumList.filter(item => {
+                return item.toLowerCase().includes(searchTerm);
+            });
+
+            countEl.textContent = filteredList.length;
+
+            const totalItems = filteredList.length;
+            const totalPages = Math.ceil(totalItems / itemsPerPageBelum);
+            if (currentPageBelum > totalPages) currentPageBelum = totalPages;
+            if (currentPageBelum < 1) currentPageBelum = 1;
+            
+            const startIndex = (currentPageBelum - 1) * itemsPerPageBelum;
+            const endIndex = startIndex + itemsPerPageBelum;
+            const paginatedList = filteredList.slice(startIndex, endIndex);
+
+            if (paginatedList.length === 0) {
+                tableBody.innerHTML = `<tr><td colspan="2" class="px-4 py-4 text-center text-sm text-gray-500 italic">Tiada data.</td></tr>`;
+            } else {
+                paginatedList.forEach((item, index) => {
+                    tableBody.innerHTML += `
+                        <tr class="text-sm">
+                            <td class="px-4 py-3 text-gray-500 w-12">${startIndex + index + 1}.</td>
+                            <td class="px-4 py-3 text-gray-800 font-medium">${item}</td>
+                        </tr>
+                    `;
+                });
+            }
+            
+            renderPaginationControls(paginationBelum, totalItems, totalPages, currentPageBelum, 'goToPageBelum');
+        }
+        
+        function populateSubmissionsTable() {
+            const tableBody = document.getElementById('table-selesai');
+            const countEl = document.getElementById('count-selesai');
+            const searchTerm = carianSelesaiInput.value.toLowerCase();
+            
+            tableBody.innerHTML = '';
+
+            let filteredList = fullRekodSelesaiList.filter(rekod => {
+                const nama = (rekod.nama_pengesah || '').toLowerCase();
+                const stesen = (rekod.stesen_pengesah || '').toLowerCase();
+                
+                const passesSearch = nama.includes(searchTerm) || stesen.includes(searchTerm);
+                
+                const passesFilter = !currentFilterStesen || stesen.toUpperCase() === currentFilterStesen;
+                
+                return passesSearch && passesFilter;
+            });
+            
+            document.getElementById('count-selesai').textContent = fullRekodSelesaiList.length;
+            
+            const totalItems = filteredList.length;
+            const totalPages = Math.ceil(totalItems / itemsPerPageSelesai);
+            if (currentPageSelesai > totalPages) currentPageSelesai = totalPages;
+            if (currentPageSelesai < 1) currentPageSelesai = 1;
+            
+            const startIndex = (currentPageSelesai - 1) * itemsPerPageSelesai;
+            const endIndex = startIndex + itemsPerPageSelesai;
+            const paginatedList = filteredList.slice(startIndex, endIndex);
+            
+            // 3. Buat Peta Pengesahan Berulang (BERASASKAN STESEN)
+            const completionCountMap = fullRekodSelesaiList.reduce((acc, rekod) => {
+                // KRITIKAL: Guna HANYA NAMA STESEN untuk kunci duplikasi
+                const key = normalizeStationName(rekod.stesen_pengesah);
+                acc[key] = (acc[key] || 0) + 1;
+                return acc;
+            }, {});
+
+            if (paginatedList.length === 0) {
+                tableBody.innerHTML = `<tr><td colspan="4" class="px-4 py-4 text-center text-sm text-gray-500 italic">Tiada rekod pengesahan ditemui untuk kriteria ini.</td></tr>`;
+            } else {
+                paginatedList.forEach((rekod, index) => {
+                    const globalIndex = fullRekodSelesaiList.findIndex(r => r.timestamp === rekod.timestamp && r.ic_pengesah === rekod.ic_pengesah);
+                    
+                    const timestamp = new Date(rekod.timestamp).toLocaleString('ms-MY', {
+                        day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+                    });
+                    
+                    // Semak Duplikasi Stesen
+                    const uniqueKey = normalizeStationName(rekod.stesen_pengesah);
+                    const count = completionCountMap[uniqueKey];
+                    const isDuplicate = count > 1;
+                    
+                    let duplicateTag = '';
+                    if (isDuplicate) {
+                         duplicateTag = `<span class="duplicate-tag" title="Stesen ini mengisi ${count} kali">ULANGAN (${count}x)</span>`;
+                    }
+                    
+                    tableBody.innerHTML += `
+                        <tr class="text-sm">
+                            <td class="px-4 py-3 text-gray-500 w-12">${startIndex + index + 1}.</td>
+                            <td class="px-4 py-3">
+                                <div class="font-medium text-gray-800 flex items-center">${rekod.nama_pengesah || 'N/A'} ${duplicateTag}</div>
+                                <p class="text-xs text-gray-600">${rekod.stesen_pengesah || 'N/A'}</p>
+                            </td>
+                            <td class="px-4 py-3 text-gray-600">${timestamp}</td>
+                            <td class="px-4 py-3">
+                                <div class="flex items-center gap-2">
+                                    <button onclick="showJawapanModal(${globalIndex})" class="btn text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-2 rounded-lg" title="Lihat Jawapan">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                            <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                                            <path fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd" />
+                                        </svg>
+                                    </button>
+                                    <button onclick="promptDeleteSubmission(${globalIndex})" class="btn text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-lg" title="Padam Rekod">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                            <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                });
+            }
+            
+            renderPaginationControls(paginationSelesai, totalItems, totalPages, currentPageSelesai, 'goToPageSelesai');
+        }
+
+        function renderPaginationControls(container, totalItems, totalPages, currentPage, navigationFnName) {
+            if (totalItems === 0) {
+                container.innerHTML = '';
+                return;
+            }
+            
+            const itemsPerPage = parseInt(navigationFnName === 'goToPageBelum' ? itemsBelumSelect.value : (navigationFnName === 'goToPageSelesai' ? itemsSelesaiSelect.value : itemsLaporanSelect.value));
+            const prevDisabled = currentPage === 1 ? 'disabled' : '';
+            const nextDisabled = currentPage === totalPages ? 'disabled' : '';
+
+            container.innerHTML = `
+                <span class="text-sm text-gray-700">
+                    Menunjukkan <span class="font-medium">${(currentPage - 1) * itemsPerPage + 1}</span> 
+                    hingga <span class="font-medium">${Math.min(currentPage * itemsPerPage, totalItems)}</span> 
+                    dari <span class="font-medium">${totalItems}</span>
+                </span>
+                <div class="flex gap-2">
+                    <button onclick="${navigationFnName}(${currentPage - 1})" ${prevDisabled} class="btn bg-gray-200 text-gray-700 text-sm py-1 px-3 rounded-lg">Sebelumnya</button>
+                    <button onclick="${navigationFnName}(${currentPage + 1})" ${nextDisabled} class="btn bg-gray-200 text-gray-700 text-sm py-1 px-3 rounded-lg">Seterusnya</button>
+                </div>
+            `;
+        }
+
+        function goToPageBelum(page) {
+            currentPageBelum = page;
+            populateTableBelum();
+        }
+
+        function goToPageSelesai(page) {
+            currentPageSelesai = page;
+            populateSubmissionsTable();
+        }
+        
+        function goToPageLaporan(page) {
+            currentPageLaporan = page;
+            populateLaporanTable();
+        }
+
+        function switchTab(tabName) {
+            document.getElementById('tab-panel-belum').classList.toggle('active', tabName === 'belum');
+            document.getElementById('tab-btn-belum').classList.toggle('active', tabName === 'belum');
+            
+            document.getElementById('tab-panel-selesai').classList.toggle('active', tabName === 'selesai');
+            document.getElementById('tab-btn-selesai').classList.toggle('active', tabName === 'selesai');
+            
+            document.getElementById('tab-panel-laporan').classList.toggle('active', tabName === 'laporan');
+            document.getElementById('tab-btn-laporan').classList.toggle('active', tabName === 'laporan');
+        }
+
+        function showJawapanModal(index) {
+            const rekod = fullRekodSelesaiList[index];
+            if (!rekod) return;
+
+            const modal = document.getElementById('modal-jawapan');
+            const titleEl = document.getElementById('jawapan-modal-title');
+            const contentEl = document.getElementById('jawapan-modal-content');
+
+            titleEl.textContent = `Jawapan dari: ${rekod.nama_pengesah}`;
+            
+            let answersHtml = '';
+            if (rekod.jawapan && rekod.jawapan.length > 0) {
+                rekod.jawapan.forEach(j => {
+                    let answerText = j.jawapan;
+                    if (j.jenis === 'pautan_url' && j.jawapan.startsWith('http')) {
+                        answerText = `<a href="${j.jawapan}" target="_blank" class="text-blue-600 hover:underline">${j.jawapan}</a>`;
+                    }
+                    
+                    let answerColor = "text-gray-800";
+                    if (j.jawapan === "Ya") answerColor = "text-green-700 font-semibold";
+                    if (j.jawapan === "Tidak") answerColor = "text-red-700 font-semibold";
+                    
+                    answersHtml += `
+                        <div class="jawapan-item">
+                            <p class="text-sm font-semibold text-gray-600">${j.soalan}</p>
+                            <p class="text-base ${answerColor}">${answerText || " - "}</p>
+                        </div>
+                    `;
+                });
+            } else {
+                answersHtml = '<p class="text-sm italic text-gray-500">Tiada jawapan terperinci (rekod lama).</p>';
+            }
+            contentEl.innerHTML = answersHtml;
             modal.classList.add('buka');
         }
         
-        function closeSkopModal() {
-            const modal = document.getElementById('skop-list-modal');
-            if(!modal) return;
-            modal.classList.remove('buka');
-            document.body.classList.remove('is-printing-modal');
+        function closeJawapanModal() {
+            document.getElementById('modal-jawapan').classList.remove('buka');
         }
-        
-        function copySkopList() {
-            if (currentModalSkopList.length === 0) {
-                alert("Senarai kosong, tiada apa untuk disalin.");
+
+        async function promptDeleteSubmission(index) {
+            const recordToRemove = fullRekodSelesaiList[index];
+            
+            if (!recordToRemove) {
+                alert("Gagal mencari rekod untuk dipadam.");
                 return;
             }
-            let textToCopy = `${currentModalSkopTitle} (Tugasan: ${currentTask.nama.toUpperCase() || 'N/A'}):\n\n`;
-            currentModalSkopList.forEach((item, index) => {
-                textToCopy += `${index + 1}. ${item}\n`;
-            });
-            navigator.clipboard.writeText(textToCopy).then(() => {
-                alert("Senarai telah disalin ke clipboard!");
-            }).catch(err => {
-                console.error("Gagal menyalin:", err);
-                alert("Gagal menyalin. Sila cuba lagi.");
-            });
-        }
-        function printSkopList() {
-            document.body.classList.add('is-printing-modal');
-            setTimeout(() => {
-                window.print();
-                document.body.classList.remove('is-printing-modal');
-            }, 250);
-        }
-        
-        // Mendedahkan fungsi ke window
-        Object.assign(window, {
-            showSkopList,
-            closeSkopModal,
-            copySkopList,
-            printSkopList,
-            showAllCompletions,
-            showShareModal,
-            closeShareModal,
-            copyShareText,
-            webShareTask
-        });
 
+            if (!confirm(`Anda pasti mahu memadam pengesahan oleh ${recordToRemove.nama_pengesah} (${recordToRemove.stesen_pengesah})? Tindakan ini akan membenarkan sasaran ini membuat pengesahan semula.`)) {
+                return;
+            }
+            
+            try {
+                const taskRef = doc(db, `artifacts/${appId}/public/data/spark_tasks`, currentTaskId);
+                
+                const skopSelesaiRecord = recordToRemove.nama_pengesah || recordToRemove.stesen_pengesah;
+                let normalizedStationToRemove = null;
+                if (skopSelesaiRecord) {
+                    normalizedStationToRemove = normalizeStationName(skopSelesaiRecord);
+                }
+
+                const updates = {
+                    rekodSelesai: arrayRemove(recordToRemove)
+                };
+                
+                if (normalizedStationToRemove) {
+                    const isStillCompletedByOthers = fullRekodSelesaiList.some((r, i) => 
+                        i !== index && normalizeStationName(r.nama_pengesah || r.stesen_pengesah) === normalizedStationToRemove
+                    );
+
+                    if (!isStillCompletedByOthers) {
+                        updates.skopSelesai = arrayRemove(normalizedStationToRemove);
+                    }
+                }
+                
+                await updateDoc(taskRef, updates);
+                
+                await loadContentData();
+
+            } catch (error) {
+                console.error("Gagal memadam rekod:", error);
+                alert("Berlaku ralat semasa memadam rekod.");
+            }
+        }
+
+        function downloadExcel() {
+            if (!currentTaskData || !currentTaskData.rekodSelesai || currentTaskData.rekodSelesai.length === 0) {
+                alert("Tiada data untuk dimuat turun.");
+                return;
+            }
+            const dataToExport = [];
+            fullRekodSelesaiList.forEach(rekod => {
+                const nama = rekod.nama_pengesah;
+                const stesen = rekod.stesen_pengesah;
+                const tarikh = new Date(rekod.timestamp).toLocaleString('ms-MY');
+                if (rekod.jawapan && rekod.jawapan.length > 0) {
+                    rekod.jawapan.forEach(j => {
+                        dataToExport.push({
+                            "Nama Pengesah": nama,
+                            "Stesen": stesen,
+                            "Tarikh Pengesahan": tarikh,
+                            "Soalan": j.soalan,
+                            "Jawapan": j.jawapan
+                        });
+                    });
+                } else {
+                    dataToExport.push({
+                        "Nama Pengesah": nama,
+                        "Stesen": stesen,
+                        "Tarikh Pengesahan": tarikh,
+                        "Soalan": "N/A (Rekod Lama)",
+                        "Jawapan": "N/A"
+                    });
+                }
+            });
+            const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Jawapan Selesai");
+            const wscols = [
+                { wch: 30 }, { wch: 40 }, { wch: 20 }, { wch: 50 }, { wch: 50 }
+            ];
+            worksheet['!cols'] = wscols;
+            const fileName = `SparkTask_${currentTaskData.nama.replace(/[^a-z0-9]/gi, '_')}.xlsx`;
+            XLSX.writeFile(workbook, fileName);
+        }
+
+        window.promptDeleteSubmission = promptDeleteSubmission;
+        window.switchTab = switchTab;
+        window.showJawapanModal = showJawapanModal;
+        window.closeJawapanModal = closeJawapanModal;
+        window.goToPageBelum = goToPageBelum;
+        window.goToPageSelesai = goToPageSelesai;
+        window.goToPageLaporan = goToPageLaporan;
     </script>
 </body>
 </html>
