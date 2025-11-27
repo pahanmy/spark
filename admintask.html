@@ -3,308 +3,480 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SPARK – Admin Tugasan</title>
+    <title>SparkTask - Sistem Pengurusan Tugasan</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         body { font-family: 'Poppins', sans-serif; background-color: #f8f9fa; }
-        .card { background-color: white; border-radius: 0.75rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); }
+        .card { 
+            background-color: white; 
+            border-radius: 0.75rem; 
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); 
+            border: 1px solid transparent;
+            transition: all 0.3s ease-out;
+        }
+        .card:hover {
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+            border-color: #c7d2fe; /* border-indigo-200 */
+        }
+        
         .btn { transition: background-color 0.3s, transform 0.2s; }
         .btn:hover:not(:disabled) { transform: translateY(-2px); }
-        .btn:disabled, input:disabled, select:disabled { 
-            opacity: 0.6; 
+        .btn:disabled, input:disabled, select:disabled, textarea:disabled, button:disabled { 
+            opacity: 0.7; 
             cursor: not-allowed; 
+            background-color: #f3f4f6; 
         }
-        
-        /* Stil untuk Tab */
-        .tab-btn {
-            padding: 0.75rem 1.5rem;
-            font-size: 1rem;
-            font-weight: 600;
-            border-bottom: 4px solid transparent;
-            color: #6b7280; /* text-gray-500 */
-        }
-        .tab-btn.active {
-            border-bottom-color: #4f46e5; /* border-indigo-600 */
-            color: #4f46e5; /* text-indigo-600 */
-        }
-        .tab-panel {
-            display: none; /* Sembunyi panel secara lalai */
-        }
-        .tab-panel.active {
-            display: block; /* Tunjuk panel yang aktif */
-        }
-        
-        /* Stil untuk Modal Jawapan */
+        .btn:disabled:hover { transform: none; }
+        .modal-backdrop { background-color: rgba(0,0,0,0.5); }
+        @keyframes pulse-animation { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+        .logo-pulse { animation: pulse-animation 2s infinite; }
         .modal { display: none; }
         .modal.buka { display: flex; }
-        .modal-backdrop { background-color: rgba(0,0,0,0.5); }
-        .jawapan-item {
-            padding-top: 0.75rem;
-            padding-bottom: 0.75rem;
+        input[type="file"]::-webkit-file-upload-button {
+            visibility: hidden;
+            width: 0;
+            position: absolute;
         }
-        .jawapan-item:not(:first-child) {
-            border-top: 1px dashed #e5e7eb;
+        /* Pastikan textarea edit menggunakan text-transform */
+        #skop-list-textarea {
+            text-transform: uppercase;
         }
-        .jawapan-item p {
-            word-break: break-word; /* Memastikan teks panjang wrap */
-            white-space: pre-wrap; /* Hormati baris baru dalam textarea */
-        }
-        
-        /* Gaya Duplikasi */
-        .duplicate-tag {
-            background-color: #fee2e2; /* bg-red-100 */
-            color: #b91c1c; /* text-red-800 */
-            font-size: 0.7rem;
-            font-weight: 600;
-            padding: 0.2rem 0.5rem;
-            border-radius: 0.25rem;
-            margin-left: 0.5rem;
-        }
-        /* Gaya Rumusan Task */
-        #progress-circle { transition: stroke-dashoffset 0.5s ease-in-out; transform: rotate(-90deg); transform-origin: center; }
-        
-        /* GAYA BARU UNTUK VISUAL SATU BARIS */
-        .single-line-progress {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-            padding: 0.75rem 0.5rem;
-            background-color: #eff6ff; /* bg-blue-50 */
-            border: 1px solid #bfdbfe; /* border-blue-200 */
-            border-radius: 0.5rem;
-        }
-        .progress-indicator {
-            position: relative;
-            width: 48px; /* Lebih kecil */
-            height: 48px;
-            flex-shrink: 0;
-        }
-        .progress-text {
-            font-size: 1rem; /* text-base */
-            font-weight: 700;
-            color: #1e40af; /* text-blue-800 */
-            line-height: 1;
-        }
-        .progress-details {
-            flex-grow: 1;
-            display: flex;
-            flex-direction: column;
-            gap: 0.25rem;
-        }
-        .progress-bar-container {
-            width: 100%;
-            height: 8px; /* Lebih nipis */
-            background-color: #e5e7eb; /* bg-gray-200 */
-            border-radius: 4px;
-            overflow: hidden;
-        }
-        .progress-stats {
-            display: flex;
-            justify-content: space-between;
+        /* Gaya baru untuk butang jenis tugasan (disalin dari tugasan.html) */
+        .type-button {
+            border: 1px solid #d1d5db; /* border-gray-300 */
+            background-color: #f9fafb; /* bg-gray-50 */
+            color: #4b5563; /* text-gray-700 */
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.5rem; /* rounded-lg */
             font-size: 0.75rem; /* text-xs */
             font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+        .type-button:hover {
+            border-color: #a5b4fc; /* border-indigo-300 */
+            background-color: #eef2ff; /* bg-indigo-50 */
+            color: #4f46e5; /* text-indigo-700 */
+        }
+        .type-button.active {
+            border-color: #4f46e5; /* border-indigo-600 */
+            background-color: #e0e7ff; /* bg-indigo-100 */
+            color: #1e3a8a; /* text-blue-900 - lebih gelap untuk kontras */
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+        }
+        .type-button:disabled {
+             opacity: 0.7;
+             cursor: not-allowed;
+             background-color: #f3f4f6;
+             border-color: #e5e7eb;
+             color: #9ca3af;
         }
     </style>
 </head>
-<body class="bg-gray-50 flex flex-col min-h-screen"> 
-    
-    <header id="page-header" class="bg-white shadow-sm w-full">
-        <div class="max-w-screen-2xl mx-auto py-4 px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row justify-between items-center gap-4">
-            <div class="flex items-center gap-3">
-                <div class="bg-red-600 p-2 rounded-lg"><svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6.41-1.35a.37.37 0 01.52 0l1.72 1.72a.37.37 0 00.52 0l1.72-1.72a.37.37 0 01.52 0l1.72 1.72a.37.37 0 00.52 0l1.72-1.72a.37.37 0 01.52 0l1.72 1.72a.37.37 0 00.52 0l1.72-1.72a.37.37 0 01.52 0" /><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 0v4m0-4h4m-4 0H8m13-4.41a.37.37 0 00-.52 0L18.76 9.3a.37.37 0 01-.52 0l-1.72-1.72a.37.37 0 00-.52 0l-1.72 1.72a.37.37 0 01-.52 0L12 7.58l-1.72 1.72a.37.37 0 01-.52 0L8.04 7.58a.37.37 0 00-.52 0L5.8 9.3a.37.37 0 01-.52 0L3.56 7.58a.37.37 0 00-.52 0L1.32 9.3a.37.37 0 01-.52 0" /><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></div>
+<body class="bg-gray-50 text-gray-900 flex flex-col min-h-screen">
+
+    <header class="bg-white shadow-sm">
+        <div class="max-w-screen-2xl mx-auto py-4 px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+            <div class="flex items-center gap-3 self-start sm:self-center">
+                <div class="bg-indigo-600 p-2 rounded-lg logo-pulse">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="text-white"><path d="M4 4H8V8H4V4Z" fill="currentColor"></path><path d="M4 16H8V20H4V16Z" fill="currentColor"></path><path d="M16 4H20V8H16V4Z" fill="currentColor"></path><path d="M10 4H14V6H10V4Z" fill="currentColor"></path><path d="M10 8H12V10H10V8Z" fill="currentColor"></path><path d="M12 12H14V14H12V12Z" fill="currentColor"></path><path d="M10 16H12V18H10V16Z" fill="currentColor"></path><path d="M14 16H16V18H14V16Z" fill="currentColor"></path><path d="M16 12H18V14H16V12Z" fill="currentColor"></path><path d="M16 8H20V10H16V8Z" fill="currentColor"></path><path d="M12 18H14V20H12V18Z" fill="currentColor"></path><path d="M4 10H6V14H4V10Z" fill="currentColor"></path></svg>
+                </div>
                 <div>
-                    <h1 class="text-2xl font-bold text-red-600">SparkTask (Admin)</h1>
-                    <p id="admin-task-name" class="text-sm text-gray-500">Memuatkan...</p>
+                    <h1 class="text-2xl font-bold text-indigo-600">SparkTask</h1>
+                    <p class="text-sm text-gray-500">Sistem Pengurusan Tugasan Bersepadu</p>
                 </div>
             </div>
-            <div class="flex items-center gap-2">
-                <button id="download-excel-btn" class="btn bg-green-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-green-700 flex items-center gap-2 text-sm" disabled>
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                    Muat Turun Excel
-                </button>
-                 <a id="back-to-dashboard-btn" href="#" class="btn bg-gray-100 text-gray-800 font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-gray-200 flex items-center gap-2 text-sm">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.707-10.293a1 1 0 00-1.414-1.414l-3 3a1 1 0 001.414 1.414L9 9.414V13a1 1 0 102 0V9.414l1.293 1.293a1 1 0 001.414-1.414l-3-3z" clip-rule="evenodd" /></svg>
-                    Kembali
+            <div id="header-buttons" class="flex w-full sm:w-auto justify-center sm:justify-end items-center gap-4">
+                 <a href="tugasan.html" class="btn w-full sm:w-auto flex items-center justify-center rounded-lg border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
+                    + Tambah Tugasan Baru
                 </a>
             </div>
         </div>
     </header>
 
-    <main id="admin-content" class="max-w-screen-2xl mx-auto py-6 sm:px-6 lg:px-8 flex-grow w-full hidden">
+    <main class="container max-w-screen-2xl mx-auto p-4 sm:p-6 lg:p-8 flex-grow">
         
-        <div id="task-summary-card" class="card p-5 mb-6">
-            <h3 class="text-lg font-semibold text-gray-800 flex items-center gap-2 mb-4">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-indigo-500" viewBox="0 0 20 20" fill="currentColor">
-                    <path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h6a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h6a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd" />
-                </svg>
-                Rumusan Tugasan
-            </h3>
-            
-            <div id="single-line-progress-container" class="single-line-progress">
-                </div>
+        <div class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
+            <h1 class="text-3xl font-bold text-gray-900 text-center">
+                Senarai Tugasan
+            </h1>
         </div>
-        <div class="border-b border-gray-200 bg-white rounded-t-lg shadow">
-            <nav class="-mb-px flex" aria-label="Tabs">
-                <button onclick="switchTab('belum')" id="tab-btn-belum" class="tab-btn active">
-                    <span class="text-amber-600 mr-2">●</span>
-                    Belum Selesai (<span id="count-belum">0</span>)
-                </button>
-                <button onclick="switchTab('selesai')" id="tab-btn-selesai" class="tab-btn">
-                    <span class="text-teal-600 mr-2">●</span>
-                    Rekod Selesai (<span id="count-selesai">0</span>)
-                </button>
-                <button onclick="switchTab('laporan')" id="tab-btn-laporan" class="tab-btn">
-                    <span class="text-indigo-600 mr-2">●</span>
-                    Laporan Penuh (Ringkasan Skop)
-                </button>
-            </nav>
+        
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div class="card p-4 flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-gray-500">Jumlah Tugasan</p>
+                    <p id="total-tugasan" class="text-3xl font-bold text-indigo-600">0</p>
+                </div>
+                <div class="bg-indigo-100 p-3 rounded-full">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+                </div>
+            </div>
+            <div class="card p-4 flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-gray-500">Telah Selesai</p>
+                    <p id="total-selesai" class="text-3xl font-bold text-green-600">0</p>
+                </div>
+                <div class="bg-green-100 p-3 rounded-full">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                </div>
+            </div>
+            <div class="card p-4 flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-gray-500">Belum Selesai</p>
+                    <p id="total-belum" class="text-3xl font-bold text-amber-600">0</p>
+                </div>
+                <div class="bg-amber-100 p-3 rounded-full">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mb-6 p-4">
+            <div class="flex flex-col md:flex-row justify-between items-center gap-4">
+                <div class="w-full md:w-1/3">
+                    <label for="carian-tugasan" class="sr-only">Cari Tugasan</label>
+                    <input type="text" id="carian-tugasan" class="block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Cari nama tugasan...">
+                </div>
+                <div class="w-full md:w-1/3">
+                    <label for="sektor-filter" class="sr-only">Tapis Sektor</label>
+                    <select id="sektor-filter" class="block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                        <option value="">Semua Sektor/Unit</option>
+                        <optgroup label="🏛️ SEKTOR PERANCANGAN">
+                            <option value="SEKTOR PERANCANGAN">SEKTOR PERANCANGAN (Tiada unit khas)</option>
+                        </optgroup>
+                        <optgroup label="📚 SEKTOR PEMBELAJARAN">
+                            <option value="SPB - Unit Pengupayaan Pembangunan Pembelajaran Sekolah (SISC+)">Unit Pengupayaan Pembangunan Pembelajaran Sekolah (SISC+)</option>
+                            <option value="SPB - Unit Pendidikan Islam">Unit Pendidikan Islam</option>
+                            <option value="SPB - Unit Pendidikan Khas">Unit Pendidikan Khas</option>
+                            <option value="SPB - Unit Pemulihan Khas">Unit Pemulihan Khas</option>
+                            <option value="SPB - Unit Sumber dan Teknologi Pendidikan">Unit Sumber dan Teknologi Pendidikan</option>
+                        </optgroup>
+                        <optgroup label="🏫 SEKTOR PENGURUSAN SEKOLAH">
+                            <option value="SPS - Unit Pengupayaan Kepimpinan Sekolah (SIP+)">Unit Pengupayaan Kepimpinan Sekolah (SIP+)</option>
+                            <option value="SPS - Unit Prasekolah dan Rendah">Unit Prasekolah dan Rendah</option>
+                            <option value="SPS - Unit Menengah dan Tingkatan 6">Unit Menengah dan Tingkatan 6</option>
+                            <option value="SPS - Unit Pendidikan Swasta">Unit Pendidikan Swasta</option>
+                        </optgroup>
+                        <optgroup label="🌱 SEKTOR PEMBANGUNAN MURID">
+                            <option value="SPM - Unit Hal Ehwal Murid">Unit Hal Ehwal Murid</option>
+                            <option value="SPM - Unit Pembangunan Bakat Murid">Unit Pembangunan Bakat Murid</option>
+                        </optgroup>
+                        <optgroup label="🧠 SEKTOR PSIKOLOGI DAN KAUNSELING">
+                            <option value="SEKTOR PSIKOLOGI DAN KAUNSELING">SEKTOR PSIKOLOGI DAN KAUNSELING (Tiada unit khas)</option>
+                        </optgroup>
+                        <optgroup label="🧾 SEKTOR PENTAKSIRAN DAN PEPERIKSAAN">
+                            <option value="SEKTOR PENTAKSIRAN DAN PEPERIKSAAN">SEKTOR PENTAKSIRAN DAN PEPERIKSAAN (Tiada unit khas)</option>
+                        </optgroup>
+                        <optgroup label="⚙️ SEKTOR PENGURUSAN">
+                            <option value="SPG - Khidmat Sokongan Profesional">Khidmat Sokongan Profesional</option>
+                            <option value="SPG - Unit Kewangan, Infrastruktur & Perolehan">Unit Kewangan, Infrastruktur & Perolehan</option>
+                            <option value="SPG - Unit Sumber Manusia, ICT & Pentadbiran Am">Unit Sumber Manusia, ICT & Pentadbiran Am</option>
+                            <option value="SPG - Unit Pengurusan Teknikal ICT Sekolah">Unit Pengurusan Teknikal ICT Sekolah</option>
+                        </optgroup>
+                    </select>
+                </div>
+                <div class="w-full md:w-1/3 flex items-center justify-end gap-2">
+                    <label for="items-per-page" class="text-sm font-medium text-gray-700">Papar:</label>
+                    <select id="items-per-page" class="block w-full md:w-auto rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                        <option value="10">10</option>
+                        <option value="15">15</option>
+                        <option value="30">30</option>
+                    </select>
+                </div>
+            </div>
         </div>
 
-        <div id="tab-panel-belum" class="tab-panel active">
-            <div class="card rounded-t-none p-6">
-                <div class="flex flex-col sm:flex-row gap-4 mb-4">
-                    <input type="text" id="carian-belum-input" class="block w-full sm:w-1/2 rounded-lg border-gray-300 shadow-sm" placeholder="Cari nama sekolah/skop...">
-                    <div class="flex items-center gap-2">
-                        <label for="items-belum-select" class="text-sm font-medium text-gray-700">Papar:</label>
-                        <select id="items-belum-select" class="block w-auto rounded-lg border-gray-300 shadow-sm">
-                            <option value="10">10</option>
-                            <option value="20">20</option>
-                            <option value="50">50</option>
-                            <option value="100">100</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="overflow-y-auto border rounded-md">
-                    <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50 sticky top-0">
-                            <tr>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bil.</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nama Sekolah/Skop</th>
-                            </tr>
-                        </thead>
-                        <tbody id="table-belum" class="bg-white divide-y divide-gray-200"></tbody>
-                    </table>
-                </div>
-                <div id="pagination-belum" class="p-4 flex justify-between items-center"></div>
+        <div class="card bg-white rounded-xl shadow-lg overflow-hidden">
+            <div class="overflow-x-auto">
+                <table id="jadual-tugasan" class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bil</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tugasan / Pegawai / Sektor</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tarikh Siap (Baki Hari)</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rumusan Keseluruhan</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tindakan</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        <tr><td colspan="5" class="px-6 py-4 text-center text-gray-500">Memuatkan data tugasan...</td></tr>
+                    </tbody>
+                </table>
             </div>
+            <div id="pagination-controls" class="p-4 flex justify-between items-center">
+                </div>
         </div>
-        
-        <div id="tab-panel-selesai" class="tab-panel">
-            <div class="card rounded-t-none p-6">
-                <div class="flex flex-col sm:flex-row gap-4 mb-4 items-center">
-                    <input type="text" id="carian-selesai-input" class="block w-full sm:w-1/3 rounded-lg border-gray-300 shadow-sm" placeholder="Cari nama pengesah...">
-                    
-                    <select id="filter-stesen-selesai" class="block w-full sm:w-1/3 rounded-lg border-gray-300 shadow-sm sm:text-sm">
-                         <option value="">-- Tapis Mengikut Stesen --</option>
-                    </select>
-                    
-                    <div class="flex items-center gap-2 flex-shrink-0">
-                        <label for="items-selesai-select" class="text-sm font-medium text-gray-700">Papar:</label>
-                        <select id="items-selesai-select" class="block w-auto rounded-lg border-gray-300 shadow-sm">
-                            <option value="10">10</option>
-                            <option value="20">20</option>
-                            <option value="50">50</option>
-                            <option value="100">100</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="overflow-y-auto border rounded-md">
-                    <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50 sticky top-0">
-                            <tr>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bil.</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nama & Stesen</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tarikh Sah</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tindakan</th>
-                            </tr>
-                        </thead>
-                        <tbody id="table-selesai" class="bg-white divide-y divide-gray-200"></tbody>
-                    </table>
-                </div>
-                <div id="pagination-selesai" class="p-4 flex justify-between items-center"></div>
-            </div>
-        </div>
-        
-        <div id="tab-panel-laporan" class="tab-panel">
-            <div class="card rounded-t-none p-6">
-                 <p class="text-sm text-gray-600 mb-4">Menunjukkan status pengesahan terakhir bagi setiap sasaran yang disenaraikan. Rekod duplikasi (pengisian berulang) hanya memaparkan maklumat pengesahan yang paling baharu.</p>
-                <div class="flex flex-col sm:flex-row gap-4 mb-4">
-                    <input type="text" id="carian-laporan-input" class="block w-full sm:w-1/2 rounded-lg border-gray-300 shadow-sm" placeholder="Cari nama sasaran/stesen...">
-                    <div class="flex items-center gap-2">
-                        <label for="items-laporan-select" class="text-sm font-medium text-gray-700">Papar:</label>
-                        <select id="items-laporan-select" class="block w-auto rounded-lg border-gray-300 shadow-sm">
-                            <option value="10">10</option>
-                            <option value="20">20</option>
-                            <option value="50">50</option>
-                            <option value="100">100</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="overflow-y-auto border rounded-md">
-                    <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50 sticky top-0">
-                            <tr>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bil.</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sasaran (Skop)</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pengesahan Terakhir</th>
-                            </tr>
-                        </thead>
-                        <tbody id="table-laporan" class="bg-white divide-y divide-gray-200"></tbody>
-                    </table>
-                </div>
-                <div id="pagination-laporan" class="p-4 flex justify-between items-center"></div>
-            </div>
-        </div>
-        
     </main>
-    
-    <div id="ic-verification-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70">
-        <div class="card bg-white rounded-lg shadow-xl w-full max-w-sm p-6">
-            <h3 class="text-xl font-semibold text-gray-800 mb-2">Pengesahan Pentadbir</h3>
-            <p class="text-sm text-gray-600 mb-4">Sila masukkan No. IC Penyelaras (tanpa sengkang) untuk mengakses halaman ini.</p>
-            <div id="loading-ic-check" class="text-center p-4 hidden">
-                <svg class="animate-spin h-6 w-6 text-indigo-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                <p class="mt-2 text-sm text-gray-600">Menyemak...</p>
-            </div>
-            <div id="ic-form">
-                <input type="password" id="ic-input" placeholder="No. IC Penyelaras" class="block w-full px-4 py-2 border border-gray-300 rounded-md mb-2">
-                <p id="ic-error" class="text-red-500 text-sm hidden mb-4">No. IC tidak sah atau tidak sepadan.</p>
-                <button id="ic-submit-btn" class="btn bg-red-600 text-white font-semibold py-2 px-4 rounded-lg w-full mt-2">
-                    Sahkan & Buka
-                </button>
-            </div>
-        </div>
-    </div>
-    
-    <div id="modal-jawapan" class="modal fixed inset-0 z-50 overflow-y-auto modal-backdrop justify-center items-center p-4">
-        <div class="bg-white w-full max-w-2xl rounded-xl shadow-lg">
+
+    <div id="modal-tugasan" class="modal fixed inset-0 z-50 overflow-auto bg-black bg-opacity-50 justify-center items-center p-4">
+        <div class="bg-white w-full max-w-3xl rounded-xl shadow-lg">
             <div class="flex justify-between items-center border-b p-5">
-                <h3 id="jawapan-modal-title" class="text-xl font-medium text-gray-900">Butiran Jawapan</h3>
-                <button onclick="closeJawapanModal()" class="text-gray-400 hover:text-gray-600">
+                <h3 id="modal-title" class="text-xl font-medium text-gray-900">Edit Tugasan</h3>
+                <button id="modal-tutup-btn" class="text-gray-400 hover:text-gray-600">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
             </div>
-            <div id="jawapan-modal-content" class="p-6 max-h-[70vh] overflow-y-auto">
+            
+            <form id="borang-tugasan-modal" class="p-5" novalidate>
+                <div id="modal-error" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg mb-4"></div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="md:col-span-2">
+                        <label for="nama-modal" class="block text-sm font-medium text-gray-700">Nama Tugasan</label>
+                        <input type="text" id="nama-modal" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm py-3 uppercase" required>
+                    </div>
+                    
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium text-gray-700">Pegawai (Pemohon)</label>
+                        <p id="pegawai-display" class="mt-1 text-lg font-medium text-gray-800 bg-gray-100 px-4 py-2 rounded-lg"></p>
+                    </div>
+
+                    <div class="md:col-span-2">
+                        <label for="sektor-modal" class="block text-sm font-medium text-gray-700">Sektor</label>
+                        <select id="sektor-modal" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" required>
+                            <option value="">Sila Pilih Sektor/Unit</option>
+                            <optgroup label="🏛️ SEKTOR PERANCANGAN">
+                                <option value="SEKTOR PERANCANGAN">SEKTOR PERANCANGAN (Tiada unit khas)</option>
+                            </optgroup>
+                            <optgroup label="📚 SEKTOR PEMBELAJARAN">
+                                <option value="SPB - Unit Pengupayaan Pembangunan Pembelajaran Sekolah (SISC+)">Unit Pengupayaan Pembangunan Pembelajaran Sekolah (SISC+)</option>
+                                <option value="SPB - Unit Pendidikan Islam">Unit Pendidikan Islam</option>
+                                <option value="SPB - Unit Pendidikan Khas">Unit Pendidikan Khas</option>
+                                <option value="SPB - Unit Pemulihan Khas">Unit Pemulihan Khas</option>
+                                <option value="SPB - Unit Sumber dan Teknologi Pendidikan">Unit Sumber dan Teknologi Pendidikan</option>
+                            </optgroup>
+                            <optgroup label="🏫 SEKTOR PENGURUSAN SEKOLAH">
+                                <option value="SPS - Unit Pengupayaan Kepimpinan Sekolah (SIP+)">Unit Pengupayaan Kepimpinan Sekolah (SIP+)</option>
+                                <option value="SPS - Unit Prasekolah dan Rendah">Unit Prasekolah dan Rendah</option>
+                                <option value="SPS - Unit Menengah dan Tingkatan 6">Unit Menengah dan Tingkatan 6</option>
+                                <option value="SPS - Unit Pendidikan Swasta">Unit Pendidikan Swasta</option>
+                            </optgroup>
+                            <optgroup label="🌱 SEKTOR PEMBANGUNAN MURID">
+                                <option value="SPM - Unit Hal Ehwal Murid">Unit Hal Ehwal Murid</option>
+                                <option value="SPM - Unit Pembangunan Bakat Murid">Unit Pembangunan Bakat Murid</option>
+                            </optgroup>
+                            <optgroup label="🧠 SEKTOR PSIKOLOGI DAN KAUNSELING">
+                                <option value="SEKTOR PSIKOLOGI DAN KAUNSELING">SEKTOR PSIKOLOGI DAN KAUNSELING (Tiada unit khas)</option>
+                            </optgroup>
+                            <optgroup label="🧾 SEKTOR PENTAKSIRAN DAN PEPERIKSAAN">
+                                <option value="SEKTOR PENTAKSIRAN DAN PEPERIKSAAN">SEKTOR PENTAKSIRAN DAN PEPERIKSAAN (Tiada unit khas)</option>
+                            </optgroup>
+                            <optgroup label="⚙️ SEKTOR PENGURUSAN">
+                                <option value="SPG - Khidmat Sokongan Profesional">Khidmat Sokongan Profesional</option>
+                                <option value="SPG - Unit Kewangan, Infrastruktur & Perolehan">Unit Kewangan, Infrastruktur & Perolehan</option>
+                                <option value="SPG - Unit Sumber Manusia, ICT & Pentadbiran Am">Unit Sumber Manusia, ICT & Pentadbiran Am</option>
+                                <option value="SPG - Unit Pengurusan Teknikal ICT Sekolah">Unit Pengurusan Teknikal ICT Sekolah</option>
+                            </optgroup>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label for="tarikh-mula-modal" class="block text-sm font-medium text-gray-700">Tarikh Penugasan</label>
+                        <input type="date" id="tarikh-mula-modal" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" required>
+                    </div>
+                    <div>
+                        <label for="tarikh-siap-modal" class="block text-sm font-medium text-gray-700">Tarikh Wajib Siap</label>
+                        <input type="date" id="tarikh-siap-modal" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" required>
+                    </div>
+
+                    <div>
+                        <label for="jumlah-selesai-modal" class="block text-sm font-medium text-gray-700">Jumlah Sekolah Selesai</label>
+                        <input type="number" id="jumlah-selesai-modal" min="0" value="0" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" required>
+                    </div>
+                    <div>
+                        <label for="jumlah-belum-modal" class="block text-sm font-medium text-gray-700">Jumlah Sekolah Belum</label>
+                        <input type="number" id="jumlah-belum-modal" min="0" value="0" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" required>
+                    </div>
+
+                    <div class="md:col-span-2">
+                        <label for="skop-list-textarea" class="block text-sm font-medium text-gray-700">Skop Tugasan (Senarai Sekolah)</label>
+                        <p class="text-xs text-gray-500">Edit senarai sekolah di sini (satu nama per baris).</p>
+                        <textarea id="skop-list-textarea" rows="4" class="w-full mt-1 p-3 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" placeholder="SK MIRI...&#10;SMK LUTONG..."></textarea>
+                    </div>
+                    <div class="md:col-span-2">
+                        <div class="relative flex items-start">
+                            <div class="flex h-5 items-center">
+                                <input id="perlu-pautan-checkbox" name="perlu-pautan" type="checkbox" class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                            </div>
+                            <div class="ml-3 text-sm">
+                                <label for="perlu-pautan-checkbox" class="font-medium text-gray-700">Tambah/Edit Pautan Laman Web</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="pautan-section" class="md:col-span-2 hidden">
+                        <label class="block text-sm font-medium text-gray-700">Senarai Pautan</label>
+                        <div class="flex mt-1 gap-2">
+                            <input type="url" id="pautan-input" class="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" placeholder="https://www.example.com">
+                            <button type="button" id="tambah-pautan-btn" class="rounded-lg border border-transparent bg-gray-600 px-4 text-sm font-medium text-white shadow-sm hover:bg-gray-700">Tambah</button>
+                        </div>
+                        <div id="senarai-pautan-container" class="mt-2 space-y-2 max-h-32 overflow-y-auto p-2 border rounded-lg bg-gray-50">
+                            </div>
+                    </div>
+                    
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium text-gray-700">Muat Naik Fail (Max 5MB)</label>
+                        <div id="fail-info" class="text-sm text-gray-600 mb-1"></div>
+                        <label class="mt-1 block w-full cursor-pointer text-sm">
+                            <span class="py-2 px-3 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 shadow-sm">
+                                Pilih Fail
+                            </span>
+                            <input type="file" id="fail-input" class="absolute w-0 h-0 overflow-hidden">
+                        </label>
+                    </div>
                 </div>
-            <div class="flex justify-end items-center border-t p-4 bg-gray-50 rounded-b-xl">
-                <button onclick="closeJawapanModal()" class="btn rounded-lg border border-gray-300 bg-white py-2 px-4 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 font-semibold">
-                    Tutup
+
+                <div class="pt-4">
+                    <label class="block text-sm font-medium text-gray-700">Senarai Sub-Tugasan / Soalan</label>
+                    <p class="text-xs text-gray-500">Bina soalan yang perlu dijawab oleh pengguna di borang pengesahan.</p>
+                    
+                    <div id="sub-tugasan-type-buttons" class="mt-2 flex flex-wrap gap-2">
+                        <button type="button" class="type-button" data-type="arahan">Arahan 📜</button>
+                        <button type="button" class="type-button" data-type="ya_tidak">Ya/Tidak ✔️</button>
+                        <button type="button" class="type-button" data-type="teks_ringkas">Teks Ringkas ✏️</button>
+                        <button type="button" class="type-button" data-type="teks_panjang">Teks Panjang 📝</button>
+                        <button type="button" class="type-button" data-type="pautan_url">Pautan URL 🔗</button>
+                        <button type="button" class="type-button" data-type="tarikh">Tarikh 📅</button>
+                        <button type="button" class="type-button" data-type="option_button">Dropdown 🔽</button>
+                        <button type="button" class="type-button" data-type="radio_button">Radio Button 🔘</button>
+                        <button type="button" class="type-button" data-type="multiselect">Kotak Pilihan ☑️</button>
+                        <button type="button" class="type-button" data-type="skala">Skala Linear 📊</button>
+                    </div>
+                    
+                    <div id="input-tugasan-section" class="hidden mt-3">
+                        <div class="flex flex-col sm:flex-row items-start gap-2">
+                            <textarea id="sub-tugasan-text" rows="3" class="flex-grow block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm py-2 px-3" placeholder="Tulis soalan atau arahan..."></textarea>
+                            
+                            <div class="flex-shrink-0 w-full sm:w-auto space-y-2"> 
+                                <div class="flex items-center justify-end">
+                                    <input id="perlu-wajib-checkbox" type="checkbox" checked class="h-4 w-4 rounded border-gray-300 text-red-600 focus:ring-red-500">
+                                    <label for="perlu-wajib-checkbox" class="ml-2 text-sm font-medium text-gray-700">Wajib Diisi</label>
+                                </div>
+                                
+                                <button type="button" id="tambah-sub-tugasan-btn" class="btn rounded-lg border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 w-full sm:w-48 flex items-center justify-center">
+                                    Tambah 
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline-block mr-2 -ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div id="options-input-container" class="mt-3 p-4 border border-indigo-200 bg-indigo-50 rounded-lg hidden">
+                            <label for="sub-tugasan-options" class="block text-sm font-medium text-indigo-800">
+                                Masukkan Senarai Pilihan (Options)
+                            </label>
+                            <p class="text-xs text-indigo-600 mb-2">
+                                Sila masukkan **satu pilihan bagi setiap baris**.
+                            </p>
+                            <textarea id="sub-tugasan-options" rows="4" class="w-full mt-1 p-3 border border-indigo-300 rounded-md focus:ring-indigo-500 focus:ring-indigo-500" placeholder="Pilihan Pertama&#10;Pilihan Kedua&#10;Pilihan Ketiga"></textarea>
+                        </div>
+
+                        <div id="scale-input-container" class="mt-3 p-4 border border-purple-200 bg-purple-50 rounded-lg hidden">
+                            <label class="block text-sm font-medium text-purple-800 mb-3">
+                                Tetapan Skala Linear
+                            </label>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label for="scale-min" class="block text-xs font-medium text-gray-700">Skala Mula</label>
+                                    <select id="scale-min" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500 sm:text-sm">
+                                        <option value="0">0</option>
+                                        <option value="1" selected>1</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label for="scale-max" class="block text-xs font-medium text-gray-700">Skala Tamat</label>
+                                    <select id="scale-max" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500 sm:text-sm">
+                                        <option value="2">2</option>
+                                        <option value="3">3</option>
+                                        <option value="4">4</option>
+                                        <option value="5" selected>5</option>
+                                        <option value="6">6</option>
+                                        <option value="7">7</option>
+                                        <option value="8">8</option>
+                                        <option value="9">9</option>
+                                        <option value="10">10</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label for="scale-label-min" class="block text-xs font-medium text-gray-700">Label Mula (Pilihan)</label>
+                                    <input type="text" id="scale-label-min" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500 sm:text-sm" placeholder="cth: Sangat Teruk">
+                                </div>
+                                <div>
+                                    <label for="scale-label-max" class="block text-xs font-medium text-gray-700">Label Tamat (Pilihan)</label>
+                                    <input type="text" id="scale-label-max" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500 sm:text-sm" placeholder="cth: Sangat Bagus">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="senarai-sub-tugasan-container" class="mt-3 space-y-2 max-h-48 overflow-y-auto p-2 border rounded-lg bg-gray-50">
+                         <p class="text-xs text-gray-500 italic text-center">Tiada sub-tugasan ditambah.</p>
+                    </div>
+                </div>
+
+                <div class="flex justify-end items-center border-t pt-5 mt-6 gap-3">
+                    <button type="button" id="modal-batal-btn" class="btn rounded-lg border border-gray-300 bg-white py-2 px-4 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 font-semibold">
+                        Batal
+                    </button>
+                    <button type="submit" class="btn rounded-lg border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 font-semibold flex items-center justify-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline-block mr-2 -ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-12 0h12m-6 0v4m-3 0h6" />
+                        </svg>
+                        Simpan Kemaskini
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <div id="modal-padam" class="modal fixed inset-0 z-50 overflow-auto bg-black bg-opacity-50 justify-center items-center p-4">
+        <div class="bg-white w-full max-w-sm rounded-xl shadow-lg p-6">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">Padam Tugasan</h3>
+            <p class="text-sm text-gray-600 mb-6">Anda pasti mahu memadam tugasan ini? Tindakan ini tidak boleh diundur.</p>
+            <div class="flex justify-end gap-3">
+                <button id="padam-batal-btn" class="btn rounded-lg border border-gray-300 bg-white py-2 px-4 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 font-semibold">
+                    Batal
+                </button>
+                <button id="padam-sah-btn" class="btn rounded-lg border border-transparent bg-red-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-red-700 font-semibold">
+                    Padam
                 </button>
             </div>
         </div>
     </div>
+    <div id="modal-pengesahan-ic" class="modal fixed inset-0 z-50 overflow-auto bg-black bg-opacity-50 justify-center items-center p-4">
+        <div class="bg-white w-full max-w-sm rounded-xl shadow-lg p-6">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">Sahkan Identiti</h3>
+            <p class="text-sm text-gray-600 mb-4">Sila masukkan No. IC Penyelaras (Pegawai) untuk meneruskan.</p>
+            <form id="borang-pengesahan-ic">
+                <input type="password" id="input-pengesahan-ic" placeholder="Masukkan No. IC Penyelaras" class="block w-full px-4 py-2 border border-gray-300 rounded-md mb-2">
+                <p id="error-pengesahan-ic" class="text-red-500 text-sm hidden mb-4">No. IC tidak sepadan.</p>
+                <div class="flex justify-end gap-3 mt-4">
+                    <button type="button" id="batal-pengesahan-ic" class="btn rounded-lg border border-gray-300 bg-white py-2 px-4 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 font-semibold">
+                        Batal
+                    </button>
+                    <button type="submit" class="btn rounded-lg border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 font-semibold">
+                        Sahkan
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
 
-    
+    <footer class="text-center py-4 mt-8 border-t border-gray-200">
+        <p class="text-sm text-gray-600">Projek Inovasi oleh Pahan</p>
+        <p id="version-info" class="text-xs text-gray-500"></p>
+    </footer>
+
     <script type="module">
+        // Import modul Firebase
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, updateDoc, arrayRemove } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, collection, onSnapshot, updateDoc, deleteDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
+        // Konfigurasi Firebase (diambil dari semak.html)
         const firebaseConfig = {
             apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM",
             authDomain: "myqrhadir.firebaseapp.com",
@@ -316,721 +488,975 @@
         
         let db, auth, userId;
         const appId = firebaseConfig.projectId;
-        let currentTaskId = null;
-        let correctPenyelarasIc = null;
-        let currentTaskData = null;
-        
-        let fullSkopBelumList = []; 
-        let fullRekodSelesaiList = []; 
-        let uniqueStesenList = []; 
-        let latestCompletionMap = {}; 
-        let reportDataList = []; 
+        let isSubmitting = false;
+        let selectedSubTugasanType = ''; // Status baru untuk menyimpan jenis yang dipilih
 
-        let currentPageBelum = 1;
-        let itemsPerPageBelum = 10;
-        let currentPageSelesai = 1;
-        let itemsPerPageSelesai = 10;
-        let currentFilterStesen = ''; 
-        let currentPageLaporan = 1;
-        let itemsPerPageLaporan = 10;
-
-        const carianBelumInput = document.getElementById('carian-belum-input');
-        const itemsBelumSelect = document.getElementById('items-belum-select');
-        const paginationBelum = document.getElementById('pagination-belum');
-        const carianSelesaiInput = document.getElementById('carian-selesai-input');
-        const itemsSelesaiSelect = document.getElementById('items-selesai-select');
-        const paginationSelesai = document.getElementById('pagination-selesai');
-        const filterStesenSelesai = document.getElementById('filter-stesen-selesai'); 
-        
-        const carianLaporanInput = document.getElementById('carian-laporan-input');
-        const itemsLaporanSelect = document.getElementById('items-laporan-select');
-        const paginationLaporan = document.getElementById('pagination-laporan');
-        const singleLineContainer = document.getElementById('single-line-progress-container'); // NEW ELEMENT
-
+        // Inisialisasi Firebase
         try {
             const app = initializeApp(firebaseConfig);
             db = getFirestore(app);
             auth = getAuth(app);
         } catch (e) { console.error("Error initializing Firebase:", e); }
         
+        // Pengesahan (Sign-in)
         onAuthStateChanged(auth, async (user) => {
             if (user) { 
                 userId = user.uid; 
-                main(); 
+                pasangListenerTugasan(); // Mula mendengar data selepas disahkan
             } else { 
                 try { 
                     await signInAnonymously(auth); 
                 } catch (error) { 
                     console.error("Error signing in:", error); 
+                    badanJadual.innerHTML = `<tr><td colspan="5" class="px-6 py-4 text-center text-red-500">Gagal menyambung ke pangkalan data.</td></tr>`;
                 } 
             }
         });
 
-        // FUNGSI NORMALISASI YANG KONSISTEN DENGAN task.html
-        function normalizeStationName(name) {
+
+        // --- DOM Elements ---
+        const badanJadual = document.querySelector('#jadual-tugasan tbody');
+        const modalTugasan = document.getElementById('modal-tugasan');
+        const modalTitle = document.getElementById('modal-title');
+        const modalTutupBtn = document.getElementById('modal-tutup-btn');
+        const modalBatalBtn = document.getElementById('modal-batal-btn');
+        const borangModal = document.getElementById('borang-tugasan-modal');
+        const modalError = document.getElementById('modal-error');
+        const namaModal = document.getElementById('nama-modal');
+        const pegawaiDisplay = document.getElementById('pegawai-display');
+        const sektorModal = document.getElementById('sektor-modal');
+        const tarikhMulaModal = document.getElementById('tarikh-mula-modal');
+        const tarikhSiapModal = document.getElementById('tarikh-siap-modal');
+        const failInput = document.getElementById('fail-input');
+        const failInfo = document.getElementById('fail-info');
+        const jumlahSelesaiModal = document.getElementById('jumlah-selesai-modal');
+        const jumlahBelumModal = document.getElementById('jumlah-belum-modal');
+        const skopListTextarea = document.getElementById('skop-list-textarea');
+        
+        // DOM SUB-TUGASAN (BARU)
+        const subTugasanTypeButtonsContainer = document.getElementById('sub-tugasan-type-buttons');
+        const inputTugasanSection = document.getElementById('input-tugasan-section');
+        const subTugasanTextInput = document.getElementById('sub-tugasan-text');
+        const perluWajibCheckbox = document.getElementById('perlu-wajib-checkbox'); 
+        const tambahSubTugasanBtn = document.getElementById('tambah-sub-tugasan-btn');
+        const senaraiSubTugasanContainer = document.getElementById('senarai-sub-tugasan-container');
+        
+        // DOM INPUT PILIHAN DINAMIK (BARU)
+        const optionsInputContainer = document.getElementById('options-input-container');
+        const subTugasanOptionsInput = document.getElementById('sub-tugasan-options');
+        
+        // DOM BARU UNTUK SKALA DINAMIK (BARU)
+        const scaleInputContainer = document.getElementById('scale-input-container');
+        const scaleMinInput = document.getElementById('scale-min');
+        const scaleMaxInput = document.getElementById('scale-max');
+        const scaleLabelMinInput = document.getElementById('scale-label-min');
+        const scaleLabelMaxInput = document.getElementById('scale-label-max');
+        
+        const perluPautanCheckbox = document.getElementById('perlu-pautan-checkbox');
+        const pautanSection = document.getElementById('pautan-section');
+        const pautanInput = document.getElementById('pautan-input');
+        const tambahPautanBtn = document.getElementById('tambah-pautan-btn');
+        const senaraiPautanContainer = document.getElementById('senarai-pautan-container');
+        const modalPadam = document.getElementById('modal-padam');
+        const padamBatalBtn = document.getElementById('padam-batal-btn');
+        const padamSahBtn = document.getElementById('padam-sah-btn');
+        const modalPengesahanIc = document.getElementById('modal-pengesahan-ic');
+        const borangPengesahanIc = document.getElementById('borang-pengesahan-ic');
+        const batalPengesahanIcBtn = document.getElementById('batal-pengesahan-ic');
+        const errorPengesahanIc = document.getElementById('error-pengesahan-ic');
+        const inputPengesahanIc = document.getElementById('input-pengesahan-ic');
+        const carianInput = document.getElementById('carian-tugasan');
+        const itemsPerPageSelect = document.getElementById('items-per-page');
+        const paginationControls = document.getElementById('pagination-controls');
+        const sektorFilter = document.getElementById('sektor-filter');
+        const totalTugasanEl = document.getElementById('total-tugasan');
+        const totalSelesaiEl = document.getElementById('total-selesai');
+        const totalBelumEl = document.getElementById('total-belum');
+
+        // --- State (Data) ---
+        let senaraiTugasan = [];
+        let subTugasanList = []; // Akan simpan {text, type, required, options, scaleData}
+        let pautanList = [];
+        let currentEditId = null;
+        let currentDeleteId = null;
+        let currentActionIntent = null;
+        let currentPage = 1;
+        let itemsPerPage = 10;
+
+        // --- FUNCTIONS ---
+
+        function pasangListenerTugasan() {
+            if (!userId) return;
+
+            const koleksiTugasan = collection(db, `artifacts/${appId}/public/data/spark_tasks`);
+            const q = query(koleksiTugasan, orderBy("createdAt", "desc"));
+            
+            onSnapshot(q, (snapshot) => {
+                senaraiTugasan = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+                paparkanTugasan();
+            }, (error) => {
+                console.error("Error mendengar data: ", error);
+                badanJadual.innerHTML = `<tr><td colspan="5" class="px-6 py-4 text-center text-red-500">Gagal menyambung ke pangkalan data.</td></tr>`;
+            });
+        }
+
+        function paparkanTugasan() {
+            badanJadual.innerHTML = '';
+            
+            const searchTerm = carianInput.value.toLowerCase();
+            const sektorTerm = sektorFilter.value;
+            itemsPerPage = parseInt(itemsPerPageSelect.value, 10);
+
+            const filteredList = senaraiTugasan.filter(tugasan => {
+                const searchMatch = tugasan.nama.toLowerCase().includes(searchTerm);
+                const sektorMatch = (sektorTerm === "") ? true : (tugasan.sektor === sektorTerm);
+                return searchMatch && sektorMatch;
+            });
+            
+            let totalSelesaiCount = 0;
+            let totalBelumCount = 0;
+            
+            const listWithProgress = filteredList.map(tugasan => {
+                
+                // ▼▼▼ LOGIK PENGIRAAN PROGRES UNTUK KAD RINGKAS & JADUAL (KONSISTEN DENGAN task.html) ▼▼▼
+                const originalTotalSkop = Array.isArray(tugasan.skopSenaraiSekolah) 
+                    ? tugasan.skopSenaraiSekolah 
+                    : [];
+                const allRekodSelesai = tugasan.rekodSelesai || [];
+                
+                let jumlahSelesai, total;
+
+                if (originalTotalSkop.length > 0) {
+                    const skopSample = originalTotalSkop[0] || '';
+                    const isSchoolSkop = skopSample.toUpperCase().match(/^(SK|SMK|SJK|KOLEJ|KV|SMAP|SABK|SRK|SRC|SRB)/) && originalTotalSkop.length > 0;
+                    
+                    const normalizedConfirmedKeys = new Set(allRekodSelesai.map(rekod => {
+                        let keyToNormalize;
+                        if (isSchoolSkop) { keyToNormalize = rekod.stesen_pengesah; } 
+                        else { keyToNormalize = rekod.nama_pengesah; }
+                        keyToNormalize = keyToNormalize || rekod.stesen_pengesah || rekod.nama_pengesah;
+                        return normalizeName(keyToNormalize || '');
+                    }));
+                    
+                    const completedSkopOriginalNames = new Set();
+                    originalTotalSkop.forEach(originalSkop => {
+                        if (normalizedConfirmedKeys.has(normalizeName(originalSkop))) {
+                            completedSkopOriginalNames.add(originalSkop);
+                        }
+                    });
+
+                    jumlahSelesai = completedSkopOriginalNames.size;
+                    total = originalTotalSkop.length;
+                    
+                } else {
+                    // Mod Manual/Asas
+                    jumlahSelesai = tugasan.jumlahSelesai || 0;
+                    total = (tugasan.jumlahSelesai || 0) + (tugasan.jumlahBelum || 0);
+                }
+                
+                const peratus = (total === 0) ? 0 : Math.round((jumlahSelesai / total) * 100);
+                
+                if (total > 0 && peratus === 100) {
+                    totalSelesaiCount++;
+                } else {
+                    totalBelumCount++;
+                }
+                // ▲▲▲ TAMAT LOGIK PENGIRAAN PROGRES ▲▲▲
+
+                return { ...tugasan, progress: { jumlahSelesai, total, peratus } };
+            });
+            
+            // KEMASKINI KAD RINGKAS
+            totalTugasanEl.textContent = filteredList.length;
+            totalSelesaiEl.textContent = totalSelesaiCount;
+            totalBelumEl.textContent = totalBelumCount;
+
+            const totalItems = listWithProgress.length;
+            const totalPages = Math.ceil(totalItems / itemsPerPage);
+            if (currentPage > totalPages) currentPage = totalPages;
+            if (currentPage < 1) currentPage = 1;
+            const startIndex = (currentPage - 1) * itemsPerPage;
+            const endIndex = startIndex + itemsPerPage;
+            const paginatedList = listWithProgress.slice(startIndex, endIndex);
+            
+            
+            if (paginatedList.length === 0) {
+                badanJadual.innerHTML = `<tr><td colspan="5" class="px-6 py-4 text-center text-gray-500">Tiada tugasan ditemui.</td></tr>`;
+                renderPaginationControls(0, 0);
+                return;
+            }
+
+            paginatedList.forEach((data, index) => {
+                const baris = document.createElement('tr');
+                baris.className = "hover:bg-gray-50 transition-colors duration-150";
+                
+                const { jumlahSelesai, total, peratus } = data.progress;
+                const tugasan = data;
+                
+                const bakiHariInfo = kiraBakiHari(tugasan.tarikhSiap, peratus);
+
+                let newBadgeHtml = '';
+                if (tugasan.createdAt && tugasan.createdAt.toDate) {
+                    const createdAtDate = tugasan.createdAt.toDate();
+                    const now = new Date();
+                    const diffMs = now.getTime() - createdAtDate.getTime();
+                    const diffHours = diffMs / (1000 * 60 * 60);
+
+                    if (diffHours < 12) {
+                        newBadgeHtml = `
+                            <span class="ml-2 inline-flex items-center bg-red-600 text-white text-xs font-medium px-2.5 py-0.5 rounded-full shadow-sm">
+                                BARU
+                            </span>`;
+                    }
+                }
+
+                let progressColorClass = 'bg-indigo-600';
+                let progressTextColorClass = 'text-gray-700';
+
+                if (peratus === 100) {
+                    progressColorClass = 'bg-green-600';
+                    progressTextColorClass = 'text-green-700 font-medium';
+                } else if (peratus < 50) {
+                    progressColorClass = 'bg-amber-500';
+                    progressTextColorClass = 'text-amber-700 font-medium';
+                }
+                
+                // Jika tiada total (mod asas/manual)
+                const rumusanDisplay = (total === 0) ? 
+                    `<div class="text-xs text-gray-500 text-center">Rekod: <span class="font-bold">${jumlahSelesai}</span></div>
+                     <div class="text-xs text-gray-400 text-center">Sasaran: N/A</div>`
+                    :
+                    `<div class="w-full bg-gray-200 rounded-full h-2.5">
+                        <div class="${progressColorClass} h-2.5 rounded-full" style="width: ${peratus}%"></div>
+                     </div>
+                     <div class="text-center text-xs mt-1">
+                        <span class="font-medium ${progressTextColorClass}">${peratus}%</span> 
+                        (${jumlahSelesai} / ${total})
+                     </div>`;
+                
+                // ▼▼▼ HTML BARIS DIKEMAS KINI - MENGGUNAKAN LOGIK BARU ▼▼▼
+                baris.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${startIndex + index + 1}</td>
+                    
+                    <td class="px-6 py-4 max-w-md"> 
+                        <div class="text-sm font-medium text-gray-900 flex items-center">
+                            <span class="block" style="word-break: break-word; white-space: normal;">${tugasan.nama}</span>
+                            ${newBadgeHtml}
+                        </div>
+                        <div class="text-sm text-gray-700" style="white-space: normal;">${tugasan.pegawai}</div>
+                        <div class="text-xs text-gray-500" style="white-space: normal;">${tugasan.sektor}</div>
+                        <div class="text-xs text-gray-500 font-normal mt-1">Mula: ${formatTarikh(tugasan.tarikhMula)}</div>
+                    </td>
+                    
+                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                        <div class="text-gray-900">${formatTarikh(tugasan.tarikhSiap)}</div>
+                        <span class="mt-1 inline-block px-2 py-0.5 rounded-full text-xs font-bold ${bakiHariInfo.badgeClass}">
+                            ${bakiHariInfo.teks}
+                        </span>
+                    </td>
+                    
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                        ${rumusanDisplay}
+                    </td>
+
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <div class="flex items-center gap-4">
+                            <button class="text-green-600 hover:text-green-900 butang-edit transform transition-transform hover:scale-110" data-id="${tugasan.id}" title="Edit Tugasan">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd" /></svg>
+                            </button>
+                            <a href="task.html?id=${tugasan.id}" class="text-purple-600 hover:text-purple-900 transform transition-transform hover:scale-110" title="Lihat Papan Pemuka">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10 12a2 2 0 100-4 2 2 0 000 4z" /><path fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd" /></svg>
+                            </a>
+                            <button class="text-red-600 hover:text-red-900 butang-padam transform transition-transform hover:scale-110" data-id="${tugasan.id}" title="Padam Tugasan">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>
+                            </button>
+                        </div>
+                    </td>
+                `;
+                // ▲▲▲ TAMAT HTML BARIS ▲▲▲
+                badanJadual.appendChild(baris);
+            });
+            
+            renderPaginationControls(totalItems, totalPages);
+        }
+        
+        // ▼▼▼ FUNGSI INI DIKEMAS KINI (PAGINATION) ▼▼▼
+        function renderPaginationControls(totalItems, totalPages) {
+            if (totalItems === 0) {
+                paginationControls.innerHTML = '';
+                return;
+            }
+            const prevDisabled = currentPage === 1 ? 'disabled' : '';
+            const nextDisabled = currentPage === totalPages ? 'disabled' : '';
+            paginationControls.innerHTML = `
+                <span class="text-sm text-gray-700">
+                    Menunjukkan <span class="font-medium">${(currentPage - 1) * itemsPerPage + 1}</span> 
+                    hingga <span class="font-medium">${Math.min(currentPage * itemsPerPage, totalItems)}</span> 
+                    dari <span class="font-medium">${totalItems}</span> tugasan
+                </span>
+                <div class="flex gap-2">
+                    <button onclick="goToPage(${currentPage - 1})" ${prevDisabled} class="btn bg-white border border-gray-300 text-gray-700 text-sm py-1 px-3 rounded-lg hover:bg-gray-50">Sebelumnya</button>
+                    <button onclick="goToPage(${currentPage + 1})" ${nextDisabled} class="btn bg-white border border-gray-300 text-gray-700 text-sm py-1 px-3 rounded-lg hover:bg-gray-50">Seterusnya</button>
+                </div>
+            `;
+        }
+        // ▲▲▲ TAMAT KEMAS KINI (PAGINATION) ▲▲▲
+
+        function goToPage(page) {
+            currentPage = page;
+            paparkanTugasan();
+        }
+        function changeItemsPerPage() {
+            itemsPerPage = parseInt(itemsPerPageSelect.value, 10);
+            currentPage = 1;
+            paparkanTugasan();
+        }
+        
+        async function handleSimpanBorang(event) {
+            event.preventDefault();
+            if (isSubmitting || !currentEditId) return;
+            if (!borangModal.checkValidity()) {
+                tunjukModalError('Sila isi semua medan yang diperlukan.');
+                borangModal.reportValidity();
+                return;
+            }
+            isSubmitting = true;
+            sembunyiModalError();
+            
+            let failData = null;
+            const fail = failInput.files[0];
+            if (fail) {
+                if (fail.size > 5 * 1024 * 1024) {
+                    tunjukModalError('Fail terlalu besar. Saiz maksimum adalah 5MB.');
+                    isSubmitting = false;
+                    return;
+                }
+                try {
+                    failData = await bacaFail(fail);
+                } catch (err) {
+                    tunjukModalError('Gagal membaca fail.');
+                    isSubmitting = false;
+                    return;
+                }
+            }
+            const tugasanLama = senaraiTugasan.find(t => t.id === currentEditId);
+            
+            const skopText = skopListTextarea.value;
+            const skopSenaraiSekolah = skopText.split('\n')
+                                             .map(line => line.trim().toUpperCase()) // Pastikan uppercase
+                                             .filter(line => line.length > 0);
+            
+            let jumlahSelesai, jumlahBelum;
+
+            if (skopSenaraiSekolah.length > 0) {
+                jumlahSelesai = parseInt(jumlahSelesaiModal.value) || 0;
+                let totalSkop = skopSenaraiSekolah.length;
+                if (jumlahSelesai > totalSkop) {
+                    jumlahSelesai = totalSkop;
+                }
+                jumlahBelum = totalSkop - jumlahSelesai;
+            } else {
+                jumlahSelesai = parseInt(jumlahSelesaiModal.value) || 0;
+                jumlahBelum = parseInt(jumlahBelumModal.value) || 0;
+            }
+
+            const dataTugasanDikemaskini = {
+                nama: namaModal.value,
+                sektor: sektorModal.value,
+                tarikhMula: tarikhMulaModal.value,
+                tarikhSiap: tarikhSiapModal.value,
+                jumlahSelesai: jumlahSelesai,
+                jumlahBelum: jumlahBelum,
+                skopSenaraiSekolah: skopSenaraiSekolah,
+                senaraiSubTugasan: subTugasanList, // subTugasanList kini mengandungi {text, type, required, options, scaleData}
+                senaraiPautan: pautanList
+            };
+
+            if (failData) {
+                dataTugasanDikemaskini.fail = failData;
+            } else {
+                dataTugasanDikemaskini.fail = tugasanLama ? tugasanLama.fail : null;
+            }
+            
+            try {
+                const docRef = doc(db, `artifacts/${appId}/public/data/spark_tasks`, currentEditId);
+                await updateDoc(docRef, dataTugasanDikemaskini);
+                tutupModalTugasan();
+            } catch (error) {
+                console.error("Error mengemaskini dokumen: ", error);
+                tunjukModalError("Gagal mengemaskini tugasan. Sila cuba lagi.");
+            } finally {
+                isSubmitting = false;
+            }
+        }
+
+        function sahkanEditIC(event) {
+            event.preventDefault();
+            if (!currentEditId) return;
+            const inputIC = inputPengesahanIc.value;
+            const tugasan = senaraiTugasan.find(t => t.id === currentEditId);
+            if (tugasan && tugasan.penyelaras_ic === inputIC) {
+                errorPengesahanIc.classList.add('hidden');
+                modalPengesahanIc.classList.remove('buka');
+                if (currentActionIntent === 'edit') {
+                    bukaModalEdit(currentEditId);
+                } else if (currentActionIntent === 'delete') {
+                    currentDeleteId = currentEditId;
+                    modalPadam.classList.add('buka');
+                }
+                currentActionIntent = null; 
+            } else {
+                errorPengesahanIc.classList.remove('hidden');
+            }
+        }
+        
+        function bukaModalEdit(id) {
+            const tugasan = senaraiTugasan.find(t => t.id === id);
+            if (!tugasan) return;
+            borangModal.reset();
+            currentEditId = id;
+            namaModal.value = tugasan.nama;
+            pegawaiDisplay.textContent = `${tugasan.pegawai || 'N/A'}`;
+            sektorModal.value = tugasan.sektor;
+            tarikhMulaModal.value = tugasan.tarikhMula;
+            tarikhSiapModal.value = tugasan.tarikhSiap;
+
+            jumlahSelesaiModal.value = tugasan.jumlahSelesai || 0;
+            jumlahBelumModal.value = tugasan.jumlahBelum || 0;
+            
+            skopListTextarea.value = (tugasan.skopSenaraiSekolah || []).join('\n');
+            
+            // KEMASKINI SUB-TUGASAN
+            // Pastikan senarai sub-tugasan menggunakan format objek baru
+            subTugasanList = (tugasan.senaraiSubTugasan || []).map(item => {
+                if (typeof item === 'string') {
+                    // Konversi format lama (string) ke objek baru (default: arahan, wajib)
+                    return { text: item, type: 'arahan', required: true, options: [], scaleData: null };
+                }
+                // Pastikan required wujud untuk format objek
+                return { 
+                    ...item, 
+                    required: item.required !== undefined ? item.required : true,
+                    options: item.options || [],
+                    scaleData: item.scaleData || null
+                };
+            });
+            
+            paparSenaraiSubTugasan(); 
+            
+            // RESET UI INPUT SUB-TUGASAN
+            subTugasanTextInput.value = '';
+            if(subTugasanOptionsInput) subTugasanOptionsInput.value = '';
+            if(scaleLabelMinInput) scaleLabelMinInput.value = '';
+            if(scaleLabelMaxInput) scaleLabelMaxInput.value = '';
+            if(scaleMinInput) scaleMinInput.value = '1';
+            if(scaleMaxInput) scaleMaxInput.value = '5';
+            if(perluWajibCheckbox) perluWajibCheckbox.checked = true;
+            selectedSubTugasanType = '';
+            resetTypeButtons();
+            toggleOptionsInput();
+
+
+            pautanList = [...(tugasan.senaraiPautan || [])];
+            paparSenaraiPautan();
+            
+            if (pautanList.length > 0) {
+                perluPautanCheckbox.checked = true;
+                pautanSection.classList.remove('hidden');
+            } else {
+                perluPautanCheckbox.checked = false;
+                pautanSection.classList.add('hidden');
+            }
+            failInfo.innerHTML = '';
+            if (tugasan.fail) {
+                failInfo.innerHTML = `
+                    <span class="font-medium">${tugasan.fail.nama}</span>
+                    <a href="${tugasan.fail.data}" target="_blank" class="text-blue-600 ml-2">Lihat</a>
+                    <button type="button" class="text-red-600 ml-2 buang-fail-btn" data-id="${id}">(Buang)</button>
+                `;
+            }
+            modalTitle.textContent = "Edit Tugasan";
+            sembunyiModalError();
+            modalTugasan.classList.add('buka');
+        }
+        
+        function tutupModalTugasan() {
+            modalTugasan.classList.remove('buka');
+            borangModal.reset();
+            subTugasanList = [];
+            pautanList = [];
+            currentEditId = null;
+            failInfo.innerHTML = '';
+            failInput.value = '';
+            skopListTextarea.value = '';
+            pautanSection.classList.add('hidden');
+            perluPautanCheckbox.checked = false;
+            isSubmitting = false;
+        }
+
+        // FUNGSI BUTANG JENIS BARU (DISALIN DARI TUGASAN.HTML)
+        function handleTypeButtonClick(event) {
+            const button = event.target.closest('.type-button');
+            if (!button) return;
+            
+            const newType = button.getAttribute('data-type');
+            
+            // Toggle active state
+            if (selectedSubTugasanType === newType) {
+                selectedSubTugasanType = '';
+                button.classList.remove('active');
+            } else {
+                selectedSubTugasanType = newType;
+                document.querySelectorAll('#sub-tugasan-type-buttons .type-button').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                button.classList.add('active');
+            }
+            
+            toggleOptionsInput();
+        }
+
+        function resetTypeButtons() {
+            document.querySelectorAll('#sub-tugasan-type-buttons .type-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+        }
+        
+        // FUNGSI UNTUK MENGENDALIKAN KETERLIHATAN KOTAK PILIHAN/SKALA (DISALIN DARI TUGASAN.HTML)
+        function toggleOptionsInput() {
+            const selectedType = selectedSubTugasanType;
+            
+            const isTypeSelected = selectedType !== "";
+            inputTugasanSection.classList.toggle('hidden', !isTypeSelected);
+            
+            if (isTypeSelected) {
+                 subTugasanTextInput.focus();
+            }
+            
+            const isOptionsNeeded = (
+                selectedType === 'option_button' || 
+                selectedType === 'radio_button' || 
+                selectedType === 'multiselect'
+            );
+            optionsInputContainer.classList.toggle('hidden', !isOptionsNeeded);
+
+            const isScaleNeeded = (selectedType === 'skala');
+            scaleInputContainer.classList.toggle('hidden', !isScaleNeeded);
+
+            if (!isOptionsNeeded) {
+                if(subTugasanOptionsInput) subTugasanOptionsInput.value = '';
+            }
+        }
+        
+        // FUNGSI TAMBAH SUB-TUGASAN (DIKEMASKINI DARI TUGASAN.HTML)
+        function tambahSubTugasan() {
+            const text = subTugasanTextInput.value.trim();
+            const type = selectedSubTugasanType;
+            const isRequired = perluWajibCheckbox.checked;
+
+            let options = []; 
+            let scaleData = null;
+
+            if (!text) {
+                alert("Sila masukkan soalan atau arahan untuk sub-tugasan.");
+                subTugasanTextInput.focus();
+                return;
+            }
+            
+             if (type === "") {
+                alert("Sila pilih Jenis Sub-Tugasan terlebih dahulu.");
+                subTugasanTypeButtonsContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                return;
+            }
+
+            if (type === 'option_button' || type === 'radio_button' || type === 'multiselect') {
+                const inputOptions = subTugasanOptionsInput.value.trim();
+                
+                if (inputOptions === "") {
+                    alert("Jenis ini memerlukan senarai pilihan. Sila masukkan pilihan (1 per baris).");
+                    optionsInputContainer.scrollIntoView({ behavior: 'smooth' });
+                    subTugasanOptionsInput.focus();
+                    return;
+                }
+                options = inputOptions.split('\n').map(opt => opt.trim()).filter(opt => opt.length > 0);
+                if (options.length === 0) {
+                    alert("Sila masukkan pilihan yang sah.");
+                    return;
+                }
+            }
+
+            if (type === 'skala') {
+                const min = parseInt(scaleMinInput.value);
+                const max = parseInt(scaleMaxInput.value);
+                
+                if (min >= max) {
+                    alert("Nilai 'Skala Mula' mesti lebih kecil dari 'Skala Tamat'.");
+                    return;
+                }
+                
+                scaleData = {
+                    min: min,
+                    max: max,
+                    minLabel: scaleLabelMinInput.value.trim(),
+                    maxLabel: scaleLabelMaxInput.value.trim()
+                };
+            }
+            
+            const newSubTugas = { text: text, type: type, options: options, scaleData: scaleData, required: isRequired }; 
+            subTugasanList.push(newSubTugas);
+            paparSenaraiSubTugasan();
+            
+            // Reset UI
+            subTugasanTextInput.value = '';
+            if(subTugasanOptionsInput) subTugasanOptionsInput.value = '';
+            if(scaleLabelMinInput) scaleLabelMinInput.value = '';
+            if(scaleLabelMaxInput) scaleLabelMaxInput.value = '';
+            if(scaleMinInput) scaleMinInput.value = '1';
+            if(scaleMaxInput) scaleMaxInput.value = '5';
+            if(perluWajibCheckbox) perluWajibCheckbox.checked = true;
+            
+            // Reset butang jenis
+            selectedSubTugasanType = '';
+            resetTypeButtons();
+            
+            optionsInputContainer.classList.add('hidden');
+            scaleInputContainer.classList.add('hidden');
+            inputTugasanSection.classList.add('hidden');
+            
+            senaraiSubTugasanContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        
+        // FUNGSI UNTUK MENGENDALIKAN REORDER (DISALIN DARI TUGASAN.HTML)
+        function reorderSubTugasan(index, direction) {
+            if (direction === 'up' && index > 0) {
+                [subTugasanList[index], subTugasanList[index - 1]] = [subTugasanList[index - 1], subTugasanList[index]];
+            } else if (direction === 'down' && index < subTugasanList.length - 1) {
+                [subTugasanList[index], subTugasanList[index + 1]] = [subTugasanList[index + 1], subTugasanList[index]];
+            }
+            paparSenaraiSubTugasan();
+        }
+
+
+        // FUNGSI paparSenaraiSubTugasan() - DIKEMAS KINI DENGAN STATUS WAJIB & BUTANG REORDER
+        function paparSenaraiSubTugasan() {
+            senaraiSubTugasanContainer.innerHTML = '';
+            if (subTugasanList.length === 0) {
+                senaraiSubTugasanContainer.innerHTML = `<p class="text-xs text-gray-500 italic text-center">Tiada sub-tugasan ditambah.</p>`;
+                return;
+            }
+
+            const getTypeBadge = (type) => {
+                const badgeClass = "flex-shrink-0 text-xs font-medium px-2 py-0.5 rounded-full";
+                switch (type) {
+                    case 'ya_tidak': return `<span class="ml-2 ${badgeClass} bg-blue-100 text-blue-800">Ya/Tidak</span>`;
+                    case 'teks_ringkas': return `<span class="ml-2 ${badgeClass} bg-yellow-100 text-yellow-800">Teks Ringkas</span>`;
+                    case 'teks_panjang': return `<span class="ml-2 ${badgeClass} bg-yellow-100 text-yellow-800">Teks Panjang</span>`;
+                    case 'pautan_url': return `<span class="ml-2 ${badgeClass} bg-green-100 text-green-800">Pautan</span>`;
+                    case 'tarikh': return `<span class="ml-2 ${badgeClass} bg-purple-100 text-purple-800">Tarikh</span>`;
+                    case 'option_button': return `<span class="ml-2 ${badgeClass} bg-pink-100 text-pink-800">Dropdown</span>`;
+                    case 'radio_button': return `<span class="ml-2 ${badgeClass} bg-red-100 text-red-800">Radio</span>`;
+                    case 'multiselect': return `<span class="ml-2 ${badgeClass} bg-teal-100 text-teal-800">Multiselect</span>`;
+                    case 'skala': return `<span class="ml-2 ${badgeClass} bg-indigo-100 text-indigo-800">Skala</span>`;
+                    case 'arahan': return `<span class="ml-2 ${badgeClass} bg-gray-100 text-gray-800">Arahan</span>`;
+                    default: return '';
+                }
+            };
+            
+            const getRequiredTag = (required) => {
+                const tagClass = "text-xs font-semibold px-2 py-0.5 rounded-full mr-2 pt-0.5";
+                return required 
+                    ? `<span class="${tagClass} bg-red-100 text-red-700">[WAJIB]</span>`
+                    : `<span class="${tagClass} bg-gray-100 text-gray-500">(Pilihan)</span>`;
+            };
+
+            subTugasanList.forEach((tugas, index) => {
+                let displayText = '';
+                let typeBadge = '';
+                let requiredTag = '';
+                let detailsHtml = '';
+
+                // KENDALIKAN DATA LAMA & BARU
+                if (typeof tugas === 'object' && tugas !== null && (tugas.text || tugas.type)) {
+                    displayText = tugas.text || "[Teks Tiada]";
+                    typeBadge = getTypeBadge(tugas.type);
+                    requiredTag = getRequiredTag(tugas.required);
+                    
+                    if (tugas.options && tugas.options.length > 0) {
+                        detailsHtml = `<p class="text-xs text-gray-600 mt-1 italic pl-3">Pilihan: ${tugas.options.join(', ')}</p>`;
+                    } else if (tugas.scaleData) {
+                         const s = tugas.scaleData;
+                         const labelStr = (s.minLabel || s.maxLabel) ? ` (${s.min}=${s.minLabel || ''}, ${s.max}=${s.maxLabel || ''})` : '';
+                         detailsHtml = `<p class="text-xs text-gray-600 mt-1 italic pl-3">Julat Skala: ${s.min} hingga ${s.max}${labelStr}</p>`;
+                    }
+
+                } else if (typeof tugas === 'string') {
+                    displayText = tugas;
+                    typeBadge = getTypeBadge('arahan');
+                    requiredTag = getRequiredTag(true); // Default wajib untuk data string lama
+                } else {
+                    displayText = "[Data tidak sah]";
+                    requiredTag = getRequiredTag(true);
+                }
+
+
+                senaraiSubTugasanContainer.innerHTML += `
+                    <div class="bg-white p-2 rounded border border-gray-200">
+                        <div class="flex justify-between items-start min-w-0">
+                            <div class="flex-1 flex items-start min-w-0 flex-wrap pt-1">
+                                ${requiredTag}
+                                <span class="text-sm truncate font-medium pt-0.5" title="${displayText}">${index + 1}. ${displayText}</span>
+                                ${typeBadge}
+                            </div>
+                            <div class="flex items-center space-x-2 flex-shrink-0">
+                                <button type="button" class="text-gray-500 hover:text-indigo-600 reorder-btn" data-index="${index}" data-direction="up" ${index === 0 ? 'disabled' : ''}>
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path></svg>
+                                </button>
+                                <button type="button" class="text-gray-500 hover:text-indigo-600 reorder-btn" data-index="${index}" data-direction="down" ${index === subTugasanList.length - 1 ? 'disabled' : ''}>
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                </button>
+                                <button type="button" class="text-red-500 hover:text-red-700 padam-sub-tugasan-btn" data-index="${index}">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                </button>
+                            </div>
+                        </div>
+                        ${detailsHtml}
+                    </div>
+                `;
+            });
+            // Attach event listeners for reordering after rendering
+            document.querySelectorAll('.reorder-btn').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    const target = e.currentTarget;
+                    const index = parseInt(target.dataset.index);
+                    const direction = target.dataset.direction;
+                    reorderSubTugasan(index, direction);
+                });
+            });
+        }
+
+
+        function handleSubTugasanKlik(event) {
+            const target = event.target.closest('.padam-sub-tugasan-btn');
+            if (target) {
+                const index = parseInt(target.dataset.index);
+                subTugasanList.splice(index, 1);
+                paparSenaraiSubTugasan();
+            }
+        }
+        function tambahPautan() {
+            const url = pautanInput.value.trim();
+            if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
+                pautanList.push(url);
+                paparSenaraiPautan();
+                pautanInput.value = 'https://';
+                pautanInput.focus();
+            } else if (url) {
+                alert("Pautan tidak sah. Sila pastikan ia bermula dengan 'http://' atau 'https://'.");
+                pautanInput.focus();
+            }
+        }
+        function paparSenaraiPautan() {
+            senaraiPautanContainer.innerHTML = '';
+            if (pautanList.length === 0) {
+                senaraiPautanContainer.innerHTML = `<p class="text-xs text-gray-500 italic text-center">Tiada pautan ditambah.</p>`;
+                return;
+            }
+            pautanList.forEach((url, index) => {
+                senaraiPautanContainer.innerHTML += `
+                    <div class="flex justify-between items-center bg-white p-2 rounded">
+                        <a href="${url}" target="_blank" class="text-sm text-blue-600 hover:underline truncate" style="max-width: 90%;">${index + 1}. ${url}</a>
+                        <button type="button" class="text-red-500 hover:text-red-700 padam-pautan-btn ml-2 flex-shrink-0" data-index="${index}">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                        </button>
+                    </div>
+                `;
+            });
+        }
+        function handlePautanKlik(event) {
+            const target = event.target.closest('.padam-pautan-btn');
+            if (target) {
+                const index = parseInt(target.dataset.index);
+                pautanList.splice(index, 1);
+                paparSenaraiPautan();
+            }
+        }
+        function handleFailInfoKlik(event) {
+            const target = event.target.closest('.buang-fail-btn');
+            if(target && currentEditId) {
+                const id = target.dataset.id;
+                const tugasan = senaraiTugasan.find(t => t.id === id);
+                if (tugasan) {
+                    tugasan.fail = null;
+                    failInfo.innerHTML = '<span class="text-red-500 text-xs">Fail akan dibuang selepas simpan.</span>';
+                }
+            }
+        }
+        function handleTindakanJadual(event) {
+            const targetButton = event.target.closest('button, a');
+            if (!targetButton) return;
+            if (targetButton.tagName === 'A' && targetButton.href.includes('task.html')) {
+                return; 
+            }
+            const id = targetButton.dataset.id;
+            if (!id) return;
+            if (targetButton.classList.contains('butang-padam')) {
+                currentEditId = id;
+                currentActionIntent = 'delete';
+                inputPengesahanIc.value = ''; 
+                errorPengesahanIc.classList.add('hidden');
+                modalPengesahanIc.classList.add('buka');
+                inputPengesahanIc.focus();
+            }
+            if (targetButton.classList.contains('butang-edit')) {
+                currentEditId = id; 
+                currentActionIntent = 'edit';
+                inputPengesahanIc.value = ''; 
+                errorPengesahanIc.classList.add('hidden');
+                modalPengesahanIc.classList.add('buka');
+                inputPengesahanIc.focus();
+            }
+        }
+        async function sahkanPadam() {
+            if (currentDeleteId) {
+                try {
+                    const docRef = doc(db, `artifacts/${appId}/public/data/spark_tasks`, currentDeleteId);
+                    await deleteDoc(docRef);
+                } catch (error) {
+                    console.error("Error memadam dokumen: ", error);
+                    alert("Gagal memadam tugasan.");
+                }
+            }
+            currentDeleteId = null;
+            modalPadam.classList.remove('buka');
+        }
+        
+        // --- Fungsi Bantuan (Helper) ---
+
+        function kiraBakiHari(tarikhString, peratus) {
+            if (peratus == 100) {
+                return { teks: 'Selesai', badgeClass: 'bg-green-100 text-green-800' };
+            }
+            const tarikhSiap = new Date(tarikhString);
+            if (isNaN(tarikhSiap.getTime())) {
+                return { teks: '-', badgeClass: 'bg-gray-100 text-gray-800' };
+            }
+            const hariIni = new Date();
+            hariIni.setHours(0, 0, 0, 0);
+            const tarikhSiapTengahMalam = new Date(tarikhString);
+            tarikhSiapTengahMalam.setHours(0, 0, 0, 0);
+            const bezaMasa = tarikhSiapTengahMalam.getTime() - hariIni.getTime();
+            const bezaHari = Math.ceil(bezaMasa / (1000 * 60 * 60 * 24));
+            if (bezaHari > 0) {
+                return { teks: `${bezaHari} hari lagi`, badgeClass: 'bg-indigo-100 text-indigo-800' };
+            } else if (bezaHari === 0) {
+                return { teks: 'Hari Ini', badgeClass: 'bg-amber-100 text-amber-800' };
+            } else {
+                return { teks: `Terlewat ${Math.abs(bezaHari)} hari`, badgeClass: 'bg-red-100 text-red-800' };
+            }
+        }
+
+        function formatTarikh(tarikhString) {
+            if (!tarikhString) return 'N/A';
+            const [tahun, bulan, hari] = tarikhString.split('-');
+            return `${hari}/${bulan}/${tahun}`;
+        }
+        function tunjukModalError(mesej) {
+            modalError.textContent = mesej;
+            modalError.classList.remove('hidden');
+        }
+        function sembunyiModalError() {
+            modalError.classList.add('hidden');
+            modalError.textContent = '';
+        }
+        function bacaFail(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    resolve({
+                        data: event.target.result,
+                        nama: file.name,
+                        jenis: file.type
+                    });
+                };
+                reader.onerror = (error) => reject(error);
+                reader.readAsDataURL(file);
+            });
+        }
+        
+        /**
+         * Menyeragamkan nama stesen untuk perbandingan (KONSISTEN DGN TASK.HTML).
+         */
+        function normalizeName(name) {
             if (typeof name !== 'string') return '';
             let normalized = name.toUpperCase();
             
-            // Normalisasi SG. dan SG kepada SUNGAI
             normalized = normalized.replace(/\bSG\./g, 'SUNGAI'); 
             normalized = normalized.replace(/\bSG\b/g, 'SUNGAI'); 
             
-            // Buang tanda bacaan umum
             normalized = normalized.replace(/[.,]/g, ''); 
             
-            // KRITIKAL: Buang semua spasi untuk padanan yang ketat (seperti task.html)
+            // Perbezaan KRITIKAL: Buang SEMUA spasi untuk padanan yang ketat (seperti task.html)
             normalized = normalized.replace(/\s+/g, ''); 
             
             return normalized.trim();
         }
+        // ▲▲▲ TAMAT TAMBAHAN FUNGSI BANTUAN ▲▲▲
+
+        // --- EVENT LISTENERS ---
+        document.addEventListener('DOMContentLoaded', () => {
+            const versionInfo = document.getElementById('version-info');
+            if(versionInfo) {
+                const year = new Date().getFullYear();
+                versionInfo.textContent = `Versi 2.1 (${year})`;
+            }
+            namaModal.addEventListener('input', (e) => {
+                e.target.value = e.target.value.toUpperCase();
+            });
+            // Pastikan textarea skop juga 'uppercase'
+            skopListTextarea.addEventListener('input', (e) => {
+                e.target.value = e.target.value.toUpperCase();
+            });
+            perluPautanCheckbox.addEventListener('change', () => {
+                pautanSection.classList.toggle('hidden', !perluPautanCheckbox.checked);
+            });
+            tambahPautanBtn.addEventListener('click', tambahPautan);
+            senaraiPautanContainer.addEventListener('click', handlePautanKlik);
+            borangPengesahanIc.addEventListener('submit', sahkanEditIC);
+            batalPengesahanIcBtn.addEventListener('click', () => {
+                modalPengesahanIc.classList.remove('buka');
+                currentEditId = null;
+                currentActionIntent = null;
+            });
+            carianInput.addEventListener('input', () => {
+                currentPage = 1;
+                paparkanTugasan();
+            });
+            itemsPerPageSelect.addEventListener('change', changeItemsPerPage);
+            sektorFilter.addEventListener('change', () => {
+                currentPage = 1;
+                paparkanTugasan();
+            });
+            
+            // EVENT LISTENER SUB-TUGASAN BARU
+            tambahSubTugasanBtn.addEventListener('click', tambahSubTugasan);
+            senaraiSubTugasanContainer.addEventListener('click', handleSubTugasanKlik);
+            subTugasanTypeButtonsContainer.addEventListener('click', handleTypeButtonClick);
+            toggleOptionsInput();
+        });
         
-        // FUNGSI KRITIKAL: Mendapatkan kunci untuk rekod, memilih stesen atau nama
-        function getRecordKey(rekod) {
-            const key = rekod.stesen_pengesah || rekod.nama_pengesah;
-            return normalizeStationName(key);
-        }
-
-
-        function main() { 
-            if (!userId) return;
-            
-            const urlParams = new URLSearchParams(window.location.search);
-            currentTaskId = urlParams.get('id');
-            
-            if (!currentTaskId) {
-                document.body.innerHTML = '<p class="text-red-500 text-center p-8">Tiada ID tugasan ditemui. Pautan tidak sah.</p>';
-                return;
-            }
-            
-            document.getElementById('back-to-dashboard-btn').href = `task.html?id=${currentTaskId}`;
-            
-            document.getElementById('ic-submit-btn').addEventListener('click', verifyIcAndLoad);
-            document.getElementById('ic-input').addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') verifyIcAndLoad();
-            });
-            
-            document.getElementById('download-excel-btn').addEventListener('click', downloadExcel);
-
-            carianBelumInput.addEventListener('input', () => {
-                currentPageBelum = 1;
-                populateTableBelum();
-            });
-            itemsBelumSelect.addEventListener('change', () => {
-                itemsPerPageBelum = parseInt(itemsBelumSelect.value);
-                currentPageBelum = 1;
-                populateTableBelum();
-            });
-            
-            carianSelesaiInput.addEventListener('input', () => {
-                currentPageSelesai = 1;
-                populateSubmissionsTable();
-            });
-            itemsSelesaiSelect.addEventListener('change', () => {
-                itemsPerPageSelesai = parseInt(itemsSelesaiSelect.value);
-                currentPageSelesai = 1;
-                populateSubmissionsTable();
-            });
-            
-            filterStesenSelesai.addEventListener('change', (e) => {
-                currentFilterStesen = e.target.value;
-                currentPageSelesai = 1;
-                populateSubmissionsTable();
-            });
-            
-            carianLaporanInput.addEventListener('input', () => {
-                currentPageLaporan = 1;
-                populateLaporanTable();
-            });
-            itemsLaporanSelect.addEventListener('change', () => {
-                itemsPerPageLaporan = parseInt(itemsLaporanSelect.value);
-                currentPageLaporan = 1;
-                populateLaporanTable();
-            });
-        }
+        modalTutupBtn.addEventListener('click', tutupModalTugasan);
+        modalBatalBtn.addEventListener('click', tutupModalTugasan);
+        borangModal.addEventListener('submit', handleSimpanBorang);
+        padamBatalBtn.addEventListener('click', () => modalPadam.classList.remove('buka'));
+        padamSahBtn.addEventListener('click', sahkanPadam);
         
-        async function verifyIcAndLoad() {
-            const enteredIc = document.getElementById('ic-input').value;
-            const errorEl = document.getElementById('ic-error');
-            const formEl = document.getElementById('ic-form');
-            const loadingEl = document.getElementById('loading-ic-check');
+        failInfo.addEventListener('click', handleFailInfoKlik);
+        badanJadual.addEventListener('click', handleTindakanJadual);
+        window.goToPage = goToPage;
 
-            if (!enteredIc) {
-                errorEl.textContent = "Sila masukkan No. IC.";
-                errorEl.classList.remove('hidden');
-                return;
-            }
-
-            formEl.classList.add('hidden');
-            loadingEl.classList.remove('hidden');
-            errorEl.classList.add('hidden');
-
-            try {
-                if (!correctPenyelarasIc) {
-                    const taskRef = doc(db, `artifacts/${appId}/public/data/spark_tasks`, currentTaskId);
-                    const docSnap = await getDoc(taskRef);
-                    
-                    if (!docSnap.exists()) {
-                        throw new Error("Tugasan tidak ditemui.");
-                    }
-                    currentTaskData = docSnap.data();
-                    correctPenyelarasIc = currentTaskData.penyelaras_ic;
-                    
-                    document.getElementById('admin-task-name').textContent = currentTaskData.nama.toUpperCase();
-                }
-
-                if (enteredIc === correctPenyelarasIc) {
-                    await loadContentData();
-                    renderTaskSummary(); // Panggil fungsi rumusan selepas data dimuatkan
-                    document.getElementById('ic-verification-modal').classList.add('hidden');
-                    document.getElementById('admin-content').classList.remove('hidden');
-                    document.getElementById('download-excel-btn').disabled = false;
-                } else {
-                    throw new Error("No. IC tidak sepadan.");
-                }
-
-            } catch (error) {
-                console.error("Error verifying IC:", error);
-                errorEl.textContent = error.message || "Gagal mengesahkan IC.";
-                errorEl.classList.remove('hidden');
-                formEl.classList.remove('hidden');
-                loadingEl.classList.add('hidden');
-            }
-        }
-        
-        // FUNGSI PAPAR RUMUSAN TUGASAN (VERSI SINGLE LINE)
-        function renderTaskSummary() {
-            const total = reportDataList.length;
-            const jumlahBelum = fullSkopBelumList.length;
-            const actualSelesai = total - jumlahBelum;
-            
-            const peratus = (total === 0) ? 0 : Math.round((actualSelesai / total) * 100);
-
-            let displayHtml;
-
-            // Jika ada sasaran (mod skop)
-            if (total > 0) {
-                 displayHtml = `
-                    <div class="progress-indicator">
-                        <svg class="w-full h-full" viewBox="0 0 36 36">
-                            <path class="text-indigo-200" stroke="currentColor" stroke-width="3.5" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                            <path class="text-indigo-600" stroke="currentColor" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-dasharray="${peratus}, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                        </svg>
-                        <div class="absolute inset-0 flex items-center justify-center">
-                            <span class="progress-text">${peratus}%</span>
-                        </div>
-                    </div>
-                    <div class="progress-details">
-                        <p class="text-sm font-semibold text-gray-800">
-                           Kemajuan Skop: <span class="text-indigo-600 font-bold">${actualSelesai}/${total}</span> Sasaran Selesai
-                        </p>
-                        <div class="progress-bar-container">
-                            <div class="bg-indigo-500 h-full" style="width: ${peratus}%; transition: width 0.5s ease-out;"></div>
-                        </div>
-                        <div class="progress-stats">
-                            <span class="text-teal-700 font-medium">Selesai: ${actualSelesai}</span>
-                            <span class="text-amber-700 font-medium">Belum: ${jumlahBelum}</span>
-                        </div>
-                    </div>
-                 `;
-            } 
-            // Jika tiada skop (mod manual / rekod mentah)
-            else if (total === 0 && fullRekodSelesaiList.length > 0) {
-                 displayHtml = `
-                    <div class="progress-indicator bg-green-500 p-2 rounded-full">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" /></svg>
-                    </div>
-                    <div class="progress-details">
-                        <p class="text-sm font-semibold text-gray-800">
-                           Mod Kiraan Asas: <span class="text-green-600 font-bold">${fullRekodSelesaiList.length}</span> Pengesahan Diterima
-                        </p>
-                        <p class="text-xs text-gray-500 mt-1">Tiada sasaran ditetapkan untuk tugasan ini.</p>
-                    </div>
-                 `;
-            }
-             // Jika kosong
-            else {
-                 displayHtml = `
-                    <div class="progress-indicator bg-gray-300 p-2 rounded-full">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                    </div>
-                    <div class="progress-details">
-                        <p class="text-sm font-semibold text-gray-800">
-                           Tiada Data: Tugasan ini belum bermula atau sasaran tiada.
-                        </p>
-                    </div>
-                 `;
-            }
-
-            singleLineContainer.innerHTML = displayHtml;
-        }
-        // AKHIR FUNGSI RUMUSAN
-
-        async function loadContentData() {
-            const taskRef = doc(db, `artifacts/${appId}/public/data/spark_tasks`, currentTaskId);
-            const docSnap = await getDoc(taskRef);
-            
-            if (!docSnap.exists()) {
-                throw new Error("Gagal memuatkan data tugasan.");
-            }
-            
-            currentTaskData = docSnap.data();
-
-            // Senarai Sasaran Skop (Mesti dinormalisasi untuk pemadanan)
-            const normalizedTotalSkop = Array.isArray(currentTaskData.skopSenaraiSekolah) 
-                ? currentTaskData.skopSenaraiSekolah.map(normalizeStationName)
-                : [];
-            const originalTotalSkopMap = new Map(currentTaskData.skopSenaraiSekolah.map(name => [normalizeStationName(name), name]));
-            
-            // Senarai Rekod Selesai Penuh
-            fullRekodSelesaiList = [...(currentTaskData.rekodSelesai || [])].sort((a, b) => 
-                new Date(b.timestamp) - new Date(a.timestamp)
-            );
-            
-            // KRITIKAL: Peta Rekod Terakhir Berdasarkan KUNCI SKOP (Nama Sasaran yang dinormalisasi)
-            latestCompletionMap = buildLatestCompletionMap(fullRekodSelesaiList);
-            
-            reportDataList = [];
-            // Senarai skop selesai yang disimpan dalam DB (kunci ringkas)
-            const completedSkopKeysFromDb = new Set(currentTaskData.skopSelesai ? currentTaskData.skopSelesai.map(normalizeStationName) : []); 
-
-            // Logik membina reportDataList (Menggabungkan Skop Sasaran & Rekod Pengesahan)
-            normalizedTotalSkop.forEach(normalizedSasaran => {
-                const originalSasaran = originalTotalSkopMap.get(normalizedSasaran) || normalizedSasaran;
-                const latestRecord = latestCompletionMap[normalizedSasaran] || null;
-
-                // 1. Tentukan Status Selesai: 
-                // Status Selesai WAJIB dipaksa TRUE jika ada rekod terakhir yang sah bagi sasaran tersebut,
-                // ATAU jika ia sedia ada dalam array ringkas skopSelesai DB.
-                const isCompleted = completedSkopKeysFromDb.has(normalizedSasaran) || (latestRecord !== null); 
-                
-                reportDataList.push({
-                    sasaran: originalSasaran, // Guna nama asal untuk paparan
-                    normalizedSasaran: normalizedSasaran,
-                    isCompleted: isCompleted, 
-                    latestRecord: latestRecord
-                });
-            });
-            
-            reportDataList.sort((a, b) => {
-                if (a.isCompleted !== b.isCompleted) {
-                    return b.isCompleted - a.isCompleted;
-                }
-                return a.sasaran.localeCompare(b.sasaran);
-            });
-            
-            fullSkopBelumList = reportDataList.filter(r => !r.isCompleted).map(r => r.sasaran);
-            
-            // Senarai stesen unik untuk filter perlu guna nama stesen yang belum dinormalisasi (untuk paparan)
-            uniqueStesenList = [...new Set(fullRekodSelesaiList.map(r => r.stesen_pengesah).filter(s => s).map(s => s.toUpperCase()))].sort();
-            renderStesenFilterOptions();
-
-            document.getElementById('count-belum').textContent = fullSkopBelumList.length;
-            document.getElementById('count-selesai').textContent = fullRekodSelesaiList.length;
-
-            populateTableBelum();
-            populateSubmissionsTable();
-            populateLaporanTable();
-        }
-        
-        function buildLatestCompletionMap(allRecords) {
-            const map = {};
-            // Susun mengikut masa menaik (lama ke baru) supaya rekod terkini overwrite yang lama
-            const sortedByAscendingTime = [...allRecords].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-            
-            sortedByAscendingTime.forEach(rekod => {
-                // KRITIKAL: Gunakan KUNCI SKOP (stesen/nama dinormalisasi) untuk kunci peta.
-                const key = getRecordKey(rekod); 
-                if (key) {
-                   map[key] = rekod; 
-                }
-            });
-            return map;
-        }
-
-
-        function populateLaporanTable() {
-            const tableBody = document.getElementById('table-laporan');
-            const searchTerm = carianLaporanInput.value.toLowerCase();
-            
-            tableBody.innerHTML = '';
-            
-            const filteredList = reportDataList.filter(data => {
-                return data.sasaran.toLowerCase().includes(searchTerm);
-            });
-
-            const totalItems = filteredList.length;
-            const itemsPerPage = parseInt(itemsLaporanSelect.value);
-            const totalPages = Math.ceil(totalItems / itemsPerPage);
-            if (currentPageLaporan > totalPages) currentPageLaporan = totalPages;
-            if (currentPageLaporan < 1) currentPageLaporan = 1;
-            
-            const startIndex = (currentPageLaporan - 1) * itemsPerPage;
-            const endIndex = startIndex + itemsPerPage;
-            const paginatedList = filteredList.slice(startIndex, endIndex);
-
-            if (paginatedList.length === 0) {
-                tableBody.innerHTML = `<tr><td colspan="4" class="px-4 py-4 text-center text-sm text-gray-500 italic">Tiada data sasaran ditemui.</td></tr>`;
-            } else {
-                paginatedList.forEach((data, index) => {
-                    const statusClass = data.isCompleted ? 'bg-teal-100 text-teal-800' : 'bg-amber-100 text-amber-800';
-                    const statusText = data.isCompleted ? 'Selesai' : 'Belum Selesai';
-                    
-                    let rekodHtml = '';
-                    if (data.latestRecord) {
-                        const timestamp = new Date(data.latestRecord.timestamp).toLocaleString('ms-MY', {
-                            day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
-                        });
-                        rekodHtml = `
-                            <p class="text-sm text-gray-800">${data.latestRecord.nama_pengesah || 'N/A'}</p>
-                            <p class="text-xs text-gray-600">${data.latestRecord.stesen_pengesah || 'N/A'}</p>
-                            <p class="text-xs text-gray-600">${timestamp}</p>
-                        `;
-                    } else {
-                        rekodHtml = `<p class="text-xs text-gray-500 italic">Tiada pengesahan diterima.</p>`;
-                    }
-                    
-                    tableBody.innerHTML += `
-                        <tr class="text-sm">
-                            <td class="px-4 py-3 text-gray-500 w-12">${startIndex + index + 1}.</td>
-                            <td class="px-4 py-3 text-gray-800 font-medium">${data.sasaran}</td>
-                            <td class="px-4 py-3">
-                                <span class="px-2 py-0.5 rounded-full text-xs font-semibold ${statusClass}">
-                                    ${statusText}
-                                </span>
-                            </td>
-                            <td class="px-4 py-3">
-                                ${rekodHtml}
-                            </td>
-                        </tr>
-                    `;
-                });
-            }
-            
-            renderPaginationControls(paginationLaporan, totalItems, totalPages, currentPageLaporan, 'goToPageLaporan');
-        }
-
-        function renderStesenFilterOptions() {
-            filterStesenSelesai.innerHTML = '<option value="">-- Tapis Mengikut Stesen --</option>';
-            uniqueStesenList.forEach(stesen => {
-                const option = document.createElement('option');
-                option.value = stesen;
-                option.textContent = stesen;
-                if (stesen === currentFilterStesen) {
-                    option.selected = true;
-                }
-                filterStesenSelesai.appendChild(option);
-            });
-        }
-
-        function populateTableBelum() {
-            const tableBody = document.getElementById('table-belum');
-            const countEl = document.getElementById('count-belum');
-            const searchTerm = carianBelumInput.value.toLowerCase();
-
-            tableBody.innerHTML = '';
-            
-            const filteredList = fullSkopBelumList.filter(item => {
-                return item.toLowerCase().includes(searchTerm);
-            });
-
-            countEl.textContent = filteredList.length;
-
-            const totalItems = filteredList.length;
-            const totalPages = Math.ceil(totalItems / itemsPerPageBelum);
-            if (currentPageBelum > totalPages) currentPageBelum = totalPages;
-            if (currentPageBelum < 1) currentPageBelum = 1;
-            
-            const startIndex = (currentPageBelum - 1) * itemsPerPageBelum;
-            const endIndex = startIndex + itemsPerPageBelum;
-            const paginatedList = filteredList.slice(startIndex, endIndex);
-
-            if (paginatedList.length === 0) {
-                tableBody.innerHTML = `<tr><td colspan="2" class="px-4 py-4 text-center text-sm text-gray-500 italic">Tiada data.</td></tr>`;
-            } else {
-                paginatedList.forEach((item, index) => {
-                    tableBody.innerHTML += `
-                        <tr class="text-sm">
-                            <td class="px-4 py-3 text-gray-500 w-12">${startIndex + index + 1}.</td>
-                            <td class="px-4 py-3 text-gray-800 font-medium">${item}</td>
-                        </tr>
-                    `;
-                });
-            }
-            
-            renderPaginationControls(paginationBelum, totalItems, totalPages, currentPageBelum, 'goToPageBelum');
-        }
-        
-        function populateSubmissionsTable() {
-            const tableBody = document.getElementById('table-selesai');
-            const countEl = document.getElementById('count-selesai');
-            const searchTerm = carianSelesaiInput.value.toLowerCase();
-            
-            tableBody.innerHTML = '';
-
-            let filteredList = fullRekodSelesaiList.filter(rekod => {
-                const nama = (rekod.nama_pengesah || '').toLowerCase();
-                const stesen = (rekod.stesen_pengesah || '').toLowerCase();
-                
-                const passesSearch = nama.includes(searchTerm) || stesen.includes(searchTerm);
-                
-                const passesFilter = !currentFilterStesen || stesen.toUpperCase() === currentFilterStesen;
-                
-                return passesSearch && passesFilter;
-            });
-            
-            document.getElementById('count-selesai').textContent = fullRekodSelesaiList.length;
-            
-            const totalItems = filteredList.length;
-            const totalPages = Math.ceil(totalItems / itemsPerPageSelesai);
-            if (currentPageSelesai > totalPages) currentPageSelesai = totalPages;
-            if (currentPageSelesai < 1) currentPageSelesai = 1;
-            
-            const startIndex = (currentPageSelesai - 1) * itemsPerPageSelesai;
-            const endIndex = startIndex + itemsPerPageSelesai;
-            const paginatedList = filteredList.slice(startIndex, endIndex);
-            
-            // 3. Buat Peta Pengesahan Berulang (BERASASKAN KUNCI SKOP)
-            const completionCountMap = fullRekodSelesaiList.reduce((acc, rekod) => {
-                // KRITIKAL: Guna KUNCI SKOP (stesen/nama dinormalisasi) untuk kunci unik duplikasi
-                const key = getRecordKey(rekod); 
-                acc[key] = (acc[key] || 0) + 1;
-                return acc;
-            }, {});
-
-            if (paginatedList.length === 0) {
-                tableBody.innerHTML = `<tr><td colspan="4" class="px-4 py-4 text-center text-sm text-gray-500 italic">Tiada rekod pengesahan ditemui untuk kriteria ini.</td></tr>`;
-            } else {
-                paginatedList.forEach((rekod, index) => {
-                    const globalIndex = fullRekodSelesaiList.findIndex(r => r.timestamp === rekod.timestamp && r.ic_pengesah === rekod.ic_pengesah);
-                    
-                    const timestamp = new Date(rekod.timestamp).toLocaleString('ms-MY', {
-                        day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
-                    });
-                    
-                    // Semak Duplikasi Stesen
-                    const uniqueKey = getRecordKey(rekod);
-                    const count = completionCountMap[uniqueKey];
-                    const isDuplicate = count > 1;
-                    
-                    let duplicateTag = '';
-                    if (isDuplicate) {
-                         duplicateTag = `<span class="duplicate-tag" title="Sasaran ini mengisi ${count} kali">ULANGAN (${count}x)</span>`;
-                    }
-                    
-                    tableBody.innerHTML += `
-                        <tr class="text-sm">
-                            <td class="px-4 py-3 text-gray-500 w-12">${startIndex + index + 1}.</td>
-                            <td class="px-4 py-3">
-                                <div class="font-medium text-gray-800 flex items-center">${rekod.nama_pengesah || 'N/A'} ${duplicateTag}</div>
-                                <p class="text-xs text-gray-600">${rekod.stesen_pengesah || 'N/A'}</p>
-                            </td>
-                            <td class="px-4 py-3 text-gray-600">${timestamp}</td>
-                            <td class="px-4 py-3">
-                                <div class="flex items-center gap-2">
-                                    <button onclick="showJawapanModal(${globalIndex})" class="btn text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-2 rounded-lg" title="Lihat Jawapan">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                            <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
-                                            <path fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd" />
-                                        </svg>
-                                    </button>
-                                    <button onclick="promptDeleteSubmission(${globalIndex})" class="btn text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-lg" title="Padam Rekod">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                            <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
-                                        </svg>
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
-                    `;
-                });
-            }
-            
-            renderPaginationControls(paginationSelesai, totalItems, totalPages, currentPageSelesai, 'goToPageSelesai');
-        }
-
-        function renderPaginationControls(container, totalItems, totalPages, currentPage, navigationFnName) {
-            if (totalItems === 0) {
-                container.innerHTML = '';
-                return;
-            }
-            
-            const itemsPerPage = parseInt(navigationFnName === 'goToPageBelum' ? itemsBelumSelect.value : (navigationFnName === 'goToPageSelesai' ? itemsSelesaiSelect.value : itemsLaporanSelect.value));
-            const prevDisabled = currentPage === 1 ? 'disabled' : '';
-            const nextDisabled = currentPage === totalPages ? 'disabled' : '';
-
-            container.innerHTML = `
-                <span class="text-sm text-gray-700">
-                    Menunjukkan <span class="font-medium">${(currentPage - 1) * itemsPerPage + 1}</span> 
-                    hingga <span class="font-medium">${Math.min(currentPage * itemsPerPage, totalItems)}</span> 
-                    dari <span class="font-medium">${totalItems}</span>
-                </span>
-                <div class="flex gap-2">
-                    <button onclick="${navigationFnName}(${currentPage - 1})" ${prevDisabled} class="btn bg-gray-200 text-gray-700 text-sm py-1 px-3 rounded-lg">Sebelumnya</button>
-                    <button onclick="${navigationFnName}(${currentPage + 1})" ${nextDisabled} class="btn bg-gray-200 text-gray-700 text-sm py-1 px-3 rounded-lg">Seterusnya</button>
-                </div>
-            `;
-        }
-
-        function goToPageBelum(page) {
-            currentPageBelum = page;
-            populateTableBelum();
-        }
-
-        function goToPageSelesai(page) {
-            currentPageSelesai = page;
-            populateSubmissionsTable();
-        }
-        
-        function goToPageLaporan(page) {
-            currentPageLaporan = page;
-            populateLaporanTable();
-        }
-
-        function switchTab(tabName) {
-            document.getElementById('tab-panel-belum').classList.toggle('active', tabName === 'belum');
-            document.getElementById('tab-btn-belum').classList.toggle('active', tabName === 'belum');
-            
-            document.getElementById('tab-panel-selesai').classList.toggle('active', tabName === 'selesai');
-            document.getElementById('tab-btn-selesai').classList.toggle('active', tabName === 'selesai');
-            
-            document.getElementById('tab-panel-laporan').classList.toggle('active', tabName === 'laporan');
-            document.getElementById('tab-btn-laporan').classList.toggle('active', tabName === 'laporan');
-        }
-
-        function showJawapanModal(index) {
-            const rekod = fullRekodSelesaiList[index];
-            if (!rekod) return;
-
-            const modal = document.getElementById('modal-jawapan');
-            const titleEl = document.getElementById('jawapan-modal-title');
-            const contentEl = document.getElementById('jawapan-modal-content');
-
-            titleEl.textContent = `Jawapan dari: ${rekod.nama_pengesah}`;
-            
-            let answersHtml = '';
-            if (rekod.jawapan && rekod.jawapan.length > 0) {
-                rekod.jawapan.forEach(j => {
-                    let answerText = j.jawapan;
-                    if (j.jenis === 'pautan_url' && j.jawapan.startsWith('http')) {
-                        answerText = `<a href="${j.jawapan}" target="_blank" class="text-blue-600 hover:underline">${j.jawapan}</a>`;
-                    }
-                    
-                    let answerColor = "text-gray-800";
-                    if (j.jawapan === "Ya") answerColor = "text-green-700 font-semibold";
-                    if (j.jawapan === "Tidak") answerColor = "text-red-700 font-semibold";
-                    
-                    answersHtml += `
-                        <div class="jawapan-item">
-                            <p class="text-sm font-semibold text-gray-600">${j.soalan}</p>
-                            <p class="text-base ${answerColor}">${answerText || " - "}</p>
-                        </div>
-                    `;
-                });
-            } else {
-                answersHtml = '<p class="text-sm italic text-gray-500">Tiada jawapan terperinci (rekod lama).</p>';
-            }
-            contentEl.innerHTML = answersHtml;
-            modal.classList.add('buka');
-        }
-        
-        function closeJawapanModal() {
-            document.getElementById('modal-jawapan').classList.remove('buka');
-        }
-
-        async function promptDeleteSubmission(index) {
-            const recordToRemove = fullRekodSelesaiList[index];
-            
-            if (!recordToRemove) {
-                alert("Gagal mencari rekod untuk dipadam.");
-                return;
-            }
-
-            if (!confirm(`Anda pasti mahu memadam pengesahan oleh ${recordToRemove.nama_pengesah} (${recordToRemove.stesen_pengesah})? Tindakan ini akan membenarkan sasaran ini membuat pengesahan semula.`)) {
-                return;
-            }
-            
-            try {
-                const taskRef = doc(db, `artifacts/${appId}/public/data/spark_tasks`, currentTaskId);
-                
-                const skopSelesaiRecord = recordToRemove.nama_pengesah || recordToRemove.stesen_pengesah;
-                let normalizedStationToRemove = null;
-                if (skopSelesaiRecord) {
-                    normalizedStationToRemove = normalizeStationName(skopSelesaiRecord);
-                }
-
-                const updates = {
-                    rekodSelesai: arrayRemove(recordToRemove)
-                };
-                
-                if (normalizedStationToRemove) {
-                    const isStillCompletedByOthers = fullRekodSelesaiList.some((r, i) => 
-                        i !== index && normalizeStationName(r.nama_pengesah || r.stesen_pengesah) === normalizedStationToRemove
-                    );
-
-                    if (!isStillCompletedByOthers) {
-                        updates.skopSelesai = arrayRemove(normalizedStationToRemove);
-                    }
-                }
-                
-                await updateDoc(taskRef, updates);
-                
-                await loadContentData();
-                renderTaskSummary(); // Refresh rumusan selepas padam
-
-            } catch (error) {
-                console.error("Gagal memadam rekod:", error);
-                alert("Berlaku ralat semasa memadam rekod.");
-            }
-        }
-
-        function downloadExcel() {
-            if (!currentTaskData || !currentTaskData.rekodSelesai || currentTaskData.rekodSelesai.length === 0) {
-                alert("Tiada data untuk dimuat turun.");
-                return;
-            }
-            const dataToExport = [];
-            fullRekodSelesaiList.forEach(rekod => {
-                const nama = rekod.nama_pengesah;
-                const stesen = rekod.stesen_pengesah;
-                const tarikh = new Date(rekod.timestamp).toLocaleString('ms-MY');
-                if (rekod.jawapan && rekod.jawapan.length > 0) {
-                    rekod.jawapan.forEach(j => {
-                        dataToExport.push({
-                            "Nama Pengesah": nama,
-                            "Stesen": stesen,
-                            "Tarikh Pengesahan": tarikh,
-                            "Soalan": j.soalan,
-                            "Jawapan": j.jawapan
-                        });
-                    });
-                } else {
-                    dataToExport.push({
-                        "Nama Pengesah": nama,
-                        "Stesen": stesen,
-                        "Tarikh Pengesahan": tarikh,
-                        "Soalan": "N/A (Rekod Lama)",
-                        "Jawapan": "N/A"
-                    });
-                }
-            });
-            const worksheet = XLSX.utils.json_to_sheet(dataToExport);
-            const workbook = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(workbook, worksheet, "Jawapan Selesai");
-            const wscols = [
-                { wch: 30 }, { wch: 40 }, { wch: 20 }, { wch: 50 }, { wch: 50 }
-            ];
-            worksheet['!cols'] = wscols;
-            const fileName = `SparkTask_${currentTaskData.nama.replace(/[^a-z0-9]/gi, '_')}.xlsx`;
-            XLSX.writeFile(workbook, fileName);
-        }
-
-        window.promptDeleteSubmission = promptDeleteSubmission;
-        window.switchTab = switchTab;
-        window.showJawapanModal = showJawapanModal;
-        window.closeJawapanModal = closeJawapanModal;
-        window.goToPageBelum = goToPageBelum;
-        window.goToPageSelesai = goToPageSelesai;
-        window.goToPageLaporan = goToPageLaporan;
     </script>
 </body>
 </html>
