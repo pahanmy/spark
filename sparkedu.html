@@ -139,7 +139,12 @@
                 <p class="font-bold">Amaran Keizinan Firebase!</p>
                 <p class="text-sm">Gagal memuatkan atau menyimpan template/header secara kekal. Aplikasi kini menggunakan data lalai (fallback). Sila hubungi pentadbir untuk melonggarkan Peraturan Keselamatan Firestore bagi koleksi `public/data/*`.</p>
             </div>
-            <div id="template-controls" class="mb-4 flex justify-end">
+            <div id="template-controls" class="mb-4 flex justify-between items-center">
+                 <button id="add-row-btn" onclick="addNewAspectRow()" class="btn bg-green-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-green-700 flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd" /></svg>
+                    Tambah Baris Aspek Baharu
+                </button>
+                
                 <button id="save-template-btn" onclick="saveCurrentDataAsTemplate()" class="btn bg-red-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-red-700 flex items-center gap-2">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
                     Simpan Template Asas
@@ -547,6 +552,47 @@
             document.querySelector('#table-header').classList.remove('opacity-0');
         }
 
+        // --- TAMBAH BARIS ASPEK BARU (FUNGSI BARU) ---
+        async function addNewAspectRow() {
+            if (isPermissionError) {
+                alert("Tidak dapat menambah baris baharu kerana ralat keizinan Firebase. Sila semak Peraturan Keselamatan dahulu.");
+                return;
+            }
+
+            const newId = Date.now().toString(); // ID unik berdasarkan timestamp
+            const newDocId = `manual_${newId.substring(newId.length - 6)}`; // ID ringkas untuk pengenalan
+
+            const defaultData = {
+                id: newDocId,
+                aspek: `3.1.X: ASPEK BARU`,
+                description: `3.1.X.X Keterangan aspek baharu. Klik untuk edit.`,
+                score_2022: 0.00,
+                score_2023: 0.00,
+                score_2024_tov: 0.00,
+                score_2025_etr: 0.00,
+                tindakan_list: mapList(["Tindakan 1 (Klik untuk edit)"]),
+                follow_up_list: mapList(["Pendokumentasian 1 (Klik untuk edit)"])
+            };
+            
+            const addBtn = document.getElementById('add-row-btn');
+            const originalText = addBtn.innerHTML;
+            
+            addBtn.disabled = true;
+            addBtn.innerHTML = '<svg class="animate-spin h-5 w-5 mr-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Menambah...';
+
+            try {
+                const docRef = doc(db, DATA_COLLECTION_PATH, defaultData.id);
+                await setDoc(docRef, defaultData);
+                console.log("Baris aspek baru berjaya ditambah dengan ID:", defaultData.id);
+            } catch (e) {
+                console.error("Ralat menambah baris aspek:", e);
+                alert(`Gagal menambah baris aspek. Sila semak keizinan Firebase. ${e.message}`);
+            }
+
+            addBtn.disabled = false;
+            addBtn.innerHTML = originalText;
+        }
+
         // --- TEMPLATE & DATA MANAGEMENT ---
         
         // Fungsi untuk mendapatkan data template jika wujud
@@ -612,9 +658,6 @@
         
         // Fungsi baru untuk mengemas kini Aspek/Description/Teks Senarai
         async function updateText(docId, fieldName, value, itemId = null) {
-            // Logik ini sudah menyeragamkan dua kaedah: 
-            // 1. Jika itemId = null, ia adalah update medan langsung (Aspek/Keterangan)
-            // 2. Jika itemId wujud, ia adalah update item array (Tindakan/Follow Up)
             try {
                 const docRef = doc(db, DATA_COLLECTION_PATH, docId);
                 
@@ -1314,7 +1357,8 @@
             saveCurrentDataAsTemplate,
             showHeaderEditInput,
             saveEditedHeader,
-            deleteListItem 
+            deleteListItem,
+            addNewAspectRow
         });
     </script>
 </body>
