@@ -268,16 +268,16 @@
         let fullSkopBelumList = []; 
         let fullRekodSelesaiList = []; 
         let uniqueStesenList = []; 
-        let latestCompletionMap = {}; // (BARU) Map untuk menyimpan rekod terakhir bagi setiap sasaran unik
-        let reportDataList = []; // (BARU) Senarai data untuk tab Laporan Penuh
+        let latestCompletionMap = {}; 
+        let reportDataList = []; 
 
         let currentPageBelum = 1;
         let itemsPerPageBelum = 10;
         let currentPageSelesai = 1;
         let itemsPerPageSelesai = 10;
         let currentFilterStesen = ''; 
-        let currentPageLaporan = 1; // (BARU)
-        let itemsPerPageLaporan = 10; // (BARU)
+        let currentPageLaporan = 1;
+        let itemsPerPageLaporan = 10;
 
         const carianBelumInput = document.getElementById('carian-belum-input');
         const itemsBelumSelect = document.getElementById('items-belum-select');
@@ -287,9 +287,9 @@
         const paginationSelesai = document.getElementById('pagination-selesai');
         const filterStesenSelesai = document.getElementById('filter-stesen-selesai'); 
         
-        const carianLaporanInput = document.getElementById('carian-laporan-input'); // (BARU)
-        const itemsLaporanSelect = document.getElementById('items-laporan-select'); // (BARU)
-        const paginationLaporan = document.getElementById('pagination-laporan'); // (BARU)
+        const carianLaporanInput = document.getElementById('carian-laporan-input');
+        const itemsLaporanSelect = document.getElementById('items-laporan-select');
+        const paginationLaporan = document.getElementById('pagination-laporan');
 
         try {
             const app = initializeApp(firebaseConfig);
@@ -366,8 +366,7 @@
                 populateSubmissionsTable();
             });
             
-            // LISTENER BARU UNTUK LAPORAN PENUH
-             carianLaporanInput.addEventListener('input', () => {
+            carianLaporanInput.addEventListener('input', () => {
                 currentPageLaporan = 1;
                 populateLaporanTable();
             });
@@ -436,27 +435,22 @@
             
             currentTaskData = docSnap.data();
 
-            // 1. Sasaran Skop (Sudah Dinormalisasi di tugasan.html)
             const normalizedTotalSkop = Array.isArray(currentTaskData.skopSenaraiSekolah) 
                 ? currentTaskData.skopSenaraiSekolah
                 : [];
             const totalSkopSet = new Set(normalizedTotalSkop);
             
-            // 2. Rekod Selesai Skop (Dinormalisasi)
             const skopSelesaiList = Array.isArray(currentTaskData.skopSelesai) 
                 ? currentTaskData.skopSelesai.map(normalizeStationName) 
                 : [];
             const selesaiSet = new Set(skopSelesaiList);
 
-            // 3. Rekod Hantaran KESELURUHAN (untuk tab Rekod Selesai/Audit)
             fullRekodSelesaiList = [...(currentTaskData.rekodSelesai || [])].sort((a, b) => 
                 new Date(b.timestamp) - new Date(a.timestamp)
             );
             
-            // 4. Bina Map Rekod Terakhir
             latestCompletionMap = buildLatestCompletionMap(fullRekodSelesaiList);
             
-            // 5. Tentukan senarai BELUM & LAPORAN PENUH
             reportDataList = [];
             
             normalizedTotalSkop.forEach(sasaran => {
@@ -470,61 +464,51 @@
                 });
             });
             
-            // Sort Laporan Penuh mengikut status dan kemudian Sasaran (Awal ke Akhir)
             reportDataList.sort((a, b) => {
-                 // Selesai (True) diletakkan di atas Belum Selesai (False)
                 if (a.isCompleted !== b.isCompleted) {
                     return b.isCompleted - a.isCompleted;
                 }
-                // Jika status sama, susun mengikut nama sasaran
                 return a.sasaran.localeCompare(b.sasaran);
             });
             
-            // Kemas kini fullSkopBelumList (untuk Tab Belum Selesai)
             fullSkopBelumList = reportDataList.filter(r => !r.isCompleted).map(r => r.sasaran);
             
-            // 6. Bina senarai stesen unik untuk Filter
             uniqueStesenList = [...new Set(fullRekodSelesaiList.map(r => r.stesen_pengesah).filter(s => s).map(s => s.toUpperCase()))].sort();
             renderStesenFilterOptions();
 
-            // 7. Kemas kini kiraan pada Tab
             document.getElementById('count-belum').textContent = fullSkopBelumList.length;
             document.getElementById('count-selesai').textContent = fullRekodSelesaiList.length;
 
             populateTableBelum();
             populateSubmissionsTable();
-            populateLaporanTable(); // (BARU) Panggil fungsi paparan laporan
+            populateLaporanTable();
         }
         
-        // FUNGSI BARU: Bina Peta Rekod Terakhir
         function buildLatestCompletionMap(allRecords) {
             const map = {};
-            // Array sudah disusun terbaru dahulu, jadi kita boleh iterate dan simpan yang pertama sahaja.
-            // Namun, untuk ketepatan, kita iterate dari yang lama ke yang baru (asc)
             const sortedByAscendingTime = [...allRecords].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
             
             sortedByAscendingTime.forEach(rekod => {
-                const key = normalizeStationName(rekod.nama_pengesah || rekod.stesen_pengesah);
-                // Kerana kita iterate dari yang lama, rekod yang disimpan akan sentiasa di'overwrite' oleh rekod yang lebih baru.
-                map[key] = rekod; 
+                // KRITIKAL: Gunakan HANYA NAMA STESEN untuk kunci unik (seperti permintaan)
+                const key = normalizeStationName(rekod.stesen_pengesah); 
+                if (key) {
+                   map[key] = rekod; 
+                }
             });
             return map;
         }
 
 
-        // FUNGSI BARU: Paparan Jadual Laporan Penuh
         function populateLaporanTable() {
             const tableBody = document.getElementById('table-laporan');
             const searchTerm = carianLaporanInput.value.toLowerCase();
             
             tableBody.innerHTML = '';
             
-            // 1. Tapis
             const filteredList = reportDataList.filter(data => {
                 return data.sasaran.toLowerCase().includes(searchTerm);
             });
 
-            // 2. Paginasi
             const totalItems = filteredList.length;
             const itemsPerPage = parseInt(itemsLaporanSelect.value);
             const totalPages = Math.ceil(totalItems / itemsPerPage);
@@ -535,7 +519,6 @@
             const endIndex = startIndex + itemsPerPage;
             const paginatedList = filteredList.slice(startIndex, endIndex);
 
-            // 3. Papar
             if (paginatedList.length === 0) {
                 tableBody.innerHTML = `<tr><td colspan="4" class="px-4 py-4 text-center text-sm text-gray-500 italic">Tiada data sasaran ditemui.</td></tr>`;
             } else {
@@ -573,7 +556,6 @@
                 });
             }
             
-            // 4. Render Kawalan Paginasi
             renderPaginationControls(paginationLaporan, totalItems, totalPages, currentPageLaporan, 'goToPageLaporan');
         }
 
@@ -657,8 +639,10 @@
             const endIndex = startIndex + itemsPerPageSelesai;
             const paginatedList = filteredList.slice(startIndex, endIndex);
             
+            // 3. Buat Peta Pengesahan Berulang (BERASASKAN STESEN)
             const completionCountMap = fullRekodSelesaiList.reduce((acc, rekod) => {
-                const key = normalizeStationName(rekod.nama_pengesah || rekod.stesen_pengesah);
+                // KRITIKAL: Guna HANYA NAMA STESEN untuk kunci unik duplikasi
+                const key = normalizeStationName(rekod.stesen_pengesah); 
                 acc[key] = (acc[key] || 0) + 1;
                 return acc;
             }, {});
@@ -673,13 +657,14 @@
                         day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
                     });
                     
-                    const uniqueKey = normalizeStationName(rekod.nama_pengesah || rekod.stesen_pengesah);
+                    // Semak Duplikasi Stesen
+                    const uniqueKey = normalizeStationName(rekod.stesen_pengesah);
                     const count = completionCountMap[uniqueKey];
                     const isDuplicate = count > 1;
                     
                     let duplicateTag = '';
                     if (isDuplicate) {
-                         duplicateTag = `<span class="duplicate-tag" title="Sasaran ini mengisi ${count} kali">ULANGAN (${count}x)</span>`;
+                         duplicateTag = `<span class="duplicate-tag" title="Stesen ini mengisi ${count} kali">ULANGAN (${count}x)</span>`;
                     }
                     
                     tableBody.innerHTML += `
@@ -746,7 +731,6 @@
             populateSubmissionsTable();
         }
         
-        // FUNGSI BARU UNTUK PAGINASI LAPORAN
         function goToPageLaporan(page) {
             currentPageLaporan = page;
             populateLaporanTable();
@@ -895,7 +879,7 @@
         window.closeJawapanModal = closeJawapanModal;
         window.goToPageBelum = goToPageBelum;
         window.goToPageSelesai = goToPageSelesai;
-        window.goToPageLaporan = goToPageLaporan; // Daftar fungsi baru
+        window.goToPageLaporan = goToPageLaporan;
     </script>
 </body>
 </html>
