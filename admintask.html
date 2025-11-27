@@ -327,6 +327,13 @@
             
             return normalized.trim();
         }
+        
+        // FUNGSI KRITIKAL: Mendapatkan kunci untuk rekod, memilih stesen atau nama
+        function getRecordKey(rekod) {
+            const key = rekod.stesen_pengesah || rekod.nama_pengesah;
+            return normalizeStationName(key);
+        }
+
 
         function main() { 
             if (!userId) return;
@@ -443,32 +450,37 @@
             
             currentTaskData = docSnap.data();
 
+            // Senarai Sasaran Skop (Mesti dinormalisasi untuk pemadanan)
             const normalizedTotalSkop = Array.isArray(currentTaskData.skopSenaraiSekolah) 
-                ? currentTaskData.skopSenaraiSekolah
+                ? currentTaskData.skopSenaraiSekolah.map(normalizeStationName)
                 : [];
-            const totalSkopSet = new Set(normalizedTotalSkop);
+            const originalTotalSkopMap = new Map(currentTaskData.skopSenaraiSekolah.map(name => [normalizeStationName(name), name]));
             
-            // Senarai skop selesai perlu dinormalisasi menggunakan fungsi yang KONSISTEN
-            const skopSelesaiList = Array.isArray(currentTaskData.skopSelesai) 
-                ? currentTaskData.skopSelesai.map(normalizeStationName) 
-                : [];
-            const selesaiSet = new Set(skopSelesaiList);
-
+            // Senarai Rekod Selesai Penuh
             fullRekodSelesaiList = [...(currentTaskData.rekodSelesai || [])].sort((a, b) => 
-                new Date(b.timestamp) - new Date(b.timestamp)
+                new Date(b.timestamp) - new Date(a.timestamp)
             );
             
+            // KRITIKAL: Peta Rekod Terakhir Berdasarkan KUNCI SKOP (Nama Sasaran yang dinormalisasi)
+            // Ini akan membolehkan kita mencari rekod terbaharu bagi setiap sasaran unik.
             latestCompletionMap = buildLatestCompletionMap(fullRekodSelesaiList);
             
             reportDataList = [];
-            
-            // Logik membina reportDataList (padanan skop sasaran dengan set selesai)
-            normalizedTotalSkop.forEach(sasaran => {
-                const isCompleted = selesaiSet.has(normalizeStationName(sasaran)); // Padanan perlu guna normalisasi
-                const latestRecord = latestCompletionMap[normalizeStationName(sasaran)] || null;
+            const completedSkopKeys = new Set(currentTaskData.skopSelesai ? currentTaskData.skopSelesai.map(normalizeStationName) : []); 
+
+            // Logik membina reportDataList (Menggabungkan Skop Sasaran & Rekod Pengesahan)
+            normalizedTotalSkop.forEach(normalizedSasaran => {
+                const originalSasaran = originalTotalSkopMap.get(normalizedSasaran) || normalizedSasaran;
+
+                // 1. Tentukan Status Selesai (Mengikut senarai ringkas skopSelesai)
+                const isCompleted = completedSkopKeys.has(normalizedSasaran); 
                 
+                // 2. Dapatkan Rekod Terakhir (Mengikut Peta Rekod Terakhir)
+                const latestRecord = latestCompletionMap[normalizedSasaran] || null;
+
                 reportDataList.push({
-                    sasaran: sasaran,
+                    sasaran: originalSasaran, // Guna nama asal untuk paparan
+                    normalizedSasaran: normalizedSasaran,
                     isCompleted: isCompleted,
                     latestRecord: latestRecord
                 });
@@ -501,8 +513,9 @@
             const sortedByAscendingTime = [...allRecords].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
             
             sortedByAscendingTime.forEach(rekod => {
-                // KRITIKAL: Gunakan NAMA STESEN yang dinormalisasi untuk kunci unik
-                const key = normalizeStationName(rekod.stesen_pengesah); 
+                // KRITIKAL: Gunakan KUNCI SKOP (stesen/nama dinormalisasi) untuk kunci peta.
+                // Rekod pengesahan yang berbeza tetapi datang dari sasaran yang sama akan dikelompokkan
+                const key = getRecordKey(rekod); 
                 if (key) {
                    map[key] = rekod; 
                 }
@@ -544,7 +557,7 @@
                             day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
                         });
                         rekodHtml = `
-                            <p class="text-sm text-gray-800">${data.latestRecord.nama_pengesah}</p>
+                            <p class="text-sm text-gray-800">${data.latestRecord.nama_pengesah || 'N/A'}</p>
                             <p class="text-xs text-gray-600">${timestamp}</p>
                         `;
                     } else {
@@ -651,10 +664,10 @@
             const endIndex = startIndex + itemsPerPageSelesai;
             const paginatedList = filteredList.slice(startIndex, endIndex);
             
-            // 3. Buat Peta Pengesahan Berulang (BERASASKAN STESEN)
+            // 3. Buat Peta Pengesahan Berulang (BERASASKAN KUNCI SKOP)
             const completionCountMap = fullRekodSelesaiList.reduce((acc, rekod) => {
-                // KRITIKAL: Guna HANYA NAMA STESEN yang dinormalisasi untuk kunci unik duplikasi
-                const key = normalizeStationName(rekod.stesen_pengesah); 
+                // KRITIKAL: Guna KUNCI SKOP (stesen/nama dinormalisasi) untuk kunci unik duplikasi
+                const key = getRecordKey(rekod); 
                 acc[key] = (acc[key] || 0) + 1;
                 return acc;
             }, {});
@@ -670,13 +683,13 @@
                     });
                     
                     // Semak Duplikasi Stesen
-                    const uniqueKey = normalizeStationName(rekod.stesen_pengesah);
+                    const uniqueKey = getRecordKey(rekod);
                     const count = completionCountMap[uniqueKey];
                     const isDuplicate = count > 1;
                     
                     let duplicateTag = '';
                     if (isDuplicate) {
-                         duplicateTag = `<span class="duplicate-tag" title="Stesen ini mengisi ${count} kali">ULANGAN (${count}x)</span>`;
+                         duplicateTag = `<span class="duplicate-tag" title="Sasaran ini mengisi ${count} kali">ULANGAN (${count}x)</span>`;
                     }
                     
                     tableBody.innerHTML += `
