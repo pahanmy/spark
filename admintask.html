@@ -53,6 +53,17 @@
             word-break: break-word; /* Memastikan teks panjang wrap */
             white-space: pre-wrap; /* Hormati baris baru dalam textarea */
         }
+        
+        /* Gaya Duplikasi */
+        .duplicate-tag {
+            background-color: #fee2e2; /* bg-red-100 */
+            color: #b91c1c; /* text-red-800 */
+            font-size: 0.7rem;
+            font-weight: 600;
+            padding: 0.2rem 0.5rem;
+            border-radius: 0.25rem;
+            margin-left: 0.5rem;
+        }
     </style>
 </head>
 <body class="bg-gray-50 flex flex-col min-h-screen"> 
@@ -125,9 +136,14 @@
         
         <div id="tab-panel-selesai" class="tab-panel">
             <div class="card rounded-t-none p-6">
-                <div class="flex flex-col sm:flex-row gap-4 mb-4">
-                    <input type="text" id="carian-selesai-input" class="block w-full sm:w-1/2 rounded-lg border-gray-300 shadow-sm" placeholder="Cari nama pengesah atau stesen...">
-                    <div class="flex items-center gap-2">
+                <div class="flex flex-col sm:flex-row gap-4 mb-4 items-center">
+                    <input type="text" id="carian-selesai-input" class="block w-full sm:w-1/3 rounded-lg border-gray-300 shadow-sm" placeholder="Cari nama pengesah...">
+                    
+                    <select id="filter-stesen-selesai" class="block w-full sm:w-1/3 rounded-lg border-gray-300 shadow-sm sm:text-sm">
+                         <option value="">-- Tapis Mengikut Stesen --</option>
+                    </select>
+                    
+                    <div class="flex items-center gap-2 flex-shrink-0">
                         <label for="items-selesai-select" class="text-sm font-medium text-gray-700">Papar:</label>
                         <select id="items-selesai-select" class="block w-auto rounded-lg border-gray-300 shadow-sm">
                             <option value="10">10</option>
@@ -198,7 +214,6 @@
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, updateDoc, arrayRemove } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Konfigurasi Firebase (kekal sama)
         const firebaseConfig = {
             apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM",
             authDomain: "myqrhadir.firebaseapp.com",
@@ -212,26 +227,25 @@
         const appId = firebaseConfig.projectId;
         let currentTaskId = null;
         let correctPenyelarasIc = null;
-        let currentTaskData = null; // Simpan data tugasan
+        let currentTaskData = null;
         
-        // (BARU) Senarai data penuh (cache)
-        let fullSkopBelumList = [];
-        let fullRekodSelesaiList = [];
+        let fullSkopBelumList = []; 
+        let fullRekodSelesaiList = []; 
+        let uniqueStesenList = []; // Senarai stesen unik untuk filter
 
-        // (BARU) State Paginasi & Carian
         let currentPageBelum = 1;
         let itemsPerPageBelum = 10;
         let currentPageSelesai = 1;
         let itemsPerPageSelesai = 10;
+        let currentFilterStesen = ''; // State untuk filter stesen
 
-        // (BARU) DOM Elements untuk kawalan
         const carianBelumInput = document.getElementById('carian-belum-input');
         const itemsBelumSelect = document.getElementById('items-belum-select');
         const paginationBelum = document.getElementById('pagination-belum');
         const carianSelesaiInput = document.getElementById('carian-selesai-input');
         const itemsSelesaiSelect = document.getElementById('items-selesai-select');
         const paginationSelesai = document.getElementById('pagination-selesai');
-
+        const filterStesenSelesai = document.getElementById('filter-stesen-selesai'); // Elemen baru
 
         try {
             const app = initializeApp(firebaseConfig);
@@ -252,7 +266,6 @@
             }
         });
 
-        // FUNGSI UTAMA BARU (normalizeStationName)
         function normalizeStationName(name) {
             if (typeof name !== 'string') return '';
             let normalized = name.toUpperCase();
@@ -283,7 +296,6 @@
             
             document.getElementById('download-excel-btn').addEventListener('click', downloadExcel);
 
-            // (BARU) Pasang listener untuk carian dan paginasi
             carianBelumInput.addEventListener('input', () => {
                 currentPageBelum = 1;
                 populateTableBelum();
@@ -300,6 +312,13 @@
             });
             itemsSelesaiSelect.addEventListener('change', () => {
                 itemsPerPageSelesai = parseInt(itemsSelesaiSelect.value);
+                currentPageSelesai = 1;
+                populateSubmissionsTable();
+            });
+            
+            // LISTENER BARU UNTUK FILTER STESEN
+            filterStesenSelesai.addEventListener('change', (e) => {
+                currentFilterStesen = e.target.value;
                 currentPageSelesai = 1;
                 populateSubmissionsTable();
             });
@@ -363,28 +382,53 @@
             
             currentTaskData = docSnap.data();
 
-            const totalSkop = Array.isArray(currentTaskData.skopSenaraiSekolah) 
-                ? currentTaskData.skopSenaraiSekolah.map(s => s.toUpperCase()) 
+            // 1. Sasaran Skop: Ambil senarai yang disimpan (dinormalisasi dari tugasan.html)
+            const normalizedTotalSkop = Array.isArray(currentTaskData.skopSenaraiSekolah) 
+                ? currentTaskData.skopSenaraiSekolah
                 : [];
+            const totalSkopSet = new Set(normalizedTotalSkop);
             
+            // 2. Rekod Selesai Skop: Pastikan rekod yang disahkan dinormalisasi
             const skopSelesaiList = Array.isArray(currentTaskData.skopSelesai) 
-                ? currentTaskData.skopSelesai.map(normalizeStationName) // Menggunakan normalizeStationName
+                ? currentTaskData.skopSelesai.map(normalizeStationName) 
                 : [];
-            
             const selesaiSet = new Set(skopSelesaiList);
-            
-            // (BARU) Simpan data penuh dalam state global (menormalisasi totalSkop juga untuk semakan yang tepat)
-            const normalizedTotalSkop = totalSkop.map(normalizeStationName);
-            
+
+            // 3. Tentukan senarai BELUM (Sasaran Total - Rekod Selesai Unik)
             fullSkopBelumList = normalizedTotalSkop.filter(sekolah => !selesaiSet.has(sekolah)).sort();
-            fullRekodSelesaiList = [...(currentTaskData.rekodSelesai || [])].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
             
-            // (BARU) Panggil fungsi paparan (ia akan uruskan carian & paginasi)
+            // 4. Rekod Hantaran KESELURUHAN (untuk tab Rekod Selesai/Audit)
+            // Susun ikut tarikh & masa (terbaru dahulu) secara default
+            fullRekodSelesaiList = [...(currentTaskData.rekodSelesai || [])].sort((a, b) => 
+                new Date(b.timestamp) - new Date(a.timestamp)
+            );
+            
+            // 5. Bina senarai stesen unik untuk Filter
+            uniqueStesenList = [...new Set(fullRekodSelesaiList.map(r => r.stesen_pengesah).filter(s => s).map(s => s.toUpperCase()))].sort();
+            renderStesenFilterOptions();
+
+            // 6. Kemas kini kiraan pada Tab
+            document.getElementById('count-belum').textContent = fullSkopBelumList.length;
+            document.getElementById('count-selesai').textContent = fullRekodSelesaiList.length;
+
             populateTableBelum();
             populateSubmissionsTable();
         }
+        
+        // FUNGSI BARU UNTUK RENDER FILTER STESEN
+        function renderStesenFilterOptions() {
+            filterStesenSelesai.innerHTML = '<option value="">-- Tapis Mengikut Stesen --</option>';
+            uniqueStesenList.forEach(stesen => {
+                const option = document.createElement('option');
+                option.value = stesen;
+                option.textContent = stesen;
+                if (stesen === currentFilterStesen) {
+                    option.selected = true;
+                }
+                filterStesenSelesai.appendChild(option);
+            });
+        }
 
-        // ▼▼▼ (DIUBAH SUAI) Fungsi kini mengurus carian & paginasi ▼▼▼
         function populateTableBelum() {
             const tableBody = document.getElementById('table-belum');
             const countEl = document.getElementById('count-belum');
@@ -392,7 +436,7 @@
 
             tableBody.innerHTML = '';
             
-            // 1. Tapis (Filter)
+            // 1. Tapis
             const filteredList = fullSkopBelumList.filter(item => {
                 return item.toLowerCase().includes(searchTerm);
             });
@@ -409,7 +453,7 @@
             const endIndex = startIndex + itemsPerPageBelum;
             const paginatedList = filteredList.slice(startIndex, endIndex);
 
-            // 3. Papar (Render)
+            // 3. Papar
             if (paginatedList.length === 0) {
                 tableBody.innerHTML = `<tr><td colspan="2" class="px-4 py-4 text-center text-sm text-gray-500 italic">Tiada data.</td></tr>`;
             } else {
@@ -427,7 +471,6 @@
             renderPaginationControls(paginationBelum, totalItems, totalPages, currentPageBelum, 'goToPageBelum');
         }
         
-        // ▼▼▼ (DIUBAH SUAI) Fungsi kini mengurus carian & paginasi ▼▼▼
         function populateSubmissionsTable() {
             const tableBody = document.getElementById('table-selesai');
             const countEl = document.getElementById('count-selesai');
@@ -436,13 +479,21 @@
             tableBody.innerHTML = '';
 
             // 1. Tapis
-            const filteredList = fullRekodSelesaiList.filter(rekod => {
+            let filteredList = fullRekodSelesaiList.filter(rekod => {
                 const nama = (rekod.nama_pengesah || '').toLowerCase();
                 const stesen = (rekod.stesen_pengesah || '').toLowerCase();
-                return nama.includes(searchTerm) || stesen.includes(searchTerm);
+                
+                // Carian Nama/Stesen
+                const passesSearch = nama.includes(searchTerm) || stesen.includes(searchTerm);
+                
+                // Filter Stesen
+                const passesFilter = !currentFilterStesen || stesen.toUpperCase() === currentFilterStesen;
+                
+                return passesSearch && passesFilter;
             });
             
-            countEl.textContent = filteredList.length;
+            // Gunakan total list length untuk count-selesai (jumlah hantaran)
+            document.getElementById('count-selesai').textContent = fullRekodSelesaiList.length;
             
             // 2. Paginasi
             const totalItems = filteredList.length;
@@ -453,24 +504,40 @@
             const startIndex = (currentPageSelesai - 1) * itemsPerPageSelesai;
             const endIndex = startIndex + itemsPerPageSelesai;
             const paginatedList = filteredList.slice(startIndex, endIndex);
+            
+            // 3. Buat Peta Pengesahan Berulang
+            const completionCountMap = fullRekodSelesaiList.reduce((acc, rekod) => {
+                const key = normalizeStationName(rekod.nama_pengesah || rekod.stesen_pengesah);
+                acc[key] = (acc[key] || 0) + 1;
+                return acc;
+            }, {});
 
-            // 3. Papar
+            // 4. Papar
             if (paginatedList.length === 0) {
-                tableBody.innerHTML = `<tr><td colspan="4" class="px-4 py-4 text-center text-sm text-gray-500 italic">Tiada rekod pengesahan diterima.</td></tr>`;
+                tableBody.innerHTML = `<tr><td colspan="4" class="px-4 py-4 text-center text-sm text-gray-500 italic">Tiada rekod pengesahan ditemui untuk kriteria ini.</td></tr>`;
             } else {
                 paginatedList.forEach((rekod, index) => {
-                    // Dapatkan indeks sebenar dalam fullRekodSelesaiList untuk fungsi delete/view modal
                     const globalIndex = fullRekodSelesaiList.findIndex(r => r.timestamp === rekod.timestamp && r.ic_pengesah === rekod.ic_pengesah);
                     
                     const timestamp = new Date(rekod.timestamp).toLocaleString('ms-MY', {
                         day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
                     });
-
+                    
+                    // Semak Duplikasi
+                    const uniqueKey = normalizeStationName(rekod.nama_pengesah || rekod.stesen_pengesah);
+                    const count = completionCountMap[uniqueKey];
+                    const isDuplicate = count > 1;
+                    
+                    let duplicateTag = '';
+                    if (isDuplicate) {
+                         duplicateTag = `<span class="duplicate-tag" title="Sasaran ini mengisi ${count} kali">ULANGAN (${count}x)</span>`;
+                    }
+                    
                     tableBody.innerHTML += `
                         <tr class="text-sm">
                             <td class="px-4 py-3 text-gray-500 w-12">${startIndex + index + 1}.</td>
                             <td class="px-4 py-3">
-                                <p class="text-gray-800 font-medium">${rekod.nama_pengesah || 'N/A'}</p>
+                                <div class="font-medium text-gray-800 flex items-center">${rekod.nama_pengesah || 'N/A'} ${duplicateTag}</div>
                                 <p class="text-xs text-gray-600">${rekod.stesen_pengesah || 'N/A'}</p>
                             </td>
                             <td class="px-4 py-3 text-gray-600">${timestamp}</td>
@@ -494,11 +561,9 @@
                 });
             }
             
-            // 4. Render Kawalan Paginasi
             renderPaginationControls(paginationSelesai, totalItems, totalPages, currentPageSelesai, 'goToPageSelesai');
         }
 
-        // ▼▼▼ (FUNGSI BAHARU) Kawalan Paginasi Generik ▼▼▼
         function renderPaginationControls(container, totalItems, totalPages, currentPage, navigationFnName) {
             if (totalItems === 0) {
                 container.innerHTML = '';
@@ -531,7 +596,6 @@
             currentPageSelesai = page;
             populateSubmissionsTable();
         }
-        // ▲▲▲ TAMAT FUNGSI PAGINASI ▲▲▲
 
         function switchTab(tabName) {
             document.getElementById('tab-panel-belum').classList.toggle('active', tabName === 'belum');
@@ -542,7 +606,6 @@
         }
 
         function showJawapanModal(index) {
-            // (DIUBAH) Guna senarai global yang telah disusun
             const rekod = fullRekodSelesaiList[index];
             if (!rekod) return;
 
@@ -583,7 +646,6 @@
         }
 
         async function promptDeleteSubmission(index) {
-            // (DIUBAH) Guna senarai global yang telah disusun
             const recordToRemove = fullRekodSelesaiList[index];
             
             if (!recordToRemove) {
@@ -591,18 +653,17 @@
                 return;
             }
 
-            if (!confirm(`Anda pasti mahu memadam pengesahan oleh ${recordToRemove.nama_pengesah} (${recordToRemove.stesen_pengesah})? Tindakan ini akan membenarkan stesen ini membuat pengesahan semula.`)) {
+            if (!confirm(`Anda pasti mahu memadam pengesahan oleh ${recordToRemove.nama_pengesah} (${recordToRemove.stesen_pengesah})? Tindakan ini akan membenarkan sasaran ini membuat pengesahan semula.`)) {
                 return;
             }
             
             try {
                 const taskRef = doc(db, `artifacts/${appId}/public/data/spark_tasks`, currentTaskId);
                 
-                // (KEMASKINI KRITIKAL) Ambil stesen dan normalisasikannya sebelum dipadam dari skopSelesai
-                const stationToRemove = recordToRemove.stesen_pengesah;
+                const skopSelesaiRecord = recordToRemove.nama_pengesah || recordToRemove.stesen_pengesah;
                 let normalizedStationToRemove = null;
-                if (stationToRemove) {
-                    normalizedStationToRemove = normalizeStationName(stationToRemove);
+                if (skopSelesaiRecord) {
+                    normalizedStationToRemove = normalizeStationName(skopSelesaiRecord);
                 }
 
                 const updates = {
@@ -610,12 +671,20 @@
                 };
                 
                 if (normalizedStationToRemove) {
-                    updates.skopSelesai = arrayRemove(normalizedStationToRemove);
+                    // Cek jika masih ada rekod lain dari sasaran yang sama
+                    const isStillCompletedByOthers = fullRekodSelesaiList.some((r, i) => 
+                        i !== index && normalizeStationName(r.nama_pengesah || r.stesen_pengesah) === normalizedStationToRemove
+                    );
+
+                    // Hanya padam dari skopSelesai jika ini adalah rekod terakhir dari sasaran tersebut
+                    if (!isStillCompletedByOthers) {
+                        updates.skopSelesai = arrayRemove(normalizedStationToRemove);
+                    }
                 }
                 
                 await updateDoc(taskRef, updates);
                 
-                await loadContentData(); // Muat semula data penuh
+                await loadContentData();
 
             } catch (error) {
                 console.error("Gagal memadam rekod:", error);
@@ -623,14 +692,12 @@
             }
         }
 
-        // (KEKAL SAMA) Fungsi Excel
         function downloadExcel() {
             if (!currentTaskData || !currentTaskData.rekodSelesai || currentTaskData.rekodSelesai.length === 0) {
                 alert("Tiada data untuk dimuat turun.");
                 return;
             }
             const dataToExport = [];
-            // (DIUBAH) Guna senarai global yang telah disusun
             fullRekodSelesaiList.forEach(rekod => {
                 const nama = rekod.nama_pengesah;
                 const stesen = rekod.stesen_pengesah;
@@ -666,14 +733,12 @@
             XLSX.writeFile(workbook, fileName);
         }
 
-        // Hantar fungsi ke 'window'
         window.promptDeleteSubmission = promptDeleteSubmission;
         window.switchTab = switchTab;
         window.showJawapanModal = showJawapanModal;
         window.closeJawapanModal = closeJawapanModal;
         window.goToPageBelum = goToPageBelum;
         window.goToPageSelesai = goToPageSelesai;
-        window.normalizeStationName = normalizeStationName; // Tambah normalizeStationName untuk ketersediaan global (jika perlu)
 
     </script>
 </body>
