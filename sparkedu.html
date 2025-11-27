@@ -425,6 +425,7 @@
             } catch (e) {
                 console.error("Ralat menyimpan header (mungkin keizinan):", e.message);
                 alert(`Gagal menyimpan tajuk lajur. Sila semak keizinan Firebase. ${e.message}`);
+                throw new Error("Save Header failed"); // Buang ralat untuk ditangkap oleh saveEditedHeader
             }
         }
 
@@ -501,6 +502,13 @@
             }
 
             const container = document.getElementById(`inline-header-form-container-${key}`);
+            
+            // **FIX 1: Semak jika kontena wujud**
+            if (!container) {
+                console.error("Ralat (saveEditedHeader): Kontena borang edit header tidak dijumpai.");
+                return;
+            }
+
             const input = container.querySelector('input');
             const newText = input.value.trim();
 
@@ -513,7 +521,14 @@
             saveBtn.disabled = true;
             saveBtn.textContent = 'Menyimpan...';
 
-            await saveHeader(key, newText);
+            try {
+                await saveHeader(key, newText);
+            } catch (e) {
+                // Ralat ditangkap dari saveHeader. Aktifkan semula butang.
+                saveBtn.disabled = false;
+                saveBtn.textContent = 'Simpan'; // Set semula teks kepada Simpan
+                return;
+            }
             
             removeInlineForm();
             document.querySelector('#table-header').classList.remove('opacity-0');
@@ -612,26 +627,29 @@
             } catch (e) {
                 console.error(`Ralat mengemaskini teks ${fieldName} untuk ${docId} (mungkin keizinan):`, e.message);
                 alert(`Gagal menyimpan teks. Sila semak keizinan Firebase. ${e.message}`);
+                throw new Error("Update Text failed"); // Buang ralat untuk ditangkap oleh saveEditedText/saveNewItem
             }
         }
         
         // Fungsi utama untuk menyimpan data semasa (yang telah di-cache) sebagai template
         async function saveCurrentDataAsTemplate() {
             const saveBtn = document.getElementById('save-template-btn');
+            const originalText = saveBtn.textContent;
+            
             saveBtn.disabled = true;
             saveBtn.textContent = 'Menyimpan...';
             
             if (isPermissionError) {
                  alert("Gagal menyimpan Template Asas! Ralat keizinan Firebase dikesan. Perubahan anda tidak dapat dikekalkan untuk kegunaan masa hadapan.");
                  saveBtn.disabled = false;
-                 saveBtn.textContent = 'Simpan Template Asas';
+                 saveBtn.textContent = originalText;
                  return;
             }
 
             if (currentDataCache.length === 0) {
                 alert("Tiada data untuk disimpan sebagai template. Sila muatkan data dahulu.");
                 saveBtn.disabled = false;
-                saveBtn.textContent = 'Simpan Template Asas';
+                saveBtn.textContent = originalText;
                 return;
             }
             
@@ -661,7 +679,7 @@
             }
 
             saveBtn.disabled = false;
-            saveBtn.textContent = 'Simpan Template Asas';
+            saveBtn.textContent = originalText;
         }
 
 
@@ -804,6 +822,13 @@
             }
 
             const container = document.getElementById(`inline-text-form-container-${docId}-${fieldName}-${itemId || 'direct'}`);
+            
+            // **FIX 2: Semak jika kontena wujud (untuk elak ralat TypeError)**
+            if (!container) {
+                console.error("Ralat (saveEditedText): Kontena borang edit teks tidak dijumpai.");
+                return;
+            }
+
             const textarea = container.querySelector('textarea');
             const text = textarea.value.trim();
 
@@ -813,6 +838,8 @@
             }
 
             const saveBtn = container.querySelector('#save-text-btn-inline');
+            const originalText = saveBtn.textContent;
+            
             saveBtn.disabled = true;
             saveBtn.textContent = 'Menyimpan...';
             
@@ -838,10 +865,11 @@
 
                 removeInlineForm(); 
             } catch (e) {
+                // Ralat ditangkap dari updateText. Aktifkan semula butang.
                 console.error("Ralat menyimpan teks:", e);
                 alert("Gagal menyimpan teks. Sila semak konsol.");
                 saveBtn.disabled = false;
-                saveBtn.textContent = 'Simpan Teks';
+                saveBtn.textContent = originalText;
             }
         }
 
@@ -858,6 +886,13 @@
 
             // ... (Fungsi sedia ada)
             const container = document.getElementById(`inline-form-container-${docId}-${fieldName}`);
+            
+            // **FIX 3: Semak jika kontena wujud**
+            if (!container) {
+                console.error("Ralat (saveNewItem): Kontena borang item baru tidak dijumpai.");
+                return;
+            }
+
             const textarea = container.querySelector('textarea');
             const text = textarea.value.trim();
 
@@ -867,6 +902,8 @@
             }
 
             const saveBtn = container.querySelector('#save-item-btn-inline');
+            const originalText = saveBtn.textContent;
+
             saveBtn.disabled = true;
             saveBtn.textContent = 'Menyimpan...';
 
@@ -887,7 +924,7 @@
                 console.error("Ralat menambah item baru:", e);
                 alert("Gagal menambah item. Sila semak konsol.");
                 saveBtn.disabled = false;
-                saveBtn.textContent = 'Simpan Item';
+                saveBtn.textContent = originalText;
             }
         }
 
@@ -933,6 +970,13 @@
 
             // ... (Fungsi sedia ada)
             const container = document.getElementById(`inline-link-form-container-${itemId}`);
+            
+            // **FIX 4: Semak jika kontena wujud**
+            if (!container) {
+                console.error("Ralat (saveNewLink): Kontena borang pautan baru tidak dijumpai.");
+                return;
+            }
+
             const linkNameInput = container.querySelector('#link-name-inline');
             const linkUrlInput = container.querySelector('#link-url-inline');
             
@@ -945,6 +989,8 @@
             }
             
             const saveBtn = container.querySelector('#save-link-btn-inline');
+            const originalText = saveBtn.textContent;
+
             saveBtn.disabled = true;
             saveBtn.textContent = 'Menyimpan...';
 
@@ -974,7 +1020,7 @@
                 console.error("Ralat menambah pautan baru:", e);
                 alert("Gagal menambah pautan. Sila semak konsol.");
                 saveBtn.disabled = false;
-                saveBtn.textContent = 'Simpan Pautan';
+                saveBtn.textContent = originalText;
             }
         }
         
