@@ -557,7 +557,7 @@
                     
                     generateQRCode(taskId);
                     
-                    renderTaskProgress(); // KRITIKAL: Panggil pengiraan skop
+                    renderTaskProgress(); 
                     renderCompletionHistory();
                     renderSubTasks(); 
                     const hasLinks = renderLinks();
@@ -601,25 +601,27 @@
             }
         }
 
-        // FUNGSI KRITIKAL UNTUK PENGIRAAN SKOP
+        // FUNGSI KRITIKAL UNTUK PENGIRAAN SKOP (DITINGKATKAN KETAHANAN)
         function renderTaskProgress() {
             if(!document.getElementById('info-selesai')) return;
 
+            // 1. Sasaran Skop: Normalisasi berganda (untuk ketahanan terhadap ralat penyimpanan)
             const totalSkop = Array.isArray(currentTask.skopSenaraiSekolah) 
-                ? currentTask.skopSenaraiSekolah // INI SUDAH DINORMALISASI DI tugasan.html
+                ? currentTask.skopSenaraiSekolah.map(normalizeStationName) // Di sini kita normalkan sekali lagi!
                 : [];
             const totalSkopSet = new Set(totalSkop);
 
+            // 2. Rekod Selesai Skop: Pastikan rekod yang disahkan dinormalisasi
             const allSelesai = Array.isArray(currentTask.skopSelesai) 
-                ? currentTask.skopSelesai.map(normalizeStationName) // Pastikan rekod selesai dinormalisasi
+                ? currentTask.skopSelesai.map(normalizeStationName)
                 : [];
 
-            // FILTER: Hanya kira selesai jika ia wujud dalam senarai skop
+            // FILTER: Hanya kira selesai jika ia wujud dalam senarai skop SASARAN
             skopSelesaiList = allSelesai.filter(sekolah => totalSkopSet.has(sekolah));
             
             const selesaiSet = new Set(skopSelesaiList);
 
-            // FILTER: Kira belum selesai (semua skop tolak yang dah selesai)
+            // FILTER: Kira belum selesai (semua skop SASARAN tolak yang dah selesai)
             skopBelumList = totalSkop.filter(sekolah => !selesaiSet.has(sekolah));
             
             let jumlahSelesai;
@@ -639,7 +641,7 @@
                 if (selesaiBtn) selesaiBtn.disabled = true;
                 if (belumBtn) belumBtn.disabled = true;
             } else {
-                // Mod Skop
+                // Mod Skop (Konsisten)
                 jumlahSelesai = skopSelesaiList.length; 
                 jumlahBelum = skopBelumList.length;
                 total = totalSkop.length;
@@ -933,7 +935,6 @@ Sekian, terima kasih.`;
             if (list.length === 0) {
                 contentEl.innerHTML = `<p class="text-sm text-gray-500 italic">Tiada data untuk dipaparkan.</p>`;
             } else {
-                // PAPARKAN LIST DENGAN NAMA PENUH
                 list.sort().forEach((item, index) => { 
                     contentEl.innerHTML += `
                         <div class="text-sm text-gray-800 bg-white p-2 border-b last:border-b-0">
