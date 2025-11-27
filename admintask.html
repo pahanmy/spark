@@ -23,7 +23,7 @@
         .tab-btn {
             padding: 0.75rem 1.5rem;
             font-size: 1rem;
-            font-weight: 600;
+            font-weight: 60            0;
             border-bottom: 4px solid transparent;
             color: #6b7280; /* text-gray-500 */
         }
@@ -473,7 +473,7 @@
             }
         }
         
-        // FUNGSI BARU: PAPAR RUMUSAN TUGASAN
+        // FUNGSI PAPAR RUMUSAN TUGASAN
         function renderTaskSummary() {
             const total = reportDataList.length;
             const jumlahBelum = fullSkopBelumList.length;
@@ -508,7 +508,7 @@
                  progressCircle.style.strokeDashoffset = 100 - peratus;
             }
         }
-        // AKHIR FUNGSI BARU
+        // AKHIR FUNGSI RUMUSAN
 
         async function loadContentData() {
             const taskRef = doc(db, `artifacts/${appId}/public/data/spark_tasks`, currentTaskId);
@@ -532,26 +532,26 @@
             );
             
             // KRITIKAL: Peta Rekod Terakhir Berdasarkan KUNCI SKOP (Nama Sasaran yang dinormalisasi)
-            // Ini akan membolehkan kita mencari rekod terbaharu bagi setiap sasaran unik.
             latestCompletionMap = buildLatestCompletionMap(fullRekodSelesaiList);
             
             reportDataList = [];
-            const completedSkopKeys = new Set(currentTaskData.skopSelesai ? currentTaskData.skopSelesai.map(normalizeStationName) : []); 
+            // Senarai skop selesai yang disimpan dalam DB (kunci ringkas)
+            const completedSkopKeysFromDb = new Set(currentTaskData.skopSelesai ? currentTaskData.skopSelesai.map(normalizeStationName) : []); 
 
             // Logik membina reportDataList (Menggabungkan Skop Sasaran & Rekod Pengesahan)
             normalizedTotalSkop.forEach(normalizedSasaran => {
                 const originalSasaran = originalTotalSkopMap.get(normalizedSasaran) || normalizedSasaran;
-
-                // 1. Tentukan Status Selesai (Mengikut senarai ringkas skopSelesai)
-                const isCompleted = completedSkopKeys.has(normalizedSasaran); 
-                
-                // 2. Dapatkan Rekod Terakhir (Mengikut Peta Rekod Terakhir)
                 const latestRecord = latestCompletionMap[normalizedSasaran] || null;
 
+                // 1. Tentukan Status Selesai: 
+                // Status Selesai WAJIB dipaksa TRUE jika ada rekod terakhir yang sah bagi sasaran tersebut.
+                // Ini mengatasi masalah kegagalan array skopSelesai DB.
+                const isCompleted = completedSkopKeysFromDb.has(normalizedSasaran) || (latestRecord !== null); 
+                
                 reportDataList.push({
                     sasaran: originalSasaran, // Guna nama asal untuk paparan
                     normalizedSasaran: normalizedSasaran,
-                    isCompleted: isCompleted,
+                    isCompleted: isCompleted, // STATUS SELESAI DIPAKSA JIKA ADA REKOD TERAKHIR
                     latestRecord: latestRecord
                 });
             });
@@ -584,7 +584,6 @@
             
             sortedByAscendingTime.forEach(rekod => {
                 // KRITIKAL: Gunakan KUNCI SKOP (stesen/nama dinormalisasi) untuk kunci peta.
-                // Rekod pengesahan yang berbeza tetapi datang dari sasaran yang sama akan dikelompokkan
                 const key = getRecordKey(rekod); 
                 if (key) {
                    map[key] = rekod; 
