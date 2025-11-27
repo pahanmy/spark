@@ -90,7 +90,7 @@
         .spark-question-wrapper input[type="radio"] {
             display: none; 
         }
-        /* Overriding untuk input skala sahaja */
+        /* Overriding untuk input skala sahaja (jika masih guna radio) */
         .spark-question-wrapper input.scale-radio {
             display: inline-flex !important; 
         }
@@ -143,7 +143,6 @@
             font-size: 1rem;
             transition: all 0.2s;
             color: #374151;
-            /* Pastikan ia ditindih (override) oleh .scale-radio:checked */
         }
 
         .scale-radio:checked {
@@ -165,6 +164,70 @@
              font-size: 0.8rem;
              color: #6B7280;
         }
+        
+        /* --- Tambahan untuk Skala Slider --- */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            margin: 8px 0;
+            height: 12px;
+        }
+        input[type=range]:focus {
+            outline: none;
+        }
+        /* Track Styles */
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 8px;
+            cursor: pointer;
+            background: #e5e7eb;
+            border-radius: 4px;
+            border: 0.2px solid #D1D5DB;
+        }
+        input[type=range]::-moz-range-track {
+            width: 100%;
+            height: 8px;
+            cursor: pointer;
+            background: #e5e7eb;
+            border-radius: 4px;
+            border: 0.2px solid #D1D5DB;
+        }
+        /* Thumb Styles (The Handle) */
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 24px;
+            width: 24px;
+            border-radius: 50%;
+            background: #10B981; /* bg-green-500 */
+            cursor: pointer;
+            margin-top: -8.5px; 
+            box-shadow: 0 0 0 4px #ECFDF5;
+            transition: background 0.3s;
+        }
+        input[type=range]::-moz-range-thumb {
+            height: 24px;
+            width: 24px;
+            border-radius: 50%;
+            background: #10B981;
+            cursor: pointer;
+            box-shadow: 0 0 0 4px #ECFDF5;
+            border: none;
+        }
+
+        /* Skala Value Display */
+        .scale-value-display {
+            text-align: center;
+            font-size: 1.25rem; /* text-xl */
+            font-weight: 700;
+            color: #065F46; /* text-green-700 */
+            background-color: #ECFDF5; /* bg-green-50 */
+            border-radius: 0.5rem;
+            padding: 0.5rem 1rem;
+            margin-bottom: 0.5rem;
+            border: 1px solid #34D399;
+        }
+        /* End Tambahan Skala Slider */
+
 
         /* CSS untuk error highlighting */
         .input-error {
@@ -750,9 +813,9 @@
                             .spark-question-wrapper input[type="radio"], .spark-question-wrapper input[type="checkbox"] {
                                 display: none; 
                             }
-                            /* Pastikan input skala kelihatan dengan gaya tersendiri */
+                            /* Pastikan input skala (jika masih guna radio) kelihatan */
                             .spark-question-wrapper input.scale-radio {
-                                display: inline-flex; /* Guna display inline-flex untuk skala */
+                                display: inline-flex !important; 
                             }
                             input[type="checkbox"]:checked + .multiselect-checkbox-label span {
                                 background-color: #10B981; 
@@ -773,32 +836,32 @@
                     case 'skala':
                         const min = scaleData.min || 1;
                         const max = scaleData.max || 5;
-                        const numOptions = max - min + 1;
-                        const scaleRange = Array.from({ length: numOptions }, (_, i) => min + i);
-                        
-                        let scaleOptionsHtml = scaleRange.map(val => `
-                            <label for="${questionId}_${val}" class="scale-option">
-                                <input type="radio" id="${questionId}_${val}" name="${questionId}_radio" value="${val}" class="spark-question-input scale-radio">
-                                <span class="scale-label">${val}</span>
-                            </label>
-                        `).join('');
-
-                        const labelMin = scaleData.minLabel ? `<span class="text-xs text-red-500">${scaleData.minLabel}</span>` : '';
-                        const labelMax = scaleData.maxLabel ? `<span class="text-xs text-green-500">${scaleData.maxLabel}</span>` : '';
+                        const minLabel = scaleData.minLabel || '';
+                        const maxLabel = scaleData.maxLabel || '';
+                        const step = 1; // Default step 1
 
                         inputHtml = `<label class="block text-sm font-medium text-gray-700">${index + 1}. ${questionText}${isRequired ? '<span class="required-tag">*WAJIB</span>' : ''}</label>
-                            <div class="mt-4 flex justify-between w-full">
-                                <div class="scale-container-labels">
-                                    ${labelMin}
-                                </div>
-                                <div class="scale-container-labels">
-                                    ${labelMax}
-                                </div>
-                            </div>
-                            <div class="flex mt-1 p-2 bg-gray-50 border border-gray-200 rounded-lg" style="justify-content: space-around;">
-                                ${scaleOptionsHtml}
-                            </div>
-                        `;
+                            
+                            <div id="${questionId}_display" class="scale-value-display mt-2">${min}</div> 
+                            
+                            <input type="range" id="${questionId}" name="${questionId}" class="spark-question-input" min="${min}" max="${max}" step="${step}" value="${min}">
+                            
+                            <div class="flex justify-between text-sm text-gray-500 mt-2">
+                                <span class="text-left">${min} ${minLabel ? `(${minLabel})` : ''}</span>
+                                <span class="text-right">${max} ${maxLabel ? `(${maxLabel})` : ''}</span>
+                            </div>`;
+
+                        // Add listener to update display value in real-time
+                        setTimeout(() => {
+                            const rangeInput = document.getElementById(questionId);
+                            const display = document.getElementById(`${questionId}_display`);
+                            if (rangeInput && display) {
+                                rangeInput.addEventListener('input', (e) => {
+                                    display.textContent = e.target.value;
+                                });
+                            }
+                        }, 0);
+                        
                         break;
                 }
                 wrapper.innerHTML += inputHtml;
@@ -841,8 +904,8 @@
                     return; // Skip arahan
                 }
                 
-                if (questionType === 'ya_tidak' || questionType === 'radio_button' || questionType === 'skala') {
-                    // Radio buttons (including scale)
+                if (questionType === 'ya_tidak' || questionType === 'radio_button') {
+                    // Radio buttons (Ya/Tidak, Radio Button)
                     const radioName = `${questionId}_radio`;
                     const checkedRadio = wrapper.querySelector(`input[name="${radioName}"]:checked`);
                     
@@ -877,6 +940,14 @@
                         }
                     }
                 
+                } else if (questionType === 'skala') {
+                    // Slider/Range
+                    const rangeInput = wrapper.querySelector('input[type="range"]');
+                    if (rangeInput) {
+                        value = rangeInput.value; // Range input sentiasa ada nilai
+                    }
+                    // Tiada validation isRequired khas diperlukan kerana range sentiasa mempunyai nilai default
+                    
                 } else { // teks_ringkas, pautan_url, teks_panjang, tarikh
                     // Text inputs
                     const inputElement = wrapper.querySelector('.spark-question-input, textarea'); 
