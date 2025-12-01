@@ -180,7 +180,6 @@
                 icon: `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-yellow-500" viewBox="0 0 20 20" fill="currentColor"><path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" /><path fill-rule="evenodd" d="M4 5a2 2 0 012-2h8a2 2 0 012 2v10a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm2 0a1 1 0 000 2h.01a1 1 0 100-2H9zm2 0a1 1 0 000 2h.01a1 1 0 100-2H11zm2 0a1 1 0 000 2h.01a1 1 0 100-2H13z" clip-rule="evenodd" /></svg>`,
                 shortName: "Peperiksaan 2"
             },
-            // BARU: STEM HUB
              "STEM HUB": {
                 icon: `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3L20 12.25L9.75 21.5L4 16.75V7.75L9.75 3Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M4 12.25H20" /></svg>`,
                 shortName: "STEM HUB"
@@ -246,7 +245,7 @@
             });
         }
         
-        // ▼▼▼ FUNGSI BARU UNTUK MENGIRA STATISTIK ▼▼▼
+        // ▼▼▼ FUNGSI MENGIRA STATISTIK (DIKEMAS KINI UNTUK KENDALIKAN UNDEFINED) ▼▼▼
         function getBookingsForMonth(year, month) {
             return allBookings.filter(b => {
                 if (!b.start || typeof b.start.toDate !== 'function') return false;
@@ -275,11 +274,13 @@
 
             // Kira tempahan
             monthlyBookings.forEach(b => {
-                if (roomCounts.hasOwnProperty(b.roomBooked)) {
-                    roomCounts[b.roomBooked]++;
+                // Gunakan fallback yang selamat untuk roomBooked
+                const roomName = b.roomBooked || "BILIK_TIDAK_DIKETAHUI";
+                
+                if (roomCounts.hasOwnProperty(roomName)) {
+                    roomCounts[roomName]++;
                 } else {
-                    // Untuk bilik yang mungkin telah dipadam dari 'roomDetails'
-                    roomCounts[b.roomBooked] = (roomCounts[b.roomBooked] || 0) + 1;
+                    roomCounts[roomName] = (roomCounts[roomName] || 0) + 1;
                 }
             });
 
@@ -294,7 +295,8 @@
             Object.keys(roomCounts).forEach(roomName => {
                 const count = roomCounts[roomName];
                 if (count > 0) { // Hanya tunjuk bilik yang ada tempahan
-                    const details = roomDetails[roomName] || { icon: '<span></span>', shortName: roomName }; // Fallback
+                    // Fallback yang selamat di sini juga
+                    const details = roomDetails[roomName] || { icon: '<span></span>', shortName: (roomName === "BILIK_TIDAK_DIKETAHUI" ? "Tidak Diketahui" : roomName) }; 
                     const html = `
                         <div class="flex items-center justify-between gap-2 p-2 bg-white rounded-lg border">
                             <div class="flex items-center gap-2">
@@ -345,9 +347,14 @@
                 if (bookingsOnThisDay.length > 0) {
                     dayClasses += ' has-events'; 
                     indicatorsHtml += `<div class="absolute top-1 right-1 bg-indigo-500 text-white text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full shadow" title="Tempahan Bilik">${bookingsOnThisDay.length}</div>`;
-                    // Tunjuk nama bilik
+                    
+                    // KOD DIBETULKAN UNTUK KENDALIKAN UNDEFINED PADA shortName
                     eventHtml += bookingsOnThisDay.map(b => {
-                        const shortName = roomDetails[b.roomBooked]?.shortName || b.roomBooked;
+                        const roomName = b.roomBooked || "TIADA DATA";
+                        // Ambil shortName, atau gunakan roomName sebagai fallback jika roomDetails tiada, atau fallback "TIADA DATA"
+                        let shortName = roomDetails[roomName]?.shortName || roomName;
+                        if (shortName === "TIADA DATA") shortName = "X"; // Guna ringkasan jika tiada data bilik
+                        
                         return `<div class="bg-indigo-100 text-indigo-800 text-xs rounded px-1 truncate">${shortName.toUpperCase()}</div>`
                     }).join('');
                 }
@@ -429,7 +436,7 @@
             
             const bookings = getBookingsForDate(date).filter(b => 
                 b.programName.toLowerCase().includes(searchTerm) || 
-                b.roomBooked.toLowerCase().includes(searchTerm) // Diubah dari 'room'
+                (b.roomBooked || '').toLowerCase().includes(searchTerm) // Fallback selamat untuk carian
             );
             
             let bookingsHtml = '';
@@ -442,7 +449,9 @@
                     const endDate = b.end ? b.end.toDate() : b.start.toDate();
                     const isPast = endDate < today;
                     const titleStyle = isPast ? 'text-gray-500' : 'text-indigo-600';
-                    const roomName = b.roomBooked || "BILIK TIDAK DIKETAHUI"; // Fallback
+                    
+                    // KOD DIBETULKAN UNTUK KENDALIKAN UNDEFINED PADA roomName
+                    const roomName = b.roomBooked || "BILIK TIDAK DIKETAHUI"; // Fallback yang lebih jelas
                     
                     return `
                     <div class="bg-white border border-gray-200 rounded-xl p-4 text-gray-800 transition-all hover:shadow-lg flex flex-col">
@@ -510,7 +519,7 @@
             const year = parseInt(document.getElementById('year-select').value, 10);
             const month = parseInt(document.getElementById('month-select').value, 10); // Betulkan kesilapan (sepatutnya 'month-select')
             currentDate = new Date(year, month, 1);
-            renderCalendar(year, month);
+            renderCalendar(currentDate.getFullYear(), currentDate.getMonth());
         }
 
         function changeMonth(direction) {
