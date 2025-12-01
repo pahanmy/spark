@@ -133,6 +133,10 @@
                     <div id="list-tab-content" class="tab-content hidden">
                         <h3 class="text-xl font-bold text-gray-900 mb-4">Senarai Keseluruhan Tempahan</h3>
                         
+                        <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4 text-sm text-yellow-800">
+                            <p class="font-semibold">Perhatian:</p>
+                            <p>Tindakan memadam (delete) tempahan bilik **TIDAK** boleh dilakukan di halaman ini. Sila hubungi **Penyelaras Program** untuk memadam program tersebut dari halaman <a href="senarai.html" class="font-medium underline hover:text-yellow-900">Senarai Program Utama (senarai.html)</a>, kerana ia akan memadamkan kedua-dua rekod (program dan tempahan) secara serentak.</p>
+                        </div>
                         <div class="flex flex-wrap items-end gap-4 mb-6 bg-gray-50 p-4 rounded-lg border">
                             <div class="flex-grow md:flex-grow-0">
                                 <label for="list-display-filter" class="block text-sm font-medium text-gray-700">Paparkan Mengikut</label>
@@ -172,10 +176,9 @@
                             <table class="min-w-full divide-y divide-gray-200">
                                 <thead>
                                     <tr>
+                                        <th class="text-xs font-semibold uppercase tracking-wider text-gray-500 sticky top-0 bg-white z-10 p-3">Tarikh & Masa</th>
+                                        <th class="text-xs font-semibold uppercase tracking-wider text-gray-500 sticky top-0 bg-white z-10 p-3">Program (Penyelaras)</th>
                                         <th class="text-xs font-semibold uppercase tracking-wider text-gray-500 sticky top-0 bg-white z-10 p-3">Bilik</th>
-                                        <th class="text-xs font-semibold uppercase tracking-wider text-gray-500 sticky top-0 bg-white z-10 p-3">Program</th>
-                                        <th class="text-xs font-semibold uppercase tracking-wider text-gray-500 sticky top-0 bg-white z-10 p-3">Tarikh/Masa Mula</th>
-                                        <th class="text-xs font-semibold uppercase tracking-wider text-gray-500 sticky top-0 bg-white z-10 p-3">Penyelaras</th>
                                         <th class="text-xs font-semibold uppercase tracking-wider text-gray-500 sticky top-0 bg-white z-10 p-3">Status</th>
                                     </tr>
                                 </thead>
@@ -334,7 +337,6 @@
             document.getElementById(`tab-${tabName}`).classList.add('active');
 
             if (tabName === 'list') {
-                // Sentiasa panggil renderList apabila bertukar ke tab senarai
                 renderAllBookingsList();
                 document.getElementById('program-list-container').classList.add('hidden');
             } else if (tabName === 'calendar') {
@@ -409,743 +411,6 @@
             const noDataEl = document.getElementById('no-list-data');
             
             // Dapatkan nilai penapis
-            const filterDisplay = document.getElementById('list-display-filter').value; // BARU
-            const filterMonth = document.getElementById('list-month-select').value;
-            const filterYear = document.getElementById('list-year-select').value;
-            const filterRoom = document.getElementById('list-room-select').value;
-            const filterSearch = document.getElementById('list-search-input').value.toLowerCase();
-            
-            const today = new Date();
-            const startOfWeek = new Date(today);
-            startOfWeek.setDate(today.getDate() - today.getDay());
-            startOfWeek.setHours(0, 0, 0, 0);
-            const endOfWeek = new Date(startOfWeek);
-            endOfWeek.setDate(startOfWeek.getDate() + 7);
-            
-            const filteredBookings = allBookings
-                .filter(b => {
-                    const startDateTime = b.start && b.start.toDate ? b.start.toDate() : null;
-                    if (!startDateTime) return false;
-
-                    // 1. Penapis Paparan Utama (Minggu/Bulan/Keseluruhan)
-                    if (filterDisplay === 'month') {
-                        // Tapis kepada Bulan Semasa (Year filter override jika diset)
-                        const targetMonth = filterYear !== "" ? startDateTime.getMonth() : today.getMonth();
-                        const targetYear = filterYear !== "" ? parseInt(filterYear, 10) : today.getFullYear();
-
-                        if (startDateTime.getMonth() !== targetMonth || startDateTime.getFullYear() !== targetYear) {
-                            return false;
-                        }
-
-                    } else if (filterDisplay === 'week') {
-                        // Tapis kepada Minggu Semasa
-                        if (startDateTime < startOfWeek || startDateTime >= endOfWeek) {
-                            return false;
-                        }
-                    }
-                    // Jika 'all', tiada penapis masa yang dikenakan
-
-                    // 2. Penapis Bulan (hanya berkesan jika filterDisplay BUKAN 'month')
-                    if (filterDisplay !== 'month' && filterMonth !== "" && startDateTime.getMonth() !== parseInt(filterMonth, 10)) {
-                        return false;
-                    }
-                    
-                    // 3. Penapis Tahun (hanya berkesan jika filterDisplay BUKAN 'month')
-                    if (filterDisplay !== 'month' && filterYear !== "" && startDateTime.getFullYear() !== parseInt(filterYear, 10)) {
-                        return false;
-                    }
-                    
-                    // 4. Penapis Bilik
-                    if (filterRoom !== "" && b.room !== filterRoom) {
-                        return false;
-                    }
-
-                    // 5. Penapis Carian
-                    if (filterSearch !== "") {
-                        const programName = b.programName || '';
-                        const bookedByName = b.bookedBy_name || '';
-                        if (!programName.toLowerCase().includes(filterSearch) && !bookedByName.toLowerCase().includes(filterSearch)) {
-                            return false;
-                        }
-                    }
-
-                    return true;
-                });
-            
-            tbody.innerHTML = ''; 
-
-            if (filteredBookings.length === 0) {
-                noDataEl.classList.remove('hidden');
-                return;
-            } else {
-                noDataEl.classList.add('hidden');
-            }
-
-            // Susun mengikut tarikh mula (terbaru dahulu)
-            const sortedBookings = filteredBookings.sort((a, b) => {
-                const dateA = a.start && a.start.toDate ? a.start.toDate() : new Date(0);
-                const dateB = b.start && b.start.toDate ? b.start.toDate() : new Date(0);
-                return dateB - dateA; 
-            });
-
-
-            sortedBookings.forEach(booking => {
-                const startDateTime = booking.start && booking.start.toDate ? booking.start.toDate() : null;
-                const endDateTime = booking.end && booking.end.toDate ? booking.end.toDate() : null;
-
-                const roomName = booking.room || 'Tidak Diketahui';
-                const startDate = startDateTime ? startDateTime.toLocaleDateString('ms-MY', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A';
-                const startTime = startDateTime ? formatTimeFromDate(startDateTime) : 'N/A';
-                
-                // Tentukan status (Sudah Lepas / Sedang Berlangsung / Akan Datang)
-                let statusBadge;
-                if (endDateTime < today) {
-                    statusBadge = `<span class="inline-flex items-center rounded-md bg-red-50 px-2 py-1 text-xs font-medium text-red-700 ring-1 ring-inset ring-red-600/20">Sudah Lepas</span>`;
-                } else if (startDateTime <= today && endDateTime >= today) {
-                    statusBadge = `<span class="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">Sedang Berlangsung</span>`;
-                } else {
-                    statusBadge = `<span class="inline-flex items-center rounded-md bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700 ring-1 ring-inset ring-indigo-600/20">Akan Datang</span>`;
-                }
-                
-                const tr = document.createElement('tr');
-                tr.className = 'hover:bg-gray-50';
-                tr.innerHTML = `
-                    <td class="text-sm font-medium text-gray-900 p-3">${roomName}</td>
-                    <td class="text-sm text-gray-700 p-3">${booking.programName || 'N/A'}</td>
-                    <td class="text-sm text-gray-600 p-3">${startDate} (${startTime})</td>
-                    <td class="text-sm text-gray-600 p-3">${booking.bookedBy_name || 'N/A'}</td>
-                    <td class="text-sm text-gray-600 p-3">${statusBadge}</td>
-                `;
-                tbody.appendChild(tr);
-            });
-        }
-        // ▲▲▲ TAMAT FUNGSI RENDER SENARAI KESELURUHAN ▲▲▲
-        
-        // FUNGSI LAIN DIKEKALKAN (Potong untuk menjimatkan ruang jawapan, tetapi ia dimasukkan dalam kod penuh)
-        function getBookingsForMonth(year, month) {
-            return allBookings.filter(b => {
-                if (!b.start || typeof b.start.toDate !== 'function') return false;
-                const bookingDate = b.start.toDate();
-                return bookingDate.getFullYear() === year && bookingDate.getMonth() === month;
-            });
-        }
-
-        function updateMonthlyStats(year, month) {
-            const monthNames = ["Januari", "Februari", "Mac", "April", "Mei", "Jun", "Julai", "Ogos", "September", "Oktober", "November", "Disember"];
-            document.getElementById('stats-title').textContent = `Statistik (${monthNames[month]} ${year})`;
-
-            const monthlyBookings = getBookingsForMonth(year, month);
-            
-            document.getElementById('monthly-total-count').textContent = monthlyBookings.length;
-
-            const breakdownList = document.getElementById('room-breakdown-list');
-            const roomCounts = {};
-            
-            Object.keys(roomDetails).forEach(roomName => {
-                roomCounts[roomName] = 0;
-            });
-            roomCounts["BILIK_TIDAK_DIKETAHUI"] = 0;
-
-            monthlyBookings.forEach(b => {
-                const roomName = b.room || "BILIK_TIDAK_DIKETAHUI";
-                
-                if (roomCounts.hasOwnProperty(roomName) || roomName === "BILIK_TIDAK_DIKETAHUI") {
-                    roomCounts[roomName] = (roomCounts[roomName] || 0) + 1;
-                } else {
-                    roomCounts[roomName] = (roomCounts[roomName] || 0) + 1;
-                }
-            });
-
-            breakdownList.innerHTML = ''; 
-            
-            if (monthlyBookings.length === 0) {
-                 breakdownList.innerHTML = '<p class="text-sm text-gray-500">Tiada tempahan untuk bulan ini.</p>';
-                 return;
-            }
-
-            Object.keys(roomCounts).forEach(roomName => {
-                const count = roomCounts[roomName];
-                if (count > 0) { 
-                    
-                    let shortName, iconHtml;
-
-                    if (roomName === "BILIK_TIDAK_DIKETAHUI") {
-                        shortName = "Tidak Diketahui (Data Lama)";
-                        iconHtml = '<span>❓</span>'; 
-                    } else {
-                        const details = roomDetails[roomName] || { icon: '<span>⚠️</span>', shortName: roomName };
-                        shortName = details.shortName;
-                        iconHtml = details.icon;
-                    }
-                    
-                    const html = `
-                        <div class="flex items-center justify-between gap-2 p-2 bg-white rounded-lg border">
-                            <div class="flex items-center gap-2">
-                                <span class="flex-shrink-0">${iconHtml}</span>
-                                <span class="text-sm font-medium text-gray-700">${shortName}</span>
-                            </div>
-                            <span class="text-sm font-bold text-gray-900 bg-gray-200 px-2 py-0.5 rounded-full">${count}</span>
-                        </div>
-                    `;
-                    breakdownList.insertAdjacentHTML('beforeend', html);
-                }
-            });
-        }
-
-        function renderCalendar(year, month) {
-            const calendarGrid = document.getElementById('calendar-grid');
-            const calendarHeader = document.getElementById('calendar-header');
-            calendarGrid.innerHTML = '';
-            
-            const monthNames = ["Januari", "Februari", "Mac", "April", "Mei", "Jun", "Julai", "Ogos", "September", "Oktober", "November", "Disember"];
-            calendarHeader.textContent = `${monthNames[month]} ${year}`.toUpperCase();
-
-            updateMonthlyStats(year, month);
-
-            const firstDayOfMonth = new Date(year, month, 1).getDay();
-            const daysInMonth = new Date(year, month + 1, 0).getDate();
-
-            for (let i = 0; i < firstDayOfMonth; i++) {
-                calendarGrid.insertAdjacentHTML('beforeend', '<div class="border rounded-md bg-gray-50"></div>');
-            }
-
-            for (let day = 1; day <= daysInMonth; day++) {
-                const date = new Date(year, month, day);
-                const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-
-                const bookingsOnThisDay = getBookingsForDate(date); 
-                const isToday = new Date().toDateString() === date.toDateString();
-                
-                let dayClasses = 'calendar-day border rounded-md p-2 transition-colors relative';
-                let eventHtml = '';
-                let indicatorsHtml = '';
-
-                if (isToday) dayClasses += ' is-today';
-                
-                if (bookingsOnThisDay.length > 0) {
-                    dayClasses += ' has-events'; 
-                    indicatorsHtml += `<div class="absolute top-1 right-1 bg-indigo-500 text-white text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full shadow" title="Tempahan Bilik">${bookingsOnThisDay.length}</div>`;
-                    
-                    eventHtml += bookingsOnThisDay.map(b => {
-                        const roomName = b.room || "TIADA DATA";
-                        let shortName = roomDetails[roomName]?.shortName || roomName;
-                        if (shortName === "TIADA DATA") shortName = "X";
-                        
-                        return `<div class="bg-indigo-100 text-indigo-800 text-xs rounded px-1 truncate">${shortName.toUpperCase()}</div>`
-                    }).join('');
-                }
-
-                const dayHtml = `
-                    <div class="${dayClasses}" data-date="${dateString}">
-                        ${indicatorsHtml}
-                        <div class="font-semibold text-gray-800">${day}</div>
-                        <div class="event-list mt-1 space-y-1 pr-1">${eventHtml}</div>
-                    </div>
-                `;
-                calendarGrid.insertAdjacentHTML('beforeend', dayHtml);
-            }
-            
-            calendarGrid.querySelectorAll('.has-events').forEach(el => {
-                el.addEventListener('click', (e) => {
-                    const target = e.currentTarget;
-                    const date = parseDateString(target.dataset.date);
-                    displayBookingsForDate(date, target);
-                });
-            });
-        }
-
-        function parseDateString(dateString) {
-            const parts = dateString.split('-');
-            return new Date(parts[0], parts[1] - 1, parts[2]);
-        }
-        
-        function formatTimeFromDate(dateObj) {
-            if (!dateObj || typeof dateObj.getHours !== 'function') return '';
-            const hour = dateObj.getHours();
-            const minute = String(dateObj.getMinutes()).padStart(2, '0');
-            const ampm = hour >= 12 ? 'ptg' : 'pagi';
-            let formattedHour = hour % 12;
-            if (formattedHour === 0) formattedHour = 12;
-            return `${formattedHour}:${minute} ${ampm}`;
-        }
-
-        function getBookingsForDate(date) {
-            const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-            
-            return allBookings.filter(b => {
-                if (!b.start || typeof b.start.toDate !== 'function') return false;
-
-                const startDate = b.start.toDate();
-                const endDate = b.end ? b.end.toDate() : startDate;
-                
-                const bookingStartDateOnly = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
-                const bookingEndDateOnly = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
-
-                return dateOnly >= bookingStartDateOnly && dateOnly <= bookingEndDateOnly;
-            });
-        }
-        
-        function displayTodaysBookings() {
-            const today = new Date();
-            const year = today.getFullYear();
-            const month = String(today.getMonth() + 1).padStart(2, '0');
-            const day = String(today.getDate()).padStart(2, '0');
-            const dateString = `${year}-${month}-${day}`;
-
-            const todayCell = document.querySelector(`.calendar-day[data-date="${dateString}"]`);
-            if (todayCell && todayCell.classList.contains('has-events')) {
-                displayBookingsForDate(today, todayCell);
-            } else {
-                 initializeRightPanel(); 
-            }
-        }
-
-        function displayBookingsForDate(date, element) {
-            if (selectedDateElement) {
-                selectedDateElement.classList.remove('selected');
-            }
-            selectedDateElement = element;
-            selectedDateElement.classList.add('selected');
-            
-            const programListContent = document.getElementById('program-list-content');
-            // Guna input carian kalendar
-            const searchTerm = document.getElementById('search-input').value.toLowerCase();
-            
-            const bookings = getBookingsForDate(date).filter(b => 
-                b.programName.toLowerCase().includes(searchTerm) || 
-                (b.room || '').toLowerCase().includes(searchTerm)
-            );
-            
-            let bookingsHtml = '';
-            if (bookings.length > 0) {
-                 bookingsHtml = `
-                    <h4 class="text-sm font-bold text-indigo-600 uppercase mb-2">Senarai Tempahan Bilik</h4>
-                    <div class="space-y-4">
-                ` + bookings.map(b => {
-                    const today = new Date();
-                    const endDate = b.end ? b.end.toDate() : b.start.toDate();
-                    const isPast = endDate < today;
-                    const titleStyle = isPast ? 'text-gray-500' : 'text-indigo-600';
-                    
-                    const roomName = b.room || "BILIK TIDAK DIKETAHUI";
-                    
-                    return `
-                    <div class="bg-white border border-gray-200 rounded-xl p-4 text-gray-800 transition-all hover:shadow-lg flex flex-col">
-                        <div class="flex-grow">
-                            <p class="font-bold text-md ${titleStyle}">${roomName.toUpperCase()}</p>
-                            <p class="text-sm ${titleStyle} -mt-1 mb-2">${b.programName.toUpperCase()}</p>
-                            
-                            <div class="space-y-2 mt-3 text-sm text-gray-500 border-l-2 border-indigo-200 pl-3">
-                                <p class="flex items-center">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2 text-gray-400 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd" /></svg>
-                                    <span>${b.bookedBy_name ? b.bookedBy_name.toUpperCase() : 'TIADA PENEMPAH'}</span>
-                                </p>
-                                <p class="flex items-center">
-                                   <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                   <span>${formatTimeFromDate(b.start.toDate())} - ${formatTimeFromDate(b.end.toDate())}</span>
-                                </p>
-                            </div>
-                        </div>
-                        <button onclick="promptIcVerification('${b.programKey}', '${b.bookedBy_ic}')" class="mt-4 w-full bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-300 transform hover:scale-105 disabled:transform-none" ${isPast ? 'disabled' : ''}>
-                            ${isPast ? 'TEMPAHAN LEPAS' : 'LIHAT BUTIRAN PROGRAM'}
-                        </button>
-                    </div>
-                `}).join('') + '</div>';
-            }
-            
-            const dateText = date.toDateString() === new Date().toDateString() ? 'HARI INI' : date.toLocaleDateString('ms-MY', { day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase();
-            document.getElementById('selected-date-text').textContent = dateText;
-            
-            if (bookings.length === 0) {
-                programListContent.innerHTML = `<div class="border-2 border-dashed border-gray-300 rounded-xl p-5 text-center text-gray-500 h-full flex flex-col justify-center items-center"><p class="mt-4 text-sm font-semibold">Tiada tempahan bilik ditemui untuk tarikh ini.</p></div>`;
-            } else {
-                programListContent.innerHTML = bookingsHtml;
-            }
-        }
-
-        // ▼▼▼ FUNGSI RENDER SENARAI KESELURUHAN (TAB KEDUA) DENGAN SEMUA PENAPIS BARU ▼▼▼
-        function renderAllBookingsList() {
-            const tbody = document.getElementById('full-list-table-body');
-            const noDataEl = document.getElementById('no-list-data');
-            
-            // Dapatkan nilai penapis
-            const filterDisplay = document.getElementById('list-display-filter').value;
-            const filterMonth = document.getElementById('list-month-select').value;
-            const filterYear = document.getElementById('list-year-select').value;
-            const filterRoom = document.getElementById('list-room-select').value;
-            const filterSearch = document.getElementById('list-search-input').value.toLowerCase();
-            
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-
-            // Tentukan julat masa untuk penapis Minggu dan Bulan
-            let filterStartDate = null;
-            let filterEndDate = null;
-
-            if (filterDisplay === 'month') {
-                const targetYear = filterYear !== "" ? parseInt(filterYear, 10) : today.getFullYear();
-                
-                // Jika Month filter diset, guna nilai itu, jika tidak guna bulan semasa
-                const targetMonth = filterMonth !== "" ? parseInt(filterMonth, 10) : today.getMonth(); 
-                
-                filterStartDate = new Date(targetYear, targetMonth, 1);
-                filterEndDate = new Date(targetYear, targetMonth + 1, 0); // Hari terakhir bulan
-                filterEndDate.setHours(23, 59, 59, 999);
-                
-            } else if (filterDisplay === 'week') {
-                const startOfWeek = new Date(today);
-                startOfWeek.setDate(today.getDate() - today.getDay());
-                startOfWeek.setHours(0, 0, 0, 0);
-                
-                const endOfWeek = new Date(startOfWeek);
-                endOfWeek.setDate(startOfWeek.getDate() + 7);
-                endOfWeek.setHours(23, 59, 59, 999);
-                
-                filterStartDate = startOfWeek;
-                filterEndDate = endOfWeek;
-
-            } else if (filterDisplay === 'all') {
-                // Jika 'all' dipilih, penapis Bulan & Tahun di bawah akan mengambil alih
-            }
-            
-            const filteredBookings = allBookings
-                .filter(b => {
-                    const startDateTime = b.start && b.start.toDate ? b.start.toDate() : null;
-                    if (!startDateTime) return false;
-
-                    // 1. Tapis mengikut Julat Masa (Minggu/Bulan)
-                    if (filterStartDate && filterEndDate) {
-                         // Semak jika tempahan bermula dalam julat (atau berakhir dalam julat)
-                        const bookingEnd = b.end.toDate();
-                        if (bookingEnd < filterStartDate || startDateTime > filterEndDate) {
-                            return false;
-                        }
-                    }
-
-                    // 2. Penapis Bulan/Tahun Tambahan (Hanya untuk filterDisplay === 'all')
-                    if (filterDisplay === 'all') {
-                        if (filterMonth !== "" && startDateTime.getMonth() !== parseInt(filterMonth, 10)) {
-                            return false;
-                        }
-                        if (filterYear !== "" && startDateTime.getFullYear() !== parseInt(filterYear, 10)) {
-                            return false;
-                        }
-                    }
-                    
-                    // 3. Penapis Bilik
-                    if (filterRoom !== "" && b.room !== filterRoom) {
-                        return false;
-                    }
-
-                    // 4. Penapis Carian
-                    if (filterSearch !== "") {
-                        const programName = b.programName || '';
-                        const bookedByName = b.bookedBy_name || '';
-                        if (!programName.toLowerCase().includes(filterSearch) && !bookedByName.toLowerCase().includes(filterSearch)) {
-                            return false;
-                        }
-                    }
-
-                    return true;
-                });
-            
-            tbody.innerHTML = ''; 
-
-            if (filteredBookings.length === 0) {
-                noDataEl.classList.remove('hidden');
-                return;
-            } else {
-                noDataEl.classList.add('hidden');
-            }
-
-            // Susun mengikut tarikh mula (terbaru dahulu)
-            const sortedBookings = filteredBookings.sort((a, b) => {
-                const dateA = a.start && a.start.toDate ? a.start.toDate() : new Date(0);
-                const dateB = b.start && b.start.toDate ? b.start.toDate() : new Date(0);
-                return dateB - dateA; 
-            });
-
-
-            sortedBookings.forEach(booking => {
-                const startDateTime = booking.start && booking.start.toDate ? booking.start.toDate() : null;
-                const endDateTime = booking.end && booking.end.toDate ? booking.end.toDate() : null;
-
-                const roomName = booking.room || 'Tidak Diketahui';
-                const startDate = startDateTime ? startDateTime.toLocaleDateString('ms-MY', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A';
-                const startTime = startDateTime ? formatTimeFromDate(startDateTime) : 'N/A';
-                
-                // Tentukan status (Sudah Lepas / Sedang Berlangsung / Akan Datang)
-                let statusBadge;
-                if (endDateTime < new Date()) { // Menggunakan new Date() tanpa setHour(0) untuk semakan waktu sebenar
-                    statusBadge = `<span class="inline-flex items-center rounded-md bg-red-50 px-2 py-1 text-xs font-medium text-red-700 ring-1 ring-inset ring-red-600/20">Sudah Lepas</span>`;
-                } else if (startDateTime <= new Date() && endDateTime >= new Date()) {
-                    statusBadge = `<span class="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">Sedang Berlangsung</span>`;
-                } else {
-                    statusBadge = `<span class="inline-flex items-center rounded-md bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700 ring-1 ring-inset ring-indigo-600/20">Akan Datang</span>`;
-                }
-                
-                const tr = document.createElement('tr');
-                tr.className = 'hover:bg-gray-50';
-                tr.innerHTML = `
-                    <td class="text-sm font-medium text-gray-900 p-3">${roomName}</td>
-                    <td class="text-sm text-gray-700 p-3">${booking.programName || 'N/A'}</td>
-                    <td class="text-sm text-gray-600 p-3">${startDate} (${startTime})</td>
-                    <td class="text-sm text-gray-600 p-3">${booking.bookedBy_name || 'N/A'}</td>
-                    <td class="text-sm text-gray-600 p-3">${statusBadge}</td>
-                `;
-                tbody.appendChild(tr);
-            });
-        }
-        // ▲▲▲ TAMAT FUNGSI RENDER SENARAI KESELURUHAN ▲▲▲
-        
-        // FUNGSI LAIN DIKEKALKAN (Potong untuk menjimatkan ruang jawapan, tetapi ia dimasukkan dalam kod penuh)
-        function getBookingsForMonth(year, month) {
-            return allBookings.filter(b => {
-                if (!b.start || typeof b.start.toDate !== 'function') return false;
-                const bookingDate = b.start.toDate();
-                return bookingDate.getFullYear() === year && bookingDate.getMonth() === month;
-            });
-        }
-
-        function updateMonthlyStats(year, month) {
-            const monthNames = ["Januari", "Februari", "Mac", "April", "Mei", "Jun", "Julai", "Ogos", "September", "Oktober", "November", "Disember"];
-            document.getElementById('stats-title').textContent = `Statistik (${monthNames[month]} ${year})`;
-
-            const monthlyBookings = getBookingsForMonth(year, month);
-            
-            document.getElementById('monthly-total-count').textContent = monthlyBookings.length;
-
-            const breakdownList = document.getElementById('room-breakdown-list');
-            const roomCounts = {};
-            
-            Object.keys(roomDetails).forEach(roomName => {
-                roomCounts[roomName] = 0;
-            });
-            roomCounts["BILIK_TIDAK_DIKETAHUI"] = 0;
-
-            monthlyBookings.forEach(b => {
-                const roomName = b.room || "BILIK_TIDAK_DIKETAHUI";
-                
-                if (roomCounts.hasOwnProperty(roomName) || roomName === "BILIK_TIDAK_DIKETAHUI") {
-                    roomCounts[roomName] = (roomCounts[roomName] || 0) + 1;
-                } else {
-                    roomCounts[roomName] = (roomCounts[roomName] || 0) + 1;
-                }
-            });
-
-            breakdownList.innerHTML = ''; 
-            
-            if (monthlyBookings.length === 0) {
-                 breakdownList.innerHTML = '<p class="text-sm text-gray-500">Tiada tempahan untuk bulan ini.</p>';
-                 return;
-            }
-
-            Object.keys(roomCounts).forEach(roomName => {
-                const count = roomCounts[roomName];
-                if (count > 0) { 
-                    
-                    let shortName, iconHtml;
-
-                    if (roomName === "BILIK_TIDAK_DIKETAHUI") {
-                        shortName = "Tidak Diketahui (Data Lama)";
-                        iconHtml = '<span>❓</span>'; 
-                    } else {
-                        const details = roomDetails[roomName] || { icon: '<span>⚠️</span>', shortName: roomName };
-                        shortName = details.shortName;
-                        iconHtml = details.icon;
-                    }
-                    
-                    const html = `
-                        <div class="flex items-center justify-between gap-2 p-2 bg-white rounded-lg border">
-                            <div class="flex items-center gap-2">
-                                <span class="flex-shrink-0">${iconHtml}</span>
-                                <span class="text-sm font-medium text-gray-700">${shortName}</span>
-                            </div>
-                            <span class="text-sm font-bold text-gray-900 bg-gray-200 px-2 py-0.5 rounded-full">${count}</span>
-                        </div>
-                    `;
-                    breakdownList.insertAdjacentHTML('beforeend', html);
-                }
-            });
-        }
-
-        function renderCalendar(year, month) {
-            const calendarGrid = document.getElementById('calendar-grid');
-            const calendarHeader = document.getElementById('calendar-header');
-            calendarGrid.innerHTML = '';
-            
-            const monthNames = ["Januari", "Februari", "Mac", "April", "Mei", "Jun", "Julai", "Ogos", "September", "Oktober", "November", "Disember"];
-            calendarHeader.textContent = `${monthNames[month]} ${year}`.toUpperCase();
-
-            updateMonthlyStats(year, month);
-
-            const firstDayOfMonth = new Date(year, month, 1).getDay();
-            const daysInMonth = new Date(year, month + 1, 0).getDate();
-
-            for (let i = 0; i < firstDayOfMonth; i++) {
-                calendarGrid.insertAdjacentHTML('beforeend', '<div class="border rounded-md bg-gray-50"></div>');
-            }
-
-            for (let day = 1; day <= daysInMonth; day++) {
-                const date = new Date(year, month, day);
-                const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-
-                const bookingsOnThisDay = getBookingsForDate(date); 
-                const isToday = new Date().toDateString() === date.toDateString();
-                
-                let dayClasses = 'calendar-day border rounded-md p-2 transition-colors relative';
-                let eventHtml = '';
-                let indicatorsHtml = '';
-
-                if (isToday) dayClasses += ' is-today';
-                
-                if (bookingsOnThisDay.length > 0) {
-                    dayClasses += ' has-events'; 
-                    indicatorsHtml += `<div class="absolute top-1 right-1 bg-indigo-500 text-white text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full shadow" title="Tempahan Bilik">${bookingsOnThisDay.length}</div>`;
-                    
-                    eventHtml += bookingsOnThisDay.map(b => {
-                        const roomName = b.room || "TIADA DATA";
-                        let shortName = roomDetails[roomName]?.shortName || roomName;
-                        if (shortName === "TIADA DATA") shortName = "X";
-                        
-                        return `<div class="bg-indigo-100 text-indigo-800 text-xs rounded px-1 truncate">${shortName.toUpperCase()}</div>`
-                    }).join('');
-                }
-
-                const dayHtml = `
-                    <div class="${dayClasses}" data-date="${dateString}">
-                        ${indicatorsHtml}
-                        <div class="font-semibold text-gray-800">${day}</div>
-                        <div class="event-list mt-1 space-y-1 pr-1">${eventHtml}</div>
-                    </div>
-                `;
-                calendarGrid.insertAdjacentHTML('beforeend', dayHtml);
-            }
-            
-            calendarGrid.querySelectorAll('.has-events').forEach(el => {
-                el.addEventListener('click', (e) => {
-                    const target = e.currentTarget;
-                    const date = parseDateString(target.dataset.date);
-                    displayBookingsForDate(date, target);
-                });
-            });
-        }
-
-        function parseDateString(dateString) {
-            const parts = dateString.split('-');
-            return new Date(parts[0], parts[1] - 1, parts[2]);
-        }
-        
-        function formatTimeFromDate(dateObj) {
-            if (!dateObj || typeof dateObj.getHours !== 'function') return '';
-            const hour = dateObj.getHours();
-            const minute = String(dateObj.getMinutes()).padStart(2, '0');
-            const ampm = hour >= 12 ? 'ptg' : 'pagi';
-            let formattedHour = hour % 12;
-            if (formattedHour === 0) formattedHour = 12;
-            return `${formattedHour}:${minute} ${ampm}`;
-        }
-
-        function getBookingsForDate(date) {
-            const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-            
-            return allBookings.filter(b => {
-                if (!b.start || typeof b.start.toDate !== 'function') return false;
-
-                const startDate = b.start.toDate();
-                const endDate = b.end ? b.end.toDate() : startDate;
-                
-                const bookingStartDateOnly = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
-                const bookingEndDateOnly = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
-
-                return dateOnly >= bookingStartDateOnly && dateOnly <= bookingEndDateOnly;
-            });
-        }
-        
-        function displayTodaysBookings() {
-            const today = new Date();
-            const year = today.getFullYear();
-            const month = String(today.getMonth() + 1).padStart(2, '0');
-            const day = String(today.getDate()).padStart(2, '0');
-            const dateString = `${year}-${month}-${day}`;
-
-            const todayCell = document.querySelector(`.calendar-day[data-date="${dateString}"]`);
-            if (todayCell && todayCell.classList.contains('has-events')) {
-                displayBookingsForDate(today, todayCell);
-            } else {
-                 initializeRightPanel(); 
-            }
-        }
-
-        function displayBookingsForDate(date, element) {
-            if (selectedDateElement) {
-                selectedDateElement.classList.remove('selected');
-            }
-            selectedDateElement = element;
-            selectedDateElement.classList.add('selected');
-            
-            const programListContent = document.getElementById('program-list-content');
-            // Guna input carian kalendar
-            const searchTerm = document.getElementById('search-input').value.toLowerCase();
-            
-            const bookings = getBookingsForDate(date).filter(b => 
-                b.programName.toLowerCase().includes(searchTerm) || 
-                (b.room || '').toLowerCase().includes(searchTerm)
-            );
-            
-            let bookingsHtml = '';
-            if (bookings.length > 0) {
-                 bookingsHtml = `
-                    <h4 class="text-sm font-bold text-indigo-600 uppercase mb-2">Senarai Tempahan Bilik</h4>
-                    <div class="space-y-4">
-                ` + bookings.map(b => {
-                    const today = new Date();
-                    const endDate = b.end ? b.end.toDate() : b.start.toDate();
-                    const isPast = endDate < today;
-                    const titleStyle = isPast ? 'text-gray-500' : 'text-indigo-600';
-                    
-                    const roomName = b.room || "BILIK TIDAK DIKETAHUI";
-                    
-                    return `
-                    <div class="bg-white border border-gray-200 rounded-xl p-4 text-gray-800 transition-all hover:shadow-lg flex flex-col">
-                        <div class="flex-grow">
-                            <p class="font-bold text-md ${titleStyle}">${roomName.toUpperCase()}</p>
-                            <p class="text-sm ${titleStyle} -mt-1 mb-2">${b.programName.toUpperCase()}</p>
-                            
-                            <div class="space-y-2 mt-3 text-sm text-gray-500 border-l-2 border-indigo-200 pl-3">
-                                <p class="flex items-center">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2 text-gray-400 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd" /></svg>
-                                    <span>${b.bookedBy_name ? b.bookedBy_name.toUpperCase() : 'TIADA PENEMPAH'}</span>
-                                </p>
-                                <p class="flex items-center">
-                                   <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                   <span>${formatTimeFromDate(b.start.toDate())} - ${formatTimeFromDate(b.end.toDate())}</span>
-                                </p>
-                            </div>
-                        </div>
-                        <button onclick="promptIcVerification('${b.programKey}', '${b.bookedBy_ic}')" class="mt-4 w-full bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-300 transform hover:scale-105 disabled:transform-none" ${isPast ? 'disabled' : ''}>
-                            ${isPast ? 'TEMPAHAN LEPAS' : 'LIHAT BUTIRAN PROGRAM'}
-                        </button>
-                    </div>
-                `}).join('') + '</div>';
-            }
-            
-            const dateText = date.toDateString() === new Date().toDateString() ? 'HARI INI' : date.toLocaleDateString('ms-MY', { day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase();
-            document.getElementById('selected-date-text').textContent = dateText;
-            
-            if (bookings.length === 0) {
-                programListContent.innerHTML = `<div class="border-2 border-dashed border-gray-300 rounded-xl p-5 text-center text-gray-500 h-full flex flex-col justify-center items-center"><p class="mt-4 text-sm font-semibold">Tiada tempahan bilik ditemui untuk tarikh ini.</p></div>`;
-            } else {
-                programListContent.innerHTML = bookingsHtml;
-            }
-        }
-        
-        // ▼▼▼ FUNGSI RENDER SENARAI KESELURUHAN (TAB KEDUA) DENGAN SEMUA PENAPIS BARU ▼▼▼
-        function renderAllBookingsList() {
-            const tbody = document.getElementById('full-list-table-body');
-            const noDataEl = document.getElementById('no-list-data');
-            
-            // Dapatkan nilai penapis
             const filterDisplay = document.getElementById('list-display-filter').value;
             const filterMonth = document.getElementById('list-month-select').value;
             const filterYear = document.getElementById('list-year-select').value;
@@ -1160,755 +425,6 @@
 
             if (filterDisplay === 'month') {
                 // Ambil bulan dari filter Month (jika diset) atau Bulan Semasa (jika tidak diset)
-                const targetMonth = filterMonth !== "" ? parseInt(filterMonth, 10) : new Date().getMonth();
-                const targetYear = filterYear !== "" ? parseInt(filterYear, 10) : new Date().getFullYear();
-                
-                filterStartDate = new Date(targetYear, targetMonth, 1);
-                filterEndDate = new Date(targetYear, targetMonth + 1, 0); // Hari terakhir bulan
-                filterEndDate.setHours(23, 59, 59, 999);
-                
-            } else if (filterDisplay === 'week') {
-                const startOfWeek = new Date(new Date().setHours(0,0,0,0));
-                startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
-                
-                const endOfWeek = new Date(startOfWeek);
-                endOfWeek.setDate(startOfWeek.getDate() + 7);
-                endOfWeek.setHours(23, 59, 59, 999);
-                
-                filterStartDate = startOfWeek;
-                filterEndDate = endOfWeek;
-
-            } else if (filterDisplay === 'all') {
-                // Tiada julat masa utama, penapis Bulan/Tahun akan mengambil alih
-            }
-            
-            const filteredBookings = allBookings
-                .filter(b => {
-                    const startDateTime = b.start && b.start.toDate ? b.start.toDate() : null;
-                    if (!startDateTime) return false;
-
-                    // 1. Tapis mengikut Julat Masa (Minggu/Bulan)
-                    if (filterStartDate && filterEndDate) {
-                         const bookingEnd = b.end.toDate();
-                         // Perlu semak jika julat tempahan bertindih dengan julat filter
-                         if (bookingEnd < filterStartDate || startDateTime > filterEndDate) {
-                            return false;
-                         }
-                    }
-
-                    // 2. Penapis Bulan/Tahun Tambahan (Berkuatkuasa untuk filterDisplay 'all' atau untuk menyaring dalam julat 'month'/'week' jika diset)
-                    if (filterDisplay === 'all' || filterDisplay === 'week') {
-                        // Tapis Bulan dan Tahun hanya jika penapis display bukan 'month' (kerana 'month' sudah menapis tarikh penuh)
-                        if (filterMonth !== "" && startDateTime.getMonth() !== parseInt(filterMonth, 10)) {
-                            return false;
-                        }
-                        if (filterYear !== "" && startDateTime.getFullYear() !== parseInt(filterYear, 10)) {
-                            return false;
-                        }
-                    }
-                    
-                    // 3. Penapis Bilik
-                    if (filterRoom !== "" && b.room !== filterRoom) {
-                        return false;
-                    }
-
-                    // 4. Penapis Carian
-                    if (filterSearch !== "") {
-                        const programName = b.programName || '';
-                        const bookedByName = b.bookedBy_name || '';
-                        if (!programName.toLowerCase().includes(filterSearch) && !bookedByName.toLowerCase().includes(filterSearch)) {
-                            return false;
-                        }
-                    }
-
-                    return true;
-                });
-            
-            tbody.innerHTML = ''; 
-
-            if (filteredBookings.length === 0) {
-                noDataEl.classList.remove('hidden');
-                return;
-            } else {
-                noDataEl.classList.add('hidden');
-            }
-
-            // Susun mengikut tarikh mula (terbaru dahulu)
-            const sortedBookings = filteredBookings.sort((a, b) => {
-                const dateA = a.start && a.start.toDate ? a.start.toDate() : new Date(0);
-                const dateB = b.start && b.start.toDate ? b.start.toDate() : new Date(0);
-                return dateB - dateA; 
-            });
-
-
-            sortedBookings.forEach(booking => {
-                const startDateTime = booking.start && booking.start.toDate ? booking.start.toDate() : null;
-                const endDateTime = booking.end && booking.end.toDate ? booking.end.toDate() : null;
-
-                const roomName = booking.room || 'Tidak Diketahui';
-                const startDate = startDateTime ? startDateTime.toLocaleDateString('ms-MY', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A';
-                const startTime = startDateTime ? formatTimeFromDate(startDateTime) : 'N/A';
-                
-                // Tentukan status (Sudah Lepas / Sedang Berlangsung / Akan Datang)
-                let statusBadge;
-                if (endDateTime < new Date()) { // Menggunakan new Date() untuk semakan waktu sebenar
-                    statusBadge = `<span class="inline-flex items-center rounded-md bg-red-50 px-2 py-1 text-xs font-medium text-red-700 ring-1 ring-inset ring-red-600/20">Sudah Lepas</span>`;
-                } else if (startDateTime <= new Date() && endDateTime >= new Date()) {
-                    statusBadge = `<span class="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">Sedang Berlangsung</span>`;
-                } else {
-                    statusBadge = `<span class="inline-flex items-center rounded-md bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700 ring-1 ring-inset ring-indigo-600/20">Akan Datang</span>`;
-                }
-                
-                const tr = document.createElement('tr');
-                tr.className = 'hover:bg-gray-50';
-                tr.innerHTML = `
-                    <td class="text-sm font-medium text-gray-900 p-3">${roomName}</td>
-                    <td class="text-sm text-gray-700 p-3">${booking.programName || 'N/A'}</td>
-                    <td class="text-sm text-gray-600 p-3">${startDate} (${startTime})</td>
-                    <td class="text-sm text-gray-600 p-3">${booking.bookedBy_name || 'N/A'}</td>
-                    <td class="text-sm text-gray-600 p-3">${statusBadge}</td>
-                `;
-                tbody.appendChild(tr);
-            });
-        }
-        // ▲▲▲ TAMAT FUNGSI RENDER SENARAI KESELURUHAN ▲▲▲
-        
-        // FUNGSI LAIN DIKEKALKAN 
-        function getBookingsForMonth(year, month) {
-            return allBookings.filter(b => {
-                if (!b.start || typeof b.start.toDate !== 'function') return false;
-                const bookingDate = b.start.toDate();
-                return bookingDate.getFullYear() === year && bookingDate.getMonth() === month;
-            });
-        }
-
-        function updateMonthlyStats(year, month) {
-            const monthNames = ["Januari", "Februari", "Mac", "April", "Mei", "Jun", "Julai", "Ogos", "September", "Oktober", "November", "Disember"];
-            document.getElementById('stats-title').textContent = `Statistik (${monthNames[month]} ${year})`;
-
-            const monthlyBookings = getBookingsForMonth(year, month);
-            
-            document.getElementById('monthly-total-count').textContent = monthlyBookings.length;
-
-            const breakdownList = document.getElementById('room-breakdown-list');
-            const roomCounts = {};
-            
-            Object.keys(roomDetails).forEach(roomName => {
-                roomCounts[roomName] = 0;
-            });
-            roomCounts["BILIK_TIDAK_DIKETAHUI"] = 0;
-
-            monthlyBookings.forEach(b => {
-                const roomName = b.room || "BILIK_TIDAK_DIKETAHUI";
-                
-                if (roomCounts.hasOwnProperty(roomName) || roomName === "BILIK_TIDAK_DIKETAHUI") {
-                    roomCounts[roomName] = (roomCounts[roomName] || 0) + 1;
-                } else {
-                    roomCounts[roomName] = (roomCounts[roomName] || 0) + 1;
-                }
-            });
-
-            breakdownList.innerHTML = ''; 
-            
-            if (monthlyBookings.length === 0) {
-                 breakdownList.innerHTML = '<p class="text-sm text-gray-500">Tiada tempahan untuk bulan ini.</p>';
-                 return;
-            }
-
-            Object.keys(roomCounts).forEach(roomName => {
-                const count = roomCounts[roomName];
-                if (count > 0) { 
-                    
-                    let shortName, iconHtml;
-
-                    if (roomName === "BILIK_TIDAK_DIKETAHUI") {
-                        shortName = "Tidak Diketahui (Data Lama)";
-                        iconHtml = '<span>❓</span>'; 
-                    } else {
-                        const details = roomDetails[roomName] || { icon: '<span>⚠️</span>', shortName: roomName };
-                        shortName = details.shortName;
-                        iconHtml = details.icon;
-                    }
-                    
-                    const html = `
-                        <div class="flex items-center justify-between gap-2 p-2 bg-white rounded-lg border">
-                            <div class="flex items-center gap-2">
-                                <span class="flex-shrink-0">${iconHtml}</span>
-                                <span class="text-sm font-medium text-gray-700">${shortName}</span>
-                            </div>
-                            <span class="text-sm font-bold text-gray-900 bg-gray-200 px-2 py-0.5 rounded-full">${count}</span>
-                        </div>
-                    `;
-                    breakdownList.insertAdjacentHTML('beforeend', html);
-                }
-            });
-        }
-
-        function renderCalendar(year, month) {
-            const calendarGrid = document.getElementById('calendar-grid');
-            const calendarHeader = document.getElementById('calendar-header');
-            calendarGrid.innerHTML = '';
-            
-            const monthNames = ["Januari", "Februari", "Mac", "April", "Mei", "Jun", "Julai", "Ogos", "September", "Oktober", "November", "Disember"];
-            calendarHeader.textContent = `${monthNames[month]} ${year}`.toUpperCase();
-
-            updateMonthlyStats(year, month);
-
-            const firstDayOfMonth = new Date(year, month, 1).getDay();
-            const daysInMonth = new Date(year, month + 1, 0).getDate();
-
-            for (let i = 0; i < firstDayOfMonth; i++) {
-                calendarGrid.insertAdjacentHTML('beforeend', '<div class="border rounded-md bg-gray-50"></div>');
-            }
-
-            for (let day = 1; day <= daysInMonth; day++) {
-                const date = new Date(year, month, day);
-                const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-
-                const bookingsOnThisDay = getBookingsForDate(date); 
-                const isToday = new Date().toDateString() === date.toDateString();
-                
-                let dayClasses = 'calendar-day border rounded-md p-2 transition-colors relative';
-                let eventHtml = '';
-                let indicatorsHtml = '';
-
-                if (isToday) dayClasses += ' is-today';
-                
-                if (bookingsOnThisDay.length > 0) {
-                    dayClasses += ' has-events'; 
-                    indicatorsHtml += `<div class="absolute top-1 right-1 bg-indigo-500 text-white text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full shadow" title="Tempahan Bilik">${bookingsOnThisDay.length}</div>`;
-                    
-                    eventHtml += bookingsOnThisDay.map(b => {
-                        const roomName = b.room || "TIADA DATA";
-                        let shortName = roomDetails[roomName]?.shortName || roomName;
-                        if (shortName === "TIADA DATA") shortName = "X";
-                        
-                        return `<div class="bg-indigo-100 text-indigo-800 text-xs rounded px-1 truncate">${shortName.toUpperCase()}</div>`
-                    }).join('');
-                }
-
-                const dayHtml = `
-                    <div class="${dayClasses}" data-date="${dateString}">
-                        ${indicatorsHtml}
-                        <div class="font-semibold text-gray-800">${day}</div>
-                        <div class="event-list mt-1 space-y-1 pr-1">${eventHtml}</div>
-                    </div>
-                `;
-                calendarGrid.insertAdjacentHTML('beforeend', dayHtml);
-            }
-            
-            calendarGrid.querySelectorAll('.has-events').forEach(el => {
-                el.addEventListener('click', (e) => {
-                    const target = e.currentTarget;
-                    const date = parseDateString(target.dataset.date);
-                    displayBookingsForDate(date, target);
-                });
-            });
-        }
-
-        function parseDateString(dateString) {
-            const parts = dateString.split('-');
-            return new Date(parts[0], parts[1] - 1, parts[2]);
-        }
-        
-        function formatTimeFromDate(dateObj) {
-            if (!dateObj || typeof dateObj.getHours !== 'function') return '';
-            const hour = dateObj.getHours();
-            const minute = String(dateObj.getMinutes()).padStart(2, '0');
-            const ampm = hour >= 12 ? 'ptg' : 'pagi';
-            let formattedHour = hour % 12;
-            if (formattedHour === 0) formattedHour = 12;
-            return `${formattedHour}:${minute} ${ampm}`;
-        }
-
-        function getBookingsForDate(date) {
-            const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-            
-            return allBookings.filter(b => {
-                if (!b.start || typeof b.start.toDate !== 'function') return false;
-
-                const startDate = b.start.toDate();
-                const endDate = b.end ? b.end.toDate() : startDate;
-                
-                const bookingStartDateOnly = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
-                const bookingEndDateOnly = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
-
-                return dateOnly >= bookingStartDateOnly && dateOnly <= bookingEndDateOnly;
-            });
-        }
-        
-        function displayTodaysBookings() {
-            const today = new Date();
-            const year = today.getFullYear();
-            const month = String(today.getMonth() + 1).padStart(2, '0');
-            const day = String(today.getDate()).padStart(2, '0');
-            const dateString = `${year}-${month}-${day}`;
-
-            const todayCell = document.querySelector(`.calendar-day[data-date="${dateString}"]`);
-            if (todayCell && todayCell.classList.contains('has-events')) {
-                displayBookingsForDate(today, todayCell);
-            } else {
-                 initializeRightPanel(); 
-            }
-        }
-
-        function displayBookingsForDate(date, element) {
-            if (selectedDateElement) {
-                selectedDateElement.classList.remove('selected');
-            }
-            selectedDateElement = element;
-            selectedDateElement.classList.add('selected');
-            
-            const programListContent = document.getElementById('program-list-content');
-            // Guna input carian kalendar
-            const searchTerm = document.getElementById('search-input').value.toLowerCase();
-            
-            const bookings = getBookingsForDate(date).filter(b => 
-                b.programName.toLowerCase().includes(searchTerm) || 
-                (b.room || '').toLowerCase().includes(searchTerm)
-            );
-            
-            let bookingsHtml = '';
-            if (bookings.length > 0) {
-                 bookingsHtml = `
-                    <h4 class="text-sm font-bold text-indigo-600 uppercase mb-2">Senarai Tempahan Bilik</h4>
-                    <div class="space-y-4">
-                ` + bookings.map(b => {
-                    const today = new Date();
-                    const endDate = b.end ? b.end.toDate() : b.start.toDate();
-                    const isPast = endDate < today;
-                    const titleStyle = isPast ? 'text-gray-500' : 'text-indigo-600';
-                    
-                    const roomName = b.room || "BILIK TIDAK DIKETAHUI";
-                    
-                    return `
-                    <div class="bg-white border border-gray-200 rounded-xl p-4 text-gray-800 transition-all hover:shadow-lg flex flex-col">
-                        <div class="flex-grow">
-                            <p class="font-bold text-md ${titleStyle}">${roomName.toUpperCase()}</p>
-                            <p class="text-sm ${titleStyle} -mt-1 mb-2">${b.programName.toUpperCase()}</p>
-                            
-                            <div class="space-y-2 mt-3 text-sm text-gray-500 border-l-2 border-indigo-200 pl-3">
-                                <p class="flex items-center">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2 text-gray-400 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd" /></svg>
-                                    <span>${b.bookedBy_name ? b.bookedBy_name.toUpperCase() : 'TIADA PENEMPAH'}</span>
-                                </p>
-                                <p class="flex items-center">
-                                   <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                   <span>${formatTimeFromDate(b.start.toDate())} - ${formatTimeFromDate(b.end.toDate())}</span>
-                                </p>
-                            </div>
-                        </div>
-                        <button onclick="promptIcVerification('${b.programKey}', '${b.bookedBy_ic}')" class="mt-4 w-full bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-300 transform hover:scale-105 disabled:transform-none" ${isPast ? 'disabled' : ''}>
-                            ${isPast ? 'TEMPAHAN LEPAS' : 'LIHAT BUTIRAN PROGRAM'}
-                        </button>
-                    </div>
-                `}).join('') + '</div>';
-            }
-            
-            const dateText = date.toDateString() === new Date().toDateString() ? 'HARI INI' : date.toLocaleDateString('ms-MY', { day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase();
-            document.getElementById('selected-date-text').textContent = dateText;
-            
-            if (bookings.length === 0) {
-                programListContent.innerHTML = `<div class="border-2 border-dashed border-gray-300 rounded-xl p-5 text-center text-gray-500 h-full flex flex-col justify-center items-center"><p class="mt-4 text-sm font-semibold">Tiada tempahan bilik ditemui untuk tarikh ini.</p></div>`;
-            } else {
-                programListContent.innerHTML = bookingsHtml;
-            }
-        }
-        
-        // ▼▼▼ FUNGSI RENDER SENARAI KESELURUHAN (TAB KEDUA) DENGAN SEMUA PENAPIS BARU ▼▼▼
-        function renderAllBookingsList() {
-            const tbody = document.getElementById('full-list-table-body');
-            const noDataEl = document.getElementById('no-list-data');
-            
-            // Dapatkan nilai penapis
-            const filterDisplay = document.getElementById('list-display-filter').value;
-            const filterMonth = document.getElementById('list-month-select').value;
-            const filterYear = document.getElementById('list-year-select').value;
-            const filterRoom = document.getElementById('list-room-select').value;
-            const filterSearch = document.getElementById('list-search-input').value.toLowerCase();
-            
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-
-            let filterStartDate = null;
-            let filterEndDate = null;
-
-            if (filterDisplay === 'month') {
-                // Ambil bulan dari filter Month (jika diset) atau Bulan Semasa (jika tidak diset)
-                const targetMonth = filterMonth !== "" ? parseInt(filterMonth, 10) : new Date().getMonth();
-                const targetYear = filterYear !== "" ? parseInt(filterYear, 10) : new Date().getFullYear();
-                
-                filterStartDate = new Date(targetYear, targetMonth, 1);
-                filterEndDate = new Date(targetYear, targetMonth + 1, 0); // Hari terakhir bulan
-                filterEndDate.setHours(23, 59, 59, 999);
-                
-            } else if (filterDisplay === 'week') {
-                const startOfWeek = new Date(new Date().setHours(0,0,0,0));
-                startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
-                
-                const endOfWeek = new Date(startOfWeek);
-                endOfWeek.setDate(startOfWeek.getDate() + 7);
-                endOfWeek.setHours(23, 59, 59, 999);
-                
-                filterStartDate = startOfWeek;
-                filterEndDate = endOfWeek;
-
-            } else if (filterDisplay === 'all') {
-                // Tiada julat masa utama, penapis Bulan/Tahun akan mengambil alih
-            }
-            
-            const filteredBookings = allBookings
-                .filter(b => {
-                    const startDateTime = b.start && b.start.toDate ? b.start.toDate() : null;
-                    if (!startDateTime) return false;
-
-                    // 1. Tapis mengikut Julat Masa (Minggu/Bulan)
-                    if (filterStartDate && filterEndDate) {
-                         const bookingEnd = b.end.toDate();
-                         // Semak jika julat tempahan bertindih dengan julat filter
-                         if (bookingEnd < filterStartDate || startDateTime > filterEndDate) {
-                            return false;
-                         }
-                    }
-
-                    // 2. Penapis Bulan/Tahun Tambahan (Berkuatkuasa untuk filterDisplay 'all' atau untuk menyaring dalam julat 'week')
-                    // JIKA filterDisplay = 'month', penapis ini diabaikan kerana ia telah ditapis di atas.
-                    if (filterDisplay === 'all' || filterDisplay === 'week') {
-                        if (filterMonth !== "" && startDateTime.getMonth() !== parseInt(filterMonth, 10)) {
-                            return false;
-                        }
-                        if (filterYear !== "" && startDateTime.getFullYear() !== parseInt(filterYear, 10)) {
-                            return false;
-                        }
-                    }
-                    
-                    // 3. Penapis Bilik
-                    if (filterRoom !== "" && b.room !== filterRoom) {
-                        return false;
-                    }
-
-                    // 4. Penapis Carian
-                    if (filterSearch !== "") {
-                        const programName = b.programName || '';
-                        const bookedByName = b.bookedBy_name || '';
-                        if (!programName.toLowerCase().includes(filterSearch) && !bookedByName.toLowerCase().includes(filterSearch)) {
-                            return false;
-                        }
-                    }
-
-                    return true;
-                });
-            
-            tbody.innerHTML = ''; 
-
-            if (filteredBookings.length === 0) {
-                noDataEl.classList.remove('hidden');
-                return;
-            } else {
-                noDataEl.classList.add('hidden');
-            }
-
-            // Susun mengikut tarikh mula (terbaru dahulu)
-            const sortedBookings = filteredBookings.sort((a, b) => {
-                const dateA = a.start && a.start.toDate ? a.start.toDate() : new Date(0);
-                const dateB = b.start && b.start.toDate ? b.start.toDate() : new Date(0);
-                return dateB - dateA; 
-            });
-
-
-            sortedBookings.forEach(booking => {
-                const startDateTime = booking.start && booking.start.toDate ? booking.start.toDate() : null;
-                const endDateTime = booking.end && booking.end.toDate ? booking.end.toDate() : null;
-
-                const roomName = booking.room || 'Tidak Diketahui';
-                const startDate = startDateTime ? startDateTime.toLocaleDateString('ms-MY', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A';
-                const startTime = startDateTime ? formatTimeFromDate(startDateTime) : 'N/A';
-                
-                // Tentukan status (Sudah Lepas / Sedang Berlangsung / Akan Datang)
-                let statusBadge;
-                if (endDateTime < new Date()) { // Menggunakan new Date() untuk semakan waktu sebenar
-                    statusBadge = `<span class="inline-flex items-center rounded-md bg-red-50 px-2 py-1 text-xs font-medium text-red-700 ring-1 ring-inset ring-red-600/20">Sudah Lepas</span>`;
-                } else if (startDateTime <= new Date() && endDateTime >= new Date()) {
-                    statusBadge = `<span class="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">Sedang Berlangsung</span>`;
-                } else {
-                    statusBadge = `<span class="inline-flex items-center rounded-md bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700 ring-1 ring-inset ring-indigo-600/20">Akan Datang</span>`;
-                }
-                
-                const tr = document.createElement('tr');
-                tr.className = 'hover:bg-gray-50';
-                tr.innerHTML = `
-                    <td class="text-sm font-medium text-gray-900 p-3">${roomName}</td>
-                    <td class="text-sm text-gray-700 p-3">${booking.programName || 'N/A'}</td>
-                    <td class="text-sm text-gray-600 p-3">${startDate} (${startTime})</td>
-                    <td class="text-sm text-gray-600 p-3">${booking.bookedBy_name || 'N/A'}</td>
-                    <td class="text-sm text-gray-600 p-3">${statusBadge}</td>
-                `;
-                tbody.appendChild(tr);
-            });
-        }
-        // ▲▲▲ TAMAT FUNGSI RENDER SENARAI KESELURUHAN ▲▲▲
-        
-        // FUNGSI LAIN DIKEKALKAN 
-        function getBookingsForMonth(year, month) {
-            return allBookings.filter(b => {
-                if (!b.start || typeof b.start.toDate !== 'function') return false;
-                const bookingDate = b.start.toDate();
-                return bookingDate.getFullYear() === year && bookingDate.getMonth() === month;
-            });
-        }
-
-        function updateMonthlyStats(year, month) {
-            const monthNames = ["Januari", "Februari", "Mac", "April", "Mei", "Jun", "Julai", "Ogos", "September", "Oktober", "November", "Disember"];
-            document.getElementById('stats-title').textContent = `Statistik (${monthNames[month]} ${year})`;
-
-            const monthlyBookings = getBookingsForMonth(year, month);
-            
-            document.getElementById('monthly-total-count').textContent = monthlyBookings.length;
-
-            const breakdownList = document.getElementById('room-breakdown-list');
-            const roomCounts = {};
-            
-            Object.keys(roomDetails).forEach(roomName => {
-                roomCounts[roomName] = 0;
-            });
-            roomCounts["BILIK_TIDAK_DIKETAHUI"] = 0;
-
-            monthlyBookings.forEach(b => {
-                const roomName = b.room || "BILIK_TIDAK_DIKETAHUI";
-                
-                if (roomCounts.hasOwnProperty(roomName) || roomName === "BILIK_TIDAK_DIKETAHUI") {
-                    roomCounts[roomName] = (roomCounts[roomName] || 0) + 1;
-                } else {
-                    roomCounts[roomName] = (roomCounts[roomName] || 0) + 1;
-                }
-            });
-
-            breakdownList.innerHTML = ''; 
-            
-            if (monthlyBookings.length === 0) {
-                 breakdownList.innerHTML = '<p class="text-sm text-gray-500">Tiada tempahan untuk bulan ini.</p>';
-                 return;
-            }
-
-            Object.keys(roomCounts).forEach(roomName => {
-                const count = roomCounts[roomName];
-                if (count > 0) { 
-                    
-                    let shortName, iconHtml;
-
-                    if (roomName === "BILIK_TIDAK_DIKETAHUI") {
-                        shortName = "Tidak Diketahui (Data Lama)";
-                        iconHtml = '<span>❓</span>'; 
-                    } else {
-                        const details = roomDetails[roomName] || { icon: '<span>⚠️</span>', shortName: roomName };
-                        shortName = details.shortName;
-                        iconHtml = details.icon;
-                    }
-                    
-                    const html = `
-                        <div class="flex items-center justify-between gap-2 p-2 bg-white rounded-lg border">
-                            <div class="flex items-center gap-2">
-                                <span class="flex-shrink-0">${iconHtml}</span>
-                                <span class="text-sm font-medium text-gray-700">${shortName}</span>
-                            </div>
-                            <span class="text-sm font-bold text-gray-900 bg-gray-200 px-2 py-0.5 rounded-full">${count}</span>
-                        </div>
-                    `;
-                    breakdownList.insertAdjacentHTML('beforeend', html);
-                }
-            });
-        }
-
-        function renderCalendar(year, month) {
-            const calendarGrid = document.getElementById('calendar-grid');
-            const calendarHeader = document.getElementById('calendar-header');
-            calendarGrid.innerHTML = '';
-            
-            const monthNames = ["Januari", "Februari", "Mac", "April", "Mei", "Jun", "Julai", "Ogos", "September", "Oktober", "November", "Disember"];
-            calendarHeader.textContent = `${monthNames[month]} ${year}`.toUpperCase();
-
-            updateMonthlyStats(year, month);
-
-            const firstDayOfMonth = new Date(year, month, 1).getDay();
-            const daysInMonth = new Date(year, month + 1, 0).getDate();
-
-            for (let i = 0; i < firstDayOfMonth; i++) {
-                calendarGrid.insertAdjacentHTML('beforeend', '<div class="border rounded-md bg-gray-50"></div>');
-            }
-
-            for (let day = 1; day <= daysInMonth; day++) {
-                const date = new Date(year, month, day);
-                const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-
-                const bookingsOnThisDay = getBookingsForDate(date); 
-                const isToday = new Date().toDateString() === date.toDateString();
-                
-                let dayClasses = 'calendar-day border rounded-md p-2 transition-colors relative';
-                let eventHtml = '';
-                let indicatorsHtml = '';
-
-                if (isToday) dayClasses += ' is-today';
-                
-                if (bookingsOnThisDay.length > 0) {
-                    dayClasses += ' has-events'; 
-                    indicatorsHtml += `<div class="absolute top-1 right-1 bg-indigo-500 text-white text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full shadow" title="Tempahan Bilik">${bookingsOnThisDay.length}</div>`;
-                    
-                    eventHtml += bookingsOnThisDay.map(b => {
-                        const roomName = b.room || "TIADA DATA";
-                        let shortName = roomDetails[roomName]?.shortName || roomName;
-                        if (shortName === "TIADA DATA") shortName = "X";
-                        
-                        return `<div class="bg-indigo-100 text-indigo-800 text-xs rounded px-1 truncate">${shortName.toUpperCase()}</div>`
-                    }).join('');
-                }
-
-                const dayHtml = `
-                    <div class="${dayClasses}" data-date="${dateString}">
-                        ${indicatorsHtml}
-                        <div class="font-semibold text-gray-800">${day}</div>
-                        <div class="event-list mt-1 space-y-1 pr-1">${eventHtml}</div>
-                    </div>
-                `;
-                calendarGrid.insertAdjacentHTML('beforeend', dayHtml);
-            }
-            
-            calendarGrid.querySelectorAll('.has-events').forEach(el => {
-                el.addEventListener('click', (e) => {
-                    const target = e.currentTarget;
-                    const date = parseDateString(target.dataset.date);
-                    displayBookingsForDate(date, target);
-                });
-            });
-        }
-
-        function parseDateString(dateString) {
-            const parts = dateString.split('-');
-            return new Date(parts[0], parts[1] - 1, parts[2]);
-        }
-        
-        function formatTimeFromDate(dateObj) {
-            if (!dateObj || typeof dateObj.getHours !== 'function') return '';
-            const hour = dateObj.getHours();
-            const minute = String(dateObj.getMinutes()).padStart(2, '0');
-            const ampm = hour >= 12 ? 'ptg' : 'pagi';
-            let formattedHour = hour % 12;
-            if (formattedHour === 0) formattedHour = 12;
-            return `${formattedHour}:${minute} ${ampm}`;
-        }
-
-        function getBookingsForDate(date) {
-            const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-            
-            return allBookings.filter(b => {
-                if (!b.start || typeof b.start.toDate !== 'function') return false;
-
-                const startDate = b.start.toDate();
-                const endDate = b.end ? b.end.toDate() : startDate;
-                
-                const bookingStartDateOnly = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
-                const bookingEndDateOnly = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
-
-                return dateOnly >= bookingStartDateOnly && dateOnly <= bookingEndDateOnly;
-            });
-        }
-        
-        function displayTodaysBookings() {
-            const today = new Date();
-            const year = today.getFullYear();
-            const month = String(today.getMonth() + 1).padStart(2, '0');
-            const day = String(today.getDate()).padStart(2, '0');
-            const dateString = `${year}-${month}-${day}`;
-
-            const todayCell = document.querySelector(`.calendar-day[data-date="${dateString}"]`);
-            if (todayCell && todayCell.classList.contains('has-events')) {
-                displayBookingsForDate(today, todayCell);
-            } else {
-                 initializeRightPanel(); 
-            }
-        }
-
-        function displayBookingsForDate(date, element) {
-            if (selectedDateElement) {
-                selectedDateElement.classList.remove('selected');
-            }
-            selectedDateElement = element;
-            selectedDateElement.classList.add('selected');
-            
-            const programListContent = document.getElementById('program-list-content');
-            // Guna input carian kalendar
-            const searchTerm = document.getElementById('search-input').value.toLowerCase();
-            
-            const bookings = getBookingsForDate(date).filter(b => 
-                b.programName.toLowerCase().includes(searchTerm) || 
-                (b.room || '').toLowerCase().includes(searchTerm)
-            );
-            
-            let bookingsHtml = '';
-            if (bookings.length > 0) {
-                 bookingsHtml = `
-                    <h4 class="text-sm font-bold text-indigo-600 uppercase mb-2">Senarai Tempahan Bilik</h4>
-                    <div class="space-y-4">
-                ` + bookings.map(b => {
-                    const today = new Date();
-                    const endDate = b.end ? b.end.toDate() : b.start.toDate();
-                    const isPast = endDate < today;
-                    const titleStyle = isPast ? 'text-gray-500' : 'text-indigo-600';
-                    
-                    const roomName = b.room || "BILIK TIDAK DIKETAHUI";
-                    
-                    return `
-                    <div class="bg-white border border-gray-200 rounded-xl p-4 text-gray-800 transition-all hover:shadow-lg flex flex-col">
-                        <div class="flex-grow">
-                            <p class="font-bold text-md ${titleStyle}">${roomName.toUpperCase()}</p>
-                            <p class="text-sm ${titleStyle} -mt-1 mb-2">${b.programName.toUpperCase()}</p>
-                            
-                            <div class="space-y-2 mt-3 text-sm text-gray-500 border-l-2 border-indigo-200 pl-3">
-                                <p class="flex items-center">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2 text-gray-400 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd" /></svg>
-                                    <span>${b.bookedBy_name ? b.bookedBy_name.toUpperCase() : 'TIADA PENEMPAH'}</span>
-                                </p>
-                                <p class="flex items-center">
-                                   <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                   <span>${formatTimeFromDate(b.start.toDate())} - ${formatTimeFromDate(b.end.toDate())}</span>
-                                </p>
-                            </div>
-                        </div>
-                        <button onclick="promptIcVerification('${b.programKey}', '${b.bookedBy_ic}')" class="mt-4 w-full bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-300 transform hover:scale-105 disabled:transform-none" ${isPast ? 'disabled' : ''}>
-                            ${isPast ? 'TEMPAHAN LEPAS' : 'LIHAT BUTIRAN PROGRAM'}
-                        </button>
-                    </div>
-                `}).join('') + '</div>';
-            }
-            
-            const dateText = date.toDateString() === new Date().toDateString() ? 'HARI INI' : date.toLocaleDateString('ms-MY', { day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase();
-            document.getElementById('selected-date-text').textContent = dateText;
-            
-            if (bookings.length === 0) {
-                programListContent.innerHTML = `<div class="border-2 border-dashed border-gray-300 rounded-xl p-5 text-center text-gray-500 h-full flex flex-col justify-center items-center"><p class="mt-4 text-sm font-semibold">Tiada tempahan bilik ditemui untuk tarikh ini.</p></div>`;
-            } else {
-                programListContent.innerHTML = bookingsHtml;
-            }
-        }
-        
-        // ▼▼▼ FUNGSI RENDER SENARAI KESELURUHAN (TAB KEDUA) DENGAN SEMUA PENAPIS BARU ▼▼▼
-        function renderAllBookingsList() {
-            const tbody = document.getElementById('full-list-table-body');
-            const noDataEl = document.getElementById('no-list-data');
-            
-            // Dapatkan nilai penapis
-            const filterDisplay = document.getElementById('list-display-filter').value;
-            const filterMonth = document.getElementById('list-month-select').value;
-            const filterYear = document.getElementById('list-year-select').value;
-            const filterRoom = document.getElementById('list-room-select').value;
-            const filterSearch = document.getElementById('list-search-input').value.toLowerCase();
-            
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-
-            let filterStartDate = null;
-            let filterEndDate = null;
-
-            if (filterDisplay === 'month') {
                 const targetMonth = filterMonth !== "" ? parseInt(filterMonth, 10) : new Date().getMonth();
                 const targetYear = filterYear !== "" ? parseInt(filterYear, 10) : new Date().getFullYear();
                 
@@ -1993,13 +509,21 @@
                 const endDateTime = booking.end && booking.end.toDate ? booking.end.toDate() : null;
 
                 const roomName = booking.room || 'Tidak Diketahui';
+                const programName = booking.programName || 'N/A';
+                const bookedByName = booking.bookedBy_name || 'N/A';
+
                 const startDate = startDateTime ? startDateTime.toLocaleDateString('ms-MY', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A';
                 const startTime = startDateTime ? formatTimeFromDate(startDateTime) : 'N/A';
+                const endTime = endDateTime ? formatTimeFromDate(endDateTime) : 'N/A';
                 
                 // Tentukan status (Sudah Lepas / Sedang Berlangsung / Akan Datang)
+                const isPast = endDateTime < new Date();
                 let statusBadge;
-                if (endDateTime < new Date()) { // Menggunakan new Date() untuk semakan waktu sebenar
-                    statusBadge = `<span class="inline-flex items-center rounded-md bg-red-50 px-2 py-1 text-xs font-medium text-red-700 ring-1 ring-inset ring-red-600/20">Sudah Lepas</span>`;
+                let rowClass = 'hover:bg-gray-50'; // Kelas lalai
+                
+                if (isPast) {
+                    statusBadge = `<span class="inline-flex items-center rounded-md bg-gray-200 px-2 py-1 text-xs font-medium text-gray-700 ring-1 ring-inset ring-gray-300">Sudah Lepas</span>`;
+                    rowClass = 'bg-gray-100 text-gray-500 hover:bg-gray-200'; // Warna kelabu untuk row
                 } else if (startDateTime <= new Date() && endDateTime >= new Date()) {
                     statusBadge = `<span class="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">Sedang Berlangsung</span>`;
                 } else {
@@ -2007,12 +531,17 @@
                 }
                 
                 const tr = document.createElement('tr');
-                tr.className = 'hover:bg-gray-50';
+                tr.className = rowClass; // Guna kelas yang ditentukan
                 tr.innerHTML = `
-                    <td class="text-sm font-medium text-gray-900 p-3">${roomName}</td>
-                    <td class="text-sm text-gray-700 p-3">${booking.programName || 'N/A'}</td>
-                    <td class="text-sm text-gray-600 p-3">${startDate} (${startTime})</td>
-                    <td class="text-sm text-gray-600 p-3">${booking.bookedBy_name || 'N/A'}</td>
+                    <td class="text-sm font-medium p-3">
+                        <span class="font-bold block">${startDate}</span>
+                        <span class="text-xs text-gray-600 block">${startTime} - ${endTime}</span>
+                    </td>
+                    <td class="text-sm p-3">
+                        <span class="font-medium block">${programName}</span>
+                        <span class="text-xs text-gray-600 block">(${bookedByName})</span>
+                    </td>
+                    <td class="text-sm p-3">${roomName}</td>
                     <td class="text-sm text-gray-600 p-3">${statusBadge}</td>
                 `;
                 tbody.appendChild(tr);
@@ -2261,36 +790,454 @@
                 programListContent.innerHTML = bookingsHtml;
             }
         }
-
-        window.promptIcVerification = (programId, penyelarasIc) => {
-            const modal = document.getElementById('ic-verify-modal');
-            modal.classList.remove('hidden');
-            document.getElementById('verify-program-id').value = programId;
-            document.getElementById('verify-penyelaras-ic').value = penyelarasIc;
-            document.getElementById('ic-input').value = '';
-            document.getElementById('verify-error').classList.add('hidden');
-        };
-
-        window.handleVerification = () => {
-            const programId = document.getElementById('verify-program-id').value;
-            const correctIc = document.getElementById('verify-penyelaras-ic').value;
-            const enteredIc = document.getElementById('ic-input').value.trim();
-
-            if (enteredIc === correctIc) {
-                window.location.href = `program.html?kod=${programId}`;
-            } else {
-                document.getElementById('verify-error').classList.remove('hidden');
-            }
-        };
-
-        window.closeModal = (modalId) => {
-            document.getElementById(modalId).classList.add('hidden');
+        
+        // ▼▼▼ FUNGSI RENDER SENARAI KESELURUHAN (TAB KEDUA) DENGAN SEMUA PENAPIS BARU ▼▼▼
+        function renderAllBookingsList() {
+            const tbody = document.getElementById('full-list-table-body');
+            const noDataEl = document.getElementById('no-list-data');
             
-            if (modalId === 'ic-verify-modal') {
-                document.getElementById('verify-error').classList.add('hidden');
-                document.getElementById('ic-input').value = '';
+            // Dapatkan nilai penapis
+            const filterDisplay = document.getElementById('list-display-filter').value;
+            const filterMonth = document.getElementById('list-month-select').value;
+            const filterYear = document.getElementById('list-year-select').value;
+            const filterRoom = document.getElementById('list-room-select').value;
+            const filterSearch = document.getElementById('list-search-input').value.toLowerCase();
+            
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            let filterStartDate = null;
+            let filterEndDate = null;
+
+            if (filterDisplay === 'month') {
+                // Ambil bulan dari filter Month (jika diset) atau Bulan Semasa (jika tidak diset)
+                const targetMonth = filterMonth !== "" ? parseInt(filterMonth, 10) : new Date().getMonth();
+                const targetYear = filterYear !== "" ? parseInt(filterYear, 10) : new Date().getFullYear();
+                
+                filterStartDate = new Date(targetYear, targetMonth, 1);
+                filterEndDate = new Date(targetYear, targetMonth + 1, 0); // Hari terakhir bulan
+                filterEndDate.setHours(23, 59, 59, 999);
+                
+            } else if (filterDisplay === 'week') {
+                const startOfWeek = new Date(new Date().setHours(0,0,0,0));
+                startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
+                
+                const endOfWeek = new Date(startOfWeek);
+                endOfWeek.setDate(startOfWeek.getDate() + 7);
+                endOfWeek.setHours(23, 59, 59, 999);
+                
+                filterStartDate = startOfWeek;
+                filterEndDate = endOfWeek;
+
+            } else if (filterDisplay === 'all') {
+                // Tiada julat masa utama
             }
-        };
+            
+            const filteredBookings = allBookings
+                .filter(b => {
+                    const startDateTime = b.start && b.start.toDate ? b.start.toDate() : null;
+                    if (!startDateTime) return false;
+
+                    // 1. Tapis mengikut Julat Masa (Minggu/Bulan)
+                    if (filterStartDate && filterEndDate) {
+                         const bookingEnd = b.end.toDate();
+                         if (bookingEnd < filterStartDate || startDateTime > filterEndDate) {
+                            return false;
+                         }
+                    }
+
+                    // 2. Penapis Bulan/Tahun Tambahan (Berkuatkuasa untuk filterDisplay 'all' atau untuk menyaring dalam julat 'week')
+                    if (filterDisplay === 'all' || filterDisplay === 'week') {
+                        if (filterMonth !== "" && startDateTime.getMonth() !== parseInt(filterMonth, 10)) {
+                            return false;
+                        }
+                        if (filterYear !== "" && startDateTime.getFullYear() !== parseInt(filterYear, 10)) {
+                            return false;
+                        }
+                    }
+                    
+                    // 3. Penapis Bilik
+                    if (filterRoom !== "" && b.room !== filterRoom) {
+                        return false;
+                    }
+
+                    // 4. Penapis Carian
+                    if (filterSearch !== "") {
+                        const programName = b.programName || '';
+                        const bookedByName = b.bookedBy_name || '';
+                        if (!programName.toLowerCase().includes(filterSearch) && !bookedByName.toLowerCase().includes(filterSearch)) {
+                            return false;
+                        }
+                    }
+
+                    return true;
+                });
+            
+            tbody.innerHTML = ''; 
+
+            if (filteredBookings.length === 0) {
+                noDataEl.classList.remove('hidden');
+                return;
+            } else {
+                noDataEl.classList.add('hidden');
+            }
+
+            // Susun mengikut tarikh mula (terbaru dahulu)
+            const sortedBookings = filteredBookings.sort((a, b) => {
+                const dateA = a.start && a.start.toDate ? a.start.toDate() : new Date(0);
+                const dateB = b.start && b.start.toDate ? b.start.toDate() : new Date(0);
+                return dateB - dateA; 
+            });
+
+
+            sortedBookings.forEach(booking => {
+                const startDateTime = booking.start && booking.start.toDate ? booking.start.toDate() : null;
+                const endDateTime = booking.end && booking.end.toDate ? booking.end.toDate() : null;
+
+                const roomName = booking.room || 'Tidak Diketahui';
+                const programName = booking.programName || 'N/A';
+                const bookedByName = booking.bookedBy_name || 'N/A';
+
+                const startDate = startDateTime ? startDateTime.toLocaleDateString('ms-MY', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A';
+                const startTime = startDateTime ? formatTimeFromDate(startDateTime) : 'N/A';
+                const endTime = endDateTime ? formatTimeFromDate(endDateTime) : 'N/A';
+                
+                // Tentukan status (Sudah Lepas / Sedang Berlangsung / Akan Datang)
+                const isPast = endDateTime < new Date();
+                let statusBadge;
+                let rowClass = 'hover:bg-gray-50'; // Kelas lalai
+                
+                if (isPast) {
+                    statusBadge = `<span class="inline-flex items-center rounded-md bg-gray-200 px-2 py-1 text-xs font-medium text-gray-700 ring-1 ring-inset ring-gray-300">Sudah Lepas</span>`;
+                    rowClass = 'bg-gray-100 text-gray-500 hover:bg-gray-200'; // Warna kelabu untuk row
+                } else if (startDateTime <= new Date() && endDateTime >= new Date()) {
+                    statusBadge = `<span class="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">Sedang Berlangsung</span>`;
+                } else {
+                    statusBadge = `<span class="inline-flex items-center rounded-md bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700 ring-1 ring-inset ring-indigo-600/20">Akan Datang</span>`;
+                }
+                
+                const tr = document.createElement('tr');
+                tr.className = rowClass; // Guna kelas yang ditentukan
+                tr.innerHTML = `
+                    <td class="text-sm font-medium p-3">
+                        <span class="font-bold block">${startDate}</span>
+                        <span class="text-xs text-gray-600 block">${startTime} - ${endTime}</span>
+                    </td>
+                    <td class="text-sm p-3">
+                        <span class="font-medium block">${programName}</span>
+                        <span class="text-xs text-gray-600 block">(${bookedByName})</span>
+                    </td>
+                    <td class="text-sm p-3">${roomName}</td>
+                    <td class="text-sm text-gray-600 p-3">${statusBadge}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+        // ▲▲▲ TAMAT FUNGSI RENDER SENARAI KESELURUHAN ▲▲▲
+        
+        // FUNGSI LAIN DIKEKALKAN 
+        function getBookingsForMonth(year, month) {
+            return allBookings.filter(b => {
+                if (!b.start || typeof b.start.toDate !== 'function') return false;
+                const bookingDate = b.start.toDate();
+                return bookingDate.getFullYear() === year && bookingDate.getMonth() === month;
+            });
+        }
+
+        function updateMonthlyStats(year, month) {
+            const monthNames = ["Januari", "Februari", "Mac", "April", "Mei", "Jun", "Julai", "Ogos", "September", "Oktober", "November", "Disember"];
+            document.getElementById('stats-title').textContent = `Statistik (${monthNames[month]} ${year})`;
+
+            const monthlyBookings = getBookingsForMonth(year, month);
+            
+            document.getElementById('monthly-total-count').textContent = monthlyBookings.length;
+
+            const breakdownList = document.getElementById('room-breakdown-list');
+            const roomCounts = {};
+            
+            Object.keys(roomDetails).forEach(roomName => {
+                roomCounts[roomName] = 0;
+            });
+            roomCounts["BILIK_TIDAK_DIKETAHUI"] = 0;
+
+            monthlyBookings.forEach(b => {
+                const roomName = b.room || "BILIK_TIDAK_DIKETAHUI";
+                
+                if (roomCounts.hasOwnProperty(roomName) || roomName === "BILIK_TIDAK_DIKETAHUI") {
+                    roomCounts[roomName] = (roomCounts[roomName] || 0) + 1;
+                } else {
+                    roomCounts[roomName] = (roomCounts[roomName] || 0) + 1;
+                }
+            });
+
+            breakdownList.innerHTML = ''; 
+            
+            if (monthlyBookings.length === 0) {
+                 breakdownList.innerHTML = '<p class="text-sm text-gray-500">Tiada tempahan untuk bulan ini.</p>';
+                 return;
+            }
+
+            Object.keys(roomCounts).forEach(roomName => {
+                const count = roomCounts[roomName];
+                if (count > 0) { 
+                    
+                    let shortName, iconHtml;
+
+                    if (roomName === "BILIK_TIDAK_DIKETAHUI") {
+                        shortName = "Tidak Diketahui (Data Lama)";
+                        iconHtml = '<span>❓</span>'; 
+                    } else {
+                        const details = roomDetails[roomName] || { icon: '<span>⚠️</span>', shortName: roomName };
+                        shortName = details.shortName;
+                        iconHtml = details.icon;
+                    }
+                    
+                    const html = `
+                        <div class="flex items-center justify-between gap-2 p-2 bg-white rounded-lg border">
+                            <div class="flex items-center gap-2">
+                                <span class="flex-shrink-0">${iconHtml}</span>
+                                <span class="text-sm font-medium text-gray-700">${shortName}</span>
+                            </div>
+                            <span class="text-sm font-bold text-gray-900 bg-gray-200 px-2 py-0.5 rounded-full">${count}</span>
+                        </div>
+                    `;
+                    breakdownList.insertAdjacentHTML('beforeend', html);
+                }
+            });
+        }
+
+        function renderCalendar(year, month) {
+            const calendarGrid = document.getElementById('calendar-grid');
+            const calendarHeader = document.getElementById('calendar-header');
+            calendarGrid.innerHTML = '';
+            
+            const monthNames = ["Januari", "Februari", "Mac", "April", "Mei", "Jun", "Julai", "Ogos", "September", "Oktober", "November", "Disember"];
+            calendarHeader.textContent = `${monthNames[month]} ${year}`.toUpperCase();
+
+            updateMonthlyStats(year, month);
+
+            const firstDayOfMonth = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+            for (let i = 0; i < firstDayOfMonth; i++) {
+                calendarGrid.insertAdjacentHTML('beforeend', '<div class="border rounded-md bg-gray-50"></div>');
+            }
+
+            for (let day = 1; day <= daysInMonth; day++) {
+                const date = new Date(year, month, day);
+                const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+                const bookingsOnThisDay = getBookingsForDate(date); 
+                const isToday = new Date().toDateString() === date.toDateString();
+                
+                let dayClasses = 'calendar-day border rounded-md p-2 transition-colors relative';
+                let eventHtml = '';
+                let indicatorsHtml = '';
+
+                if (isToday) dayClasses += ' is-today';
+                
+                if (bookingsOnThisDay.length > 0) {
+                    dayClasses += ' has-events'; 
+                    indicatorsHtml += `<div class="absolute top-1 right-1 bg-indigo-500 text-white text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full shadow" title="Tempahan Bilik">${bookingsOnThisDay.length}</div>`;
+                    
+                    eventHtml += bookingsOnThisDay.map(b => {
+                        const roomName = b.room || "TIADA DATA";
+                        let shortName = roomDetails[roomName]?.shortName || roomName;
+                        if (shortName === "TIADA DATA") shortName = "X";
+                        
+                        return `<div class="bg-indigo-100 text-indigo-800 text-xs rounded px-1 truncate">${shortName.toUpperCase()}</div>`
+                    }).join('');
+                }
+
+                const dayHtml = `
+                    <div class="${dayClasses}" data-date="${dateString}">
+                        ${indicatorsHtml}
+                        <div class="font-semibold text-gray-800">${day}</div>
+                        <div class="event-list mt-1 space-y-1 pr-1">${eventHtml}</div>
+                    </div>
+                `;
+                calendarGrid.insertAdjacentHTML('beforeend', dayHtml);
+            }
+            
+            calendarGrid.querySelectorAll('.has-events').forEach(el => {
+                el.addEventListener('click', (e) => {
+                    const target = e.currentTarget;
+                    const date = parseDateString(target.dataset.date);
+                    displayBookingsForDate(date, target);
+                });
+            });
+        }
+        
+        // FUNGSI LAIN DIKEKALKAN 
+        function updateMonthlyStats(year, month) {
+            const monthNames = ["Januari", "Februari", "Mac", "April", "Mei", "Jun", "Julai", "Ogos", "September", "Oktober", "November", "Disember"];
+            document.getElementById('stats-title').textContent = `Statistik (${monthNames[month]} ${year})`;
+
+            const monthlyBookings = getBookingsForMonth(year, month);
+            
+            document.getElementById('monthly-total-count').textContent = monthlyBookings.length;
+
+            const breakdownList = document.getElementById('room-breakdown-list');
+            const roomCounts = {};
+            
+            Object.keys(roomDetails).forEach(roomName => {
+                roomCounts[roomName] = 0;
+            });
+            roomCounts["BILIK_TIDAK_DIKETAHUI"] = 0;
+
+            monthlyBookings.forEach(b => {
+                const roomName = b.room || "BILIK_TIDAK_DIKETAHUI";
+                
+                if (roomCounts.hasOwnProperty(roomName) || roomName === "BILIK_TIDAK_DIKETAHUI") {
+                    roomCounts[roomName] = (roomCounts[roomName] || 0) + 1;
+                } else {
+                    roomCounts[roomName] = (roomCounts[roomName] || 0) + 1;
+                }
+            });
+
+            breakdownList.innerHTML = ''; 
+            
+            if (monthlyBookings.length === 0) {
+                 breakdownList.innerHTML = '<p class="text-sm text-gray-500">Tiada tempahan untuk bulan ini.</p>';
+                 return;
+            }
+
+            Object.keys(roomCounts).forEach(roomName => {
+                const count = roomCounts[roomName];
+                if (count > 0) { 
+                    
+                    let shortName, iconHtml;
+
+                    if (roomName === "BILIK_TIDAK_DIKETAHUI") {
+                        shortName = "Tidak Diketahui (Data Lama)";
+                        iconHtml = '<span>❓</span>'; 
+                    } else {
+                        const details = roomDetails[roomName] || { icon: '<span>⚠️</span>', shortName: roomName };
+                        shortName = details.shortName;
+                        iconHtml = details.icon;
+                    }
+                    
+                    const html = `
+                        <div class="flex items-center justify-between gap-2 p-2 bg-white rounded-lg border">
+                            <div class="flex items-center gap-2">
+                                <span class="flex-shrink-0">${iconHtml}</span>
+                                <span class="text-sm font-medium text-gray-700">${shortName}</span>
+                            </div>
+                            <span class="text-sm font-bold text-gray-900 bg-gray-200 px-2 py-0.5 rounded-full">${count}</span>
+                        </div>
+                    `;
+                    breakdownList.insertAdjacentHTML('beforeend', html);
+                }
+            });
+        }
+        function parseDateString(dateString) {
+            const parts = dateString.split('-');
+            return new Date(parts[0], parts[1] - 1, parts[2]);
+        }
+        
+        function formatTimeFromDate(dateObj) {
+            if (!dateObj || typeof dateObj.getHours !== 'function') return '';
+            const hour = dateObj.getHours();
+            const minute = String(dateObj.getMinutes()).padStart(2, '0');
+            const ampm = hour >= 12 ? 'ptg' : 'pagi';
+            let formattedHour = hour % 12;
+            if (formattedHour === 0) formattedHour = 12;
+            return `${formattedHour}:${minute} ${ampm}`;
+        }
+
+        function getBookingsForDate(date) {
+            const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+            
+            return allBookings.filter(b => {
+                if (!b.start || typeof b.start.toDate !== 'function') return false;
+
+                const startDate = b.start.toDate();
+                const endDate = b.end ? b.end.toDate() : startDate;
+                
+                const bookingStartDateOnly = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+                const bookingEndDateOnly = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
+
+                return dateOnly >= bookingStartDateOnly && dateOnly <= bookingEndDateOnly;
+            });
+        }
+        
+        function displayTodaysBookings() {
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const day = String(today.getDate()).padStart(2, '0');
+            const dateString = `${year}-${month}-${day}`;
+
+            const todayCell = document.querySelector(`.calendar-day[data-date="${dateString}"]`);
+            if (todayCell && todayCell.classList.contains('has-events')) {
+                displayBookingsForDate(today, todayCell);
+            } else {
+                 initializeRightPanel(); 
+            }
+        }
+
+        function displayBookingsForDate(date, element) {
+            if (selectedDateElement) {
+                selectedDateElement.classList.remove('selected');
+            }
+            selectedDateElement = element;
+            selectedDateElement.classList.add('selected');
+            
+            const programListContent = document.getElementById('program-list-content');
+            // Guna input carian kalendar
+            const searchTerm = document.getElementById('search-input').value.toLowerCase();
+            
+            const bookings = getBookingsForDate(date).filter(b => 
+                b.programName.toLowerCase().includes(searchTerm) || 
+                (b.room || '').toLowerCase().includes(searchTerm)
+            );
+            
+            let bookingsHtml = '';
+            if (bookings.length > 0) {
+                 bookingsHtml = `
+                    <h4 class="text-sm font-bold text-indigo-600 uppercase mb-2">Senarai Tempahan Bilik</h4>
+                    <div class="space-y-4">
+                ` + bookings.map(b => {
+                    const today = new Date();
+                    const endDate = b.end ? b.end.toDate() : b.start.toDate();
+                    const isPast = endDate < today;
+                    const titleStyle = isPast ? 'text-gray-500' : 'text-indigo-600';
+                    
+                    const roomName = b.room || "BILIK TIDAK DIKETAHUI";
+                    
+                    return `
+                    <div class="bg-white border border-gray-200 rounded-xl p-4 text-gray-800 transition-all hover:shadow-lg flex flex-col">
+                        <div class="flex-grow">
+                            <p class="font-bold text-md ${titleStyle}">${roomName.toUpperCase()}</p>
+                            <p class="text-sm ${titleStyle} -mt-1 mb-2">${b.programName.toUpperCase()}</p>
+                            
+                            <div class="space-y-2 mt-3 text-sm text-gray-500 border-l-2 border-indigo-200 pl-3">
+                                <p class="flex items-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2 text-gray-400 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd" /></svg>
+                                    <span>${b.bookedBy_name ? b.bookedBy_name.toUpperCase() : 'TIADA PENEMPAH'}</span>
+                                </p>
+                                <p class="flex items-center">
+                                   <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                   <span>${formatTimeFromDate(b.start.toDate())} - ${formatTimeFromDate(b.end.toDate())}</span>
+                                </p>
+                            </div>
+                        </div>
+                        <button onclick="promptIcVerification('${b.programKey}', '${b.bookedBy_ic}')" class="mt-4 w-full bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-300 transform hover:scale-105 disabled:transform-none" ${isPast ? 'disabled' : ''}>
+                            ${isPast ? 'TEMPAHAN LEPAS' : 'LIHAT BUTIRAN PROGRAM'}
+                        </button>
+                    </div>
+                `}).join('') + '</div>';
+            }
+            
+            const dateText = date.toDateString() === new Date().toDateString() ? 'HARI INI' : date.toLocaleDateString('ms-MY', { day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase();
+            document.getElementById('selected-date-text').textContent = dateText;
+            
+            if (bookings.length === 0) {
+                programListContent.innerHTML = `<div class="border-2 border-dashed border-gray-300 rounded-xl p-5 text-center text-gray-500 h-full flex flex-col justify-center items-center"><p class="mt-4 text-sm font-semibold">Tiada tempahan bilik ditemui untuk tarikh ini.</p></div>`;
+            } else {
+                programListContent.innerHTML = bookingsHtml;
+            }
+        }
         
         // Dedahkan showTab ke global scope
         Object.assign(window, { showTab });
