@@ -231,8 +231,7 @@
             // Isi Medan Borang
             document.getElementById('edit-program-key').value = bookingId;
             document.getElementById('edit-program-name').value = booking.programName || '';
-            // *** PEMBETULAN: Menggunakan booking.room ***
-            document.getElementById('edit-room').value = booking.room || '';
+            document.getElementById('edit-room').value = booking.room || ''; // Menggunakan booking.room
 
             const start = booking.start && booking.start.toDate ? booking.start.toDate() : new Date();
             const end = booking.end && booking.end.toDate ? booking.end.toDate() : new Date();
@@ -254,8 +253,7 @@
              // Isi butiran yang perlu
              document.getElementById('edit-program-key').value = bookingId;
              document.getElementById('edit-program-name').value = booking.programName || '';
-             // *** PEMBETULAN: Menggunakan booking.room ***
-             document.getElementById('edit-room').value = booking.room || '';
+             document.getElementById('edit-room').value = booking.room || ''; // Menggunakan booking.room
              
              // Sembunyikan borang edit, tunjukkan butang padam
              document.getElementById('edit-booking-form').querySelectorAll('input, select').forEach(el => el.disabled = true);
@@ -284,59 +282,85 @@
             if(modal) modal.classList.add('hidden');
         };
 
+        // --- FUNGSI UTAMA UNTUK SINKRONISASI DATA SEMASA EDIT ---
         async function handleEditFormSubmit(event) {
             event.preventDefault();
             const bookingId = document.getElementById('edit-program-key').value;
             const programName = document.getElementById('edit-program-name').value;
             const room = document.getElementById('edit-room').value;
-            const startDate = document.getElementById('edit-start-date').value;
-            const startTime = document.getElementById('edit-start-time').value;
-            const endDate = document.getElementById('edit-end-date').value;
-            const endTime = document.getElementById('edit-end-time').value;
+            const startDateValue = document.getElementById('edit-start-date').value;
+            const startTimeValue = document.getElementById('edit-start-time').value;
+            const endDateValue = document.getElementById('edit-end-date').value;
+            const endTimeValue = document.getElementById('edit-end-time').value;
             
-            const startDateTime = new Date(`${startDate}T${startTime}`);
-            const endDateTime = new Date(`${endDate}T${endTime}`);
+            const startDateTime = new Date(`${startDateValue}T${startTimeValue}`);
+            const endDateTime = new Date(`${endDateValue}T${endTimeValue}`);
 
-            // Pastikan tarikh tamat selepas tarikh mula
+            // Semakan Tarikh
              if (endDateTime <= startDateTime) {
                 alert("Ralat: Masa/Tarikh tamat mesti selepas masa/tarikh mula.");
                 return;
             }
 
-            const bookingRef = doc(db, `artifacts/${appId}/public/data/spark_bookings`, bookingId);
+            const booking = allBookings.find(b => b.id === bookingId);
+            if (!booking || !booking.programKey) {
+                alert("Ralat: Kunci program tidak ditemui.");
+                return;
+            }
             
+            // Dapatkan rujukan kedua-dua dokumen
+            const bookingRef = doc(db, `artifacts/${appId}/public/data/spark_bookings`, bookingId);
+            const programRef = doc(db, `artifacts/${appId}/public/data/spark_programs`, booking.programKey);
+
             try {
-                // Update hanya medan yang dibenarkan dalam admin
+                // 1. Kemas kini spark_bookings
                 await updateDoc(bookingRef, {
                     programName: programName,
                     room: room,
                     start: startDateTime, 
                     end: endDateTime,
-                    // Note: You may also need to update the corresponding spark_programs entry if necessary
                 });
-                alert('Tempahan berjaya dikemas kini!');
+                
+                // 2. Kemas kini spark_programs (Rekod Utama Program)
+                await updateDoc(programRef, {
+                    name: programName,
+                    location: room, // Tetapkan lokasi program sama dengan bilik yang ditempah
+                    startDate: startDateValue, 
+                    endDate: endDateValue,
+                    startTime: startTimeValue,
+                    endTime: endTimeValue,
+                    roomBooked: room, // Pastikan rekod program juga mencerminkan bilik baharu
+                });
+
+                alert('Tempahan dan Program berjaya dikemas kini!');
                 closeModal('action-modal');
             } catch (error) {
-                console.error("Ralat mengemas kini tempahan:", error);
-                alert(`Gagal mengemas kini tempahan: ${error.message}`);
+                console.error("Ralat mengemas kini tempahan atau program:", error);
+                alert(`Gagal mengemas kini data: ${error.message}. Sila semak console untuk ralat Firebase Rules.`);
             }
         }
         
+        // --- FUNGSI UTAMA UNTUK SINKRONISASI DATA SEMASA PADAM ---
         async function deleteBooking(bookingId) {
+             const booking = allBookings.find(b => b.id === bookingId);
+             if (!booking || !booking.programKey) {
+                 alert("Ralat: Kunci program tidak ditemui untuk pemadaman.");
+                 return;
+             }
+             
              const bookingRef = doc(db, `artifacts/${appId}/public/data/spark_bookings`, bookingId);
+             const programRef = doc(db, `artifacts/${appId}/public/data/spark_programs`, booking.programKey);
              
              try {
                  // Padam entri tempahan
                  await deleteDoc(bookingRef);
+                 // Padam entri program yang sepadan
+                 await deleteDoc(programRef);
                  
-                 // Anda juga perlu memadam entri yang sepadan dari koleksi `spark_programs` menggunakan `programKey`.
-                 // Jika 'programKey' tidak disimpan dalam booking, anda perlu ambil butiran program dari tempahan
-                 // sebelum memadamnya, atau anda mungkin perlu menukarnya kepada transaksi.
-                 
-                 alert('Tempahan berjaya dipadam.');
+                 alert('Tempahan dan Program berjaya dipadam.');
              } catch (error) {
-                 console.error("Ralat memadam tempahan:", error);
-                 alert(`Gagal memadam tempahan: ${error.message}`);
+                 console.error("Ralat memadam tempahan/program:", error);
+                 alert(`Gagal memadam data: ${error.message}`);
              }
         }
 
