@@ -131,7 +131,7 @@
                     </div>
 
                     <div id="list-tab-content" class="tab-content hidden">
-                        <h3 class="text-xl font-bold text-gray-900 mb-4">Senarai Keseluruhan Tempahan Akan Datang</h3>
+                        <h3 class="text-xl font-bold text-gray-900 mb-4">Senarai Keseluruhan Tempahan</h3>
                         <div class="table-container max-h-[80vh] overflow-y-auto">
                             <table class="min-w-full divide-y divide-gray-200">
                                 <thead>
@@ -147,7 +147,7 @@
                                     </tbody>
                             </table>
                         </div>
-                        <p id="no-list-data" class="text-center text-gray-500 py-10 hidden">Tiada tempahan akan datang ditemui.</p>
+                        <p id="no-list-data" class="text-center text-gray-500 py-10 hidden">Tiada tempahan ditemui.</p>
                     </div>
                 </div>
             </div>
@@ -257,7 +257,11 @@
             // Render kandungan jika ia adalah tab senarai
             if (tabName === 'list') {
                 renderAllBookingsList();
+                // Sembunyikan panel kanan
+                document.getElementById('program-list-container').classList.add('hidden');
             } else if (tabName === 'calendar') {
+                // Tunjukkan panel kanan
+                document.getElementById('program-list-container').classList.remove('hidden');
                 // Pastikan kalendar di-render semula (jika ia telah beralih bulan dsb.)
                 renderCalendar(currentDate.getFullYear(), currentDate.getMonth());
             }
@@ -322,19 +326,15 @@
             });
         }
         
-        // ▼▼▼ FUNGSI BARU UNTUK RENDER SENARAI KESELURUHAN (TAB KEDUA) ▼▼▼
+        // ▼▼▼ FUNGSI RENDER SENARAI KESELURUHAN (TAB KEDUA) - DIBETULKAN UNTUK MENUNJUKKAN SEMUA REKOD ▼▼▼
         function renderAllBookingsList() {
             const tbody = document.getElementById('full-list-table-body');
             const noDataEl = document.getElementById('no-list-data');
             const searchTerm = document.getElementById('search-input').value.toLowerCase();
             const today = new Date();
 
-            // Tapis hanya tempahan yang akan datang atau yang masih berlangsung
+            // Penapis Carian dikekalkan
             const filteredBookings = allBookings
-                .filter(b => {
-                    const endDate = b.end ? b.end.toDate() : b.start.toDate();
-                    return endDate >= today;
-                })
                 .filter(b => {
                     return b.programName.toLowerCase().includes(searchTerm) || 
                            (b.room || '').toLowerCase().includes(searchTerm);
@@ -349,7 +349,15 @@
                 noDataEl.classList.add('hidden');
             }
 
-            filteredBookings.forEach(booking => {
+            // Susun mengikut tarikh mula (terbaru dahulu)
+            const sortedBookings = filteredBookings.sort((a, b) => {
+                const dateA = a.start && a.start.toDate ? a.start.toDate() : new Date(0);
+                const dateB = b.start && b.start.toDate ? b.start.toDate() : new Date(0);
+                return dateB - dateA; 
+            });
+
+
+            sortedBookings.forEach(booking => {
                 const startDateTime = booking.start && booking.start.toDate ? booking.start.toDate() : null;
                 const endDateTime = booking.end && booking.end.toDate ? booking.end.toDate() : null;
 
@@ -357,13 +365,14 @@
                 const startDate = startDateTime ? startDateTime.toLocaleDateString('ms-MY', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A';
                 const startTime = startDateTime ? formatTimeFromDate(startDateTime) : 'N/A';
                 
-                // Tentukan status (Sedang Berlangsung / Akan Datang)
-                const isOngoing = startDateTime <= today && endDateTime >= today;
+                // Tentukan status (Sudah Lepas / Sedang Berlangsung / Akan Datang)
                 let statusBadge;
-                if (isOngoing) {
-                     statusBadge = `<span class="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">Sedang Berlangsung</span>`;
+                if (endDateTime < today) {
+                    statusBadge = `<span class="inline-flex items-center rounded-md bg-red-50 px-2 py-1 text-xs font-medium text-red-700 ring-1 ring-inset ring-red-600/20">Sudah Lepas</span>`;
+                } else if (startDateTime <= today && endDateTime >= today) {
+                    statusBadge = `<span class="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">Sedang Berlangsung</span>`;
                 } else {
-                     statusBadge = `<span class="inline-flex items-center rounded-md bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700 ring-1 ring-inset ring-indigo-600/20">Akan Datang</span>`;
+                    statusBadge = `<span class="inline-flex items-center rounded-md bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700 ring-1 ring-inset ring-indigo-600/20">Akan Datang</span>`;
                 }
                 
                 const tr = document.createElement('tr');
@@ -380,7 +389,7 @@
         }
         // ▲▲▲ TAMAT FUNGSI RENDER SENARAI KESELURUHAN ▲▲▲
 
-        // ▼▼▼ FUNGSI MENGIRA STATISTIK (DIKEKALKAN) ▼▼▼
+        // ▼▼▼ FUNGSI-FUNGSI LAIN (TIDAK BERUBAH) ▼▼▼
         function getBookingsForMonth(year, month) {
             return allBookings.filter(b => {
                 if (!b.start || typeof b.start.toDate !== 'function') return false;
@@ -450,7 +459,6 @@
                 }
             });
         }
-        // ▲▲▲ TAMAT FUNGSI STATISTIK ▲▲▲
 
         function renderCalendar(year, month) {
             const calendarGrid = document.getElementById('calendar-grid');
