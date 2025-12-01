@@ -642,6 +642,7 @@
             }
         }
         
+        // FUNGSI checkIc YANG DIUBAH SUAI UNTUK MEMBENARKAN DUPLIKASI DENGAN AMARAN
         window.checkIc = async function(event) {
             event.preventDefault();
             icError.classList.add('hidden');
@@ -654,8 +655,6 @@
             
             icSubmitBtn.disabled = true;
             icSubmitBtn.innerHTML = `<svg class="animate-spin h-5 w-5 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>`;
-
-            let stesenPengesah = null;
 
             try {
                 const participantsRef = collection(db, `artifacts/${appId}/public/data/spark_participants`);
@@ -681,33 +680,54 @@
                 };
                 validatedIc = ic;
                 
-                // PENGESAHAN DUPLIKASI SKOP
+                // --- LOGIK AMARAN DUPLIKASI SKOP (PENGUBAHSUAIAN) ---
                 const stesenAtauNamaUntukSkop = participantInfo.station || participantInfo.name; 
-                
+                let isDuplicate = false;
+                let warningMessage = '';
+
                 if (stesenAtauNamaUntukSkop) {
                      // Check against the normalized skopSelesai list
                     const normalizedSkopSelesai = (currentTask.skopSelesai || []).map(normalizeStationName);
 
                     if (normalizedSkopSelesai.includes(normalizeStationName(stesenAtauNamaUntukSkop))) {
-                        showMessage('warning', 'Telah Disahkan', `Seseorang dengan maklumat stesen/organisasi yang sama (${stesenAtauNamaUntukSkop}) telah pun membuat pengesahan untuk tugasan ini.`);
-                        icSubmitBtn.disabled = false;
-                        icSubmitBtn.innerHTML = "Seterusnya";
-                        return;
+                        isDuplicate = true;
+                        warningMessage = `Stesen/Organisasi ini (${stesenAtauNamaUntukSkop}) **telah dikesan membuat pengesahan** sebelum ini. Anda boleh teruskan untuk mengisi semula, tetapi pengisian baharu ini **mungkin tidak dikira** dalam jumlah skop selesai tugasan.`;
                     }
                 }
+                // --- TAMAT LOGIK AMARAN DUPLIKASI SKOP ---
 
                 document.getElementById('participant-name').textContent = docData.name || 'N/A';
                 document.getElementById('participant-position').textContent = docData.position || 'TIADA JAWATAN';
                 document.getElementById('participant-station').textContent = docData.station || 'TIADA STESEN';
 
                 icForm.classList.add('hidden');
-                
-                // Rumusan kekal dipaparkan (kerana kita buang .add('hidden') di sini)
-                
                 participantDetails.classList.remove('hidden');
                 
+                // --- PAPARKAN KOTAK AMARAN DUPLIKASI ---
+                const existingWarningBox = document.getElementById('duplicate-warning-box');
+                if (existingWarningBox) existingWarningBox.remove(); 
+
+                if (isDuplicate) {
+                    const warningBox = document.createElement('div');
+                    warningBox.id = 'duplicate-warning-box';
+                    warningBox.className = 'mt-4 p-4 rounded-lg bg-yellow-100 border border-yellow-400 text-yellow-800 text-sm font-medium';
+                    warningBox.innerHTML = `
+                        <div class="flex items-start gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 flex-shrink-0 mt-0.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.76 1.359-.222 3.038-1.742 3.038H4.42c-1.52 0-2.502-1.679-1.742-3.038l5.58-9.92zM10 11a1 1 0 100 2 1 1 0 000-2zm-1-4a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1z" clip-rule="evenodd" /></svg>
+                            <p>
+                                <strong>PERHATIAN PENTING:</strong> ${warningMessage}
+                            </p>
+                        </div>
+                    `;
+                    // Gunakan insertBefore untuk letak amaran sebelum borang pengisian
+                    completionForm.parentNode.insertBefore(warningBox, completionForm);
+                } else {
+                    // Pastikan tiada amaran jika pengisian adalah yang pertama
+                    if (existingWarningBox) existingWarningBox.remove(); 
+                }
+                // --- TAMAT PAPARKAN KOTAK AMARAN ---
+
                 buildDynamicForm(currentTask.senaraiSubTugasan); 
-                
                 completionForm.classList.remove('hidden');
                 
             } catch (error) {
@@ -1083,6 +1103,8 @@
             };
 
             if (skopSelesaiRecord) {
+                // arrayUnion hanya akan menambah rekod jika ia belum wujud, 
+                // ini memastikan rekod kedua dan seterusnya tidak mengganggu pengiraan skop
                 dataToUpdate.skopSelesai = arrayUnion(normalizeStationName(skopSelesaiRecord));
             }
 
@@ -1092,6 +1114,8 @@
                 
                 // DATA KINI TERKINI KERANA LISTENER SUDAH JALAN
                 const bilanganSediaAda = (currentTask.rekodSelesai || []).length;
+                // Kita ambil bilangan rekod yang sedia ada sebelum rekod semasa ditambah, jadi ia mungkin tidak tepat +1
+                // Namun, kita kekalkan logik asal ini untuk rujukan
                 const bilanganBaru = bilanganSediaAda + 1; 
 
                 const tarikhMasa = timestampSekarang.toLocaleString('ms-MY', { 
@@ -1100,7 +1124,7 @@
                 });
 
                 let msgTitle = "Pengesahan Telah Direkodkan";
-                let msgBody = `Terima kasih. Data anda telah disahkan dan direkodkan pada ${tarikhMasa}. Anda adalah pengesah ke-${bilanganBaru} untuk tugasan ini.`;
+                let msgBody = `Terima kasih. Data anda telah disahkan dan direkodkan pada ${tarikhMasa}. Anda adalah pengesah ke-${bilanganBaru} (anggaran) untuk tugasan ini.`;
                 
                 showMessage('success', msgTitle, msgBody);
 
@@ -1118,6 +1142,10 @@
 
             loadingState.classList.add('hidden');
             if (checkInCard) checkInCard.classList.add('hidden');
+            
+            // Buang sebarang amaran duplikasi
+            const existingWarningBox = document.getElementById('duplicate-warning-box');
+            if (existingWarningBox) existingWarningBox.remove();
             
             const msgCard = document.getElementById('message-card');
             const msgIcon = document.getElementById('message-icon');
