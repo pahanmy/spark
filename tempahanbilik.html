@@ -68,6 +68,28 @@
             
             <div class="lg:col-span-2">
                 <div class="card p-6">
+                    
+                    <div class="flex flex-wrap items-end gap-4 mb-6 bg-gray-50 p-4 rounded-lg border">
+                        <div class="flex-grow md:flex-grow-0">
+                            <label for="month-select" class="block text-sm font-medium text-gray-700">Bulan</label>
+                            <select id="month-select" class="mt-1 block w-full pl-3 pr-10 py-2 border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"></select>
+                        </div>
+                        <div class="flex-grow md:flex-grow-0">
+                            <label for="year-select" class="block text-sm font-medium text-gray-700">Tahun</label>
+                            <select id="year-select" class="mt-1 block w-full pl-3 pr-10 py-2 border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"></select>
+                        </div>
+                         <div class="flex-grow md:flex-grow-0">
+                            <label for="room-select" class="block text-sm font-medium text-gray-700">Bilik Mesyuarat</label>
+                            <select id="room-select" class="mt-1 block w-full pl-3 pr-10 py-2 border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                                <option value="">SEMUA BILIK</option>
+                            </select>
+                        </div>
+                        <div class="flex-grow">
+                            <label for="search-input" class="block text-sm font-medium text-gray-700">Carian (Nama Program)</label>
+                            <input type="text" id="search-input" placeholder="Taip untuk mencari..." class="mt-1 block w-full px-3 py-2 border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                        </div>
+                    </div>
+
                     <div class="border-b border-gray-200 mb-6">
                         <nav class="-mb-px flex space-x-8">
                             <button onclick="showTab('calendar')" id="tab-calendar" class="tab-button active whitespace-nowrap py-3 px-1 border-b-2 border-transparent text-sm font-medium text-gray-500 hover:border-gray-300 hover:text-gray-700">
@@ -80,21 +102,6 @@
                     </div>
 
                     <div id="calendar-tab-content" class="tab-content">
-                        <div class="flex flex-wrap items-end gap-4 mb-6 bg-gray-50 p-4 rounded-lg border">
-                            <div class="flex-grow md:flex-grow-0">
-                                <label for="month-select" class="block text-sm font-medium text-gray-700">Bulan</label>
-                                <select id="month-select" class="mt-1 block w-full pl-3 pr-10 py-2 border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"></select>
-                            </div>
-                            <div class="flex-grow md:flex-grow-0">
-                                <label for="year-select" class="block text-sm font-medium text-gray-700">Tahun</label>
-                                <select id="year-select" class="mt-1 block w-full pl-3 pr-10 py-2 border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"></select>
-                            </div>
-                            <div class="flex-grow">
-                                <label for="search-input" class="block text-sm font-medium text-gray-700">Carian (Nama Program / Bilik)</label>
-                                <input type="text" id="search-input" placeholder="Taip untuk mencari..." class="mt-1 block w-full px-3 py-2 border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
-                            </div>
-                        </div>
-
                         <div class="mb-6">
                             <h3 class="text-lg font-semibold text-gray-900 mb-3" id="stats-title">Statistik Bulan Ini</h3>
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -234,13 +241,31 @@
         function main() {
             setupEventListeners();
             populateMonthFilter();
+            populateRoomFilter(); // <--- BARU: Panggil fungsi untuk mengisi dropdown bilik
             initializeRightPanel();
             listenForBookingChanges();
             // Tunjukkan tab kalendar secara lalai
             showTab(activeTab); 
         }
 
-        // ▼▼▼ FUNGSI BARU UNTUK MENGURUSKAN TAB ▼▼▼
+        // ▼▼▼ FUNGSI BARU UNTUK MENGURUSKAN PAPARAN BERGANTUNG PADA TAB AKTIF DAN PENAPIS ▼▼▼
+        function updateView() {
+            if (activeTab === 'calendar') {
+                updateCalendarView();
+                // Logik untuk mengemas kini panel kanan dengan carian
+                if (selectedDateElement) {
+                    const date = parseDateString(selectedDateElement.dataset.date);
+                    displayBookingsForDate(date, selectedDateElement); 
+                } else {
+                    displayTodaysBookings();
+                }
+            } else if (activeTab === 'list') {
+                 renderAllBookingsList();
+            }
+        }
+        // ▲▲▲ TAMAT FUNGSI BARU ▲▲▲
+
+        // ▼▼▼ FUNGSI BARU UNTUK MENGURUSKAN TAB - DIKEMAS KINI ▼▼▼
         window.showTab = (tabName) => {
             activeTab = tabName;
             
@@ -254,7 +279,7 @@
             document.getElementById(`${tabName}-tab-content`).classList.remove('hidden');
             document.getElementById(`tab-${tabName}`).classList.add('active');
 
-            // Render kandungan jika ia adalah tab senarai
+            // Render kandungan mengikut tab
             if (tabName === 'list') {
                 renderAllBookingsList();
                 // Sembunyikan panel kanan
@@ -262,28 +287,18 @@
             } else if (tabName === 'calendar') {
                 // Tunjukkan panel kanan
                 document.getElementById('program-list-container').classList.remove('hidden');
-                // Pastikan kalendar di-render semula (jika ia telah beralih bulan dsb.)
+                // Pastikan kalendar di-render semula
                 renderCalendar(currentDate.getFullYear(), currentDate.getMonth());
             }
         }
         // ▲▲▲ TAMAT FUNGSI TAB ▲▲▲
 
         function setupEventListeners() {
-            document.getElementById('month-select').addEventListener('change', updateCalendarView);
-            document.getElementById('year-select').addEventListener('change', updateCalendarView);
-            document.getElementById('search-input').addEventListener('input', () => {
-                if (activeTab === 'calendar') {
-                    renderCalendar(currentDate.getFullYear(), currentDate.getMonth());
-                    if (selectedDateElement) {
-                        const date = parseDateString(selectedDateElement.dataset.date);
-                        displayBookingsForDate(date, selectedDateElement); 
-                    } else {
-                        displayTodaysBookings();
-                    }
-                } else if (activeTab === 'list') {
-                     renderAllBookingsList();
-                }
-            });
+            document.getElementById('month-select').addEventListener('change', updateView);
+            document.getElementById('year-select').addEventListener('change', updateView);
+            document.getElementById('room-select').addEventListener('change', updateView); // <--- BARU
+            document.getElementById('search-input').addEventListener('input', updateView);
+            
             document.getElementById('prev-month-btn').addEventListener('click', () => changeMonth(-1));
             document.getElementById('next-month-btn').addEventListener('click', () => changeMonth(1));
         }
@@ -302,6 +317,22 @@
             `;
         }
         
+        // ▼▼▼ BARU: FUNGSI UNTUK MENGISI PILIHAN BILIK ▼▼▼
+        function populateRoomFilter() {
+            const roomSelect = document.getElementById('room-select');
+            roomSelect.innerHTML = '<option value="">SEMUA BILIK</option>'; // Opsyen lalai
+            
+            const rooms = Object.keys(roomDetails);
+            
+            rooms.forEach(roomName => {
+                const option = document.createElement('option');
+                option.value = roomName;
+                option.textContent = roomName;
+                roomSelect.appendChild(option);
+            });
+        }
+        // ▲▲▲ TAMAT FUNGSI BARU ▲▲▲
+
         function listenForBookingChanges() {
             // Mengambil semua tempahan, disusun mengikut tarikh mula
             const bookingsRef = collection(db, `artifacts/${appId}/public/data/spark_bookings`);
@@ -326,18 +357,40 @@
             });
         }
         
-        // ▼▼▼ FUNGSI RENDER SENARAI KESELURUHAN (TAB KEDUA) - DIBETULKAN UNTUK MENUNJUKKAN SEMUA REKOD ▼▼▼
+        // ▼▼▼ FUNGSI RENDER SENARAI KESELURUHAN (TAB KEDUA) - DIKEMAS KINI UNTUK PENAPIS BAHARU ▼▼▼
         function renderAllBookingsList() {
             const tbody = document.getElementById('full-list-table-body');
             const noDataEl = document.getElementById('no-list-data');
+            
+            // Ambil nilai dari penapis
             const searchTerm = document.getElementById('search-input').value.toLowerCase();
+            const selectedYear = parseInt(document.getElementById('year-select').value, 10);
+            const selectedMonth = parseInt(document.getElementById('month-select').value, 10);
+            const selectedRoom = document.getElementById('room-select').value; 
+            
             const today = new Date();
 
-            // Penapis Carian dikekalkan
+            // Penapis Carian, Bilik, Bulan, dan Tahun
             const filteredBookings = allBookings
                 .filter(b => {
-                    return b.programName.toLowerCase().includes(searchTerm) || 
-                           (b.room || '').toLowerCase().includes(searchTerm);
+                    if (!b.start || typeof b.start.toDate !== 'function') return false;
+
+                    const bookingDate = b.start.toDate();
+                    const bookingYear = bookingDate.getFullYear();
+                    const bookingMonth = bookingDate.getMonth();
+                    const roomName = b.room || ''; 
+
+                    // Penapis Tahun & Bulan
+                    const isYearMatch = bookingYear === selectedYear;
+                    const isMonthMatch = bookingMonth === selectedMonth;
+                    
+                    // Penapis Bilik
+                    const isRoomMatch = !selectedRoom || roomName === selectedRoom;
+
+                    // Penapis Carian Program (hanya nama program)
+                    const isSearchMatch = b.programName.toLowerCase().includes(searchTerm);
+                    
+                    return isYearMatch && isMonthMatch && isRoomMatch && isSearchMatch;
                 });
             
             tbody.innerHTML = ''; 
@@ -389,7 +442,7 @@
         }
         // ▲▲▲ TAMAT FUNGSI RENDER SENARAI KESELURUHAN ▲▲▲
 
-        // ▼▼▼ FUNGSI-FUNGSI LAIN (TIDAK BERUBAH) ▼▼▼
+        // ▼▼▼ FUNGSI-FUNGSI LAIN (DIKEMASKINI) ▼▼▼
         function getBookingsForMonth(year, month) {
             return allBookings.filter(b => {
                 if (!b.start || typeof b.start.toDate !== 'function') return false;
@@ -481,7 +534,17 @@
                 const date = new Date(year, month, day);
                 const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
-                const bookingsOnThisDay = getBookingsForDate(date); 
+                const searchTerm = document.getElementById('search-input').value.toLowerCase(); // Ambil dari input carian
+                const selectedRoom = document.getElementById('room-select').value; // Ambil dari penapis bilik
+                
+                // Gunakan carian dan penapis bilik untuk kalendar
+                const bookingsOnThisDay = getBookingsForDate(date).filter(b => {
+                    const roomName = b.room || ''; 
+                    const isRoomMatch = !selectedRoom || roomName === selectedRoom;
+                    const isSearchMatch = b.programName.toLowerCase().includes(searchTerm);
+                    return isRoomMatch && isSearchMatch;
+                });
+                
                 const isToday = new Date().toDateString() === date.toDateString();
                 
                 let dayClasses = 'calendar-day border rounded-md p-2 transition-colors relative';
@@ -577,11 +640,14 @@
             
             const programListContent = document.getElementById('program-list-content');
             const searchTerm = document.getElementById('search-input').value.toLowerCase();
+            const selectedRoom = document.getElementById('room-select').value;
             
-            const bookings = getBookingsForDate(date).filter(b => 
-                b.programName.toLowerCase().includes(searchTerm) || 
-                (b.room || '').toLowerCase().includes(searchTerm)
-            );
+            const bookings = getBookingsForDate(date).filter(b => {
+                const roomName = b.room || ''; 
+                const isRoomMatch = !selectedRoom || roomName === selectedRoom;
+                const isSearchMatch = b.programName.toLowerCase().includes(searchTerm);
+                return isRoomMatch && isSearchMatch;
+            });
             
             let bookingsHtml = '';
             if (bookings.length > 0) {
