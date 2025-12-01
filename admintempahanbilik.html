@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SPARKroom – Admin Tempahan Bilik</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Poppins', sans-serif; background-color: #f8f9fa; }
+        .card { background-color: white; border-radius: 0.75rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); }
+        .btn { transition: background-color 0.3s, transform 0.2s; }
+        .btn:hover { transform: translateY(-2px); }
+        .table-container { max-height: 70vh; overflow-y: auto; }
+        th, td { padding: 0.75rem 1rem; text-align: left; border-bottom: 1px solid #e5e7eb; }
+        th { background-color: #f9fafb; position: sticky; top: 0; z-index: 10; }
+        .modal-backdrop { background-color: rgba(0,0,0,0.5); }
+    </style>
+</head>
+<body class="bg-gray-50 flex flex-col min-h-screen">
+
+    <header class="bg-white shadow-sm">
+        <div class="max-w-screen-2xl mx-auto py-4 px-4 sm:px-6 lg:px-8 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <h1 class="text-2xl font-bold text-indigo-600">SPARKroom Admin</h1>
+                <p class="text-sm text-gray-500 hidden sm:block">Pengurusan Tempahan Bilik</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <a href="tempahanbilik.html" class="btn bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-gray-300 text-sm">
+                    Lihat Kalendar
+                </a>
+                <a href="semak.html" class="btn bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-indigo-700 text-sm">
+                    Jana Tempahan
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-screen-2xl mx-auto py-6 sm:px-6 lg:px-8 flex-grow w-full">
+        <div class="card p-6 md:p-8">
+            <h2 class="text-xl font-bold text-gray-800 mb-6">Senarai Semua Tempahan Bilik</h2>
+            
+            <div id="loading-spinner" class="text-center py-10 text-gray-500">
+                <svg class="animate-spin mx-auto h-8 w-8 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <p class="mt-2">Memuatkan data...</p>
+            </div>
+
+            <div id="booking-table-container" class="table-container hidden">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead>
+                        <tr>
+                            <th class="text-xs font-semibold uppercase tracking-wider text-gray-500">Bilik</th>
+                            <th class="text-xs font-semibold uppercase tracking-wider text-gray-500">Program</th>
+                            <th class="text-xs font-semibold uppercase tracking-wider text-gray-500">Mula</th>
+                            <th class="text-xs font-semibold uppercase tracking-wider text-gray-500">Tamat</th>
+                            <th class="text-xs font-semibold uppercase tracking-wider text-gray-500">Penyelaras</th>
+                            <th class="text-xs font-semibold uppercase tracking-wider text-gray-500">Tindakan</th>
+                        </tr>
+                    </thead>
+                    <tbody id="booking-table-body" class="bg-white divide-y divide-gray-200">
+                        </tbody>
+                </table>
+            </div>
+
+            <div id="no-booking-data" class="hidden text-center py-10">
+                <p class="text-lg text-gray-500">Tiada rekod tempahan bilik ditemui.</p>
+            </div>
+        </div>
+    </main>
+
+    <footer class="text-center py-4 mt-8 border-t border-gray-200">
+        <p class="text-sm text-gray-600">Admin Panel SPARKroom</p>
+    </footer>
+    
+    <div id="action-modal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop hidden">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-lg p-6">
+            <h3 class="text-xl font-semibold mb-4 text-gray-800" id="modal-title-action">Edit Tempahan</h3>
+            <form id="edit-booking-form">
+                <input type="hidden" id="edit-program-key">
+                <div class="space-y-4">
+                    <div>
+                        <label for="edit-program-name" class="block text-sm font-medium text-gray-700">Nama Program</label>
+                        <input type="text" id="edit-program-name" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
+                    </div>
+                    <div>
+                        <label for="edit-room" class="block text-sm font-medium text-gray-700">Bilik</label>
+                        <select id="edit-room" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md">
+                            </select>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div><label for="edit-start-date" class="block text-sm font-medium text-gray-700">Mula (Tarikh)</label><input type="date" id="edit-start-date" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"></div>
+                        <div><label for="edit-start-time" class="block text-sm font-medium text-gray-700">Mula (Masa)</label><input type="time" id="edit-start-time" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"></div>
+                        <div><label for="edit-end-date" class="block text-sm font-medium text-gray-700">Tamat (Tarikh)</label><input type="date" id="edit-end-date" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"></div>
+                        <div><label for="edit-end-time" class="block text-sm font-medium text-gray-700">Tamat (Masa)</label><input type="time" id="edit-end-time" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"></div>
+                    </div>
+                </div>
+                <div class="mt-6 flex justify-end space-x-3">
+                    <button type="button" onclick="closeModal('action-modal')" class="btn bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg">Batal</button>
+                    <button type="submit" id="save-edit-btn" class="btn bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg">Simpan Perubahan</button>
+                    <button type="button" id="delete-btn" onclick="confirmDelete()" class="btn bg-red-600 text-white font-semibold py-2 px-4 rounded-lg hidden">Padam Tempahan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, onSnapshot, query, deleteDoc, doc, updateDoc, Timestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const firebaseConfig = { apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM", authDomain: "myqrhadir.firebaseapp.com", projectId: "myqrhadir", storageBucket: "myqrhadir.appspot.com", messagingSenderId: "799691133747", appId: "1:799691133747:web:835a5e3e9413eace806446" };
+        
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        const appId = firebaseConfig.projectId;
+        
+        let allBookings = []; 
+
+        // Definisi Bilik (Mesti Konsisten dengan semak.html)
+        const roomList = [
+            "Bilik Mesyuarat Wisma Persekutuan",
+            "Bilik Mesyuarat Sektor Perancangan",
+            "Bilik Peperiksaan 1",
+            "Bilik Peperiksaan 2",
+            "STEM HUB"
+        ];
+
+        onAuthStateChanged(auth, async (user) => {
+            if (user) main();
+            else { try { await signInAnonymously(auth); } catch (error) { console.error("Gagal daftar masuk:", error); } }
+        });
+
+        function main() {
+            listenForBookingChanges();
+            populateRoomDropdown();
+            document.getElementById('edit-booking-form').addEventListener('submit', handleEditFormSubmit);
+        }
+
+        function listenForBookingChanges() {
+            const spinner = document.getElementById('loading-spinner');
+            const tableContainer = document.getElementById('booking-table-container');
+            const noData = document.getElementById('no-booking-data');
+            const bookingsRef = collection(db, `artifacts/${appId}/public/data/spark_bookings`);
+            const q = query(bookingsRef); 
+
+            onSnapshot(q, (snapshot) => {
+                allBookings = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderTable();
+                
+                spinner.classList.add('hidden');
+                if (allBookings.length > 0) {
+                    tableContainer.classList.remove('hidden');
+                    noData.classList.add('hidden');
+                } else {
+                    tableContainer.classList.add('hidden');
+                    noData.classList.remove('hidden');
+                }
+
+            }, error => {
+                console.error("Ralat memuatkan tempahan: ", error);
+                spinner.classList.add('hidden');
+                noData.innerHTML = `<p class="text-lg text-red-600">Gagal memuatkan data. Sila semak konsol untuk ralat Firebase.</p>`;
+                noData.classList.remove('hidden');
+            });
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('booking-table-body');
+            tbody.innerHTML = ''; 
+
+            // Susun mengikut tarikh mula (terbaru dahulu)
+            const sortedBookings = allBookings.sort((a, b) => {
+                const dateA = a.start && a.start.toDate ? a.start.toDate() : new Date(0);
+                const dateB = b.start && b.start.toDate ? b.start.toDate() : new Date(0);
+                return dateB - dateA; 
+            });
+
+            sortedBookings.forEach(booking => {
+                const startDateTime = booking.start && booking.start.toDate ? booking.start.toDate() : null;
+                const endDateTime = booking.end && booking.end.toDate ? booking.end.toDate() : null;
+
+                const startDate = startDateTime ? startDateTime.toLocaleDateString('ms-MY') : 'N/A';
+                const startTime = startDateTime ? formatTime(startDateTime) : 'N/A';
+                const endDate = endDateTime ? endDateTime.toLocaleDateString('ms-MY') : 'N/A';
+                const endTime = endDateTime ? formatTime(endDateTime) : 'N/A';
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="text-sm font-medium text-gray-900">${booking.room || 'Tidak Diketahui'}</td>
+                    <td class="text-sm text-gray-600">${booking.programName || 'N/A'}</td>
+                    <td class="text-sm text-gray-600">${startDate} (${startTime})</td>
+                    <td class="text-sm text-gray-600">${endDate} (${endTime})</td>
+                    <td class="text-sm text-gray-600">${booking.bookedBy_name || 'N/A'}</td>
+                    <td class="whitespace-nowrap text-sm font-medium">
+                        <button onclick="openEditModal('${booking.id}')" class="btn bg-blue-500 text-white py-1 px-3 rounded-md text-xs hover:bg-blue-600">
+                            Edit
+                        </button>
+                        <button onclick="openDeleteModal('${booking.id}')" class="btn bg-red-500 text-white py-1 px-3 rounded-md text-xs hover:bg-red-600 ml-2">
+                            Padam
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function formatTime(dateObj) {
+            if (!dateObj) return 'N/A';
+            const hour = dateObj.getHours();
+            const minute = String(dateObj.getMinutes()).padStart(2, '0');
+            return `${String(hour).padStart(2, '0')}:${minute}`;
+        }
+        
+        function populateRoomDropdown() {
+             const roomSelect = document.getElementById('edit-room');
+             roomSelect.innerHTML = roomList.map(room => `<option value="${room}">${room}</option>`).join('');
+        }
+
+        window.openEditModal = (bookingId) => {
+            const booking = allBookings.find(b => b.id === bookingId);
+            if (!booking) return;
+
+            document.getElementById('modal-title-action').textContent = `Edit Tempahan: ${booking.programName}`;
+            document.getElementById('save-edit-btn').classList.remove('hidden');
+            document.getElementById('delete-btn').classList.add('hidden');
+
+            // Isi Medan Borang
+            document.getElementById('edit-program-key').value = bookingId;
+            document.getElementById('edit-program-name').value = booking.programName || '';
+            document.getElementById('edit-room').value = booking.room || '';
+
+            const start = booking.start && booking.start.toDate ? booking.start.toDate() : new Date();
+            const end = booking.end && booking.end.toDate ? booking.end.toDate() : new Date();
+            
+            document.getElementById('edit-start-date').value = start.toISOString().substring(0, 10);
+            document.getElementById('edit-start-time').value = formatTime(start);
+            document.getElementById('edit-end-date').value = end.toISOString().substring(0, 10);
+            document.getElementById('edit-end-time').value = formatTime(end);
+
+            document.getElementById('action-modal').classList.remove('hidden');
+        };
+        
+        window.openDeleteModal = (bookingId) => {
+             const booking = allBookings.find(b => b.id === bookingId);
+             if (!booking) return;
+             
+             document.getElementById('modal-title-action').textContent = `Padam Tempahan: ${booking.programName}`;
+             
+             // Isi butiran yang perlu
+             document.getElementById('edit-program-key').value = bookingId;
+             document.getElementById('edit-program-name').value = booking.programName || '';
+             document.getElementById('edit-room').value = booking.room || '';
+             
+             // Sembunyikan borang edit, tunjukkan butang padam
+             document.getElementById('edit-booking-form').querySelectorAll('input, select').forEach(el => el.disabled = true);
+             document.getElementById('save-edit-btn').classList.add('hidden');
+             document.getElementById('delete-btn').classList.remove('hidden');
+             
+             // Sembunyikan/Disable medan input masa/tarikh dalam modal (jika ada)
+             document.getElementById('edit-program-name').disabled = true;
+             document.getElementById('edit-room').disabled = true;
+             
+             document.getElementById('action-modal').classList.remove('hidden');
+        };
+
+        window.confirmDelete = async () => {
+             if (confirm("Adakah anda pasti mahu memadam tempahan ini? Tindakan ini tidak boleh diundur.")) {
+                 const bookingId = document.getElementById('edit-program-key').value;
+                 await deleteBooking(bookingId);
+                 closeModal('action-modal');
+             }
+        };
+
+        window.closeModal = (modalId) => {
+            // Reset state input fields
+            document.getElementById('edit-booking-form').querySelectorAll('input, select').forEach(el => el.disabled = false);
+            const modal = document.getElementById(modalId);
+            if(modal) modal.classList.add('hidden');
+        };
+
+        async function handleEditFormSubmit(event) {
+            event.preventDefault();
+            const bookingId = document.getElementById('edit-program-key').value;
+            const programName = document.getElementById('edit-program-name').value;
+            const room = document.getElementById('edit-room').value;
+            const startDate = document.getElementById('edit-start-date').value;
+            const startTime = document.getElementById('edit-start-time').value;
+            const endDate = document.getElementById('edit-end-date').value;
+            const endTime = document.getElementById('edit-end-time').value;
+            
+            const startDateTime = new Date(`${startDate}T${startTime}`);
+            const endDateTime = new Date(`${endDate}T${endTime}`);
+
+            // Pastikan tarikh tamat selepas tarikh mula
+             if (endDateTime <= startDateTime) {
+                alert("Ralat: Masa/Tarikh tamat mesti selepas masa/tarikh mula.");
+                return;
+            }
+
+            const bookingRef = doc(db, `artifacts/${appId}/public/data/spark_bookings`, bookingId);
+            
+            try {
+                // Update hanya medan yang dibenarkan dalam admin
+                await updateDoc(bookingRef, {
+                    programName: programName,
+                    room: room,
+                    start: startDateTime, 
+                    end: endDateTime,
+                    // Note: You may also need to update the corresponding spark_programs entry if necessary
+                });
+                alert('Tempahan berjaya dikemas kini!');
+                closeModal('action-modal');
+            } catch (error) {
+                console.error("Ralat mengemas kini tempahan:", error);
+                alert(`Gagal mengemas kini tempahan: ${error.message}`);
+            }
+        }
+        
+        async function deleteBooking(bookingId) {
+             const bookingRef = doc(db, `artifacts/${appId}/public/data/spark_bookings`, bookingId);
+             
+             try {
+                 // Padam entri tempahan
+                 await deleteDoc(bookingRef);
+                 
+                 // Anda juga perlu memadam entri yang sepadan dari koleksi `spark_programs` menggunakan `programKey`.
+                 // Jika 'programKey' tidak disimpan dalam booking, anda perlu ambil butiran program dari tempahan
+                 // sebelum memadamnya, atau anda mungkin perlu menukarnya kepada transaksi.
+                 
+                 alert('Tempahan berjaya dipadam.');
+             } catch (error) {
+                 console.error("Ralat memadam tempahan:", error);
+                 alert(`Gagal memadam tempahan: ${error.message}`);
+             }
+        }
+
+        // Expose functions to global scope
+        Object.assign(window, { openEditModal, openDeleteModal, confirmDelete, closeModal });
+    </script>
+</body>
+</html>
