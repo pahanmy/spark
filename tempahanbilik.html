@@ -162,7 +162,6 @@
         let isInitialLoad = true;
 
         // ▼▼▼ SENARAI BILIK & IKON (DIKEMAS KINI DENGAN STEM HUB) ▼▼▼
-        // Pastikan nama sepadan dengan nilai <option> dalam semak.html
         const roomDetails = {
             "Bilik Mesyuarat Wisma Persekutuan": {
                 icon: `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-indigo-500" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a1 1 0 110 2h-3a1 1 0 01-1-1v-2a1 1 0 00-1-1H9a1 1 0 00-1 1v2a1 1 0 01-1 1H4a1 1 0 110-2V4zm3 1h2v2H7V5zm2 4H7v2h2V9zm2 0h2v2h-2V9zm2-4h-2v2h2V5z" clip-rule="evenodd" /></svg>`,
@@ -267,19 +266,24 @@
             const breakdownList = document.getElementById('room-breakdown-list');
             const roomCounts = {};
             
-            // Sifarkan kiraan untuk semua bilik yang diketahui
+            // Sifarkan kiraan untuk semua bilik yang diketahui dan bilik "Tidak Diketahui"
             Object.keys(roomDetails).forEach(roomName => {
                 roomCounts[roomName] = 0;
             });
+            roomCounts["BILIK_TIDAK_DIKETAHUI"] = 0; // Pastikan key fallback disifarkan
 
             // Kira tempahan
             monthlyBookings.forEach(b => {
                 // Gunakan fallback yang selamat untuk roomBooked
+                // Jika null/undefined, ia akan menggunakan "BILIK_TIDAK_DIKETAHUI"
                 const roomName = b.roomBooked || "BILIK_TIDAK_DIKETAHUI";
                 
-                if (roomCounts.hasOwnProperty(roomName)) {
-                    roomCounts[roomName]++;
+                // Hanya kira jika ia adalah salah satu bilik yang diketahui ATAU bilik fallback
+                if (roomCounts.hasOwnProperty(roomName) || roomName === "BILIK_TIDAK_DIKETAHUI") {
+                    roomCounts[roomName] = (roomCounts[roomName] || 0) + 1;
                 } else {
+                    // Jika data Firebase mengandungi nama bilik yang sah TETAPI TIADA dalam roomDetails,
+                    // masukkan ia sebagai nama bilik yang baru.
                     roomCounts[roomName] = (roomCounts[roomName] || 0) + 1;
                 }
             });
@@ -294,14 +298,24 @@
 
             Object.keys(roomCounts).forEach(roomName => {
                 const count = roomCounts[roomName];
-                if (count > 0) { // Hanya tunjuk bilik yang ada tempahan
-                    // Fallback yang selamat di sini juga
-                    const details = roomDetails[roomName] || { icon: '<span></span>', shortName: (roomName === "BILIK_TIDAK_DIKETAHUI" ? "Tidak Diketahui" : roomName) }; 
+                if (count > 0) { 
+                    
+                    let shortName, iconHtml;
+
+                    if (roomName === "BILIK_TIDAK_DIKETAHUI") {
+                        shortName = "Tidak Diketahui (Data Lama)";
+                        iconHtml = '<span>❓</span>'; 
+                    } else {
+                        const details = roomDetails[roomName] || { icon: '<span>⚠️</span>', shortName: roomName }; // Fallback untuk bilik yang tiada dalam list
+                        shortName = details.shortName;
+                        iconHtml = details.icon;
+                    }
+                    
                     const html = `
                         <div class="flex items-center justify-between gap-2 p-2 bg-white rounded-lg border">
                             <div class="flex items-center gap-2">
-                                <span class="flex-shrink-0">${details.icon}</span>
-                                <span class="text-sm font-medium text-gray-700">${details.shortName}</span>
+                                <span class="flex-shrink-0">${iconHtml}</span>
+                                <span class="text-sm font-medium text-gray-700">${shortName}</span>
                             </div>
                             <span class="text-sm font-bold text-gray-900 bg-gray-200 px-2 py-0.5 rounded-full">${count}</span>
                         </div>
@@ -560,5 +574,3 @@
         };
         
     </script>
-</body>
-</html>
