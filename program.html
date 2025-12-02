@@ -515,6 +515,24 @@
             }, false);
         }
         
+        // FUNGSI BARU: Mendapatkan butiran penyelaras dari koleksi participants
+        async function fetchPenyelarasDetails(ic) {
+            if (!db || !ic) return null;
+            try {
+                const participantsRef = collection(db, `artifacts/${appId}/public/data/spark_participants`);
+                const q = query(participantsRef, where("ic", "==", ic));
+                const querySnapshot = await getDocs(q);
+                
+                if (!querySnapshot.empty) {
+                    return querySnapshot.docs[0].data();
+                }
+                return null;
+            } catch (error) {
+                console.error("Error fetching penyelaras details:", error);
+                return null;
+            }
+        }
+
         function initializeDashboard(programKey) {
             if (unsubscribeProgramListener) unsubscribeProgramListener();
             isInitialLoad = true;
@@ -522,7 +540,8 @@
 
             const programRef = doc(db, `artifacts/${appId}/public/data/spark_programs`, programKey);
             
-            unsubscribeProgramListener = onSnapshot(docSnap) => {
+            // MEMBETULKAN SINTAKS FUNGSI PANAH
+            unsubscribeProgramListener = onSnapshot(programRef, (docSnap) => { 
                 if (docSnap.exists()) {
                     currentLoadedProgram = { id: docSnap.id, ...docSnap.data() };
                     
@@ -536,18 +555,18 @@
                     if (penyelarasDiv) {
                         const icon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-indigo-400 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd" /></svg>`;
                         const penyelarasName = currentLoadedProgram.penyelaras_name || 'N/A';
-                        // Ambil Stesen Kerja dari rekod peserta penyelaras jika ada
-                        let stationText = 'Tiada Stesen Direkod';
-                        if (currentLoadedProgram.penyelaras_ic) {
-                            fetchPenyelarasDetails(currentLoadedProgram.penyelaras_ic).then(details => {
-                                if (details && details.station) {
-                                    stationText = details.station.toUpperCase();
-                                }
-                                penyelarasDiv.innerHTML = `${icon} Urusetia / Penyelaras: <span class="font-semibold text-gray-800">${penyelarasName}</span> &bull; Stesen: <span class="font-medium text-gray-700">${stationText}</span>`;
-                            });
-                        } else {
+                        
+                        // Cuba ambil Stesen Kerja, kemudian kemas kini UI
+                        fetchPenyelarasDetails(currentLoadedProgram.penyelaras_ic).then(details => {
+                            let stationText = 'Tiada Stesen Direkod';
+                            if (details && details.station) {
+                                stationText = details.station.toUpperCase();
+                            } else if (currentLoadedProgram.location) {
+                                // Guna lokasi program sebagai fallback jika tiada dalam rekod peserta
+                                stationText = currentLoadedProgram.location.toUpperCase();
+                            }
                             penyelarasDiv.innerHTML = `${icon} Urusetia / Penyelaras: <span class="font-semibold text-gray-800">${penyelarasName}</span> &bull; Stesen: <span class="font-medium text-gray-700">${stationText}</span>`;
-                        }
+                        });
                     }
                     
                     renderDateTabsAndAttendance();
@@ -582,24 +601,6 @@
             });
         }
         
-        // FUNGSI BARU: Mendapatkan butiran penyelaras dari koleksi participants
-        async function fetchPenyelarasDetails(ic) {
-            if (!db || !ic) return null;
-            try {
-                const participantsRef = collection(db, `artifacts/${appId}/public/data/spark_participants`);
-                const q = query(participantsRef, where("ic", "==", ic));
-                const querySnapshot = await getDocs(q);
-                
-                if (!querySnapshot.empty) {
-                    return querySnapshot.docs[0].data();
-                }
-                return null;
-            } catch (error) {
-                console.error("Error fetching penyelaras details:", error);
-                return null;
-            }
-        }
-
         function renderDateTabsAndAttendance() {
             const tabsContainer = document.getElementById('attendance-date-tabs');
             tabsContainer.innerHTML = '';
@@ -1142,7 +1143,7 @@
         function copyEvaluationLink(buttonElement) { const linkInput = document.getElementById('evaluation-link-input'); navigator.clipboard.writeText(linkInput.value).then(() => { buttonElement.textContent = 'Tersalin!'; setTimeout(() => { buttonElement.textContent = 'Salin'; }, 2000); }); }
         async function downloadEvaluationQr() { const qrImage = document.getElementById('evaluation-qr-code'); const imageUrl = qrImage.src; if (!imageUrl || !currentLoadedProgram) { alert("QR belum dijana."); return; } try { const response = await fetch(imageUrl); const blob = await response.blob(); const link = document.createElement('a'); link.href = URL.createObjectURL(blob); const sanitizedName = currentLoadedProgram.name.replace(/[^a-z0-9]/gi, '_').toLowerCase(); link.download = `qr_penilaian_${sanitizedName}.png`; document.body.appendChild(link); link.click(); document.body.removeChild(link); URL.revokeObjectURL(link.href); } catch (error) { console.error("Gagal muat turun QR:", error); alert("Gagal muat turun."); } }
         function openEvaluationLink() { const url = document.getElementById('evaluation-link-input').value; if (url) { window.open(url, '_blank'); } }
-        async function downloadQrCode() { const qrImage = document.getElementById('qr-code-code'); const imageUrl = qrImage.src; if (!imageUrl || !currentLoadedProgram) { alert("QR belum dijana."); return; } }
+        async function downloadQrCode() { const qrImage = document.getElementById('qr-code-image'); const imageUrl = qrImage.src; if (!imageUrl || !currentLoadedProgram) { alert("QR belum dijana."); return; } }
         
         // FUNGSI INI KINI MENGURUSKAN KEHADIRAN KESELURUHAN (INDIVIDU)
         function renderInfographic() { 
@@ -1251,7 +1252,7 @@
         }
 
         function startCountdown(programData) { let interval = window.countdownTimerInterval; if (interval) clearInterval(interval); const container = document.getElementById('dashboard-countdown'); const timerSpan = document.getElementById('countdown-timer-text'); if (!programData.expiryTimestamp) { container.classList.add('hidden'); container.classList.remove('flex'); return; } container.classList.remove('hidden'); container.classList.add('flex'); const cutoff = new Date(programData.expiryTimestamp); window.countdownTimerInterval = setInterval(() => { const distance = cutoff - new Date().getTime(); if (distance < 0) { clearInterval(window.countdownTimerInterval); timerSpan.innerHTML = 'Pendaftaran Ditutup'; return; } const d = Math.floor(distance / 864e5); const h = Math.floor((distance % 864e5) / 36e5); const m = Math.floor((distance % 36e5) / 6e4); let str = 'Tutup dalam: '; if (d > 0) str += `${d}h `; str += `${h}j ${m}m`; timerSpan.innerHTML = str; }, 1000); }
-        function updateQrCode() { if (!currentCheckinUrl) return; const size = document.querySelector('input[name="qr-size']:checked').value; const qrImg = document.getElementById('qr-code-image'); qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(currentCheckinUrl)}`; }
+        function updateQrCode() { if (!currentCheckinUrl) return; const size = document.querySelector('input[name="qr-size"]:checked').value; const qrImg = document.getElementById('qr-code-image'); qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(currentCheckinUrl)}`; }
         function showNewParticipantModal(ic){ document.getElementById('new-ic').value = ic; document.getElementById('new-participant-modal').classList.remove('hidden'); }
         function closeModal(modalId) { const modal = document.getElementById(modalId); if(!modal) return; modal.classList.add('hidden'); if(modalId === 'unlock-modal'){ document.getElementById('unlock-verification-section').classList.remove('hidden'); document.getElementById('unlock-export-section').classList.add('hidden'); document.getElementById('unlock-ic-input').value = ''; document.getElementById('unlock-error').classList.add('hidden'); } else if (modalId === 'edit-absent-participant-modal') { document.getElementById('edit-absent-form').reset(); document.getElementById('edit-absent-error').classList.add('hidden'); } else if (modalId === 'coordinator-confirm-modal') { document.getElementById('coordinator-confirm-form').reset(); document.getElementById('coordinator-confirm-submit-btn').disabled = false; document.getElementById('coordinator-confirm-submit-btn').textContent = 'Sahkan Maklum Balas'; showSurveyListModal('no response'); } }
         function showUnlockModal() { if (!currentLoadedProgram) { alert('Sila buka program.'); return; } document.getElementById('unlock-modal').classList.remove('hidden'); }
