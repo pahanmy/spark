@@ -112,7 +112,7 @@
                                     <p class="text-sm font-medium text-indigo-600 uppercase">Maklumat Program</p>
                                 </div>
                                 <h2 id="dashboard-program-name" class="text-2xl font-bold text-gray-800 mb-1"></h2>
-                                <div id="dashboard-" class="text-sm text-gray-600 flex items-center gap-1">
+                                <div id="dashboard-penyelaras" class="text-sm text-gray-600 flex items-center gap-1">
                                     </div>
                                 </div>
                             <div class="flex items-center gap-2">
@@ -522,7 +522,7 @@
 
             const programRef = doc(db, `artifacts/${appId}/public/data/spark_programs`, programKey);
             
-            unsubscribeProgramListener = onSnapshot(programRef, (docSnap) => {
+            unsubscribeProgramListener = onSnapshot(docSnap) => {
                 if (docSnap.exists()) {
                     currentLoadedProgram = { id: docSnap.id, ...docSnap.data() };
                     
@@ -534,8 +534,20 @@
                     // PAPARKAN NAMA PENYELARAS (Format yang lebih formal)
                     const penyelarasDiv = document.getElementById('dashboard-penyelaras');
                     if (penyelarasDiv) {
-                        const icon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-indigo-400 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-6-3a2 2 0 11-4 0 2 2 0 014 0zm-2 4a5 5 0 00-4.546 2.916A5.98 5.98 0 0010 16a5.98 5.98 0 004.546-2.084A5 5 0 0010 11z" clip-rule="evenodd" /></svg>`;
-                        penyelarasDiv.innerHTML = `${icon} <span class="font-semibold text-gray-800">${currentLoadedProgram.penyelaras_name || 'N/A'}</span>`;
+                        const icon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-indigo-400 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd" /></svg>`;
+                        const penyelarasName = currentLoadedProgram.penyelaras_name || 'N/A';
+                        // Ambil Stesen Kerja dari rekod peserta penyelaras jika ada
+                        let stationText = 'Tiada Stesen Direkod';
+                        if (currentLoadedProgram.penyelaras_ic) {
+                            fetchPenyelarasDetails(currentLoadedProgram.penyelaras_ic).then(details => {
+                                if (details && details.station) {
+                                    stationText = details.station.toUpperCase();
+                                }
+                                penyelarasDiv.innerHTML = `${icon} Urusetia / Penyelaras: <span class="font-semibold text-gray-800">${penyelarasName}</span> &bull; Stesen: <span class="font-medium text-gray-700">${stationText}</span>`;
+                            });
+                        } else {
+                            penyelarasDiv.innerHTML = `${icon} Urusetia / Penyelaras: <span class="font-semibold text-gray-800">${penyelarasName}</span> &bull; Stesen: <span class="font-medium text-gray-700">${stationText}</span>`;
+                        }
                     }
                     
                     renderDateTabsAndAttendance();
@@ -570,6 +582,24 @@
             });
         }
         
+        // FUNGSI BARU: Mendapatkan butiran penyelaras dari koleksi participants
+        async function fetchPenyelarasDetails(ic) {
+            if (!db || !ic) return null;
+            try {
+                const participantsRef = collection(db, `artifacts/${appId}/public/data/spark_participants`);
+                const q = query(participantsRef, where("ic", "==", ic));
+                const querySnapshot = await getDocs(q);
+                
+                if (!querySnapshot.empty) {
+                    return querySnapshot.docs[0].data();
+                }
+                return null;
+            } catch (error) {
+                console.error("Error fetching penyelaras details:", error);
+                return null;
+            }
+        }
+
         function renderDateTabsAndAttendance() {
             const tabsContainer = document.getElementById('attendance-date-tabs');
             tabsContainer.innerHTML = '';
@@ -1221,7 +1251,7 @@
         }
 
         function startCountdown(programData) { let interval = window.countdownTimerInterval; if (interval) clearInterval(interval); const container = document.getElementById('dashboard-countdown'); const timerSpan = document.getElementById('countdown-timer-text'); if (!programData.expiryTimestamp) { container.classList.add('hidden'); container.classList.remove('flex'); return; } container.classList.remove('hidden'); container.classList.add('flex'); const cutoff = new Date(programData.expiryTimestamp); window.countdownTimerInterval = setInterval(() => { const distance = cutoff - new Date().getTime(); if (distance < 0) { clearInterval(window.countdownTimerInterval); timerSpan.innerHTML = 'Pendaftaran Ditutup'; return; } const d = Math.floor(distance / 864e5); const h = Math.floor((distance % 864e5) / 36e5); const m = Math.floor((distance % 36e5) / 6e4); let str = 'Tutup dalam: '; if (d > 0) str += `${d}h `; str += `${h}j ${m}m`; timerSpan.innerHTML = str; }, 1000); }
-        function updateQrCode() { if (!currentCheckinUrl) return; const size = document.querySelector('input[name="qr-size"]:checked').value; const qrImg = document.getElementById('qr-code-image'); qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(currentCheckinUrl)}`; }
+        function updateQrCode() { if (!currentCheckinUrl) return; const size = document.querySelector('input[name="qr-size']:checked').value; const qrImg = document.getElementById('qr-code-image'); qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(currentCheckinUrl)}`; }
         function showNewParticipantModal(ic){ document.getElementById('new-ic').value = ic; document.getElementById('new-participant-modal').classList.remove('hidden'); }
         function closeModal(modalId) { const modal = document.getElementById(modalId); if(!modal) return; modal.classList.add('hidden'); if(modalId === 'unlock-modal'){ document.getElementById('unlock-verification-section').classList.remove('hidden'); document.getElementById('unlock-export-section').classList.add('hidden'); document.getElementById('unlock-ic-input').value = ''; document.getElementById('unlock-error').classList.add('hidden'); } else if (modalId === 'edit-absent-participant-modal') { document.getElementById('edit-absent-form').reset(); document.getElementById('edit-absent-error').classList.add('hidden'); } else if (modalId === 'coordinator-confirm-modal') { document.getElementById('coordinator-confirm-form').reset(); document.getElementById('coordinator-confirm-submit-btn').disabled = false; document.getElementById('coordinator-confirm-submit-btn').textContent = 'Sahkan Maklum Balas'; showSurveyListModal('no response'); } }
         function showUnlockModal() { if (!currentLoadedProgram) { alert('Sila buka program.'); return; } document.getElementById('unlock-modal').classList.remove('hidden'); }
