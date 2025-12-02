@@ -124,7 +124,15 @@
                             <div class="relative flex items-start"><div class="flex h-5 items-center"><input id="multi-day-checkbox" name="multi-day" type="checkbox" class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" disabled></div><div class="ml-3 text-sm"><label for="multi-day-checkbox" class="font-medium text-gray-700 disabled-label">Program lebih dari satu hari?</label></div></div>
                             <div><label class="block text-sm font-medium text-gray-700 mb-2 disabled-label">Pilih Sesi Masa</label><div id="session-buttons" class="flex flex-wrap gap-2"><button type="button" data-session="pagi" onclick="setSessionTime('pagi')" class="btn bg-gray-100 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-indigo-100 hover:text-indigo-800" disabled>Pagi (8 pagi - 12 t/hari)</button><button type="button" data-session="petang" onclick="setSessionTime('petang')" class="btn bg-gray-100 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-indigo-100 hover:text-indigo-800" disabled>Petang (2 ptg - 5 ptg)</button><button type="button" data-session="sepenuh-hari" onclick="setSessionTime('sepenuh-hari')" class="btn bg-gray-100 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-indigo-100 hover:text-indigo-800" disabled>Sepenuh Hari (8 pagi - 5 ptg)</button></div></div>
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2"><div><label for="start-time" class="block text-sm font-medium text-gray-700 mb-1 disabled-label">Masa Mula</label><input type="time" id="start-time" name="start-time" value="08:00" required class="block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" disabled></div><div><label for="end-time" class="block text-sm font-medium text-gray-700 mb-1 disabled-label">Masa Tamat</label><input type="time" id="end-time" name="end-time" value="17:00" required class="block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" disabled></div></div>
-                            <div><label for="quota" class="block text-sm font-medium text-gray-700 disabled-label">Had Kuota Peserta (Wajib)</label><div class="input-with-icon mt-1"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" /></svg><input type="number" id="quota" name="quota" value="20" required class="block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" disabled></div></div>
+                            <div>
+                                <label for="quota" class="block text-sm font-medium text-gray-700 disabled-label">Had Kuota Peserta (Wajib)</label>
+                                <div class="input-with-icon mt-1">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" /></svg>
+                                    <input type="number" id="quota" name="quota" value="20" required class="block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" disabled>
+                                </div>
+                                <div id="quota-alert-message" class="mt-2 p-3 bg-blue-100 border border-blue-400 text-blue-700 text-sm rounded-lg hidden">
+                                    </div>
+                            </div>
                             <div><label for="expiry-select" class="block text-sm font-medium text-gray-700 disabled-label">Set Tarikh Lupus Pendaftaran</label><select id="expiry-select" class="mt-1 block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" disabled><option value="6" selected>6 Jam Selepas Tamat (Lalai)</option><option value="12">12 Jam Selepas Tamat</option><option value="none">Tiada</option></select></div>
                             <div class="pt-4 border-t mt-4"><label class="block text-sm font-medium text-gray-700 mb-3 disabled-label">Modul Tambahan (Opsyenal)</label><div class="space-y-4">
                                 
@@ -967,6 +975,9 @@ service cloud.firestore {
         
         async function loadReferenceSchools(type) { 
             const textarea = document.getElementById('reference-list-textarea'); 
+            const quotaAlert = document.getElementById('quota-alert-message'); // Elemen makluman
+            quotaAlert.classList.add('hidden'); // Sembunyikan makluman dahulu
+            
             textarea.value = 'Memuatkan...';
             try {
                 const schoolsRef = collection(db, `artifacts/${appId}/public/data/spark_schools`);
@@ -1006,8 +1017,15 @@ service cloud.firestore {
                     
                     document.getElementById('quota').value = newQuota; // KEMAS KINI KUOTA
                     
-                    // MAKLUMAN KEPADA PENYELARAS
-                    alert(`✅ Kuota berjaya dikemas kini kepada ${newQuota}!\n\n(Berdasarkan ${totalSchools} Sekolah + ${ajkCount} slot tambahan untuk AJK/Pegawai PPD).\n\nSila pastikan anda menampal 10 nama AJK/Pegawai PPD secara manual di dalam kotak teks rujukan kehadiran untuk senarai rujukan yang lengkap.`);
+                    // KEMAS KINI MAKLUMAN INLINE
+                    quotaAlert.innerHTML = `
+                        Kuota <strong>berjaya dikemas kini</strong> kepada <strong>${newQuota}</strong>! 
+                        (${totalSchools} Sekolah/Stesen + ${ajkCount} slot tambahan untuk AJK/Pegawai PPD).
+                        <br>
+                        <br>
+                        <strong>TINDAKAN DIPERLUKAN:</strong> Sila pastikan anda <strong>menampal ${ajkCount} nama AJK/Pegawai PPD secara manual</strong> di dalam kotak teks rujukan kehadiran di bawah, untuk senarai rujukan yang lengkap.
+                    `;
+                    quotaAlert.classList.remove('hidden'); // Paparkan makluman
                 }
             } catch (error) { 
                 console.error("Error loading schools:", error); 
