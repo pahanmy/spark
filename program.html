@@ -503,6 +503,36 @@
                 } 
             }
         });
+        
+        // =========================================================
+        // >>> FUNGSI BARU: NORMALISASI NAMA STESEN/SEKOLAH <<<
+        // =========================================================
+        function normalizeStationName(stationName) {
+            if (!stationName) return '';
+            let normalized = stationName.trim().toUpperCase();
+            
+            // Buang singkatan sekolah Cina
+            normalized = normalized.replace(/\bSJK\(C\)/g, 'SJKC');
+            normalized = normalized.replace(/\bSJK\(CINA\)/g, 'SJKC');
+            normalized = normalized.replace(/\bSJK C\b/g, 'SJKC');
+
+            // Normalisasi Kampung / Jalan / Lain-lain
+            normalized = normalized.replace(/\bKAMPUNG\b/g, 'KG');
+            normalized = normalized.replace(/\bKG\./g, 'KG');
+            normalized = normalized.replace(/\bJALAN\b/g, 'JLN');
+            normalized = normalized.replace(/\bJLN\./g, 'JLN');
+            normalized = normalized.replace(/\bSEKOLAH KEBANGSAAN\b/g, 'SK');
+            normalized = normalized.replace(/\bSEKOLAH JENIS KEBANGSAAN\b/g, 'SJK');
+            
+            // Buang kurungan dan kandungannya (cth: (2) dalam SK Sungai Besi (2))
+            normalized = normalized.replace(/ *\([^)]*\) */g, "");
+            
+            // Buang ruang berganda yang terhasil
+            normalized = normalized.replace(/ {2,}/g, ' ').trim(); 
+            
+            return normalized;
+        }
+        // =========================================================
 
         function main() { 
             if (!userId) return;
@@ -727,12 +757,13 @@
                 if (hasReferenceList) {
                     // LOGIK BARU: Kira berdasarkan senarai rujukan
                     const referenceList = currentLoadedProgram.referenceList;
-                    const respondedStations = new Set(surveyResponses.map(r => (r.station || '').trim().toUpperCase()));
-                    const respondedIndividuals = new Set(surveyResponses.map(r => `${(r.name || '').trim().toUpperCase()}|${(r.station || '').trim().toUpperCase()}`));
+                    // Guna normalisasi di sini:
+                    const respondedStations = new Set(surveyResponses.map(r => normalizeStationName(r.station))); 
+                    const respondedIndividuals = new Set(surveyResponses.map(r => `${(r.name || '').trim().toUpperCase()}|${normalizeStationName(r.station)}`));
 
                     const filteredList = referenceList.filter(ref => {
                         const refName = (ref.name || '').trim().toUpperCase();
-                        const refStation = (ref.station || '').trim().toUpperCase();
+                        const refStation = normalizeStationName(ref.station); // Guna normalisasi
                         let hasResponded = false;
                         if (refName) { 
                             const refKey = `${refName}|${refStation}`;
@@ -779,24 +810,26 @@
             const referenceList = currentLoadedProgram.referenceList || [];
             absentListBody.innerHTML = ''; 
 
-            const attendedStations = new Set(attendance.map(p => (p.station || '').trim().toUpperCase()));
-            const attendedIndividuals = new Set(attendance.map(p => `${(p.name || '').trim().toUpperCase()}|${(p.station || '').trim().toUpperCase()}`));
+            // Guna normalisasi untuk senarai kehadiran
+            const attendedStations = new Set(attendance.map(p => normalizeStationName(p.station)).filter(s => s.length > 0));
+            const attendedIndividuals = new Set(attendance.map(p => `${(p.name || '').trim().toUpperCase()}|${normalizeStationName(p.station)}`));
 
             let absentHtml = '';
             let absentCounter = 0;
 
             referenceList.forEach((ref, originalIndex) => {
                 const refName = (ref.name || '').trim().toUpperCase();
-                const refStation = (ref.station || '').trim().toUpperCase();
+                const refStation = (ref.station || '').trim().toUpperCase(); // Papar yang asal
+                const normalizedRefStation = normalizeStationName(ref.station); // Guna yang dinormalisasi untuk perbandingan
                 let isAbsent = false;
 
                 if (refName) { 
-                    const refIndividualKey = `${refName}|${refStation}`;
+                    const refIndividualKey = `${refName}|${normalizedRefStation}`;
                     if (!attendedIndividuals.has(refIndividualKey)) {
                         isAbsent = true;
                     }
-                } else if (refStation) { 
-                    if (!attendedStations.has(refStation)) {
+                } else if (normalizedRefStation) { 
+                    if (!attendedStations.has(normalizedRefStation)) {
                         isAbsent = true;
                     }
                 }
@@ -959,12 +992,13 @@
                 thPengganti.textContent = 'Jawatan/Stesen'; // Gantikan tajuk pengganti
                 
                 const referenceList = currentLoadedProgram.referenceList || [];
-                const respondedStations = new Set(allResponses.map(r => (r.station || '').trim().toUpperCase()));
-                const respondedIndividuals = new Set(allResponses.map(r => `${(r.name || '').trim().toUpperCase()}|${(r.station || '').trim().toUpperCase()}`));
+                // Guna normalisasi di sini:
+                const respondedStations = new Set(allResponses.map(r => normalizeStationName(r.station)));
+                const respondedIndividuals = new Set(allResponses.map(r => `${(r.name || '').trim().toUpperCase()}|${normalizeStationName(r.station)}`));
 
                 filteredList = referenceList.filter(ref => {
                     const refName = (ref.name || '').trim().toUpperCase();
-                    const refStation = (ref.station || '').trim().toUpperCase();
+                    const refStation = normalizeStationName(ref.station); // Guna normalisasi
                     let hasResponded = false;
                     if (refName) { 
                         const refKey = `${refName}|${refStation}`;
@@ -981,7 +1015,8 @@
                 const participantMap = new Map();
                 participantsSnapshot.forEach(doc => {
                     const data = doc.data();
-                    participantMap.set((data.name || '').trim().toUpperCase() + '|' + (data.station || '').trim().toUpperCase(), data);
+                    const normalizedStation = normalizeStationName(data.station); // Guna normalisasi
+                    participantMap.set((data.name || '').trim().toUpperCase() + '|' + normalizedStation, data);
                 });
 
 
@@ -989,7 +1024,7 @@
                      htmlOutput = `<tr><td colspan="5" class="px-6 py-4 text-center text-gray-500">Semua rujukan telah memberi respon.</td></tr>`;
                 } else {
                      htmlOutput = filteredList.sort((a,b) => (a.station > b.station) ? 1 : -1).map((ref, index) => {
-                         const refKey = (ref.name || '').trim().toUpperCase() + '|' + (ref.station || '').trim().toUpperCase();
+                         const refKey = (ref.name || '').trim().toUpperCase() + '|' + normalizeStationName(ref.station); // Guna normalisasi untuk kunci
                          const pInfo = participantMap.get(refKey);
                          const isIndividual = !!ref.name;
                          const tempIC = pInfo ? pInfo.ic : ''; 
@@ -1224,11 +1259,11 @@
             const attendance = currentLoadedProgram.attendance || [];
             const referenceList = currentLoadedProgram.referenceList || [];
             
-            // 1. Dapatkan senarai stesen unik yang dirujuk
-            const uniqueReferenceStations = new Set(referenceList.map(ref => (ref.station || '').trim().toUpperCase()).filter(s => s.length > 0));
+            // 1. Dapatkan senarai stesen unik yang dirujuk (MENGGUNAKAN NORMALISASI)
+            const uniqueReferenceStations = new Set(referenceList.map(ref => normalizeStationName(ref.station)).filter(s => s.length > 0));
             
-            // 2. Dapatkan senarai stesen unik yang telah hadir
-            const attendedStations = new Set(attendance.map(p => (p.station || '').trim().toUpperCase()).filter(s => s.length > 0));
+            // 2. Dapatkan senarai stesen unik yang telah hadir (MENGGUNAKAN NORMALISASI)
+            const attendedStations = new Set(attendance.map(p => normalizeStationName(p.station)).filter(s => s.length > 0));
             
             // 3. Kira yang hadir (intersection)
             const stationsThatAttended = new Set();
@@ -1488,7 +1523,8 @@
             toggleCoordinatorRepFields, 
             submitCoordinatorConfirmation,
             switchInfographic, // Tambah fungsi baru
-            renderSchoolInfographic // Tambah fungsi baru
+            renderSchoolInfographic, // Tambah fungsi baru
+            normalizeStationName // Tambah fungsi normalisasi
         });
     </script>
 </body>
