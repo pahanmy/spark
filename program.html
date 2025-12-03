@@ -159,6 +159,15 @@
                                 </div>
                         </div>
                         </div>
+                    
+                    <div class="card p-6 mt-6">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-indigo-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H7M17 19H7M5 12h14"></path></svg>
+                            🏆 3 Peserta Terawal Mendaftar
+                        </h3>
+                        <div id="early-bird-list" class="space-y-3">
+                            </div>
+                    </div>
                     <div id="manual-checkin-card" class="card p-6 hidden">
                         <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-indigo-500" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd" /></svg>Daftar Masuk Manual</h3>
                         <div class="flex">
@@ -648,6 +657,7 @@
                     renderInfographic(); 
                     renderSchoolInfographic(); 
                     switchInfographic('keseluruhan'); 
+                    renderEarlyBirds(); // PANGGILAN FUNGSI BARU DI SINI
 
                     document.getElementById('loading-dashboard').classList.add('hidden');
                     document.getElementById('full-dashboard-content').classList.remove('hidden');
@@ -1164,7 +1174,7 @@
             }
         }
         
-        // ## FUNGSI renderAttendanceTable DIKEMASKINI ##
+        // ## FUNGSI renderAttendanceTable DIKEMASKINI (dengan panggilan renderEarlyBirds) ##
         function renderAttendanceTable(attendanceList){
             if (!currentLoadedProgram) return;
             const attendanceListBody = document.getElementById('attendance-list-body');
@@ -1204,7 +1214,85 @@
             renderInfographic(); 
             renderSchoolInfographic(); 
             renderAttendancePaginationControls(sortedList.length);
+            renderEarlyBirds(); // <<< PANGGILAN FUNGSI BARU DI SINI >>>
         }
+
+        // --- FUNGSI BARU: renderEarlyBirds ---
+        function renderEarlyBirds() {
+            if (!currentLoadedProgram) return;
+
+            const attendance = currentLoadedProgram.attendance || [];
+            const container = document.getElementById('early-bird-list');
+            container.innerHTML = ''; 
+
+            if (attendance.length === 0) {
+                container.innerHTML = '<p class="text-center text-gray-500 py-4">Tiada rekod kehadiran direkodkan lagi.</p>';
+                return;
+            }
+
+            // 1. Susun mengikut masa paling awal
+            const sortedAttendance = attendance.sort((a, b) => new Date(a.time) - new Date(b.time));
+            
+            // 2. Ambil 3 rekod terawal (atau kurang)
+            const earlyBirds = sortedAttendance.slice(0, 3);
+            
+            // 3. Tentukan masa mula program hari pertama (untuk perbandingan)
+            const startTimeStr = currentLoadedProgram.startTime; // Contoh: "09:00"
+            const startDateStr = currentLoadedProgram.startDate; // Contoh: "2023-10-25"
+
+            const listHtml = earlyBirds.map((p, index) => {
+                const attendanceTime = new Date(p.time);
+                const attendanceDateStr = p.time.substring(0, 10); // Ambil tarikh kehadiran
+                
+                // Cipta objek Date untuk masa mula program pada hari kehadiran
+                const programStartTime = new Date(`${attendanceDateStr}T${startTimeStr}:00`); 
+                
+                let statusTag;
+                let statusIcon;
+                let statusText;
+                // Kira perbezaan dalam saat (positif = hadir awal, negatif = hadir lewat)
+                let diffInSeconds = (programStartTime.getTime() - attendanceTime.getTime()) / 1000;
+                
+                if (diffInSeconds > 60) {
+                    statusText = `Awal ${Math.floor(diffInSeconds / 60)} minit`;
+                    statusTag = 'bg-teal-100 text-teal-800';
+                    statusIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.707a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" /></svg>`;
+                } else if (diffInSeconds >= -60) { // Dalam lingkungan 1 minit sebelum/selepas
+                    statusText = `Tepat Masa`;
+                    statusTag = 'bg-green-100 text-green-800';
+                    statusIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd" /></svg>`;
+                } else {
+                    statusText = `Lewat ${Math.floor(Math.abs(diffInSeconds) / 60)} minit`;
+                    statusTag = 'bg-red-100 text-red-800';
+                    statusIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd" /></svg>`;
+                }
+                
+                // Format masa untuk paparan
+                const formattedTime = attendanceTime.toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit' });
+                
+                return `
+                    <div class="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                        <div class="text-xl font-bold text-indigo-600 w-8 text-center">${index + 1}</div>
+                        <div class="flex-1">
+                            <div class="text-sm font-semibold text-gray-800">${p.name.toUpperCase()}</div>
+                            <div class="text-xs text-gray-500">${p.station || '-'}</div>
+                        </div>
+                        <div class="flex flex-col items-end">
+                            <div class="text-xs font-medium text-gray-700">${formattedTime}</div>
+                            <div class="flex items-center gap-1 text-xs font-semibold ${statusTag} px-2 py-0.5 rounded-full mt-1">
+                                ${statusIcon}
+                                <span>${statusText}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            container.innerHTML = listHtml;
+        }
+
+        // --- AKHIR FUNGSI BARU ---
+
 
         // --- Fungsi lain (renderAttendancePaginationControls, prevAttendancePage, ..., openParticipantInfo) kekal sama ---
         function renderAttendancePaginationControls(totalItems) { const paginationControls = document.getElementById('attendance-pagination-controls'); const totalPages = Math.ceil(totalItems / attendancePerPage); if (totalPages <= 1) { paginationControls.innerHTML = ''; return; } const prevDisabled = currentAttendancePage === 1 ? 'disabled' : ''; const nextDisabled = currentAttendancePage === totalPages ? 'disabled' : ''; paginationControls.innerHTML = ` <button onclick="prevAttendancePage()" ${prevDisabled} class="btn bg-gray-200 text-gray-700 text-sm py-1 px-3 rounded-lg">Sebelumnya</button> <span class="text-sm text-gray-700">Halaman ${currentAttendancePage} dari ${totalPages}</span> <button onclick="nextAttendancePage()" ${nextDisabled} class="btn bg-gray-200 text-gray-700 text-sm py-1 px-3 rounded-lg">Seterusnya</button> `; }
@@ -1520,7 +1608,8 @@
             submitCoordinatorConfirmation,
             switchInfographic, // Tambah fungsi baru
             renderSchoolInfographic, // Tambah fungsi baru
-            normalizeStationName // Tambah fungsi normalisasi
+            normalizeStationName, // Tambah fungsi normalisasi
+            renderEarlyBirds // Tambah fungsi baru
         });
     </script>
 </body>
