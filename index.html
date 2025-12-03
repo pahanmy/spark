@@ -424,6 +424,7 @@
     </div>
     
     <script type="module">
+        import { GoogleGenAI } from "https://esm.run/@google/genai";
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, collection, query, where, limit, addDoc, onSnapshot, serverTimestamp, getDocs, updateDoc, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
@@ -438,9 +439,36 @@
         };
 
         let db, auth, userId;
-        let weeklyProgramsCache = {}; // Cache remains, though display logic removed
+        let weeklyProgramsCache = {}; 
         const appId = firebaseConfig.projectId;
         const DEVELOPER_IC = "890522135381";
+
+        // ==========================================================
+        // KONFIGURASI GEMINI AI
+        // ==========================================================
+        
+        // PENTING: Kunci API telah dimasukkan. Sila amalkan keselamatan API!
+        const GEMINI_API_KEY = "AIzaSyDxpFHHnK3g7eKI5RzEmkmaGBoAP_-kqn4"; 
+        let ai;
+        try {
+            ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+        } catch (e) {
+            console.error("Gagal inisialisasi Gemini API:", e);
+        }
+
+        // Pengetahuan Asas SPARK (Sistem Instruction / Grounding)
+        const SPARK_KNOWLEDGE_BASE = `
+SPARK adalah Sistem Pautan Automatik Rekod Kehadiran, digunakan untuk pendaftaran, kehadiran, dan pelaporan program.
+1. Kunci Program: Kod unik (ABC-12345) untuk akses dashboard penganjur.
+2. Kehadiran: Peserta hanya perlu imbas QR code dan mengisi borang ringkas.
+3. E-Sijil: Boleh disemak di halaman sijil.html dengan No. IC selepas program tamat.
+4. Program Baru: Penganjur perlu mengesahkan IC mereka di halaman semak.html.
+5. Kaedah Program: Menyokong Bersemuka, Dalam Talian, atau Hybrid.
+6. Tempahan Bilik: Sistem boleh menyemak konflik jadual dan menempah bilik mesyuarat secara automatik.
+Jawab semua soalan berkaitan SPARK menggunakan maklumat ini dan bertindak sebagai Chatbot yang profesional dan mesra.
+`;
+        // ==========================================================
+        
 
         try {
             const app = initializeApp(firebaseConfig);
@@ -971,7 +999,7 @@
             `;
             chatBody.scrollTop = chatBody.scrollHeight;
 
-            // 4. Dapatkan Jawapan dari Sara (Simulasi / Ganti dengan API sebenar)
+            // 4. Dapatkan Jawapan dari Sara (Ganti dengan API sebenar)
             const saraResponse = await getSaraResponse(message);
 
             // 5. Buang Typing Indicator dan Papar Jawapan Sara
@@ -993,26 +1021,33 @@
         }
 
         async function getSaraResponse(query) {
-            // Ini adalah rangka kerja untuk AI Response. 
-            // Gantikan logika di bawah dengan panggilan API AI sebenar (cth., Google Gemini API, OpenAI)
+            if (!ai) {
+                 await new Promise(resolve => setTimeout(resolve, 1000));
+                 return "Maaf, Sara tidak dapat disambungkan ke perkhidmatan AI. (Ralat: Inisialisasi API gagal)";
+            }
             
-            // Simulasi kelewatan rangkaian
-            await new Promise(resolve => setTimeout(resolve, 1500)); 
+            try {
+                const response = await ai.models.generateContent({
+                    model: "gemini-2.5-flash", 
+                    contents: query,
+                    config: {
+                        systemInstruction: `Anda adalah Sara, Chatbot AI mesra SPARK. Jawab dengan ringkas dan profesional. Gunakan maklumat pengetahuan ini sebagai rujukan: \n\n${SPARK_KNOWLEDGE_BASE}`,
+                        temperature: 0.5,
+                        maxOutputTokens: 250,
+                    }
+                });
 
-            query = query.toLowerCase();
+                // Simulasi kelewatan rangkaian (untuk kelihatan semula jadi)
+                await new Promise(resolve => setTimeout(resolve, 500)); 
 
-            if (query.includes('spark') || query.includes('sistem')) {
-                return "SPARK ialah Sistem Pautan Automatik Rekod Kehadiran yang memudahkan urusan pendaftaran, kehadiran, dan pelaporan program anda.";
-            } else if (query.includes('kunci') || query.includes('kod')) {
-                 return "Kunci program adalah kod unik (contoh: ABC-12345) yang digunakan oleh penganjur untuk mengakses papan pemuka (dashboard) kehadiran. Anda boleh memasukkannya di kotak atas halaman utama.";
-            } else if (query.includes('sijil')) {
-                 return "Untuk menyemak e-sijil anda, sila klik pautan 'Semak e-Sijil Anda' di bahagian bawah halaman utama dan masukkan No. IC anda.";
-            } else if (query.includes('admin') || query.includes('balas')) {
-                 return "Maaf, saya tidak boleh mendedahkan maklumat admin atau membenarkan balasan log di sini. Fungsi itu terhad kepada pembangun sahaja.";
-            } else if (query.includes('hai') || query.includes('hello')) {
-                return "Hai! Saya Sara. Apa yang anda ingin tahu tentang SPARK hari ini?";
-            } else {
-                return `Saya Sara, AI yang direka untuk menjawab soalan tentang SPARK. Saya tidak pasti bagaimana untuk menjawab '${query}'. Bolehkah anda tanya tentang kehadiran atau program?`;
+                if (response.text) {
+                    return response.text;
+                } else {
+                    return "Maaf, saya menghadapi masalah memahami permintaan anda. Boleh cuba tanya tentang SPARK?";
+                }
+            } catch (error) {
+                console.error("Gemini API Error:", error);
+                return "Maaf, berlaku ralat teknikal semasa menghubungi perkhidmatan AI. Sila semak konsol untuk maklumat lanjut.";
             }
         }
         
