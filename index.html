@@ -26,7 +26,7 @@
             position: fixed;
             bottom: 20px;
             right: 20px;
-            z-index: 9999; /* Ditingkatkan */
+            z-index: 1000;
         }
         #chat-window {
             position: fixed;
@@ -39,7 +39,7 @@
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
             display: flex;
             flex-direction: column;
-            z-index: 9998; /* Ditingkatkan */
+            z-index: 999;
             overflow: hidden;
         }
         #chat-header {
@@ -321,7 +321,7 @@
                 </div>
             </div>
         </div>
-    </main>
+    </div>
 
     <div id="feedback-modal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop hidden"><div class="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col"><div class="flex justify-between items-center p-4 border-b"><h3 class="text-xl font-semibold text-gray-800 flex items-center gap-2"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>Maklum Balas & Penambahbaikan</h3><button onclick="closeModal('feedback-modal')" class="text-gray-400 hover:text-gray-600"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button></div><div class="p-6 overflow-y-auto"><form id="feedback-form" onsubmit="submitFeedback(event)"><h4 class="text-lg font-semibold text-gray-700 mb-4">Hantar Komen Anda</h4>
         <div class="mb-4 p-4 bg-gray-50 border rounded-lg">
@@ -424,7 +424,7 @@
     </div>
     
     <script type="module">
-        // Import perpustakaan Firebase
+        import { GoogleGenAI } from "https://esm.run/@google/genai";
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, collection, query, where, limit, addDoc, onSnapshot, serverTimestamp, getDocs, updateDoc, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
@@ -447,43 +447,25 @@
         // KONFIGURASI GEMINI AI
         // ==========================================================
         
+        // PENTING: Kunci API telah dimasukkan. Sila amalkan keselamatan API!
         const GEMINI_API_KEY = "AIzaSyDxpFHHnK3g7eKI5RzEmkmaGBoAP_-kqn4"; 
-        let ai = null; 
-        let GoogleGenAI = null;
-
-        // Fungsi untuk menginisialisasi Gemini secara dinamik
-        async function initializeGemini() {
-            if (ai) return;
-            try {
-                // Menggunakan import dinamik
-                const module = await import("https://esm.run/@google/genai");
-                GoogleGenAI = module.GoogleGenAI;
-                ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
-                console.log("Gemini AI Engine berjaya diinisialisasi.");
-            } catch (e) {
-                console.error("Gagal inisialisasi Gemini API. Sila semak kunci API dan sambungan:", e);
-                // Biarkan ai = null jika gagal
-            }
+        let ai;
+        try {
+            ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+        } catch (e) {
+            console.error("Gagal inisialisasi Gemini API:", e);
         }
-        
-        // Pengetahuan Asas SPARK yang Diperluas
+
+        // Pengetahuan Asas SPARK (Sistem Instruction / Grounding)
         const SPARK_KNOWLEDGE_BASE = `
-Anda adalah Sara, Chatbot AI mesra yang membantu pengguna sistem SPARK. Jawab dengan ringkas, profesional, dan hanya berdasarkan maklumat di bawah.
-
-MAKLUMAT SISTEM SPARK:
-1. Nama Penuh: SPARK adalah Sistem Pautan Automatik Rekod Kehadiran.
-2. Fungsi Utama: Pendaftaran acara, merekod kehadiran melalui imbasan QR, dan penjanaan laporan automatik.
-3. Kunci Program: Kod unik (format contoh: ABC-12345) yang digunakan penganjur untuk mengakses dashboard dan ciri program (seperti QR code).
-4. Pendaftaran Peserta: Peserta mesti mengimbas QR code unik program dan melengkapkan borang.
-5. Semakan Sijil: E-Sijil boleh dimuat turun di halaman 'sijil.html' dengan menggunakan Nombor IC peserta.
-6. Kaedah Program: Sistem menyokong penganjuran program secara Bersemuka, Dalam Talian (menggunakan pautan Meet/Zoom), atau Hybrid.
-7. Modul Tambahan:
-   - Tempahan Bilik: Boleh menyemak konflik jadual dan menempah bilik mesyuarat secara automatik jika diaktifkan oleh penganjur.
-   - Pengesahan Awal: Pautan untuk peserta sahkan kehadiran sebelum tarikh program.
-   - Penilaian: Pautan soal selidik maklum balas selepas program.
-8. Penganjur Program: Penganjur mesti mengesahkan IC mereka di halaman 'semak.html' untuk menjana atau mengemas kini program.
-
-SILA JAWAB SEBAGAI SARA.
+SPARK adalah Sistem Pautan Automatik Rekod Kehadiran, digunakan untuk pendaftaran, kehadiran, dan pelaporan program.
+1. Kunci Program: Kod unik (ABC-12345) untuk akses dashboard penganjur.
+2. Kehadiran: Peserta hanya perlu imbas QR code dan mengisi borang ringkas.
+3. E-Sijil: Boleh disemak di halaman sijil.html dengan No. IC selepas program tamat.
+4. Program Baru: Penganjur perlu mengesahkan IC mereka di halaman semak.html.
+5. Kaedah Program: Menyokong Bersemuka, Dalam Talian, atau Hybrid.
+6. Tempahan Bilik: Sistem boleh menyemak konflik jadual dan menempah bilik mesyuarat secara automatik.
+Jawab semua soalan berkaitan SPARK menggunakan maklumat ini dan bertindak sebagai Chatbot yang profesional dan mesra.
 `;
         // ==========================================================
         
@@ -497,8 +479,6 @@ SILA JAWAB SEBAGAI SARA.
         onAuthStateChanged(auth, async (user) => {
             if (user) {
                 userId = user.uid;
-                // Inisialisasi Gemini hanya selepas Firebase dimuatkan
-                await initializeGemini(); 
                 main();
             } else {
                 try {
@@ -1019,7 +999,7 @@ SILA JAWAB SEBAGAI SARA.
             `;
             chatBody.scrollTop = chatBody.scrollHeight;
 
-            // 4. Dapatkan Jawapan dari Sara
+            // 4. Dapatkan Jawapan dari Sara (Ganti dengan API sebenar)
             const saraResponse = await getSaraResponse(message);
 
             // 5. Buang Typing Indicator dan Papar Jawapan Sara
@@ -1042,8 +1022,8 @@ SILA JAWAB SEBAGAI SARA.
 
         async function getSaraResponse(query) {
             if (!ai) {
-                 // Jawapan manual jika API gagal diinisialisasi
-                 return "Maaf, Sara tidak dapat disambungkan ke perkhidmatan AI (Gemini). Sila semak konsol untuk ralat inisialisasi API.";
+                 await new Promise(resolve => setTimeout(resolve, 1000));
+                 return "Maaf, Sara tidak dapat disambungkan ke perkhidmatan AI. (Ralat: Inisialisasi API gagal)";
             }
             
             try {
@@ -1051,9 +1031,8 @@ SILA JAWAB SEBAGAI SARA.
                     model: "gemini-2.5-flash", 
                     contents: query,
                     config: {
-                        // Menggunakan pengetahuan yang diperluas
-                        systemInstruction: SPARK_KNOWLEDGE_BASE, 
-                        temperature: 0.4, // Sedikit kurang kreatif, lebih fokus pada fakta
+                        systemInstruction: `Anda adalah Sara, Chatbot AI mesra SPARK. Jawab dengan ringkas dan profesional. Gunakan maklumat pengetahuan ini sebagai rujukan: \n\n${SPARK_KNOWLEDGE_BASE}`,
+                        temperature: 0.5,
                         maxOutputTokens: 250,
                     }
                 });
@@ -1064,11 +1043,11 @@ SILA JAWAB SEBAGAI SARA.
                 if (response.text) {
                     return response.text;
                 } else {
-                    return "Saya tidak dapat mencari maklumat yang berkaitan dalam pangkalan data pengetahuan SPARK saya. Boleh cuba tanya soalan yang berbeza?";
+                    return "Maaf, saya menghadapi masalah memahami permintaan anda. Boleh cuba tanya tentang SPARK?";
                 }
             } catch (error) {
-                console.error("Gemini API Error (semasa menjana):", error);
-                return "Maaf, terdapat ralat API. Sila pastikan kunci API anda sah dan mempunyai kuota yang mencukupi.";
+                console.error("Gemini API Error:", error);
+                return "Maaf, berlaku ralat teknikal semasa menghubungi perkhidmatan AI. Sila semak konsol untuk maklumat lanjut.";
             }
         }
         
