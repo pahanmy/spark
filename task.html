@@ -414,7 +414,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, onSnapshot, getDoc, updateDoc, arrayRemove } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"; // Tambah getDoc, updateDoc, arrayRemove
+        import { getFirestore, doc, onSnapshot, getDoc, updateDoc, arrayRemove } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"; 
         
         // --- KONFIGURASI FIREBASE ---
         const firebaseConfig = {
@@ -437,10 +437,10 @@
         let currentModalSkopTitle = "";
         
         let completionItemsToShow = 5; 
-        let allCompletionRecords = []; // Simpan semua rekod untuk carian modal
+        let allCompletionRecords = []; 
 
         // Tambah pembolehubah untuk modal IC
-        let pendingAction = null; // Menyimpan tindakan yang belum selesai (cth: {type: 'edit', index: 1, name: 'Nama Lama'})
+        let pendingAction = null; 
         
         try {
             const app = initializeApp(firebaseConfig);
@@ -461,9 +461,8 @@
             }
         });
 
-        // --- FUNGSI BANTUAN (HELPER) BARU/DIKEMASKINI ---
+        // --- FUNGSI BANTUAN (HELPER) ---
 
-        // Fungsi yang dikemaskini untuk padanan yang ketat (tanpa spasi dan normalisasi SG. + BIN/BINTI)
         function normalizeName(name) {
             if (typeof name !== 'string') return '';
             let normalized = name.toUpperCase();
@@ -540,7 +539,6 @@
             document.getElementById('sahkan-selesai-btn').href = `selesai.html?id=${taskId}`;
             document.getElementById('admin-task-btn').href = `admintask.html?id=${taskId}`; 
             
-            // PANGGIL FUNGSI UNTUK MENGEMASKINI QR
             updateTaskQrCode(taskId); 
             
             const copyBtn = document.getElementById('copy-link-btn');
@@ -576,7 +574,6 @@
                 }
             }
 
-            // Tambah Listener untuk butang "Papar Semua Rekod" di footer
             document.getElementById('completion-items-select').addEventListener('change', (e) => {
                 completionItemsToShow = parseInt(e.target.value, 10);
                 renderCompletionHistory();
@@ -587,7 +584,7 @@
             unsubscribeTaskListener = onSnapshot(taskRef, (docSnap) => {
                 if (docSnap.exists()) {
                     currentTask = { id: docSnap.id, ...docSnap.data() };
-                    allCompletionRecords = currentTask.rekodSelesai || []; // Simpan semua rekod
+                    allCompletionRecords = currentTask.rekodSelesai || []; 
                     
                     renderTaskProgress(); 
                     renderTaskDetails(); 
@@ -614,13 +611,12 @@
             });
         }
         
-        // --- FUNGSI BARU: KOD QR TUGASAN ---
+        // --- FUNGSI QR CODE ---
         function updateTaskQrCode(taskId) {
             if (!taskId) return;
             const baseUrl = window.location.origin + window.location.pathname.replace('task.html', '');
             const checkinUrl = `${baseUrl}selesai.html?id=${taskId}`;
             const qrImg = document.getElementById('task-qr-code-image');
-            // Guna saiz sederhana (e.g. 150x150)
             qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(checkinUrl)}`;
         }
         
@@ -647,12 +643,10 @@
                 alert("Gagal muat turun.");
             }
         }
-        // --- AKHIR FUNGSI BARU: KOD QR TUGASAN ---
         
         function renderTaskDetails() {
             document.getElementById('dashboard-task-name').textContent = currentTask.nama.toUpperCase();
             
-            // Kira Baki Hari dan Papar Badge
             const jumlahSelesai = document.getElementById('info-selesai').textContent;
             const total = document.getElementById('info-total').textContent;
             const peratus = (parseInt(total) === 0) ? 0 : Math.round((parseInt(jumlahSelesai) / parseInt(total)) * 100);
@@ -669,7 +663,7 @@
             document.getElementById('dashboard-date-end').textContent = formatTarikh(currentTask.tarikhSiap);
         }
 
-        // --- FUNGSI renderTaskProgress DENGAN LOGIK KEMASKINI UNTUK SKOP ---
+        // --- FUNGSI RENDER PROGRESS ---
         function renderTaskProgress() {
             const originalTotalSkop = Array.isArray(currentTask.skopSenaraiSekolah) 
                 ? currentTask.skopSenaraiSekolah 
@@ -677,31 +671,23 @@
                 
             const allRekodSelesai = currentTask.rekodSelesai || [];
             
-            // --- 1. Tentukan Kunci Padanan Berdasarkan Data Skop Sasaran ---
             const skopSample = originalTotalSkop[0] || '';
             
-            // Anggap sebagai Skop Sekolah jika ia BERMULA dengan awalan sekolah yang biasa.
             const isSchoolSkop = skopSample.toUpperCase().match(/^(SK|SMK|SJK|KOLEJ|KV|SMAP|SABK|SRK|SRC|SRB)/) && originalTotalSkop.length > 0;
 
-            // --- 2. Bina Set Kunci Pengesahan (Memilih Nama Pegawai atau Stesen) ---
             const normalizedConfirmedKeys = new Set(allRekodSelesai.map(rekod => {
                 let keyToNormalize;
                 
                 if (isSchoolSkop) {
-                    // JIKA SKOP ADALAH SEKOLAH: Kunci padanan adalah NAMA STESEN/SEKOLAH
                     keyToNormalize = rekod.stesen_pengesah; 
                 } else {
-                    // JIKA SKOP ADALAH PEGAWAI/SEKTOR: Kunci padanan adalah NAMA PENGESAH
                     keyToNormalize = rekod.nama_pengesah; 
                 }
                 
-                // Fallback selamat jika data utama tiada
                 keyToNormalize = keyToNormalize || rekod.stesen_pengesah || rekod.nama_pengesah;
                 
                 return normalizeName(keyToNormalize || '');
             }));
-            
-            // --- 3. Laksanakan Padanan dan Pengiraan Skop ---
             
             let jumlahSelesai;
             let jumlahBelum;
@@ -711,7 +697,6 @@
             const belumBtn = document.querySelector('button[onclick="showSkopList(\'belum\')"]');
 
             if (originalTotalSkop.length === 0) {
-                // --- MOD MANUAL (Logik Fallback Sedia Ada) ---
                 jumlahSelesai = currentTask.jumlahSelesai || 0;
                 total = (currentTask.jumlahSelesai || 0) + (currentTask.jumlahBelum || 0);
                 jumlahBelum = total - jumlahSelesai;
@@ -724,14 +709,12 @@
                 skopBelumList = [];
                 
             } else {
-                // --- MOD SKOP (Logik Baru/Dikemas Kini) ---
                 
                 const completedSkopOriginalNames = new Set();
                 
                 originalTotalSkop.forEach(originalSkop => {
                     const normalizedSkop = normalizeName(originalSkop);
                     
-                    // Semak jika nama Skop yang telah dinormalkan ada dalam Set Kunci Pengesahan
                     if (normalizedConfirmedKeys.has(normalizedSkop)) {
                         completedSkopOriginalNames.add(originalSkop);
                     }
@@ -748,7 +731,6 @@
                 if (belumBtn) belumBtn.disabled = (jumlahBelum === 0);
             }
             
-            // --- 4. Paparan Hasil ---
             const peratus = (total === 0) ? 0 : Math.round((jumlahSelesai / total) * 100);
             
             document.getElementById('info-selesai').textContent = jumlahSelesai;
@@ -757,7 +739,6 @@
             document.getElementById('info-peratus').textContent = `${peratus}%`;
             document.getElementById('progress-circle').style.strokeDashoffset = 100 - peratus;
         }
-        // --- AKHIR FUNGSI renderTaskProgress ---
 
         function renderCompletionHistory() {
             const container = document.getElementById('completion-list');
@@ -850,7 +831,7 @@
             });
             
             document.getElementById('completion-search-input').value = '';
-            filterCompletionList(); // Paparkan semua dan set kiraan
+            filterCompletionList(); 
             modal.classList.add('buka');
         }
 
@@ -916,7 +897,6 @@
                 let typeBadge = '';
                 let requiredTag = '';
                 
-                // KENDALIKAN DATA LAMA & BARU
                 if (typeof tugas === 'object' && tugas !== null && tugas.text) {
                     displayText = tugas.text;
                     typeBadge = getTypeBadge(tugas.type);
@@ -1056,7 +1036,7 @@ Sekian, terima kasih.`;
             }
         }
         
-        // --- FUNGSI MODAL SKOP (DIKEMASKINI DENGAN TABEL DAN BUTANG TINDAKAN) ---
+        // --- FUNGSI MODAL SKOP ---
 
         function showSkopList(status) {
             const modal = document.getElementById('skop-list-modal');
@@ -1193,12 +1173,12 @@ Sekian, terima kasih.`;
             }, 250);
         }
         
-        // --- FUNGSI PENGURUSAN IC & TINDAKAN ADMIN (BARU) ---
+        // --- FUNGSI PENGURUSAN IC & TINDAKAN ADMIN ---
         
         async function openICConfirmationModal(actionType, index, name) {
             // Dapatkan IC Penyelaras terkini
             if (!currentTask || !currentTask.penyelaras_ic) {
-                // Cuba dapatkan IC dari dokumen penuh (jika ia bukan dalam task listener)
+                // Cuba dapatkan IC dari dokumen penuh
                 try {
                     const docSnap = await getDoc(doc(db, `artifacts/${appId}/public/data/spark_tasks`, currentTaskId));
                     if (docSnap.exists() && docSnap.data().penyelaras_ic) {
@@ -1230,11 +1210,21 @@ Sekian, terima kasih.`;
 
         function closeICConfirmationModal() {
             document.getElementById('ic-confirmation-modal').classList.remove('buka');
-            pendingAction = null; 
+            // pendingAction = null dipindahkan ke confirmICAction untuk kawalan lebih ketat
         }
 
         function confirmICAction() {
-            if (!pendingAction || !currentTask || !currentTask.penyelaras_ic) return;
+            // Perketatkan semakan untuk ralat "Cannot read properties of null (reading 'type')"
+            if (!pendingAction) {
+                console.error("Ralat: pendingAction adalah null sebelum pengesahan.");
+                alert("Ralat sistem, sila cuba semula. (Kod: PENDING_NULL)");
+                return;
+            }
+            
+            if (!currentTask || !currentTask.penyelaras_ic) {
+                alert("IC Penyelaras tidak dimuatkan dengan betul. Sila muat semula halaman.");
+                return;
+            }
 
             const icInput = document.getElementById('ic-input').value.trim();
             const errorMsg = document.getElementById('ic-error-message');
@@ -1252,7 +1242,7 @@ Sekian, terima kasih.`;
                     executeDeleteSkopItem(pendingAction.index, pendingAction.name);
                 }
                 
-                pendingAction = null;
+                pendingAction = null; // Set kepada null selepas pelaksanaan berjaya/dirancang
 
             } else {
                 errorMsg.textContent = "Nombor IC tidak sepadan dengan Penyelaras Tugasan.";
@@ -1273,7 +1263,11 @@ Sekian, terima kasih.`;
 
         // FUNGSI PELAKSANAAN SEBENAR (selepas pengesahan IC)
         async function executeEditSkopItem(originalIndex, originalName) {
+            // DEBUG ALERT: Sahkan pengesahan berjaya sebelum prompt
+            alert(`PENTING: Pengesahan IC berjaya. Anda kini boleh mengedit nama skop "${originalName}".`);
+            
             const newName = prompt(`Edit nama untuk "${originalName}" (Indeks: ${originalIndex}):`, originalName);
+            
             if (newName && newName.trim() !== originalName.trim()) {
                 
                 if (originalIndex === -1 || !currentTask || !Array.isArray(currentTask.skopSenaraiSekolah)) {
@@ -1289,7 +1283,6 @@ Sekian, terima kasih.`;
                          skopSenaraiSekolah: updatedSkopList
                     });
                      alert(`Berjaya: Nama skop pada indeks ${originalIndex} telah dikemaskini kepada "${newName.trim()}".`);
-                     // onSnapshot akan mengendalikan muat semula UI
                 } catch (error) {
                     console.error("Gagal mengemaskini skop:", error);
                     alert("Ralat Firebase: Gagal mengemaskini skop.");
@@ -1312,18 +1305,13 @@ Sekian, terima kasih.`;
                 try {
                     const docRef = doc(db, `artifacts/${appId}/public/data/spark_tasks`, currentTaskId);
                     
-                    // Kita akan menggunakan arrayRemove jika item itu adalah nama asal
                     const itemToRemove = currentTask.skopSenaraiSekolah[originalIndex];
                     
                     await updateDoc(docRef, {
                         skopSenaraiSekolah: arrayRemove(itemToRemove)
                     });
                     
-                    // Nota: Anda juga mungkin perlu mengemaskini 'skopSelesai' jika ada yang berkait,
-                    // tetapi logik kemaskini 'skopSelesai' biasanya ditangani oleh cron/admin process.
-                    
                     alert(`Berjaya: Skop "${originalName}" telah dipadamkan.`);
-                     // onSnapshot akan mengendalikan muat semula UI
                 } catch (error) {
                     console.error("Gagal memadam skop:", error);
                     alert("Ralat Firebase: Gagal memadam skop.");
@@ -1331,7 +1319,7 @@ Sekian, terima kasih.`;
             }
         }
         
-        // --- KOD TAMBAHAN (SETUP BORANG DINAMIK DI LATAR BELAKANG) ---
+        // --- KOD TAMBAHAN ---
         function setupDynamicFormListeners() {
             // (Hanya placeholder)
         }
@@ -1361,11 +1349,9 @@ Sekian, terima kasih.`;
             webShareTask,
             downloadTaskQrCode,
             
-            // Fungsi yang diubah suai untuk pengesahan IC
             editSkopItem, 
             deleteSkopItem,
             
-            // Fungsi untuk modal IC
             openICConfirmationModal,
             closeICConfirmationModal,
             confirmICAction,
