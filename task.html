@@ -466,26 +466,28 @@
         /**
          * Menormalkan nama (stesen/sekolah/individu) untuk membolehkan perbandingan yang tepat 
          * tanpa mengira singkatan, tanda baca, atau perbezaan ejaan biasa.
+         * Telah diubah suai untuk menangani isu SJK (Cina) dan jarak kosong yang berlebihan.
          */
         function normalizeName(name) {
             if (typeof name !== 'string') return '';
             let normalized = name.toUpperCase();
             
-            // 1. Buang Gelaran Biasa (BIN, BINTI, HJ, H, DR, PROF, IR, dll.)
-            normalized = normalized.replace(/\b(BIN|BINTI|B|A\/L|A\/P|HJ|HAJI|HJH|HAJJAH|DR|DATO|DATUK|PROF|IR|MOHD|MUHAMMAD)\.?\s*/g, ' ').trim();
-            
-            // 2. Penormalan Standard Sekolah/Stesen
+            // Penormalan Standard: Buang BIN/BINTI dan tukar SG/SG. kepada SUNGAI
+            normalized = normalized.replace(/\b(BIN|BINTI|BT)\b\s*/g, '');
+            normalized = normalized.replace(/\b(B\s*I\s*N|B\s*I\s*N\s*T\s*I|B\s*T)\b\s*/g, '');
             normalized = normalized.replace(/\bSG\./g, 'SUNGAI'); 
             normalized = normalized.replace(/\bSG\b/g, 'SUNGAI'); 
             
-            // 3. Tambahan untuk kendalikan SJK (C) / SJK (CINA)
+            // Tambahan untuk kendalikan SJK (C) / SJK (CINA)
+            // 1. Buang semua kurungan yang mengandungi CINA atau C
             normalized = normalized.replace(/\s*\([^)]*(CINA|C)\s*[^)]*\)\s*/g, ''); 
+            // 2. Buang perkataan CINA yang terasing
             normalized = normalized.replace(/\bCINA\b\s*/g, '');
             
-            // 4. Buang semua tanda baca
+            // Buang semua tanda baca
             normalized = normalized.replace(/[.,]/g, ''); 
             
-            // 5. Buang SEMUA jarak kosong yang berlebihan
+            // Buang SEMUA jarak kosong yang berlebihan (termasuk yang ditinggalkan selepas penormalan)
             normalized = normalized.replace(/\s+/g, ''); 
             
             return normalized.trim(); 
@@ -643,8 +645,8 @@
                 const response = await fetch(imageUrl);
                 const blob = await response.blob();
                 const link = document.createElement('a');
-                const sanitizedName = (currentTask.nama || 'task').replace(/[^a-z0-9]/gi, '_').toLowerCase();
                 link.href = URL.createObjectURL(blob);
+                const sanitizedName = (currentTask.nama || 'task').replace(/[^a-z0-9]/gi, '_').toLowerCase();
                 link.download = `qr_task_${sanitizedName}.png`;
                 document.body.appendChild(link);
                 link.click();
@@ -675,90 +677,76 @@
             document.getElementById('dashboard-date-end').textContent = formatTarikh(currentTask.tarikhSiap);
         }
 
-        // --- FUNGSI RENDER PROGRESS (DIUBAHSUAI UNTUK OBJEK SKOP) ---
+        // --- FUNGSI RENDER PROGRESS ---
         function renderTaskProgress() {
-            // Data skop kini mungkin mengandungi objek {nama: string, ic: string | null, type: string}
             const originalTotalSkop = Array.isArray(currentTask.skopSenaraiSekolah) 
                 ? currentTask.skopSenaraiSekolah 
                 : [];
                 
             const allRekodSelesai = currentTask.rekodSelesai || [];
             
-            const confirmedKeys = new Set();
+            const skopSample = originalTotalSkop[0] || '';
             
-            // 1. Bina Set Kunci Pengesahan (Menggunakan IC jika Pegawai PPD, jika tidak guna Stesen/Nama)
-            allRekodSelesai.forEach(rekod => {
+            // Heuristik untuk cuba menentukan jika skop adalah sekolah/stesen atau nama individu
+            const isSchoolSkop = skopSample.toUpperCase().match(/^(SK|SMK|SJK|KOLEJ|KV|SMAP|SABK|SRK|SRC|SRB)/) && originalTotalSkop.length > 0;
+
+            const normalizedConfirmedKeys = new Set(allRekodSelesai.map(rekod => {
                 let keyToNormalize;
-                let normalizedKey;
-
-                // Cuba padankan dengan IC Pegawai PPD
-                if (rekod.ic_pengesah && rekod.ic_pengesah.length === 12) {
-                    confirmedKeys.add(`IC:${rekod.ic_pengesah.trim()}`);
-                    return; // Jika IC ada, IC adalah kunci mutlak
-                }
                 
-                // Fallback: Padanan Nama/Stesen yang dinormalisasi
-                keyToNormalize = rekod.stesen_pengesah || rekod.nama_pengesah || '';
-                normalizedKey = normalizeName(keyToNormalize);
-                if (normalizedKey) {
-                    confirmedKeys.add(`NAME:${normalizedKey}`);
-                }
-            });
-            
-            const completedSkopObjects = [];
-            const uncompletedSkopObjects = [];
-
-            // 2. Bandingkan setiap skop total (objek) dengan Set Kunci Pengesahan
-            originalTotalSkop.forEach(skop => {
-                // Tentukan kunci untuk setiap skop dalam tugasan
-                let isCompleted = false;
-                
-                // A. Cuba padankan guna IC (jika ia adalah Pegawai PPD dan IC wujud)
-                if (skop.type === 'PEGAWAI' && skop.ic && skop.ic.length === 12) {
-                    if (confirmedKeys.has(`IC:${skop.ic.trim()}`)) {
-                        isCompleted = true;
-                    }
-                }
-                
-                // B. Fallback: Padankan guna Nama yang dinormalisasi
-                if (!isCompleted) {
-                    const normalizedSkopName = normalizeName(skop.nama);
-                    if (confirmedKeys.has(`NAME:${normalizedSkopName}`)) {
-                        isCompleted = true;
-                    }
-                }
-
-                // 3. Klasifikasikan skop
-                if (isCompleted) {
-                    completedSkopObjects.push(skop);
+                if (isSchoolSkop) {
+                    keyToNormalize = rekod.stesen_pengesah; // Cuba gunakan stesen
                 } else {
-                    uncompletedSkopObjects.push(skop);
+                    keyToNormalize = rekod.nama_pengesah; // Cuba gunakan nama
                 }
-            });
+                
+                // Fallback jika salah satu null
+                keyToNormalize = keyToNormalize || rekod.stesen_pengesah || rekod.nama_pengesah;
+                
+                return normalizeName(keyToNormalize || '');
+            }));
             
-            skopSelesaiList = completedSkopObjects;
-            skopBelumList = uncompletedSkopObjects;
-            
-            const jumlahSelesai = skopSelesaiList.length; 
-            const jumlahBelum = skopBelumList.length;
-            const total = originalTotalSkop.length;
+            let jumlahSelesai;
+            let jumlahBelum;
+            let total;
             
             const selesaiBtn = document.querySelector('button[onclick="showSkopList(\'selesai\')"]');
             const belumBtn = document.querySelector('button[onclick="showSkopList(\'belum\')"]');
-            
-            if (selesaiBtn) selesaiBtn.disabled = (jumlahSelesai === 0);
-            if (belumBtn) belumBtn.disabled = (jumlahBelum === 0);
 
-            // Jika tiada skop asal ditetapkan, gunakan kiraan rekod kasar (Fallback kurang tepat)
-            if (total === 0) {
-                 const total Records = allCompletionRecords.length;
-                 const peratusFallback = (totalRecords > 0) ? 100 : 0;
-                 document.getElementById('info-selesai').textContent = allCompletionRecords.length;
-                 document.getElementById('info-belum').textContent = 0;
-                 document.getElementById('info-total').textContent = totalRecords;
-                 document.getElementById('info-peratus').textContent = `${peratusFallback}%`;
-                 document.getElementById('progress-circle').style.strokeDashoffset = 100 - peratusFallback;
-                 return;
+            if (originalTotalSkop.length === 0) {
+                // Jika tiada senarai skop, gunakan kiraan langsung (kurang tepat)
+                jumlahSelesai = currentTask.jumlahSelesai || 0;
+                total = (currentTask.jumlahSelesai || 0) + (currentTask.jumlahBelum || 0);
+                jumlahBelum = total - jumlahSelesai;
+                if (jumlahBelum < 0) jumlahBelum = 0;
+                
+                if (selesaiBtn) selesaiBtn.disabled = true;
+                if (belumBtn) belumBtn.disabled = true;
+                
+                skopSelesaiList = [];
+                skopBelumList = [];
+                
+            } else {
+                
+                const completedSkopOriginalNames = new Set();
+                
+                // Bandingkan setiap skop total dengan senarai kunci yang telah dinormalkan
+                originalTotalSkop.forEach(originalSkop => {
+                    const normalizedSkop = normalizeName(originalSkop);
+                    
+                    if (normalizedConfirmedKeys.has(normalizedSkop)) {
+                        completedSkopOriginalNames.add(originalSkop);
+                    }
+                });
+                
+                skopSelesaiList = Array.from(completedSkopOriginalNames);
+                skopBelumList = originalTotalSkop.filter(skop => !completedSkopOriginalNames.has(skop));
+                
+                jumlahSelesai = skopSelesaiList.length; 
+                jumlahBelum = originalTotalSkop.length - jumlahSelesai;
+                total = originalTotalSkop.length;
+                
+                if (selesaiBtn) selesaiBtn.disabled = (jumlahSelesai === 0);
+                if (belumBtn) belumBtn.disabled = (jumlahBelum === 0);
             }
             
             const peratus = (total === 0) ? 0 : Math.round((jumlahSelesai / total) * 100);
@@ -800,14 +788,11 @@
                 const nama = rekod.nama_pengesah || currentTask.pegawai || 'N/A';
                 const jawatan = rekod.jawatan_pengesah || 'N/A';
                 const stesen = rekod.stesen_pengesah || 'N/A';
-                // Paparkan IC jika ada
-                const ic = rekod.ic_pengesah && rekod.ic_pengesah.length === 12 ? `<div class="text-xs text-indigo-500">IC: ${rekod.ic_pengesah}</div>` : '';
                 
                 container.innerHTML += `
                     <tr class="text-sm">
                         <td class="px-4 py-3 align-top">
                             <div class="font-medium text-gray-800">${nama}</div>
-                            ${ic}
                             <div class="text-gray-600">${jawatan}</div>
                             <div class="text-gray-600">${stesen}</div>
                         </td>
@@ -849,15 +834,12 @@
                 const nama = rekod.nama_pengesah || currentTask.pegawai || 'N/A';
                 const jawatan = rekod.jawatan_pengesah || 'N/A';
                 const stesen = rekod.stesen_pengesah || 'N/A';
-                const ic = rekod.ic_pengesah && rekod.ic_pengesah.length === 12 ? `<div class="text-xs text-indigo-500">IC: ${rekod.ic_pengesah}</div>` : '';
-
-                const searchData = `${nama} ${stesen} ${jawatan} ${rekod.ic_pengesah || ''}`.toUpperCase(); // Data carian
+                const searchData = `${nama} ${stesen} ${jawatan}`.toUpperCase(); // Data carian
                 
                 container.innerHTML += `
                     <tr class="text-sm completion-item" data-search="${searchData}">
                         <td class="px-4 py-3 align-top">
                             <div class="font-medium text-gray-800">${nama}</div>
-                            ${ic}
                             <div class="text-gray-600">${jawatan}</div>
                             <div class="text-gray-600">${stesen}</div>
                         </td>
@@ -1072,7 +1054,7 @@ Sekian, terima kasih.`;
             }
         }
         
-        // --- FUNGSI MODAL SKOP (DIUBAHSUAI UNTUK OBJEK SKOP) ---
+        // --- FUNGSI MODAL SKOP ---
 
         function showSkopList(status) {
             const modal = document.getElementById('skop-list-modal');
@@ -1082,10 +1064,10 @@ Sekian, terima kasih.`;
             
             if (status === 'selesai') {
                 titleEl.textContent = 'Senarai Selesai';
-                list = skopSelesaiList; // Mengandungi objek skop
+                list = skopSelesaiList;
             } else {
                 titleEl.textContent = 'Senarai Belum Selesai';
-                list = skopBelumList; // Mengandungi objek skop
+                list = skopBelumList;
             }
             currentModalSkopList = list;
             currentModalSkopTitle = titleEl.textContent;
@@ -1114,43 +1096,28 @@ Sekian, terima kasih.`;
                         <tr>
                             <th scope="col" class="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase w-10">#</th>
                             <th scope="col" class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Nama Skop</th>
-                            <th scope="col" class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Maklumat IC</th> 
                             ${isUncompletedList ? '<th scope="col" class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase no-print">Tindakan</th>' : ''}
                         </tr>
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-200">
             `;
             
-            // Sort list by name alphabetically
-            list.sort((a, b) => a.nama.localeCompare(b.nama)).forEach((skopItem, index) => { 
-                
-                const originalName = skopItem.nama;
-                
-                // Paparkan IC hanya jika ia Pegawai PPD dan IC wujud
-                const icInfo = skopItem.ic && skopItem.type === 'PEGAWAI' ? skopItem.ic : (skopItem.type === 'PEGAWAI' ? 'Tiada IC' : '-');
-                
-                // Cari index asal dalam senarai penuh untuk fungsi Edit/Delete
-                const originalIndex = currentTask.skopSenaraiSekolah ? currentTask.skopSenaraiSekolah.findIndex(item => item.nama === originalName) : -1;
+            list.sort().forEach((item, index) => { 
+                const originalIndex = currentTask.skopSenaraiSekolah ? currentTask.skopSenaraiSekolah.indexOf(item) : -1;
                 
                 tableHtml += `
-                    <tr class="text-sm text-gray-800 skop-item" data-search="${originalName.toUpperCase()} ${icInfo.toUpperCase()}" data-original-name="${originalName}" data-original-index="${originalIndex}">
+                    <tr class="text-sm text-gray-800 skop-item" data-search="${item.toUpperCase()}" data-original-name="${item}" data-original-index="${originalIndex}">
                         <td class="px-4 py-2 w-10 text-center align-top">${index + 1}.</td>
-                        <td class="px-4 py-2 font-medium align-top">
-                            <div class="font-semibold">${originalName}</div>
-                            <div class="text-xs text-gray-500">(${skopItem.type || 'STESEN'})</div>
-                        </td>
-                        <td class="px-4 py-2 align-top text-xs ${skopItem.type === 'PEGAWAI' && skopItem.ic ? 'text-indigo-600 font-medium' : 'text-gray-600'}">
-                            ${icInfo}
-                        </td>
+                        <td class="px-4 py-2 font-medium align-top">${item}</td>
                         ${isUncompletedList ? `
                         <td class="px-4 py-2 text-right whitespace-nowrap space-x-2 no-print align-top">
-                            <button onclick="editSkopItem(${originalIndex}, '${originalName.replace(/'/g, "\\'")}')" 
+                            <button onclick="editSkopItem(${originalIndex}, '${item.replace(/'/g, "\\'")}')" 
                                 class="btn text-blue-600 hover:text-blue-800 p-1" title="Edit Nama">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                                     <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zm-1.88 5.666L5.5 16.5V12.75l6.19-6.19L11.706 9.25z" />
                                 </svg>
                             </button>
-                            <button onclick="deleteSkopItem(${originalIndex}, '${originalName.replace(/'/g, "\\'")}')" 
+                            <button onclick="deleteSkopItem(${originalIndex}, '${item.replace(/'/g, "\\'")}')" 
                                 class="btn text-red-600 hover:text-red-800 p-1" title="Padam Nama">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                                     <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 100 2v6a1 1 0 100-2V8z" clip-rule="evenodd" />
@@ -1196,9 +1163,7 @@ Sekian, terima kasih.`;
         
         function copySkopList() {
             const visibleSkops = Array.from(document.querySelectorAll('#skop-modal-content .skop-item')).filter(el => el.style.display !== 'none').map(el => {
-                const name = el.children[1]?.children[0]?.textContent.trim() || '';
-                const ic = el.children[2]?.textContent.trim() || '';
-                return `${name} (${ic})`; 
+                return el.children[1] ? el.children[1].textContent.trim() : ''; 
             }).filter(text => text.length > 0);
             
             if (visibleSkops.length === 0) {
@@ -1316,9 +1281,7 @@ Sekian, terima kasih.`;
 
         // FUNGSI PELAKSANAAN SEBENAR (selepas pengesahan IC)
         async function executeEditSkopItem(originalIndex, originalName) {
-            // Dapatkan objek skop asal
-            const originalSkopObject = currentTask.skopSenaraiSekolah[originalIndex];
-            
+            // DEBUG ALERT: Sahkan pengesahan berjaya sebelum prompt
             alert(`PENTING: Pengesahan IC berjaya. Anda kini boleh mengedit nama skop "${originalName}".`);
             
             const newName = prompt(`Edit nama untuk "${originalName}" (Indeks: ${originalIndex}):`, originalName);
@@ -1331,12 +1294,7 @@ Sekian, terima kasih.`;
                 }
                 
                 const updatedSkopList = [...currentTask.skopSenaraiSekolah];
-                
-                // Kemas kini hanya medan 'nama' dalam objek skop, kekalkan IC dan type
-                updatedSkopList[originalIndex] = {
-                    ...originalSkopObject,
-                    nama: newName.trim()
-                };
+                updatedSkopList[originalIndex] = newName.trim();
                 
                 try {
                     await updateDoc(doc(db, `artifacts/${appId}/public/data/spark_tasks`, currentTaskId), {
@@ -1365,10 +1323,8 @@ Sekian, terima kasih.`;
                 try {
                     const docRef = doc(db, `artifacts/${appId}/public/data/spark_tasks`, currentTaskId);
                     
-                    // Kita perlu menggunakan objek penuh yang disimpan untuk arrayRemove
                     const itemToRemove = currentTask.skopSenaraiSekolah[originalIndex];
                     
-                    // Menggunakan arrayRemove untuk memadam objek yang sepadan
                     await updateDoc(docRef, {
                         skopSenaraiSekolah: arrayRemove(itemToRemove)
                     });
