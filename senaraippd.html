@@ -344,12 +344,27 @@
             importMessage.className = `mt-3 text-sm p-2 rounded-lg ${className}`;
             importMessage.classList.remove('hidden');
         }
+
+        // FUNGSI UTAMA BARU: Membersihkan nama dari BIN/BINTI dan gelaran lain
+        function normalizeName(name) {
+            if (!name) return "";
+            let cleanedName = name.toUpperCase().trim();
+            
+            // 1. Buang Gelaran Biasa (BIN, BINTI, HJ, H, DR, PROF, IR, dll.)
+            // Menggunakan REGEX yang diubah suai untuk menangani variasi titik atau ruang berlebihan
+            cleanedName = cleanedName.replace(/\b(BIN|BINTI|B|A\/L|A\/P|HJ|HAJI|HJH|HAJJAH|DR|DATO|DATUK|PROF|IR|MOHD|MUHAMMAD)\.?\s*/g, ' ').trim();
+            
+            // 2. Buang lebihan ruang putih
+            cleanedName = cleanedName.replace(/\s+/g, ' ');
+
+            return cleanedName;
+        }
         
         // --- SYNCHRONIZATION LOGIC ---
 
         async function syncPpdIcByName(ppdEntities) {
             if (!db) return ppdEntities;
-            addSyncLog("Mula: Mencari padanan Pegawai PPD (Nama) dari Senarai Peserta (IC)...", true);
+            addSyncLog("Mula: Mencari padanan Pegawai PPD (Nama Bersih) dari Senarai Peserta (IC)...", true);
             
             try {
                 // 1. Muat turun semua Peserta Induk
@@ -360,29 +375,31 @@
                 participantsSnapshot.forEach(doc => {
                     const data = doc.data();
                     if (data.name && data.ic && data.ic.length === 12) {
-                        participantMap.set(data.name.toUpperCase().trim(), data.ic);
+                        // KUNCI PADANAN: Nama Peserta yang telah dinormalisasi
+                        const normalizedName = normalizeName(data.name);
+                        participantMap.set(normalizedName, data.ic);
                     }
                 });
                 
                 let updateCount = 0;
-                // Menggunakan writeBatch(db) yang diperbetulkan
                 const batch = writeBatch(db); 
                 
                 // 2. Bandingkan dan kemas kini Pegawai PPD
                 ppdEntities.forEach(entity => {
-                    const entityName = entity.name.toUpperCase().trim();
+                    // KUNCI PADANAN: Nama Pegawai PPD yang telah dinormalisasi
+                    const entityNormalizedName = normalizeName(entity.name);
                     const currentIc = (entity.ic || '').trim();
                     
-                    if (entity.category === 'pegawai' && participantMap.has(entityName)) {
-                        const matchedIc = participantMap.get(entityName);
+                    if (entity.category === 'pegawai' && participantMap.has(entityNormalizedName)) {
+                        const matchedIc = participantMap.get(entityNormalizedName);
                         
                         // Hanya kemas kini jika IC sedia ada kosong, tiada 12 digit, atau berbeza
                         if (currentIc.length !== 12 || currentIc !== matchedIc) {
                             
                             if (currentIc.length !== 12) {
-                                addSyncLog(`&check; PPD: ${entityName} (${entity.id}) tiada IC. IC ditemukan: ${matchedIc}`, true);
+                                addSyncLog(`&check; PPD: ${entity.name} tiada IC. IC ditemukan: ${matchedIc}`, true);
                             } else if (currentIc !== matchedIc) {
-                                addSyncLog(`&check; PPD: ${entityName} (${entity.id}) IC berbeza. Tukar dari ${currentIc} kepada ${matchedIc}`, true);
+                                addSyncLog(`&check; PPD: ${entity.name} IC berbeza. Tukar dari ${currentIc} kepada ${matchedIc}`, true);
                             }
 
                             // Kemas kini objek dan batch
