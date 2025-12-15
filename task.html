@@ -463,17 +463,31 @@
 
         // --- FUNGSI BANTUAN (HELPER) ---
 
+        /**
+         * Menormalkan nama (stesen/sekolah/individu) untuk membolehkan perbandingan yang tepat 
+         * tanpa mengira singkatan, tanda baca, atau perbezaan ejaan biasa.
+         * Telah diubah suai untuk menangani isu SJK (Cina) dan jarak kosong yang berlebihan.
+         */
         function normalizeName(name) {
             if (typeof name !== 'string') return '';
             let normalized = name.toUpperCase();
             
+            // Penormalan Standard: Buang BIN/BINTI dan tukar SG/SG. kepada SUNGAI
             normalized = normalized.replace(/\b(BIN|BINTI|BT)\b\s*/g, '');
             normalized = normalized.replace(/\b(B\s*I\s*N|B\s*I\s*N\s*T\s*I|B\s*T)\b\s*/g, '');
             normalized = normalized.replace(/\bSG\./g, 'SUNGAI'); 
             normalized = normalized.replace(/\bSG\b/g, 'SUNGAI'); 
             
+            // Tambahan untuk kendalikan SJK (C) / SJK (CINA)
+            // 1. Buang semua kurungan yang mengandungi CINA atau C
+            normalized = normalized.replace(/\s*\([^)]*(CINA|C)\s*[^)]*\)\s*/g, ''); 
+            // 2. Buang perkataan CINA yang terasing
+            normalized = normalized.replace(/\bCINA\b\s*/g, '');
+            
+            // Buang semua tanda baca
             normalized = normalized.replace(/[.,]/g, ''); 
             
+            // Buang SEMUA jarak kosong yang berlebihan (termasuk yang ditinggalkan selepas penormalan)
             normalized = normalized.replace(/\s+/g, ''); 
             
             return normalized.trim(); 
@@ -673,17 +687,19 @@
             
             const skopSample = originalTotalSkop[0] || '';
             
+            // Heuristik untuk cuba menentukan jika skop adalah sekolah/stesen atau nama individu
             const isSchoolSkop = skopSample.toUpperCase().match(/^(SK|SMK|SJK|KOLEJ|KV|SMAP|SABK|SRK|SRC|SRB)/) && originalTotalSkop.length > 0;
 
             const normalizedConfirmedKeys = new Set(allRekodSelesai.map(rekod => {
                 let keyToNormalize;
                 
                 if (isSchoolSkop) {
-                    keyToNormalize = rekod.stesen_pengesah; 
+                    keyToNormalize = rekod.stesen_pengesah; // Cuba gunakan stesen
                 } else {
-                    keyToNormalize = rekod.nama_pengesah; 
+                    keyToNormalize = rekod.nama_pengesah; // Cuba gunakan nama
                 }
                 
+                // Fallback jika salah satu null
                 keyToNormalize = keyToNormalize || rekod.stesen_pengesah || rekod.nama_pengesah;
                 
                 return normalizeName(keyToNormalize || '');
@@ -697,6 +713,7 @@
             const belumBtn = document.querySelector('button[onclick="showSkopList(\'belum\')"]');
 
             if (originalTotalSkop.length === 0) {
+                // Jika tiada senarai skop, gunakan kiraan langsung (kurang tepat)
                 jumlahSelesai = currentTask.jumlahSelesai || 0;
                 total = (currentTask.jumlahSelesai || 0) + (currentTask.jumlahBelum || 0);
                 jumlahBelum = total - jumlahSelesai;
@@ -712,6 +729,7 @@
                 
                 const completedSkopOriginalNames = new Set();
                 
+                // Bandingkan setiap skop total dengan senarai kunci yang telah dinormalkan
                 originalTotalSkop.forEach(originalSkop => {
                     const normalizedSkop = normalizeName(originalSkop);
                     
