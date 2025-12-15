@@ -61,6 +61,9 @@
                     <button type="button" data-tab="sektor" class="tab-button flex-1 py-2 px-4 text-sm text-center text-gray-600 hover:text-indigo-600 transition">
                         Sektor PPD
                     </button>
+                    <button type="button" data-tab="log" class="tab-button flex-1 py-2 px-4 text-sm text-center text-gray-600 hover:text-red-600 transition">
+                        Log Penyegerakan
+                    </button>
                 </div>
 
                 <div id="tab-pegawai" class="tab-content active">
@@ -113,6 +116,14 @@
                         </button>
                         <div id="sektor-form-message" class="mt-3 text-sm hidden p-2 rounded-lg"></div>
                     </form>
+                </div>
+
+                <div id="tab-log" class="tab-content hidden">
+                    <h3 class="text-md font-semibold mb-3 text-red-700">Status & Log Penyegerakan IC</h3>
+                    <div id="sync-log-container" class="space-y-2 text-xs p-3 bg-gray-100 rounded-lg min-h-[100px] max-h-96 overflow-y-auto">
+                        <p class="text-gray-500 italic">Tiada log status terkini. Sila muat semula halaman atau klik butang Refresh.</p>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-2">Log ini menunjukkan percubaan sistem untuk memadankan Pegawai PPD (tanpa IC) dengan Peserta (dengan IC).</p>
                 </div>
                 
                 <hr class="my-4">
@@ -179,7 +190,8 @@
         // Import modul Firebase
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, addDoc, collection, getDocs, query, orderBy, deleteDoc, doc, where, setDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        // IMPORT PEMBETULAN: Tambah writeBatch di sini
+        import { getFirestore, addDoc, collection, getDocs, query, orderBy, deleteDoc, doc, where, setDoc, updateDoc, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Konfigurasi Firebase (Mesti sama seperti di tugasan.html)
         const firebaseConfig = {
@@ -244,6 +256,10 @@
         const searchInput = document.getElementById('search-input');
         const filterPositionSelect = document.getElementById('filter-position');
 
+        // DOM ELEMENT BARU UNTUK LOG
+        const syncLogContainer = document.getElementById('sync-log-container');
+
+
         // State
         let isSubmitting = false;
         let allPpdEntities = [];
@@ -267,9 +283,22 @@
             }
         });
 
-        // --- FUNCTIONS ---
+        // --- UTILITY FUNCTIONS ---
         
-        // Function to handle tab switching
+        function addSyncLog(message, isSuccess = true) {
+            const now = new Date().toLocaleTimeString('ms-MY');
+            const colorClass = isSuccess ? 'text-green-700' : 'text-red-700';
+            const logEntry = document.createElement('p');
+            logEntry.className = `font-mono ${colorClass}`;
+            logEntry.innerHTML = `[${now}] ${message}`;
+            
+            // Masukkan di bahagian atas log
+            if (syncLogContainer.firstChild && syncLogContainer.firstChild.classList.contains('italic')) {
+                 syncLogContainer.innerHTML = '';
+            }
+            syncLogContainer.prepend(logEntry);
+        }
+
         function switchTab(targetTab) {
             tabButtons.forEach(button => {
                 button.classList.remove('active');
@@ -294,7 +323,6 @@
             resetEditState();
         }
         
-        // Reset Edit State
         function resetEditState() {
             currentlyEditingId = null;
             currentEditingCategory = null;
@@ -302,12 +330,23 @@
             tambahSektorBtn.textContent = 'Simpan Sektor';
         }
 
+        function showMessage(message, className, element) {
+            element.textContent = message;
+            element.className = `mt-3 text-sm p-2 rounded-lg ${className}`;
+            element.classList.remove('hidden');
+        }
+        
+        function showImportMessage(message, className) {
+            importMessage.textContent = message;
+            importMessage.className = `mt-3 text-sm p-2 rounded-lg ${className}`;
+            importMessage.classList.remove('hidden');
+        }
+        
+        // --- SYNCHRONIZATION LOGIC ---
 
-        // FUNGSI BARU: Menyegerakkan IC Pegawai PPD menggunakan Nama dari Senarai Peserta
         async function syncPpdIcByName(ppdEntities) {
             if (!db) return ppdEntities;
-            
-            console.log("--- Mula Penyegerakan IC PPD dari data.html (Peserta) ---");
+            addSyncLog("Mula: Mencari padanan Pegawai PPD (Nama) dari Senarai Peserta (IC)...", true);
             
             try {
                 // 1. Muat turun semua Peserta Induk
@@ -317,56 +356,60 @@
                 const participantMap = new Map();
                 participantsSnapshot.forEach(doc => {
                     const data = doc.data();
-                    // Simpan dalam map menggunakan nama sebagai kunci (uppercase)
                     if (data.name && data.ic && data.ic.length === 12) {
                         participantMap.set(data.name.toUpperCase().trim(), data.ic);
                     }
                 });
                 
                 let updateCount = 0;
-                const batch = getFirestore().batch();
-                const updatedPpdEntities = [];
+                // PEMBETULAN UTAMA: Menggunakan writeBatch(db) yang diimport
+                const batch = writeBatch(db); 
                 
                 // 2. Bandingkan dan kemas kini Pegawai PPD
                 ppdEntities.forEach(entity => {
                     const entityName = entity.name.toUpperCase().trim();
                     const currentIc = (entity.ic || '').trim();
-                    let isUpdated = false;
                     
-                    // Cari padanan IC di map Peserta (data.html)
                     if (entity.category === 'pegawai' && participantMap.has(entityName)) {
                         const matchedIc = participantMap.get(entityName);
                         
-                        // Jika IC sedia ada kosong atau berbeza, kemas kini
-                        if (currentIc !== matchedIc) {
-                            entity.ic = matchedIc; // Kemas kini objek tempatan
+                        // Hanya kemas kini jika IC sedia ada kosong, tiada 12 digit, atau berbeza
+                        if (currentIc.length !== 12 || currentIc !== matchedIc) {
                             
+                            if (currentIc.length !== 12) {
+                                addSyncLog(`&check; PPD: ${entityName} (${entity.id}) tiada IC. IC ditemukan: ${matchedIc}`, true);
+                            } else if (currentIc !== matchedIc) {
+                                addSyncLog(`&check; PPD: ${entityName} (${entity.id}) IC berbeza. Tukar dari ${currentIc} kepada ${matchedIc}`, true);
+                            }
+
+                            // Kemas kini objek dan batch
+                            entity.ic = matchedIc;
                             const docRef = doc(db, PPD_COLLECTION_PATH, entity.id);
                             batch.update(docRef, { 
                                 ic: matchedIc,
                                 updatedAt: new Date().toISOString(),
                             });
                             updateCount++;
-                            isUpdated = true;
                         }
                     }
-                    updatedPpdEntities.push(entity);
                 });
                 
                 // 3. Commit batch jika ada perubahan
                 if (updateCount > 0) {
                     await batch.commit();
-                    console.log(`Penyegerakan Selesai. ${updateCount} rekod PPD IC telah dikemaskini.`);
-                    showImportMessage(`${updateCount} rekod Pegawai PPD (IC) diselaraskan dari Senarai Peserta.`, 'bg-blue-100 text-blue-700');
-                    // Kembalikan entiti yang telah dikemas kini dari Firebase (fetch semula)
-                    // Panggil fetchPpdOfficers(false) untuk muatkan data yang telah diubah dari DB
+                    addSyncLog(`BERJAYA: ${updateCount} rekod IC Pegawai PPD telah diselaraskan dan disimpan ke Firebase.`, true);
+                    showImportMessage(`Penyelarasan IC Selesai. ${updateCount} rekod dikemas kini.`, 'bg-blue-100 text-blue-700');
+                    
+                    // Panggil fetchPpdOfficers(false) untuk muatkan data dari DB yang telah dikemas kini
                     return await fetchPpdOfficers(false); 
                 } else {
-                     console.log("Penyegerakan Selesai. Tiada rekod PPD IC yang perlu dikemaskini.");
-                     return updatedPpdEntities;
+                     addSyncLog("Tamat: Tiada rekod PPD (IC) yang perlu dikemaskini. Data sedia ada selaras.", true);
+                     return ppdEntities;
                 }
 
             } catch (error) {
+                // Log Ralat yang Tepat
+                addSyncLog(`RALAT: Gagal menyelaraskan IC. ${error.name}: ${error.message}`, false);
                 console.error("RALAT KETIKA PENYEGERAKAN IC: ", error);
                 showImportMessage('Gagal menyelaraskan IC. Sila semak rules Firebase.', 'bg-red-100 text-red-700');
                 return ppdEntities;
@@ -382,7 +425,6 @@
             senaraiPegawaiContainer.innerHTML = '';
             
             try {
-                console.log(`--- DEBUG: Mencuba muat data dari ${PPD_COLLECTION_PATH} ---`);
                 const officersRef = collection(db, PPD_COLLECTION_PATH);
                 const q = query(officersRef, orderBy("name", "asc"));
                 
@@ -396,23 +438,17 @@
                     });
                 }
                 
-                console.log(`--- DEBUG: Muatan Berjaya. Jumlah Entiti: ${allPpdEntities.length} ---`);
-                
-                // ** LANGKAH PENTING BARU: Lakukan Penyegerakan IC jika shouldSync=true **
                 if (shouldSync && allPpdEntities.length > 0) {
                     const result = await syncPpdIcByName(allPpdEntities);
-                    // Jika syncPpdIcByName berjaya melakukan update, ia akan fetch semula data.
-                    // Kita perlu periksa jika result yang dikembalikan adalah array biasa atau hasil dari fetch semula.
-                    if (Array.isArray(result) && result.length > allPpdEntities.length) {
-                        // Ini menandakan syncPpdIcByName telah melakukan fetch semula.
+                    if (Array.isArray(result)) {
                         allPpdEntities = result;
                     }
                 }
 
-                collectAllPositions(); // Kumpul dan isi dropdown Jawatan
-                displayFilteredEntities(); // Paparkan entiti yang ditapis
+                collectAllPositions(); 
+                displayFilteredEntities(); 
                 
-                initializeSortable(); // AKTIFKAN FUNGSI DRAG AND DROP
+                initializeSortable(); 
 
             } catch (error) {
                 console.error("RALAT KETIKA MEMUAT ENTITI PPD: ", error);
@@ -426,7 +462,7 @@
         // FUNGSI BARU: Kumpul Semua Jawatan Unik
         function collectAllPositions() {
             const positions = new Set();
-            positions.add('SEKTOR PPD'); // Tambah Sektor PPD sebagai jawatan standard untuk sektor
+            positions.add('SEKTOR PPD'); 
 
             allPpdEntities.forEach(entity => {
                 if (entity.position && entity.position.toUpperCase() !== 'SEKTOR PPD') {
@@ -434,7 +470,6 @@
                 }
             });
 
-            // Kosongkan dan isi dropdown Jawatan
             filterPositionSelect.innerHTML = '<option value="all">Tapis: Semua Jawatan</option>';
             Array.from(positions).sort().forEach(position => {
                 const option = document.createElement('option');
@@ -454,27 +489,15 @@
             senaraiPegawaiContainer.innerHTML = '';
 
             const filteredList = allPpdEntities.filter(entity => {
-                // 1. Tapis mengikut Kategori (Pegawai/Sektor/Semua)
-                if (categoryFilter !== 'all' && entity.category !== categoryFilter) {
-                    return false;
-                }
-                
-                // 2. Tapis mengikut Jawatan
+                if (categoryFilter !== 'all' && entity.category !== categoryFilter) return false;
                 if (positionFilter !== 'all') {
                     const entityPosition = entity.position ? entity.position.toUpperCase() : '';
-                    if (entityPosition !== positionFilter) {
-                        return false;
-                    }
+                    if (entityPosition !== positionFilter) return false;
                 }
-                
-                // 3. Tapis mengikut Carian Nama
                 if (searchFilter) {
                     const entityName = entity.name ? entity.name.toUpperCase() : '';
-                    if (!entityName.includes(searchFilter)) {
-                        return false;
-                    }
+                    if (!entityName.includes(searchFilter)) return false;
                 }
-                
                 return true;
             });
             
@@ -542,35 +565,22 @@
         // FUNGSI BARU: Mengaktifkan Drag and Drop dan Menyimpan Susunan
         function initializeSortable() {
             const tableBody = document.querySelector('.table-ref-data tbody');
-            
-            // Hanya aktifkan Sortable jika TIADA penapisan/carian aktif
             const isFilterActive = filterCategorySelect.value !== 'all' || filterPositionSelect.value !== 'all' || searchInput.value.trim().length > 0;
             
             if (tableBody && !isFilterActive) {
-                // Pastikan tiada Sortable instance yang sedia ada
-                if (tableBody.sortable) {
-                    tableBody.sortable.destroy();
-                }
+                if (tableBody.sortable) tableBody.sortable.destroy();
 
                 tableBody.sortable = Sortable.create(tableBody, {
                     animation: 150,
                     ghostClass: 'sortable-ghost',
-                    
                     onEnd: async function (evt) {
                         if (evt.oldIndex === evt.newIndex) return; 
-
-                        // Dapatkan semua ID dalam susunan baru dari elemen <tr>
                         const newOrderIds = Array.from(tableBody.children).map(row => row.dataset.id).filter(id => id);
-
-                        // PENTING: Panggil fungsi ini untuk menetapkan medan 'order' pada rekod yang diubah
                         await updateOrderInDatabase(newOrderIds);
-                        
-                        // Muat semula data di UI
                         fetchPpdOfficers();
                     }
                 });
             } else if (tableBody && isFilterActive) {
-                // Matikan Sortable jika penapis aktif
                 if (tableBody.sortable) {
                     tableBody.sortable.destroy();
                     tableBody.sortable = null; 
@@ -581,25 +591,20 @@
         // FUNGSI BARU: Untuk menulis balik susunan ke Firebase
         async function updateOrderInDatabase(newOrderIds) {
             if (newOrderIds.length === 0) return;
-            
             isSubmitting = true;
             showImportMessage("Menyimpan susunan baharu, sila tunggu...", 'bg-yellow-100 text-yellow-800');
 
             try {
-                // Kemaskini setiap dokumen dengan nilai 'order' baharu
+                // Menggunakan writeBatch yang diperbetulkan
+                const batch = writeBatch(db);
                 for (let i = 0; i < newOrderIds.length; i++) {
                     const docId = newOrderIds[i];
-                    const newOrderValue = i; // Nombor urutan bermula dari 0
-                    
                     const docRef = doc(db, PPD_COLLECTION_PATH, docId);
-                    await updateDoc(docRef, { 
-                        order: newOrderValue,
-                        updatedAt: new Date().toISOString(),
-                    });
+                    batch.update(docRef, { order: i, updatedAt: new Date().toISOString() });
                 }
+                await batch.commit();
 
                 showImportMessage(`Susunan ${newOrderIds.length} rekod berjaya disimpan.`, 'bg-green-100 text-green-700');
-
             } catch (error) {
                 console.error("RALAT KETIKA MENGEMASKINI SUSUNAN: ", error);
                 showImportMessage('Gagal menyimpan susunan baru. Sila semak rules Firebase dan hak akses.', 'bg-red-100 text-red-700');
@@ -670,13 +675,10 @@
             submitButton.textContent = (currentlyEditingId) ? 'Mengemaskini...' : 'Menyimpan...';
 
             try {
-                // Tentukan nilai order: Jika baru, letak di hujung senarai. Jika kemaskini, kekalkan.
                 if (!currentlyEditingId) {
-                    // Beri nilai order baru supaya ia disusun di akhir apabila diimport
                     newEntityData.order = allPpdEntities.length; 
                 }
                 
-                // 2. Tambah/Kemaskini dokumen utama
                 if (currentlyEditingId) {
                     const docRef = doc(db, PPD_COLLECTION_PATH, currentlyEditingId);
                     await updateDoc(docRef, newEntityData);
@@ -686,7 +688,7 @@
                     showMessage(`${name} (${category.toUpperCase()}) berjaya disimpan!`, 'bg-green-100 text-green-700', msgElement);
                 }
                 
-                // 3. Kemaskini Jadual Peserta jika IC ada (Penyelarasan dengan data.html)
+                // 3. Kemaskini Jadual Peserta jika IC ada
                 if (category === 'pegawai' && newEntityData.ic) {
                     const participantDocRef = doc(db, PARTICIPANTS_COLLECTION_PATH, newEntityData.ic);
                     await setDoc(participantDocRef, {
@@ -700,7 +702,7 @@
                 
                 form.reset();
                 resetEditState();
-                fetchPpdOfficers(); // Muat semula senarai (tanpa sync, kerana baru disimpan)
+                fetchPpdOfficers(); // Muat semula senarai
                 
             } catch (error) {
                 console.error("RALAT SAVE/UPDATE: ", error);
@@ -735,14 +737,11 @@
             let successCount = 0;
             let errorCount = 0;
             const errors = [];
-            
-            // Tentukan nombor order awal
             let currentOrder = allPpdEntities.length;
 
             for (let i = 0; i < lines.length; i++) {
                 const line = lines[i];
                 const parts = line.split('\t').map(p => p.trim().toUpperCase());
-                
                 let entityData = null;
                 
                 if (category === 'pegawai') {
@@ -751,20 +750,11 @@
                         errors.push(`Baris ${i + 1}: Data Pegawai tidak lengkap (Wajib: Nama, Jawatan, Sektor).`);
                         continue;
                     }
-
                     const ic = (parts.length > 4 ? parts[4] : '').replace(/[^0-9]/g, '');
-
                     entityData = {
-                        name: parts[0],
-                        position: parts[1],
-                        sector: parts[2],
-                        unit: parts.length > 3 ? parts[3] : '',
-                        ic: ic.length === 12 ? ic : '',
-                        category: 'pegawai',
-                        station: 'PEJABAT PENDIDIKAN DAERAH', 
-                        added_by_uid: userId,
-                        createdAt: new Date().toISOString(),
-                        order: currentOrder + i // Set order untuk rekod baru
+                        name: parts[0], position: parts[1], sector: parts[2], unit: parts.length > 3 ? parts[3] : '',
+                        ic: ic.length === 12 ? ic : '', category: 'pegawai', station: 'PEJABAT PENDIDIKAN DAERAH', 
+                        added_by_uid: userId, createdAt: new Date().toISOString(), order: currentOrder + i
                     };
                 } else {
                     if (parts.length < 1) {
@@ -773,33 +763,21 @@
                         continue;
                     }
                     entityData = {
-                        name: parts[0],
-                        position: 'SEKTOR PPD',
-                        sector: parts[0],
-                        unit: '',
-                        ic: '',
-                        category: 'sektor',
-                        station: 'PEJABAT PENDIDIKAN DAERAH', 
-                        added_by_uid: userId,
-                        createdAt: new Date().toISOString(),
-                        order: currentOrder + i // Set order untuk rekod baru
+                        name: parts[0], position: 'SEKTOR PPD', sector: parts[0], unit: '', ic: '', 
+                        category: 'sektor', station: 'PEJABAT PENDIDIKAN DAERAH', added_by_uid: userId, 
+                        createdAt: new Date().toISOString(), order: currentOrder + i
                     };
                 }
 
                 try {
                      await addDoc(collection(db, PPD_COLLECTION_PATH), entityData);
-                     
                      if (entityData.category === 'pegawai' && entityData.ic) {
                         const participantDocRef = doc(db, PARTICIPANTS_COLLECTION_PATH, entityData.ic);
                         await setDoc(participantDocRef, {
-                            name: entityData.name,
-                            position: entityData.position,
-                            station: entityData.station,
-                            ic: entityData.ic,
-                            category: 'warga' 
+                            name: entityData.name, position: entityData.position, station: entityData.station,
+                            ic: entityData.ic, category: 'warga' 
                         }, { merge: true });
                      }
-
                      successCount++;
                 } catch (e) {
                     console.error("RALAT IMPORT BARIS", i + 1, ": ", e);
@@ -814,9 +792,7 @@
                 showImportMessage(`Import Berjaya! ${successCount} rekod telah disimpan.`, 'bg-green-100 text-green-700');
             } else {
                 showImportMessage(`Import Selesai: ${successCount} Berjaya, ${errorCount} Ralat.`, 'bg-yellow-100 text-yellow-800');
-                if (errors.length > 0) {
-                    console.error("Import Errors:", errors);
-                }
+                if (errors.length > 0) { console.error("Import Errors:", errors); }
             }
             
             isSubmitting = false;
@@ -834,18 +810,12 @@
             const category = target.dataset.category;
             const entityToEdit = allPpdEntities.find(e => e.id === id);
 
-            if (!entityToEdit) {
-                alert("Entiti tidak ditemui.");
-                return;
-            }
+            if (!entityToEdit) { alert("Entiti tidak ditemui."); return; }
 
-            // Set state
             currentlyEditingId = id;
             currentEditingCategory = category;
             
-            // Switch to correct tab and populate form
             switchTab(category);
-            
             const msgElement = category === 'pegawai' ? pegawaiFormMessage : sektorFormMessage;
             
             if (category === 'pegawai') {
@@ -876,9 +846,7 @@
             const entityElement = allPpdEntities.find(e => e.id === id);
             const category = entityElement.category === 'pegawai' ? 'Pegawai' : 'Sektor';
 
-            if (!confirm(`Anda pasti mahu memadam ${category} ${name} dari senarai rujukan PPD?`)) {
-                return;
-            }
+            if (!confirm(`Anda pasti mahu memadam ${category} ${name} dari senarai rujukan PPD?`)) return;
             
             target.disabled = true;
             target.classList.add('opacity-50');
@@ -895,29 +863,14 @@
             }
         }
 
-        // 7. Mesej Borang (Diubah untuk menerima elemen mesej)
-        function showMessage(message, className, element) {
-            element.textContent = message;
-            element.className = `mt-3 text-sm p-2 rounded-lg ${className}`;
-            element.classList.remove('hidden');
-        }
-         function showImportMessage(message, className) {
-            importMessage.textContent = message;
-            importMessage.className = `mt-3 text-sm p-2 rounded-lg ${className}`;
-            importMessage.classList.remove('hidden');
-        }
-
         // --- EVENT LISTENERS ---
         document.addEventListener('DOMContentLoaded', () => {
-             // Setup Tab Logic
             tabButtons.forEach(button => {
                 button.addEventListener('click', () => {
                     switchTab(button.dataset.tab);
                 });
             });
             
-            // Event Listeners untuk Penapis/Carian
-            // Apabila penapis/carian berubah, panggil displayFilteredEntities() untuk menapis data
             filterCategorySelect.addEventListener('change', displayFilteredEntities);
             filterPositionSelect.addEventListener('change', displayFilteredEntities);
             searchInput.addEventListener('input', displayFilteredEntities);
