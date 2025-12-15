@@ -47,7 +47,7 @@
         </div>
     </header>
 
-    <main class="container max-w-5xl mx-auto p-4 sm:p-6 lg:p-8">
+    <main class="container max-w-screen-2xl mx-auto p-4 sm:p-6 lg:p-8">
         
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
@@ -164,12 +164,17 @@
                 </div>
                 
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
-                    <div class="sm:col-span-2">
+                    <div class="sm:col-span-1">
                         <input type="text" id="search-input" placeholder="Cari Nama Pegawai/Sektor..." class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2">
                     </div>
                     <select id="filter-position" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2">
                         <option value="all">Tapis: Semua Jawatan</option>
                         </select>
+                    <select id="filter-ic-status" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2">
+                        <option value="all">Status IC: Semua</option>
+                        <option value="no_ic">Status IC: Tiada/Gagal Diselaraskan</option>
+                        <option value="has_ic">Status IC: Lengkap</option>
+                    </select>
                 </div>
                 <div id="senarai-pegawai-container">
                     <p id="loading-message" class="text-center text-gray-500 flex items-center justify-center gap-2 pt-8">
@@ -255,6 +260,7 @@
         // DOM ELEMENTS BARU UNTUK CARIAN/PENAPIS
         const searchInput = document.getElementById('search-input');
         const filterPositionSelect = document.getElementById('filter-position');
+        const filterIcStatusSelect = document.getElementById('filter-ic-status');
 
         // DOM ELEMENT BARU UNTUK LOG
         const syncLogContainer = document.getElementById('sync-log-container');
@@ -351,7 +357,6 @@
             let cleanedName = name.toUpperCase().trim();
             
             // 1. Buang Gelaran Biasa (BIN, BINTI, HJ, H, DR, PROF, IR, dll.)
-            // Menggunakan REGEX yang diubah suai untuk menangani variasi titik atau ruang berlebihan
             cleanedName = cleanedName.replace(/\b(BIN|BINTI|B|A\/L|A\/P|HJ|HAJI|HJH|HAJJAH|DR|DATO|DATUK|PROF|IR|MOHD|MUHAMMAD)\.?\s*/g, ' ').trim();
             
             // 2. Buang lebihan ruang putih
@@ -505,19 +510,33 @@
             const categoryFilter = filterCategorySelect.value;
             const positionFilter = filterPositionSelect.value;
             const searchFilter = searchInput.value.trim().toUpperCase();
-            
+            const icStatusFilter = filterIcStatusSelect.value; // Filter Status IC
+
             senaraiPegawaiContainer.innerHTML = '';
 
             const filteredList = allPpdEntities.filter(entity => {
+                const hasIc = entity.ic && entity.ic.trim().length === 12;
+
+                // 1. Tapis mengikut Kategori
                 if (categoryFilter !== 'all' && entity.category !== categoryFilter) return false;
+
+                // 2. Tapis mengikut Jawatan
                 if (positionFilter !== 'all') {
                     const entityPosition = entity.position ? entity.position.toUpperCase() : '';
                     if (entityPosition !== positionFilter) return false;
                 }
+
+                // 3. Tapis mengikut Carian Nama
                 if (searchFilter) {
                     const entityName = entity.name ? entity.name.toUpperCase() : '';
-                    if (!entityName.includes(searchFilter)) return false;
+                    // Gunakan nama normalisasi untuk carian yang lebih fleksibel
+                    if (!normalizeName(entityName).includes(normalizeName(searchFilter))) return false;
                 }
+                
+                // 4. Tapis mengikut Status IC (FUNGSI BARU)
+                if (icStatusFilter === 'no_ic' && hasIc) return false;
+                if (icStatusFilter === 'has_ic' && !hasIc) return false;
+
                 return true;
             });
             
@@ -891,6 +910,10 @@
                 });
             });
             
+            // Tambah listener untuk penapis Status IC
+            filterIcStatusSelect.addEventListener('change', displayFilteredEntities);
+
+            // Listener untuk penapis lain
             filterCategorySelect.addEventListener('change', displayFilteredEntities);
             filterPositionSelect.addEventListener('change', displayFilteredEntities);
             searchInput.addEventListener('input', displayFilteredEntities);
