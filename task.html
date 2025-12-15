@@ -693,14 +693,13 @@
                 let keyToNormalize;
                 let normalizedKey;
 
-                // KUNCI UTAMA: IC (Padanan paling kukuh)
+                // Cuba padankan dengan IC Pegawai PPD
                 if (rekod.ic_pengesah && rekod.ic_pengesah.length === 12) {
                     confirmedKeys.add(`IC:${rekod.ic_pengesah.trim()}`);
-                    // Kita tidak RETURN di sini, kita biarkan ia cuba NAME/STESEN sebagai kunci kedua
-                    // untuk menangani kes di mana rekod PPD tidak mempunyai IC tetapi rekod pengesah ada
+                    return; // Jika IC ada, IC adalah kunci mutlak
                 }
                 
-                // KUNCI KEDUA: Padanan Nama/Stesen yang dinormalisasi
+                // Fallback: Padanan Nama/Stesen yang dinormalisasi
                 keyToNormalize = rekod.stesen_pengesah || rekod.nama_pengesah || '';
                 normalizedKey = normalizeName(keyToNormalize);
                 if (normalizedKey) {
@@ -713,6 +712,7 @@
 
             // 2. Bandingkan setiap skop total (objek) dengan Set Kunci Pengesahan
             originalTotalSkop.forEach(skop => {
+                // Tentukan kunci untuk setiap skop dalam tugasan
                 let isCompleted = false;
                 
                 // A. Cuba padankan guna IC (jika ia adalah Pegawai PPD dan IC wujud)
@@ -722,7 +722,7 @@
                     }
                 }
                 
-                // B. Fallback: Padankan guna Nama yang dinormalisasi (jika A gagal atau tiada IC dalam skop)
+                // B. Fallback: Padankan guna Nama yang dinormalisasi
                 if (!isCompleted) {
                     const normalizedSkopName = normalizeName(skop.nama);
                     if (confirmedKeys.has(`NAME:${normalizedSkopName}`)) {
@@ -772,7 +772,6 @@
             document.getElementById('progress-circle').style.strokeDashoffset = 100 - peratus;
         }
 
-        // FUNGSI INI DIBERSIHKAN DARI IC (REKOD PENGESAHAN)
         function renderCompletionHistory() {
             const container = document.getElementById('completion-list');
             const footer = document.getElementById('completion-list-footer');
@@ -803,15 +802,14 @@
                 const nama = rekod.nama_pengesah || currentTask.pegawai || 'N/A';
                 const jawatan = rekod.jawatan_pengesah || 'N/A';
                 const stesen = rekod.stesen_pengesah || 'N/A';
+                // Paparkan IC jika ada
+                const ic = rekod.ic_pengesah && rekod.ic_pengesah.length === 12 ? `<div class="text-xs text-indigo-500">IC: ${rekod.ic_pengesah}</div>` : '';
                 
-                // IC DIKELUARKAN DARI PAPARAN
-                const icStatus = rekod.ic_pengesah && rekod.ic_pengesah.length === 12 ? `<div class="text-xs text-gray-400">ID Direkodkan</div>` : '';
-
                 container.innerHTML += `
                     <tr class="text-sm">
                         <td class="px-4 py-3 align-top">
                             <div class="font-medium text-gray-800">${nama}</div>
-                            ${icStatus}
+                            ${ic}
                             <div class="text-gray-600">${jawatan}</div>
                             <div class="text-gray-600">${stesen}</div>
                         </td>
@@ -827,7 +825,7 @@
             renderCompletionHistory();
         }
         
-        // --- MODAL REKOD SELESAI PENUH (DIBERSIHKAN DARI IC) ---
+        // --- MODAL REKOD SELESAI PENUH ---
 
         function showAllCompletionsModal() {
             const modal = document.getElementById('completion-list-modal');
@@ -853,9 +851,7 @@
                 const nama = rekod.nama_pengesah || currentTask.pegawai || 'N/A';
                 const jawatan = rekod.jawatan_pengesah || 'N/A';
                 const stesen = rekod.stesen_pengesah || 'N/A';
-                
-                // IC DIKELUARKAN DARI PAPARAN
-                const icStatus = rekod.ic_pengesah && rekod.ic_pengesah.length === 12 ? `<div class="text-xs text-gray-400">ID Direkodkan</div>` : '';
+                const ic = rekod.ic_pengesah && rekod.ic_pengesah.length === 12 ? `<div class="text-xs text-indigo-500">IC: ${rekod.ic_pengesah}</div>` : '';
 
                 const searchData = `${nama} ${stesen} ${jawatan} ${rekod.ic_pengesah || ''}`.toUpperCase(); // Data carian
                 
@@ -863,7 +859,7 @@
                     <tr class="text-sm completion-item" data-search="${searchData}">
                         <td class="px-4 py-3 align-top">
                             <div class="font-medium text-gray-800">${nama}</div>
-                            ${icStatus}
+                            ${ic}
                             <div class="text-gray-600">${jawatan}</div>
                             <div class="text-gray-600">${stesen}</div>
                         </td>
@@ -1120,7 +1116,7 @@ Sekian, terima kasih.`;
                         <tr>
                             <th scope="col" class="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase w-10">#</th>
                             <th scope="col" class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Nama Skop</th>
-                            <th scope="col" class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status Skop</th> 
+                            <th scope="col" class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Maklumat IC</th> 
                             ${isUncompletedList ? '<th scope="col" class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase no-print">Tindakan</th>' : ''}
                         </tr>
                     </thead>
@@ -1132,24 +1128,21 @@ Sekian, terima kasih.`;
                 
                 const originalName = skopItem.nama;
                 
-                // Paparkan Status Skop
-                const statusInfo = skopItem.type || 'STESEN';
-                const statusClass = skopItem.type === 'PEGAWAI' ? 'text-indigo-600 font-medium' : 'text-gray-600';
-                
-                // Status IC tersirat (untuk Pegawai PPD)
-                const icStatusLabel = skopItem.type === 'PEGAWAI' && skopItem.ic ? '(IC Direkodkan)' : (skopItem.type === 'PEGAWAI' ? '(Tiada IC)' : '');
+                // Paparkan IC hanya jika ia Pegawai PPD dan IC wujud
+                const icInfo = skopItem.ic && skopItem.type === 'PEGAWAI' ? skopItem.ic : (skopItem.type === 'PEGAWAI' ? 'Tiada IC' : '-');
                 
                 // Cari index asal dalam senarai penuh untuk fungsi Edit/Delete
                 const originalIndex = currentTask.skopSenaraiSekolah ? currentTask.skopSenaraiSekolah.findIndex(item => item.nama === originalName) : -1;
                 
                 tableHtml += `
-                    <tr class="text-sm text-gray-800 skop-item" data-search="${originalName.toUpperCase()} ${statusInfo.toUpperCase()}" data-original-name="${originalName}" data-original-index="${originalIndex}">
+                    <tr class="text-sm text-gray-800 skop-item" data-search="${originalName.toUpperCase()} ${icInfo.toUpperCase()}" data-original-name="${originalName}" data-original-index="${originalIndex}">
                         <td class="px-4 py-2 w-10 text-center align-top">${index + 1}.</td>
                         <td class="px-4 py-2 font-medium align-top">
                             <div class="font-semibold">${originalName}</div>
+                            <div class="text-xs text-gray-500">(${skopItem.type || 'STESEN'})</div>
                         </td>
-                        <td class="px-4 py-2 align-top text-xs ${statusClass}">
-                            ${statusInfo} ${icStatusLabel}
+                        <td class="px-4 py-2 align-top text-xs ${skopItem.type === 'PEGAWAI' && skopItem.ic ? 'text-indigo-600 font-medium' : 'text-gray-600'}">
+                            ${icInfo}
                         </td>
                         ${isUncompletedList ? `
                         <td class="px-4 py-2 text-right whitespace-nowrap space-x-2 no-print align-top">
@@ -1206,8 +1199,8 @@ Sekian, terima kasih.`;
         function copySkopList() {
             const visibleSkops = Array.from(document.querySelectorAll('#skop-modal-content .skop-item')).filter(el => el.style.display !== 'none').map(el => {
                 const name = el.children[1]?.children[0]?.textContent.trim() || '';
-                const type = el.children[2]?.textContent.trim() || 'STESEN';
-                return `${name} (${type})`; 
+                const ic = el.children[2]?.textContent.trim() || '';
+                return `${name} (${ic})`; 
             }).filter(text => text.length > 0);
             
             if (visibleSkops.length === 0) {
