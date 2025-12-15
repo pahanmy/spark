@@ -416,11 +416,23 @@
         function normalizeStationName(name) {
             if (typeof name !== 'string') return '';
             let normalized = name.toUpperCase();
+            
+            // Penormalan Standard: Buang BIN/BINTI dan tukar SG/SG. kepada SUNGAI
+            normalized = normalized.replace(/\b(BIN|BINTI|B|A\/L|A\/P|HJ|HAJI|HJH|HAJJAH|DR|DATO|DATUK|PROF|IR|MOHD|MUHAMMAD)\.?\s*/g, ' ').trim();
             normalized = normalized.replace(/\bSG\./g, 'SUNGAI'); 
             normalized = normalized.replace(/\bSG\b/g, 'SUNGAI'); 
-            normalized = normalized.replace(/\./g, '');
-            normalized = normalized.replace(/\s+/g, ' ').trim();
-            return normalized;
+            
+            // Tambahan untuk kendalikan SJK (C) / SJK (CINA)
+            normalized = normalized.replace(/\s*\([^)]*(CINA|C)\s*[^)]*\)\s*/g, ''); 
+            normalized = normalized.replace(/\bCINA\b\s*/g, '');
+            
+            // Buang semua tanda baca
+            normalized = normalized.replace(/[.,]/g, ''); 
+            
+            // Buang SEMUA jarak kosong yang berlebihan
+            normalized = normalized.replace(/\s+/g, ''); 
+            
+            return normalized.trim();
         }
 
         // Inisialisasi Firebase
@@ -486,8 +498,9 @@
         let subTugasanList = []; 
         let pautanList = []; 
         let allSchools = [], srSchools = [], smSchools = [];
-        let ppdOfficers = [];
+        let ppdOfficers = []; // DIUBAH: Menyimpan objek {name, ic}
         let ppdSectors = [];
+        let schoolListMap = new Map(); // Untuk padanan IC/nama Pegawai PPD
 
         // --- FUNCTIONS ---
 
@@ -515,11 +528,44 @@
             let failData = null; 
             
             const textareaValue = document.getElementById('skop-list-textarea').value;
-            // KRITIKAL: Simpan senarai SKOP yang dinormalisasi untuk perbandingan di task.html
-            const skopSenaraiSekolah = textareaValue.split('\n')
-                                                  .map(line => normalizeStationName(line)) // NORMALISASI
-                                                  .filter(line => line.length > 0);
-            const jumlahBelum = skopSenaraiSekolah.length;
+            
+            // 1. Dapatkan senarai nama unik dari textarea
+            const skopSenaraiNama = [...new Set(
+                textareaValue.split('\n')
+                             .map(line => line.trim())
+                             .filter(line => line.length > 0)
+            )];
+            
+            // 2. Bina senarai Pegawai PPD yang dinormalisasi untuk pemetaan
+            const normalizedPpdMap = new Map(
+                ppdOfficers.map(o => [normalizeStationName(o.name), o])
+            );
+
+            // 3. Bina Struktur Skop Akhir (dengan nama dan IC jika dijumpai)
+            const skopSenaraiObjek = [];
+            
+            skopSenaraiNama.forEach(namaAsal => {
+                const namaNormal = normalizeStationName(namaAsal);
+                const ppdMatch = normalizedPpdMap.get(namaNormal);
+                
+                if (ppdMatch) {
+                    // Jika ia adalah Pegawai PPD, simpan maklumat lengkap (Nama, IC, Type: PEGAWAI)
+                    skopSenaraiObjek.push({
+                        nama: namaAsal, // Simpan nama asal untuk paparan
+                        ic: ppdMatch.ic || null,
+                        type: 'PEGAWAI'
+                    });
+                } else {
+                    // Jika ia adalah Sekolah/Sektor/Awam, simpan Nama sahaja (Type: STESEN)
+                    skopSenaraiObjek.push({
+                        nama: namaAsal,
+                        ic: null,
+                        type: 'STESEN' 
+                    });
+                }
+            });
+
+            const jumlahBelum = skopSenaraiObjek.length;
             
             const dataTugasan = {
                 nama: namaModal.value,
@@ -529,7 +575,7 @@
                 tarikhSiap: tarikhSiapModal.value,
                 jumlahSelesai: 0,
                 jumlahBelum: jumlahBelum,
-                skopSenaraiSekolah: skopSenaraiSekolah, // Simpan senarai yang dinormalisasi
+                skopSenaraiSekolah: skopSenaraiObjek, // KRITIKAL: Menyimpan objek IC/Nama/Type
                 senaraiSubTugasan: subTugasanList, 
                 senaraiPautan: pautanList,
                 fail: failData,
@@ -552,7 +598,7 @@
             }
         }
 
-        // --- (FUNGSI LAIN KEKAL SAMA) ---
+        // --- (FUNGSI LAIN) ---
         function setupValidationListeners() {
             applicantIcInput.addEventListener('input', validateIcFormat);
             applicantIcInput.addEventListener('blur', validateAndFetchApplicantName);
@@ -733,8 +779,11 @@
                 ppdOfficers = [];
                 querySnapshot.forEach(doc => {
                     const officer = doc.data();
-                    // KRITIKAL: SIMPAN NAMA PEGAWAI SEBAGAI SKOP SASARAN
-                    ppdOfficers.push(officer.name.toUpperCase()); 
+                    // KRITIKAL: SIMPAN NAMA & IC
+                    ppdOfficers.push({ 
+                        name: officer.name.toUpperCase(), 
+                        ic: officer.ic && officer.ic.length === 12 ? officer.ic : null // Hanya ambil IC jika 12 digit
+                    }); 
                 });
             } catch (error) {
                 console.error("RALAT KETIKA MEMUAT PEGAWAI PPD. (Sila semak Rules & Index Firebase): ", error);
@@ -806,19 +855,20 @@
         function loadReferenceSchools(type) {
             const textarea = document.getElementById('skop-list-textarea');
             textarea.value = 'Memuatkan...';
-            let filteredList = [];
+            let displayList = []; // Senarai untuk dipaparkan dalam textarea
             
             if (type === 'ppd-sektor') { 
                 if (ppdSectors.length === 0) {
                     textarea.value = 'Data Sektor PPD belum sedia atau tiada data ditemui.';
                 } else {
-                    filteredList = ppdSectors;
+                    displayList = ppdSectors;
                 }
             } else if (type === 'ppd') { 
                 if (ppdOfficers.length === 0) {
                     textarea.value = 'Data Pegawai PPD belum sedia atau tiada data ditemui.';
                 } else {
-                    filteredList = ppdOfficers;
+                    // Hanya ambil nama untuk dipaparkan dalam textarea
+                    displayList = ppdOfficers.map(o => o.name); 
                 }
             } else if (type === 'sr') { 
                 filteredList = srSchools.map(school => school.name);
@@ -828,8 +878,8 @@
                 filteredList = [...srSchools, ...smSchools].map(school => school.name).sort();
             }
 
-            if (filteredList.length > 0) { 
-                textarea.value = filteredList.join('\n'); 
+            if (displayList.length > 0) { 
+                textarea.value = displayList.join('\n'); 
             } else if (type !== 'ppd' && type !== 'ppd-sektor') {
                 textarea.value = (allSchools.length === 0) 
                     ? 'Data sekolah belum sedia. Sila tunggu sebentar dan cuba lagi.' 
@@ -1017,7 +1067,7 @@
                 }
 
                 let badgeHtml = getTypeBadge(tugas.type);
-                let requiredTag = getRequiredTag(tugas.required);
+                let requiredTag = getRequiredTag(tugas.required !== undefined ? tugas.required : true);
 
                 senaraiSubTugasanContainer.innerHTML += `
                     <div class="bg-white p-2 rounded border border-gray-200">
