@@ -583,7 +583,48 @@
         let currentPage = 1;
         let itemsPerPage = 10;
 
-        // --- FUNCTIONS ---
+        // --- FUNCTIONS (FUZZY MATCHING DITAMBAH DI SINI) ---
+
+        /**
+         * Mengira jarak Levenshtein antara dua rentetan.
+         */
+        function levenshteinDistance(s1, s2) {
+            if (s1 === s2) return 0;
+            if (s1.length > s2.length) {
+                [s1, s2] = [s2, s1]; // Pastikan s1 adalah yang lebih pendek
+            }
+
+            let rows = [];
+            for (let i = 0; i <= s1.length; i++) {
+                rows[i] = [i];
+            }
+            for (let j = 1; j <= s2.length; j++) {
+                rows[0][j] = j;
+            }
+
+            for (let i = 1; i <= s1.length; i++) {
+                for (let j = 1; j <= s2.length; j++) {
+                    const cost = (s1[i - 1] === s2[j - 1]) ? 0 : 1;
+                    rows[i][j] = Math.min(
+                        rows[i - 1][j] + 1,       // deletion
+                        rows[i][j - 1] + 1,       // insertion
+                        rows[i - 1][j - 1] + cost // substitution
+                    );
+                }
+            }
+            return rows[s1.length][s2.length];
+        }
+
+        /**
+         * Mengira peratusan persamaan berdasarkan jarak Levenshtein.
+         * Tolerance 70% atau lebih dianggap padan.
+         */
+        function getSimilarityPercentage(s1, s2) {
+            if (!s1 || !s2) return 0;
+            const distance = levenshteinDistance(s1, s2);
+            const maxLength = Math.max(s1.length, s2.length);
+            return ((maxLength - distance) / maxLength) * 100;
+        }
 
         function pasangListenerTugasan() {
             if (!userId) return;
@@ -621,7 +662,7 @@
             
             const listWithProgress = filteredList.map(tugasan => {
                 
-                // ▼▼▼ LOGIK PENGIRAAN PROGRES UNTUK KAD RINGKAS & JADUAL (KONSISTEN DENGAN task.html) ▼▼▼
+                // ▼▼▼ LOGIK PENGIRAAN PROGRES DENGAN FUZZY MATCHING (TOLERANSI 70%) ▼▼▼
                 const originalTotalSkop = Array.isArray(tugasan.skopSenaraiSekolah) 
                     ? tugasan.skopSenaraiSekolah 
                     : [];
@@ -634,30 +675,43 @@
                     const skopSample = originalTotalSkop[0] || '';
                     const isSchoolSkop = skopSample.toUpperCase().match(/^(SK|SMK|SJK|KOLEJ|KV|SMAP|SABK|SRK|SRC|SRB)/) && originalTotalSkop.length > 0;
                     
-                    // --- 2. Bina Set Kunci Pengesahan (Memilih Nama Pegawai atau Stesen) ---
-                    const normalizedConfirmedKeys = new Set(allRekodSelesai.map(rekod => {
+                    // --- 2. Kumpulkan Rekod Pengesahan Normalized ---
+                    const normalizedRekodPengesahan = allRekodSelesai.map(rekod => {
                         let keyToNormalize;
-                        
-                        // Perbezaan KRITIKAL DIBETULKAN
                         if (isSchoolSkop) {
                             keyToNormalize = rekod.stesen_pengesah; 
                         } else {
-                            keyToNormalize = rekod.nama_pengesah; // Kunci Pegawai jika bukan skop Sekolah
+                            keyToNormalize = rekod.nama_pengesah; 
                         }
-                        
-                        // Fallback (Seperti logik task.html)
                         keyToNormalize = keyToNormalize || rekod.stesen_pengesah || rekod.nama_pengesah;
-                        
                         return normalizeName(keyToNormalize || '');
-                    }));
+                    }).filter(k => k.length > 0); 
                     
-                    // --- 3. Laksanakan Padanan dan Pengiraan Skop ---
+                    // --- 3. Laksanakan Padanan Fuzzy (Toleransi 70%) ---
                     const completedSkopOriginalNames = new Set();
+                    const confirmedIndicesUsed = new Set(); // Elak menggunakan rekod pengesahan yang sama dua kali
+
                     originalTotalSkop.forEach(originalSkop => {
-                        if (normalizedConfirmedKeys.has(normalizeName(originalSkop))) {
+                        const normalizedSkop = normalizeName(originalSkop);
+                        
+                        // Cari padanan dalam rekod pengesahan yang belum digunakan
+                        const matchedIndex = normalizedRekodPengesahan.findIndex((confirmedName, index) => {
+                            if (confirmedIndicesUsed.has(index)) return false; // Sudah digunakan
+                            
+                            // Kira peratusan persamaan
+                            const similarity = getSimilarityPercentage(normalizedSkop, confirmedName);
+                            
+                            // Ambilkira 70% threshold
+                            return similarity >= 70; 
+                        });
+
+                        if (matchedIndex !== -1) {
+                            // Padanan ditemui, tandakan skop selesai dan rekod pengesahan ini sebagai digunakan
                             completedSkopOriginalNames.add(originalSkop);
+                            confirmedIndicesUsed.add(matchedIndex);
                         }
                     });
+
 
                     jumlahSelesai = completedSkopOriginalNames.size;
                     total = originalTotalSkop.length;
@@ -675,7 +729,7 @@
                 } else {
                     totalBelumCount++;
                 }
-                // ▲▲▲ TAMAT LOGIK PENGIRAAN PROGRES ▲▲▲
+                // ▲▲▲ TAMAT LOGIK PENGIRAAN PROGRES FUZZY ▲▲▲
 
                 return { ...tugasan, progress: { jumlahSelesai, total, peratus } };
             });
@@ -748,7 +802,7 @@
                         (${jumlahSelesai} / ${total})
                      </div>`;
                 
-                // ▼▼▼ HTML BARIS DIKEMAS KINI - MENGGUNAKAN LOGIK BARU ▼▼▼
+                // ▼▼▼ HTML BARIS DIKEMAS KINI ▼▼▼
                 baris.innerHTML = `
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${startIndex + index + 1}</td>
                     
@@ -1398,8 +1452,8 @@
         }
         
         /**
-         * Menyeragamkan nama stesen/pegawai untuk perbandingan (KONSISTEN DGN TASK.HTML).
-         * Dikemaskini untuk mengendalikan singkatan BIN/BINTI.
+         * Menyeragamkan nama stesen/pegawai untuk perbandingan.
+         * Telah diperbaiki untuk mengendalikan singkatan BIN/BINTI.
          */
         function normalizeName(name) {
             if (typeof name !== 'string') return '';
@@ -1410,10 +1464,8 @@
             normalized = normalized.replace(/\bSG\b/g, 'SUNGAI'); 
             
             // Seragamkan singkatan BIN/BINTI/B./BT. kepada BIN/BINTI
-            // Regex \bB\.\b bermaksud perkataan B. sahaja
             normalized = normalized.replace(/\bB\.\b/g, 'BIN'); 
             normalized = normalized.replace(/\bBT\.\b/g, 'BINTI');
-            // Gantikan B sahaja (bukan diikuti I) atau BT sahaja kepada format penuh
             normalized = normalized.replace(/\bB\b(?!I)/g, 'BIN'); 
             normalized = normalized.replace(/\bBT\b/g, 'BINTI'); 
             
