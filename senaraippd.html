@@ -254,7 +254,7 @@
         onAuthStateChanged(auth, async (user) => {
             if (user) { 
                 userId = user.uid; 
-                fetchPpdOfficers();
+                fetchPpdOfficers(true); // Panggil dengan true untuk sync
             } else { 
                 try { 
                     console.log("Mencuba sign in anonim di senaraippd.html");
@@ -303,34 +303,112 @@
         }
 
 
+        // FUNGSI BARU: Menyegerakkan IC Pegawai PPD menggunakan Nama dari Senarai Peserta
+        async function syncPpdIcByName(ppdEntities) {
+            if (!db) return ppdEntities;
+            
+            console.log("--- Mula Penyegerakan IC PPD dari data.html (Peserta) ---");
+            
+            try {
+                // 1. Muat turun semua Peserta Induk
+                const participantsRef = collection(db, PARTICIPANTS_COLLECTION_PATH);
+                const participantsSnapshot = await getDocs(participantsRef);
+                
+                const participantMap = new Map();
+                participantsSnapshot.forEach(doc => {
+                    const data = doc.data();
+                    // Simpan dalam map menggunakan nama sebagai kunci (uppercase)
+                    if (data.name && data.ic && data.ic.length === 12) {
+                        participantMap.set(data.name.toUpperCase().trim(), data.ic);
+                    }
+                });
+                
+                let updateCount = 0;
+                const batch = getFirestore().batch();
+                const updatedPpdEntities = [];
+                
+                // 2. Bandingkan dan kemas kini Pegawai PPD
+                ppdEntities.forEach(entity => {
+                    const entityName = entity.name.toUpperCase().trim();
+                    const currentIc = (entity.ic || '').trim();
+                    let isUpdated = false;
+                    
+                    // Cari padanan IC di map Peserta (data.html)
+                    if (entity.category === 'pegawai' && participantMap.has(entityName)) {
+                        const matchedIc = participantMap.get(entityName);
+                        
+                        // Jika IC sedia ada kosong atau berbeza, kemas kini
+                        if (currentIc !== matchedIc) {
+                            entity.ic = matchedIc; // Kemas kini objek tempatan
+                            
+                            const docRef = doc(db, PPD_COLLECTION_PATH, entity.id);
+                            batch.update(docRef, { 
+                                ic: matchedIc,
+                                updatedAt: new Date().toISOString(),
+                            });
+                            updateCount++;
+                            isUpdated = true;
+                        }
+                    }
+                    updatedPpdEntities.push(entity);
+                });
+                
+                // 3. Commit batch jika ada perubahan
+                if (updateCount > 0) {
+                    await batch.commit();
+                    console.log(`Penyegerakan Selesai. ${updateCount} rekod PPD IC telah dikemaskini.`);
+                    showImportMessage(`${updateCount} rekod Pegawai PPD (IC) diselaraskan dari Senarai Peserta.`, 'bg-blue-100 text-blue-700');
+                    // Kembalikan entiti yang telah dikemas kini dari Firebase (fetch semula)
+                    // Panggil fetchPpdOfficers(false) untuk muatkan data yang telah diubah dari DB
+                    return await fetchPpdOfficers(false); 
+                } else {
+                     console.log("Penyegerakan Selesai. Tiada rekod PPD IC yang perlu dikemaskini.");
+                     return updatedPpdEntities;
+                }
+
+            } catch (error) {
+                console.error("RALAT KETIKA PENYEGERAKAN IC: ", error);
+                showImportMessage('Gagal menyelaraskan IC. Sila semak rules Firebase.', 'bg-red-100 text-red-700');
+                return ppdEntities;
+            }
+        }
+
+
         // 1. Muat dan Paparkan Senarai
-        async function fetchPpdOfficers() {
+        async function fetchPpdOfficers(shouldSync = false) {
             if (!db) return;
             loadingMessage.classList.remove('hidden');
             errorMessage.classList.add('hidden');
             senaraiPegawaiContainer.innerHTML = '';
-            allPpdEntities = [];
             
             try {
                 console.log(`--- DEBUG: Mencuba muat data dari ${PPD_COLLECTION_PATH} ---`);
                 const officersRef = collection(db, PPD_COLLECTION_PATH);
-                
-                // PENTING: Susun hanya mengikut 'name' untuk memastikan semua rekod dipaparkan.
                 const q = query(officersRef, orderBy("name", "asc"));
                 
                 const querySnapshot = await getDocs(q);
                 
-                if (querySnapshot.empty) {
-                    senaraiPegawaiContainer.innerHTML = '<p class="text-center text-gray-500 mt-4 p-4 bg-gray-100 rounded-lg">Tiada rujukan PPD dalam senarai.</p>';
-                } else {
+                allPpdEntities = [];
+                if (!querySnapshot.empty) {
                      querySnapshot.forEach(doc => {
                         const entity = { id: doc.id, ...doc.data() };
                         allPpdEntities.push(entity);
                     });
                 }
                 
-                console.log(`--- DEBUG: Muatan Berjaya. Jumlah Entiti: ${querySnapshot.size} ---`);
+                console.log(`--- DEBUG: Muatan Berjaya. Jumlah Entiti: ${allPpdEntities.length} ---`);
                 
+                // ** LANGKAH PENTING BARU: Lakukan Penyegerakan IC jika shouldSync=true **
+                if (shouldSync && allPpdEntities.length > 0) {
+                    const result = await syncPpdIcByName(allPpdEntities);
+                    // Jika syncPpdIcByName berjaya melakukan update, ia akan fetch semula data.
+                    // Kita perlu periksa jika result yang dikembalikan adalah array biasa atau hasil dari fetch semula.
+                    if (Array.isArray(result) && result.length > allPpdEntities.length) {
+                        // Ini menandakan syncPpdIcByName telah melakukan fetch semula.
+                        allPpdEntities = result;
+                    }
+                }
+
                 collectAllPositions(); // Kumpul dan isi dropdown Jawatan
                 displayFilteredEntities(); // Paparkan entiti yang ditapis
                 
@@ -432,9 +510,10 @@
 
                 const position = (entity.position && entity.position.toUpperCase() !== 'SEKTOR PPD') ? entity.position.toUpperCase() : `<span class="text-gray-500 italic">N/A</span>`;
 
-                // PAPARAN NO. IC BARU
-                const icDisplay = entity.ic && entity.ic.length === 12 && entity.category === 'pegawai' 
-                    ? entity.ic
+                // PAPARAN NO. IC: Ambil dari entity.ic yang telah diselaraskan/disimpan.
+                const icValue = entity.ic ? entity.ic.trim() : '';
+                const icDisplay = icValue.length === 12 
+                    ? icValue
                     : `<span class="text-gray-400 italic">-</span>`;
 
                 // Tambah data-id pada baris <tr> untuk diakses oleh SortableJS
@@ -475,7 +554,6 @@
 
                 tableBody.sortable = Sortable.create(tableBody, {
                     animation: 150,
-                    handle: '.drag-handle', // Tidak digunakan dalam HTML ini, tetapi amalan baik
                     ghostClass: 'sortable-ghost',
                     
                     onEnd: async function (evt) {
@@ -622,7 +700,7 @@
                 
                 form.reset();
                 resetEditState();
-                fetchPpdOfficers(); // Muat semula senarai
+                fetchPpdOfficers(); // Muat semula senarai (tanpa sync, kerana baru disimpan)
                 
             } catch (error) {
                 console.error("RALAT SAVE/UPDATE: ", error);
@@ -635,7 +713,7 @@
             }
         }
         
-        // 4. Import Data Pukal (Kod Import tidak diubah)
+        // 4. Import Data Pukal
         async function handleImportPukal(event) {
              event.preventDefault();
             if (isSubmitting) return;
@@ -744,7 +822,7 @@
             isSubmitting = false;
             importBtn.disabled = false;
             importBtn.textContent = 'Import Data Pukal';
-            fetchPpdOfficers();
+            fetchPpdOfficers(true); // Muat semula dan jalankan sync untuk IC
         }
 
         // 5. Edit Entity (Muatkan Data ke Borang)
@@ -846,6 +924,9 @@
 
         });
         
+        // Refresh button kini memanggil fetchPpdOfficers(true) untuk memulakan sync
+        refreshBtn.addEventListener('click', () => fetchPpdOfficers(true));
+
         formTambahPegawai.addEventListener('submit', handleAddEntity);
         formTambahSektor.addEventListener('submit', handleAddEntity);
         formImportPukal.addEventListener('submit', handleImportPukal);
@@ -854,7 +935,6 @@
             handleDelete(e);
             handleEdit(e);
         });
-        refreshBtn.addEventListener('click', fetchPpdOfficers);
         
     </script>
 </body>
