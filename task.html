@@ -213,8 +213,24 @@
                             <span id="copy-link-text">Salin Pautan</span>
                         </button>
                     </div>
-
                     
+                    <div class="card p-5">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-orange-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.24a.5.5 0 01.076.627L16.29 11.23a.5.5 0 00-.076.627l1.304 2.87a.5.5 0 01-.082.623L14 18.28a.5.5 0 01-.627.076L9.77 16.71a.5.5 0 00-.627.076l-2.87 1.304a.5.5 0 01-.623-.082L1.72 14.62a.5.5 0 01-.076-.627l1.304-2.87a.5.5 0 00.076-.627l-1.304-2.87a.5.5 0 01.082-.623L5.72 5.72a.5.5 0 01.627-.076l2.87 1.304a.5.5 0 00.627-.076l2.87-1.304a.5.5 0 01.623.082L16.28 5.72a.5.5 0 01.076.627l-1.304 2.87z" />
+                            </svg>
+                            Pengesahan Penutup Tugasan
+                        </h3>
+                        <p class="text-sm text-gray-600 mb-4" id="final-confirmation-text">
+                            Penyelaras: Sila sahkan bahawa *semua* maklumat pengisian (Selesai: <span id="final-selesai-count" class="font-bold text-teal-700">0</span> / Total: <span id="final-total-count" class="font-bold text-gray-800">0</span>) telah direkodkan.
+                        </p>
+                        <div id="print-report-container">
+                            <button onclick="openICConfirmationModal('final_confirm', -1, 'TUTUP TUGASAN')" id="final-confirm-btn" class="btn bg-orange-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-orange-700 flex items-center justify-center gap-2 text-sm w-full">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+                                Sahkan Penutupan Tugasan
+                            </button>
+                        </div>
+                    </div>
                     <div class="card p-5">
                         <h3 class="text-lg font-semibold text-gray-800 flex items-center gap-2 mb-4">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-indigo-500" viewBox="0 0 20 20" fill="currentColor">
@@ -501,12 +517,13 @@
         }
         
         function kiraBakiHari(tarikhString, peratus) {
-            if (peratus === 100) {
-                return { teks: 'Selesai', badgeClass: 'bg-green-100 text-green-800 font-semibold' };
+            const isCompleted = peratus === 100;
+            if (isCompleted) {
+                return { teks: 'Selesai', badgeClass: 'bg-green-100 text-green-800 font-semibold', isOverdue: false, isCompleted: true };
             }
             const tarikhSiap = new Date(tarikhString);
             if (isNaN(tarikhSiap.getTime())) {
-                return { teks: '-', badgeClass: 'bg-gray-100 text-gray-800 font-semibold' };
+                return { teks: '-', badgeClass: 'bg-gray-100 text-gray-800 font-semibold', isOverdue: false, isCompleted: false };
             }
             const hariIni = new Date();
             hariIni.setHours(0, 0, 0, 0);
@@ -516,15 +533,17 @@
             const bezaHari = Math.ceil(bezaMasa / (1000 * 60 * 60 * 24));
             
             if (bezaHari > 0) {
-                return { teks: `${bezaHari} hari lagi`, badgeClass: 'bg-indigo-100 text-indigo-800 font-semibold' };
+                return { teks: `${bezaHari} hari lagi`, badgeClass: 'bg-indigo-100 text-indigo-800 font-semibold', isOverdue: false, isCompleted: false };
             } else if (bezaHari === 0) {
-                return { teks: 'Hari Ini', badgeClass: 'bg-amber-100 text-amber-800 font-semibold' };
+                return { teks: 'Hari Ini', badgeClass: 'bg-amber-100 text-amber-800 font-semibold', isOverdue: false, isCompleted: false };
             } else {
-                return { teks: `Terlewat ${Math.abs(bezaHari)} hari`, badgeClass: 'bg-red-100 text-red-800 font-semibold' };
+                return { teks: `Terlewat ${Math.abs(bezaHari)} hari`, badgeClass: 'bg-red-100 text-red-800 font-semibold', isOverdue: true, isCompleted: false };
             }
         }
         
         // --- FUNGSI UTAMA ---
+
+        const FINAL_CONFIRMATION_KEY = 'sparktask_final_confirm_';
 
         function main() { 
             if (!userId) return;
@@ -612,6 +631,7 @@
                     } else {
                         lampiranCard.classList.add('hidden');
                     }
+                    updateFinalConfirmationUI(); // KEMASKINI UI PENGESAHAN AKHIR
                     document.getElementById('loading-dashboard').classList.add('hidden');
                     document.getElementById('full-dashboard-content').classList.remove('hidden');
                 } else {
@@ -665,6 +685,7 @@
             const total = document.getElementById('info-total').textContent;
             const peratus = (parseInt(total) === 0) ? 0 : Math.round((parseInt(jumlahSelesai) / parseInt(total)) * 100);
             const bakiHariInfo = kiraBakiHari(currentTask.tarikhSiap, peratus);
+
             document.getElementById('dashboard-countdown-badge').innerHTML = `
                  <span class="inline-block px-2 py-0.5 rounded-full text-sm font-bold ${bakiHariInfo.badgeClass}">
                     ${bakiHariInfo.teks}
@@ -675,6 +696,25 @@
             document.getElementById('dashboard-sektor').textContent = currentTask.sektor;
             document.getElementById('dashboard-date-start').textContent = formatTarikh(currentTask.tarikhMula);
             document.getElementById('dashboard-date-end').textContent = formatTarikh(currentTask.tarikhSiap);
+            
+            // Logik Sekatan Tugasan Terlewat
+            const sahkanSelesaiBtn = document.getElementById('sahkan-selesai-btn');
+            
+            if (bakiHariInfo.isOverdue && !bakiHariInfo.isCompleted) {
+                 sahkanSelesaiBtn.classList.add('opacity-50', 'cursor-not-allowed', 'pointer-events-none');
+                 sahkanSelesaiBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" /></svg> Tugas Terlewat - Ditutup';
+                 sahkanSelesaiBtn.href = '#'; 
+                 sahkanSelesaiBtn.classList.remove('animate-pulse');
+            } else {
+                 sahkanSelesaiBtn.classList.remove('opacity-50', 'cursor-not-allowed', 'pointer-events-none');
+                 sahkanSelesaiBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" /></svg> Sahkan Tugasan';
+                 sahkanSelesaiBtn.href = `selesai.html?id=${currentTaskId}`;
+                 if (!bakiHariInfo.isCompleted) {
+                     sahkanSelesaiBtn.classList.add('animate-pulse');
+                 } else {
+                     sahkanSelesaiBtn.classList.remove('animate-pulse');
+                 }
+            }
         }
 
         // --- FUNGSI RENDER PROGRESS ---
@@ -756,6 +796,10 @@
             document.getElementById('info-total').textContent = total;
             document.getElementById('info-peratus').textContent = `${peratus}%`;
             document.getElementById('progress-circle').style.strokeDashoffset = 100 - peratus;
+
+            // Kemaskini kiraan di kotak 'Pengesahan Penutup Tugasan'
+            document.getElementById('final-selesai-count').textContent = jumlahSelesai;
+            document.getElementById('final-total-count').textContent = total;
         }
 
         function renderCompletionHistory() {
@@ -1219,7 +1263,11 @@ Sekian, terima kasih.`;
             const icInput = document.getElementById('ic-input');
             const errorMsg = document.getElementById('ic-error-message');
             
-            actionTextEl.textContent = actionType === 'edit' ? 'EDIT NAMA' : 'PADAM NAMA';
+            actionTextEl.textContent = 
+                actionType === 'edit' ? 'EDIT NAMA' : 
+                actionType === 'delete' ? 'PADAM NAMA' :
+                actionType === 'final_confirm' ? 'PENGESAHAN PENUTUP' : 'TINDAKAN';
+            
             skopNameEl.textContent = name;
             icInput.value = '';
             errorMsg.classList.add('hidden');
@@ -1228,11 +1276,9 @@ Sekian, terima kasih.`;
 
         function closeICConfirmationModal() {
             document.getElementById('ic-confirmation-modal').classList.remove('buka');
-            // pendingAction = null dipindahkan ke confirmICAction untuk kawalan lebih ketat
         }
 
         function confirmICAction() {
-            // Perketatkan semakan untuk ralat "Cannot read properties of null (reading 'type')"
             if (!pendingAction) {
                 console.error("Ralat: pendingAction adalah null sebelum pengesahan.");
                 alert("Ralat sistem, sila cuba semula. (Kod: PENDING_NULL)");
@@ -1253,14 +1299,15 @@ Sekian, terima kasih.`;
             if (icInput === requiredIC) {
                 closeICConfirmationModal(); 
                 
-                // Laksanakan tindakan yang diminta
                 if (pendingAction.type === 'edit') {
                     executeEditSkopItem(pendingAction.index, pendingAction.name);
                 } else if (pendingAction.type === 'delete') {
                     executeDeleteSkopItem(pendingAction.index, pendingAction.name);
+                } else if (pendingAction.type === 'final_confirm') {
+                    executeFinalConfirmation(pendingAction.name);
                 }
                 
-                pendingAction = null; // Set kepada null selepas pelaksanaan berjaya/dirancang
+                pendingAction = null; 
 
             } else {
                 errorMsg.textContent = "Nombor IC tidak sepadan dengan Penyelaras Tugasan.";
@@ -1269,19 +1316,15 @@ Sekian, terima kasih.`;
             }
         }
 
-        // FUNGSI INI KINI HANYA MEMBUKA MODAL IC
         function editSkopItem(originalIndex, originalName) {
             openICConfirmationModal('edit', originalIndex, originalName);
         }
 
-        // FUNGSI INI KINI HANYA MEMBUKA MODAL IC
         function deleteSkopItem(originalIndex, originalName) {
             openICConfirmationModal('delete', originalIndex, originalName);
         }
 
-        // FUNGSI PELAKSANAAN SEBENAR (selepas pengesahan IC)
         async function executeEditSkopItem(originalIndex, originalName) {
-            // DEBUG ALERT: Sahkan pengesahan berjaya sebelum prompt
             alert(`PENTING: Pengesahan IC berjaya. Anda kini boleh mengedit nama skop "${originalName}".`);
             
             const newName = prompt(`Edit nama untuk "${originalName}" (Indeks: ${originalIndex}):`, originalName);
@@ -1311,7 +1354,6 @@ Sekian, terima kasih.`;
             }
         }
 
-        // FUNGSI PELAKSANAAN SEBENAR (selepas pengesahan IC)
         async function executeDeleteSkopItem(originalIndex, originalName) {
             if (confirm(`[PENTING] Adakah anda pasti mahu memadam skop "${originalName}" (Indeks: ${originalIndex})? Tindakan ini tidak boleh diundur.`)) {
                 
@@ -1335,6 +1377,175 @@ Sekian, terima kasih.`;
                     alert("Ralat Firebase: Gagal memadam skop.");
                 }
             }
+        }
+
+        // --- FUNGSI PENGESAHAN AKHIR DAN CETAK LAPORAN ---
+        
+        function updateFinalConfirmationUI() {
+            if (!currentTaskId) return;
+            const container = document.getElementById('print-report-container');
+            // Guna gabungan Task ID untuk uniqueness
+            const key = `${FINAL_CONFIRMATION_KEY}${currentTaskId}`; 
+            const isFinalConfirmed = localStorage.getItem(key) === 'true';
+            
+            if (isFinalConfirmed) {
+                // Tunjukkan butang cetak
+                container.innerHTML = `
+                    <p class="text-sm text-green-700 font-semibold mb-3 flex items-center gap-2 justify-center">
+                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+                         Status Penutupan: TELAH DISAHKAN
+                    </p>
+                    <button onclick="printFinalReport()" class="btn bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-blue-700 flex items-center justify-center gap-2 text-sm w-full">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                           <path fill-rule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v6a2 2 0 002 2h12a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm1-1V4a1 1 0 001 1h6a1 1 0 001-1V3a1 1 0 00-1-1H7a1 1 0 00-1 1zm-2 9v2h12v-2H4zm2 2h6v2H6v-2z" clip-rule="evenodd" />
+                        </svg>
+                        Cetak Laporan Akhir (PDF)
+                    </button>
+                `;
+            } else {
+                // Tunjukkan butang pengesahan
+                container.innerHTML = `
+                    <button onclick="openICConfirmationModal('final_confirm', -1, 'TUTUP TUGASAN')" id="final-confirm-btn" class="btn bg-orange-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-orange-700 flex items-center justify-center gap-2 text-sm w-full">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+                        Sahkan Penutupan Tugasan
+                    </button>
+                `;
+            }
+        }
+
+        async function executeFinalConfirmation(actionName) {
+            // Set status pengesahan ke localStorage
+            const key = `${FINAL_CONFIRMATION_KEY}${currentTaskId}`; 
+            localStorage.setItem(key, 'true');
+            alert(`Tugasan telah ditandakan sebagai disahkan penutupannya oleh Penyelaras. Anda kini boleh mencetak Laporan Akhir.`);
+            updateFinalConfirmationUI();
+        }
+        
+        function printFinalReport() {
+            if (!currentTask) {
+                alert("Maklumat tugasan tidak tersedia untuk mencetak laporan.");
+                return;
+            }
+            
+            const taskName = currentTask.nama.toUpperCase() || 'N/A';
+            const pegawai = currentTask.pegawai || 'N/A';
+            const sektor = currentTask.sektor || 'N/A';
+            const tarikhMula = formatTarikh(currentTask.tarikhMula);
+            const tarikhSiap = formatTarikh(currentTask.tarikhSiap);
+            const total = skopSelesaiList.length + skopBelumList.length;
+            const selesaiCount = skopSelesaiList.length;
+            const belumCount = skopBelumList.length;
+            const peratus = total > 0 ? Math.round((selesaiCount / total) * 100) : 0;
+            const reportDate = new Date().toLocaleString('ms-MY', { 
+                 day: 'numeric', month: 'long', year: 'numeric', 
+                 hour: 'numeric', minute: '2-digit' 
+            });
+
+            // Senarai Selesai
+            let selesaiListHtml = skopSelesaiList.sort().map((item, index) => `
+                <tr>
+                    <td style="padding: 4px; border: 1px solid #ccc; width: 10%; text-align: center;">${index + 1}</td>
+                    <td style="padding: 4px; border: 1px solid #ccc;">${item}</td>
+                    <td style="padding: 4px; border: 1px solid #ccc; width: 20%; background-color: #d1fae5; color: #065f46;">Selesai</td>
+                </tr>
+            `).join('');
+
+            // Senarai Belum Selesai
+            let belumListHtml = skopBelumList.sort().map((item, index) => `
+                <tr>
+                    <td style="padding: 4px; border: 1px solid #ccc; width: 10%; text-align: center;">${index + 1}</td>
+                    <td style="padding: 4px; border: 1px solid #ccc;">${item}</td>
+                    <td style="padding: 4px; border: 1px solid #ccc; width: 20%; background-color: #fee2e2; color: #991b1b;">Belum Selesai</td>
+                </tr>
+            `).join('');
+            
+            const fullListHtml = `
+                ${selesaiListHtml}
+                ${belumListHtml}
+            `;
+
+            const reportHtml = `
+                <html>
+                <head>
+                    <title>Laporan Akhir Tugasan: ${taskName}</title>
+                    <style>
+                        body { font-family: 'Poppins', sans-serif; margin: 30px; font-size: 12px; }
+                        h1 { font-size: 18px; text-align: center; margin-bottom: 20px; border-bottom: 2px solid #312e81; padding-bottom: 10px; color: #1f2937; }
+                        h2 { font-size: 14px; margin-top: 20px; margin-bottom: 10px; border-bottom: 1px solid #ccc; padding-bottom: 5px; color: #312e81; }
+                        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+                        th, td { border: 1px solid #ccc; padding: 6px; text-align: left; }
+                        th { background-color: #e5e7eb; font-weight: bold; }
+                        .summary-box { border: 1px solid #312e81; padding: 15px; margin-bottom: 20px; background-color: #e0e7ff; }
+                        .summary-item { margin-bottom: 8px; }
+                        .summary-value { font-weight: bold; color: #1f2937; }
+                        .signature-box { margin-top: 50px; text-align: right; }
+                        .signature-line { border-bottom: 1px solid #000; width: 250px; float: right; margin-top: 40px; margin-bottom: 5px; }
+                        .clear { clear: both; }
+                    </style>
+                </head>
+                <body>
+                    <h1>LAPORAN AKHIR TUGASAN SPARK: ${taskName}</h1>
+                    
+                    <div class="summary-box">
+                        <div class="summary-item"><strong>Pegawai Bertanggungjawab:</strong> <span class="summary-value">${pegawai}</span></div>
+                        <div class="summary-item"><strong>Sektor/Unit:</strong> <span class="summary-value">${sektor}</span></div>
+                        <div class="summary-item"><strong>Tarikh Mula:</strong> <span class="summary-value">${tarikhMula}</span></div>
+                        <div class="summary-item"><strong>Tarikh Akhir:</strong> <span class="summary-value">${tarikhSiap}</span></div>
+                        <div class="summary-item"><strong>Tarikh Laporan Dicetak:</strong> <span class="summary-value">${reportDate}</span></div>
+                    </div>
+
+                    <h2>Ringkasan Pencapaian Tugasan</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width: 33%;">Jumlah Skop Tugas</th>
+                                <th style="width: 33%;">Selesai</th>
+                                <th style="width: 33%;">Peratusan Pencapaian</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>${total}</td>
+                                <td style="color: #065f46; font-weight: bold;">${selesaiCount}</td>
+                                <td style="color: #312e81; font-weight: bold;">${peratus}%</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h2>Senarai Penuh Skop Tugas (${total} Entri)</h2>
+                    <table style="font-size: 11px;">
+                        <thead>
+                            <tr>
+                                <th style="width: 10%; text-align: center;">Bil.</th>
+                                <th>Nama Skop</th>
+                                <th style="width: 20%;">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${fullListHtml}
+                        </tbody>
+                    </table>
+                    
+                    <div class="signature-box">
+                        <p>Disediakan dan Disahkan oleh:</p>
+                        <div class="signature-line"></div>
+                        <p style="margin-top: 5px;">
+                            ${pegawai}
+                        </p>
+                        <p style="margin-top: 5px;">
+                            Penyelaras Tugasan ${taskName}
+                        </p>
+                    </div>
+
+                </body>
+                </html>
+            `;
+
+            const printWindow = window.open('', '_blank');
+            printWindow.document.write(reportHtml);
+            printWindow.document.close();
+            printWindow.focus();
+            printWindow.print();
         }
         
         // --- KOD TAMBAHAN ---
@@ -1373,6 +1584,11 @@ Sekian, terima kasih.`;
             openICConfirmationModal,
             closeICConfirmationModal,
             confirmICAction,
+            
+            // FUNGSI BARU
+            executeFinalConfirmation,
+            updateFinalConfirmationUI,
+            printFinalReport
         });
 
     </script>
