@@ -335,7 +335,7 @@
                     </button>
                     <button onclick="printSkopList()" class="btn bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg flex items-center gap-2 text-sm">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v6a2 2 0 002 2h1v-4a1 1 0 011-1h10a1 1 0 011 1v4h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z" clip-rule="evenodd" /></svg>
-                        Cetak (PDF/Screenshot)
+                        Cetak / Eksport PDF
                     </button>
                 </div>
                 <button onclick="closeSkopModal()" class="btn bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg w-full sm:w-auto">Tutup</button>
@@ -383,7 +383,7 @@
                 <textarea id="share-text" rows="10" class="w-full p-3 border border-gray-300 rounded-md bg-gray-50 text-sm" readonly></textarea>
             </div>
             <div class="flex flex-col sm:flex-row justify-end items-center gap-3 p-5 border-t bg-gray-50 rounded-b-lg">
-                <button onclick="copyShareText()" id="copy-share-btn" class="btn bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg flex items-center gap-2 text-sm w-full sm:w-auto justify-center">
+                <button onclick="copyShareText()" id="copy-share-btn" class="btn bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg flex items-center justify-center gap-2 text-sm w-full sm:w-auto justify-center">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" /><path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z" /></svg>
                     <span id="copy-share-text">Salin Teks</span>
                 </button>
@@ -455,7 +455,9 @@
         let completionItemsToShow = 5; 
         let allCompletionRecords = []; 
 
-        // Tambah pembolehubah untuk modal IC
+        // Pembolehubah untuk Pengesahan Akhir
+        const FINAL_CONFIRMATION_KEY = 'sparktask_final_confirm_';
+        const FINAL_CONFIRMATION_TIME_KEY = 'sparktask_final_confirm_time_';
         let pendingAction = null; 
         
         try {
@@ -481,29 +483,18 @@
 
         /**
          * Menormalkan nama (stesen/sekolah/individu) untuk membolehkan perbandingan yang tepat 
-         * tanpa mengira singkatan, tanda baca, atau perbezaan ejaan biasa.
-         * Telah diubah suai untuk menangani isu SJK (Cina) dan jarak kosong yang berlebihan.
          */
         function normalizeName(name) {
             if (typeof name !== 'string') return '';
             let normalized = name.toUpperCase();
             
-            // Penormalan Standard: Buang BIN/BINTI dan tukar SG/SG. kepada SUNGAI
             normalized = normalized.replace(/\b(BIN|BINTI|BT)\b\s*/g, '');
             normalized = normalized.replace(/\b(B\s*I\s*N|B\s*I\s*N\s*T\s*I|B\s*T)\b\s*/g, '');
             normalized = normalized.replace(/\bSG\./g, 'SUNGAI'); 
             normalized = normalized.replace(/\bSG\b/g, 'SUNGAI'); 
-            
-            // Tambahan untuk kendalikan SJK (C) / SJK (CINA)
-            // 1. Buang semua kurungan yang mengandungi CINA atau C
             normalized = normalized.replace(/\s*\([^)]*(CINA|C)\s*[^)]*\)\s*/g, ''); 
-            // 2. Buang perkataan CINA yang terasing
             normalized = normalized.replace(/\bCINA\b\s*/g, '');
-            
-            // Buang semua tanda baca
             normalized = normalized.replace(/[.,]/g, ''); 
-            
-            // Buang SEMUA jarak kosong yang berlebihan (termasuk yang ditinggalkan selepas penormalan)
             normalized = normalized.replace(/\s+/g, ''); 
             
             return normalized.trim(); 
@@ -516,8 +507,10 @@
             return `${hari}/${bulan}/${tahun}`;
         }
         
-        function kiraBakiHari(tarikhString, peratus) {
-            const isCompleted = peratus === 100;
+        function kiraBakiHari(tarikhString, peratus, isClosedByAdmin) {
+            // Tentukan selesai jika 100% ATAU ditutup secara admin
+            const isCompleted = peratus === 100 || isClosedByAdmin;
+            
             if (isCompleted) {
                 return { teks: 'Selesai', badgeClass: 'bg-green-100 text-green-800 font-semibold', isOverdue: false, isCompleted: true };
             }
@@ -542,8 +535,6 @@
         }
         
         // --- FUNGSI UTAMA ---
-
-        const FINAL_CONFIRMATION_KEY = 'sparktask_final_confirm_';
 
         function main() { 
             if (!userId) return;
@@ -631,7 +622,7 @@
                     } else {
                         lampiranCard.classList.add('hidden');
                     }
-                    updateFinalConfirmationUI(); // KEMASKINI UI PENGESAHAN AKHIR
+                    updateFinalConfirmationUI(); 
                     document.getElementById('loading-dashboard').classList.add('hidden');
                     document.getElementById('full-dashboard-content').classList.remove('hidden');
                 } else {
@@ -684,7 +675,12 @@
             const jumlahSelesai = document.getElementById('info-selesai').textContent;
             const total = document.getElementById('info-total').textContent;
             const peratus = (parseInt(total) === 0) ? 0 : Math.round((parseInt(jumlahSelesai) / parseInt(total)) * 100);
-            const bakiHariInfo = kiraBakiHari(currentTask.tarikhSiap, peratus);
+            
+            // Ambil status admin dari task
+            const isClosedByAdmin = currentTask.isClosedByAdmin || false; 
+
+            // Panggil fungsi dengan status admin
+            const bakiHariInfo = kiraBakiHari(currentTask.tarikhSiap, peratus, isClosedByAdmin);
 
             document.getElementById('dashboard-countdown-badge').innerHTML = `
                  <span class="inline-block px-2 py-0.5 rounded-full text-sm font-bold ${bakiHariInfo.badgeClass}">
@@ -697,23 +693,30 @@
             document.getElementById('dashboard-date-start').textContent = formatTarikh(currentTask.tarikhMula);
             document.getElementById('dashboard-date-end').textContent = formatTarikh(currentTask.tarikhSiap);
             
-            // Logik Sekatan Tugasan Terlewat
+            // Logik Sekatan Tugasan Terlewat atau Ditutup Admin
             const sahkanSelesaiBtn = document.getElementById('sahkan-selesai-btn');
             
             if (bakiHariInfo.isOverdue && !bakiHariInfo.isCompleted) {
+                 // Logik asal: Terlewat dan belum 100%
                  sahkanSelesaiBtn.classList.add('opacity-50', 'cursor-not-allowed', 'pointer-events-none');
                  sahkanSelesaiBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" /></svg> Tugas Terlewat - Ditutup';
                  sahkanSelesaiBtn.href = '#'; 
                  sahkanSelesaiBtn.classList.remove('animate-pulse');
+
+            } else if (bakiHariInfo.isCompleted) {
+                 // Jika status Selesai (sama ada 100% atau isClosedByAdmin=true)
+                 sahkanSelesaiBtn.classList.add('opacity-50', 'cursor-not-allowed', 'pointer-events-none', 'bg-green-700');
+                 sahkanSelesaiBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" /></svg> Tugasan Selesai';
+                 sahkanSelesaiBtn.href = '#'; 
+                 sahkanSelesaiBtn.classList.remove('animate-pulse', 'bg-green-600');
+                 
             } else {
-                 sahkanSelesaiBtn.classList.remove('opacity-50', 'cursor-not-allowed', 'pointer-events-none');
+                 // Keadaan Normal/Belum Terlewat
+                 sahkanSelesaiBtn.classList.remove('opacity-50', 'cursor-not-allowed', 'pointer-events-none', 'bg-green-700');
+                 sahkanSelesaiBtn.classList.add('bg-green-600');
                  sahkanSelesaiBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" /></svg> Sahkan Tugasan';
                  sahkanSelesaiBtn.href = `selesai.html?id=${currentTaskId}`;
-                 if (!bakiHariInfo.isCompleted) {
-                     sahkanSelesaiBtn.classList.add('animate-pulse');
-                 } else {
-                     sahkanSelesaiBtn.classList.remove('animate-pulse');
-                 }
+                 sahkanSelesaiBtn.classList.add('animate-pulse');
             }
         }
 
@@ -1222,8 +1225,8 @@ Sekian, terima kasih.`;
             navigator.clipboard.writeText(textToCopy).then(() => {
                 alert("Senarai yang dipaparkan telah disalin ke clipboard!");
             }).catch(err => {
-                console.error("Gagal menyalin:", err);
-                alert("Gagal menyalin. Sila cuba lagi.");
+                console.error('Gagal menyalin: ', err);
+                alert('Gagal menyalin teks.');
             });
         }
         
@@ -1384,26 +1387,42 @@ Sekian, terima kasih.`;
         function updateFinalConfirmationUI() {
             if (!currentTaskId) return;
             const container = document.getElementById('print-report-container');
-            // Guna gabungan Task ID untuk uniqueness
-            const key = `${FINAL_CONFIRMATION_KEY}${currentTaskId}`; 
-            const isFinalConfirmed = localStorage.getItem(key) === 'true';
             
+            const key = `${FINAL_CONFIRMATION_KEY}${currentTaskId}`; 
+            const timeKey = `${FINAL_CONFIRMATION_TIME_KEY}${currentTaskId}`; 
+            
+            const isFinalConfirmed = localStorage.getItem(key) === 'true';
+            const confirmationTimeISO = localStorage.getItem(timeKey); 
+            
+            let confirmationTimeText = '';
+
             if (isFinalConfirmed) {
-                // Tunjukkan butang cetak
+                 if (confirmationTimeISO) {
+                    const formattedTime = new Date(confirmationTimeISO).toLocaleString('ms-MY', { 
+                        day: 'numeric', month: 'long', year: 'numeric', 
+                        hour: 'numeric', minute: '2-digit' 
+                    });
+                    confirmationTimeText = `<p class="text-xs text-gray-500 mt-1">Disahkan pada: <span class="font-medium text-gray-700">${formattedTime}</span></p>`;
+                 } else {
+                     confirmationTimeText = `<p class="text-xs text-gray-500 mt-1">Disahkan pada: <span class="font-medium text-gray-700">Waktu tidak direkodkan</span></p>`;
+                 }
+                
+                // Tunjukkan butang cetak / Eksport PDF
                 container.innerHTML = `
                     <p class="text-sm text-green-700 font-semibold mb-3 flex items-center gap-2 justify-center">
                          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
                          Status Penutupan: TELAH DISAHKAN
                     </p>
-                    <button onclick="printFinalReport()" class="btn bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-blue-700 flex items-center justify-center gap-2 text-sm w-full">
+                    ${confirmationTimeText} 
+                    <button onclick="printFinalReport()" class="btn bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-blue-700 flex items-center justify-center gap-2 text-sm w-full mt-3">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                            <path fill-rule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v6a2 2 0 002 2h12a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm1-1V4a1 1 0 001 1h6a1 1 0 001-1V3a1 1 0 00-1-1H7a1 1 0 00-1 1zm-2 9v2h12v-2H4zm2 2h6v2H6v-2z" clip-rule="evenodd" />
                         </svg>
-                        Cetak Laporan Akhir (PDF)
+                        Cetak / Eksport PDF
                     </button>
                 `;
             } else {
-                // Tunjukkan butang pengesahan
+                // Tunjukkan butang pengesahan asal
                 container.innerHTML = `
                     <button onclick="openICConfirmationModal('final_confirm', -1, 'TUTUP TUGASAN')" id="final-confirm-btn" class="btn bg-orange-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-orange-700 flex items-center justify-center gap-2 text-sm w-full">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
@@ -1414,10 +1433,33 @@ Sekian, terima kasih.`;
         }
 
         async function executeFinalConfirmation(actionName) {
-            // Set status pengesahan ke localStorage
+            // 1. Kemaskini Firebase (Tandakan tugas Selesai/Ditutup oleh Admin)
+            try {
+                await updateDoc(doc(db, `artifacts/${appId}/public/data/spark_tasks`, currentTaskId), {
+                     isClosedByAdmin: true,
+                     timestampClosed: new Date().toISOString() // Simpan juga masa tutup di DB
+                });
+                
+                // Jika update Firebase berjaya, kemaskini currentTask di frontend segera
+                currentTask.isClosedByAdmin = true; 
+
+            } catch (error) {
+                 console.error("Gagal mengemaskini status penutup admin:", error);
+                 alert("Ralat Firebase: Gagal mengemaskini status penutup. Sila cuba semula.");
+                 return; // Hentikan jika update DB gagal
+            }
+            
+            // 2. Kemaskini Local Storage (Untuk paparan UI segera)
             const key = `${FINAL_CONFIRMATION_KEY}${currentTaskId}`; 
+            const timeKey = `${FINAL_CONFIRMATION_TIME_KEY}${currentTaskId}`;
+            const now = new Date().toISOString();
             localStorage.setItem(key, 'true');
-            alert(`Tugasan telah ditandakan sebagai disahkan penutupannya oleh Penyelaras. Anda kini boleh mencetak Laporan Akhir.`);
+            localStorage.setItem(timeKey, now);
+            
+            alert(`Berjaya: Tugasan telah ditandakan sebagai Selesai/Ditutup secara Pentadbiran pada ${new Date(now).toLocaleString('ms-MY')}.`);
+            
+            // 3. Muat semula UI
+            renderTaskDetails(); // Untuk kemaskini status hari/butang Sahkan Tugasan
             updateFinalConfirmationUI();
         }
         
@@ -1440,6 +1482,14 @@ Sekian, terima kasih.`;
                  day: 'numeric', month: 'long', year: 'numeric', 
                  hour: 'numeric', minute: '2-digit' 
             });
+
+            // Mendapatkan tarikh pengesahan admin dari Local Storage (untuk tujuan laporan cetak)
+            const timeKey = `${FINAL_CONFIRMATION_TIME_KEY}${currentTaskId}`; 
+            const confirmationTimeISO = localStorage.getItem(timeKey); 
+            const adminConfirmationTime = confirmationTimeISO ? new Date(confirmationTimeISO).toLocaleString('ms-MY', { 
+                 day: 'numeric', month: 'long', year: 'numeric', 
+                 hour: 'numeric', minute: '2-digit' 
+            }) : 'Tiada Pengesahan Admin Direkodkan';
 
             // Senarai Selesai
             let selesaiListHtml = skopSelesaiList.sort().map((item, index) => `
@@ -1490,7 +1540,8 @@ Sekian, terima kasih.`;
                         <div class="summary-item"><strong>Pegawai Bertanggungjawab:</strong> <span class="summary-value">${pegawai}</span></div>
                         <div class="summary-item"><strong>Sektor/Unit:</strong> <span class="summary-value">${sektor}</span></div>
                         <div class="summary-item"><strong>Tarikh Mula:</strong> <span class="summary-value">${tarikhMula}</span></div>
-                        <div class="summary-item"><strong>Tarikh Akhir:</strong> <span class="summary-value">${tarikhSiap}</span></div>
+                        <div class="summary-item"><strong>Tarikh Akhir (Sasaran):</strong> <span class="summary-value">${tarikhSiap}</span></div>
+                        <div class="summary-item"><strong>Tarikh Penutupan Admin:</strong> <span class="summary-value">${adminConfirmationTime}</span></div>
                         <div class="summary-item"><strong>Tarikh Laporan Dicetak:</strong> <span class="summary-value">${reportDate}</span></div>
                     </div>
 
