@@ -241,7 +241,7 @@
             box-shadow: 0 0 0 2px #FEE2E2 !important;
         }
 
-        /* Gaya untuk Rumusan Padat */
+        /* Gaya untuk Rumusan Padat (Dibiarkan untuk mengekalkan struktur CSS) */
         .compact-progress-header {
             display: flex;
             justify-content: space-between;
@@ -298,17 +298,6 @@
                     </div>
                 </div>
                 
-                <div id="task-progress-summary-container" class="my-6 p-4 rounded-lg bg-indigo-50 border border-indigo-200 hidden">
-                    <h3 class="text-sm font-bold text-indigo-800 mb-2 flex items-center gap-2 uppercase">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                          <path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                        </svg>
-                        Rumusan Tugasan
-                    </h3>
-                    
-                    <div id="progress-bar-content">
-                        </div>
-                </div>
                 <form id="ic-form" onsubmit="checkIc(event)">
                     <label for="participant-ic" class="block text-sm font-medium text-gray-700 mb-2">No. Kad Pengenalan</label>
                     <input type="tel" id="participant-ic" required placeholder="900101131234" maxlength="12" oninput="validateIcInput(this)" class="block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 text-lg tracking-wider" style="text-transform: none;">
@@ -445,8 +434,7 @@
         const participantDetails = document.getElementById('participant-details');
         const completionForm = document.getElementById('completion-form');
         const completionSubmitBtn = document.getElementById('submit-completion-btn');
-        const progressContainer = document.getElementById('task-progress-summary-container');
-        const progressBarContent = document.getElementById('progress-bar-content');
+        // Progress bar references removed here
 
         const originalButtonText = `
             <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -515,9 +503,7 @@
                         
                         confirmationDetails.classList.remove('hidden');
                         
-                        // *** PEMBETULAN KRITIKAL: PAPARKAN STATUS PENGISIAN PADA MULANYA ***
-                        // PANGGIL FUNGSI UNTUK MEMAPARKAN VISUAL RUMUSAN TUGASAN
-                        renderProgressVisuals(); 
+                        // renderProgressVisuals() CALL REMOVED HERE
 
                     } else {
                         showMessage('error', 'Tugasan Tidak Ditemui', 'Sila pastikan anda menggunakan pautan yang betul.');
@@ -534,99 +520,7 @@
             }
         }
         
-        // FUNGSI PENGIRAAN KEMASKINI (Mengambil kira logik skop seperti task.html)
-        function renderProgressVisuals() {
-            // 1. Sasaran Skop: Ambil senarai yang disimpan
-            const totalSkop = Array.isArray(currentTask.skopSenaraiSekolah) 
-                ? currentTask.skopSenaraiSekolah
-                : [];
-            
-            // Normalize ALL target scope names for accurate Set lookup
-            const normalizedTotalSkopSet = new Set(totalSkop.map(normalizeStationName)); 
-            
-            // 2. Rekod Selesai Skop: Pastikan rekod yang disahkan dinormalisasi
-            const allSelesai = Array.isArray(currentTask.rekodSelesai) 
-                ? currentTask.rekodSelesai
-                : [];
-            
-            // Get the normalized station/name from EACH completion record
-            const completedRecordsNormalizedKeys = new Set(allSelesai.map(rekod => 
-                normalizeStationName(rekod.stesen_pengesah || rekod.nama_pengesah || '')
-            ));
-
-            let jumlahSelesai;
-            let total;
-            let jumlahBelum;
-
-            if (normalizedTotalSkopSet.size > 0) {
-                // Mod Skop: Kira berdasarkan senarai sasaran (normalized)
-                
-                // Count how many target scopes have a matching confirmed key in the completedRecordsNormalizedKeys set
-                let countCompletedInScope = 0;
-                normalizedTotalSkopSet.forEach(targetScopeKey => {
-                    if (completedRecordsNormalizedKeys.has(targetScopeKey)) {
-                        countCompletedInScope++;
-                    }
-                });
-                
-                jumlahSelesai = countCompletedInScope;
-                total = normalizedTotalSkopSet.size;
-                jumlahBelum = total - jumlahSelesai;
-                
-            } else if (currentTask.jumlahSelesai !== undefined && currentTask.jumlahBelum !== undefined) {
-                // Mod Manual (Fallback jika tiada skop): Kira berdasarkan field manual
-                jumlahSelesai = currentTask.jumlahSelesai || 0;
-                total = (currentTask.jumlahSelesai || 0) + (currentTask.jumlahBelum || 0);
-                jumlahBelum = currentTask.jumlahBelum || 0;
-                
-            } else {
-                // Mod Paling Asas (Hanya kira bilangan rekod jika tiada total)
-                jumlahSelesai = allSelesai.length;
-                total = 0; 
-                jumlahBelum = 0;
-            }
-
-            const peratus = (total === 0) ? 0 : Math.round((jumlahSelesai / total) * 100);
-
-            // Guna kontena dalaman yang ringkas
-            if (total > 0) {
-                const htmlContent = `
-                    <div class="compact-progress-header">
-                        <span class="text-sm font-bold text-green-700">${peratus}% Selesai</span>
-                        <span class="text-xs font-medium text-gray-700">(${jumlahSelesai}/${total})</span>
-                    </div>
-                    <div class="w-full bg-gray-300 rounded-full compact-progress-bar overflow-hidden">
-                        <div class="bg-green-600 h-full" style="width: ${peratus}%; transition: width 0.5s ease-out;"></div>
-                    </div>
-                    <div class="compact-progress-details flex justify-between">
-                        <span class="text-green-700">Selesai: ${jumlahSelesai}</span>
-                        <span class="text-red-700">Belum: ${jumlahBelum}</span>
-                    </div>
-                `;
-                progressBarContent.innerHTML = htmlContent;
-                progressContainer.classList.remove('hidden'); 
-                
-            } else if (jumlahSelesai > 0 && total === 0) {
-                 // Mod Paling Asas (ada rekod, tiada total)
-                const htmlContent = `
-                    <div class="text-center text-sm font-medium text-gray-700 p-1 bg-white rounded-lg border border-gray-200">
-                        <span class="font-bold text-indigo-600">${jumlahSelesai}</span> Pengesahan Telah Diterima (Tiada Sasaran Ditetapkan)
-                    </div>
-                `;
-                progressBarContent.innerHTML = htmlContent;
-                progressContainer.classList.remove('hidden'); 
-
-            } else {
-                // Total 0 dan Selesai 0 (Tugasan kosong/baru)
-                const htmlContent = `
-                    <div class="text-center text-sm font-medium text-gray-700 p-1 bg-white rounded-lg border border-gray-200">
-                        Tugasan ini belum mempunyai sasaran atau rekod pengesahan.
-                    </div>
-                `;
-                progressBarContent.innerHTML = htmlContent;
-                progressContainer.classList.remove('hidden');
-            }
-        }
+        // FUNGSI renderProgressVisuals() DIBUANG DI SINI
         
         function validateIcInput(input) {
             input.value = input.value.replace(/[^0-9]/g, '');
