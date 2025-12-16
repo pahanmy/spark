@@ -335,7 +335,7 @@
                     </button>
                     <button onclick="printSkopList()" class="btn bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg flex items-center gap-2 text-sm">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v6a2 2 0 002 2h1v-4a1 1 0 011-1h10a1 1 0 011 1v4h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z" clip-rule="evenodd" /></svg>
-                        Cetak / Export PDF
+                        Cetak / Eksport PDF
                     </button>
                 </div>
                 <button onclick="closeSkopModal()" class="btn bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg w-full sm:w-auto">Tutup</button>
@@ -458,6 +458,7 @@
         // Pembolehubah untuk Pengesahan Akhir
         const FINAL_CONFIRMATION_KEY = 'sparktask_final_confirm_';
         const FINAL_CONFIRMATION_TIME_KEY = 'sparktask_final_confirm_time_';
+        const FINAL_CONFIRMATION_SECOND_KEY = 'sparktask_final_confirm_second_'; // Kunci baru untuk pengesahan kedua
         let pendingAction = null; 
         
         try {
@@ -1269,7 +1270,8 @@ Sekian, terima kasih.`;
             actionTextEl.textContent = 
                 actionType === 'edit' ? 'EDIT NAMA' : 
                 actionType === 'delete' ? 'PADAM NAMA' :
-                actionType === 'final_confirm' ? 'PENGESAHAN PENUTUP' : 'TINDAKAN';
+                actionType === 'final_confirm' ? 'PENGESAHAN PENUTUP' :
+                actionType === 'second_confirm' ? 'PENGESAHAN KALI KEDUA' : 'TINDAKAN';
             
             skopNameEl.textContent = name;
             icInput.value = '';
@@ -1308,6 +1310,8 @@ Sekian, terima kasih.`;
                     executeDeleteSkopItem(pendingAction.index, pendingAction.name);
                 } else if (pendingAction.type === 'final_confirm') {
                     executeFinalConfirmation(pendingAction.name);
+                } else if (pendingAction.type === 'second_confirm') { // Logik Pengesahan Kedua
+                    executeSecondConfirmation(pendingAction.name);
                 }
                 
                 pendingAction = null; 
@@ -1390,39 +1394,62 @@ Sekian, terima kasih.`;
             
             const key = `${FINAL_CONFIRMATION_KEY}${currentTaskId}`; 
             const timeKey = `${FINAL_CONFIRMATION_TIME_KEY}${currentTaskId}`; 
+            const secondKey = `${FINAL_CONFIRMATION_SECOND_KEY}${currentTaskId}`;
             
             const isFinalConfirmed = localStorage.getItem(key) === 'true';
+            const isSecondConfirmed = localStorage.getItem(secondKey) === 'true'; // Semak pengesahan kedua
             const confirmationTimeISO = localStorage.getItem(timeKey); 
             
             let confirmationTimeText = '';
+            let buttonHtml = '';
 
             if (isFinalConfirmed) {
+                 // CASE 1: Sudah Disahkan (Kali Pertama atau Kedua)
                  if (confirmationTimeISO) {
                     const formattedTime = new Date(confirmationTimeISO).toLocaleString('ms-MY', { 
                         day: 'numeric', month: 'long', year: 'numeric', 
                         hour: 'numeric', minute: '2-digit' 
                     });
+                    
                     confirmationTimeText = `<p class="text-xs text-gray-500 mt-1">Disahkan pada: <span class="font-medium text-gray-700">${formattedTime}</span></p>`;
+                    
+                    // Butang Cetak/Eksport PDF
+                    buttonHtml = `
+                        <button onclick="printFinalReport()" class="btn bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-blue-700 flex items-center justify-center gap-2 text-sm w-full mt-3">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                               <path fill-rule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v6a2 2 0 002 2h12a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm1-1V4a1 1 0 001 1h6a1 1 0 001-1V3a1 1 0 00-1-1H7a1 1 0 00-1 1zm-2 9v2h12v-2H4zm2 2h6v2H6v-2z" clip-rule="evenodd" />
+                            </svg>
+                            Cetak / Eksport PDF
+                        </button>
+                    `;
+                 } else if (!isSecondConfirmed) {
+                    // CASE 2: Sudah disahkan, tetapi masa GAGAL DIREKODKAN (pengesahan kali kedua diperlukan)
+                    confirmationTimeText = `<p class="text-sm text-red-600 mt-1 font-semibold">AMARAN: Waktu pengesahan kali pertama GAGAL direkodkan. Sila sahkan semula.</p>`;
+                    buttonHtml = `
+                        <button onclick="openICConfirmationModal('second_confirm', -1, 'PENGESAHAN MASA')" class="btn bg-orange-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-orange-800 flex items-center justify-center gap-2 text-sm w-full mt-3">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd" /></svg>
+                            Sahkan Kali Kedua (Rekod Masa)
+                        </button>
+                    `;
                  } else {
-                     confirmationTimeText = `<p class="text-xs text-gray-500 mt-1">Disahkan pada: <span class="font-medium text-gray-700">Waktu tidak direkodkan</span></p>`;
+                    // CASE 3: Gagal direkodkan, dan pengesahan kedua pun gagal/tiada masa (Tidak Boleh Keluar Lagi)
+                    confirmationTimeText = `<p class="text-sm text-red-600 mt-1 font-semibold">AMARAN KERAS: Pengesahan masa gagal direkodkan. Tidak boleh mencetak laporan yang sah.</p>`;
+                    buttonHtml = `<button class="btn bg-gray-400 text-gray-700 font-semibold py-2 px-4 rounded-lg text-sm w-full mt-3 cursor-not-allowed" disabled>Pengesahan Gagal</button>`;
                  }
-                
-                // Tunjukkan butang cetak / Eksport PDF
+
+
+                // Final Display (for isFinalConfirmed = true)
                 container.innerHTML = `
-                    <p class="text-sm text-green-700 font-semibold mb-3 flex items-center gap-2 justify-center">
+                    <p class="text-sm ${confirmationTimeISO ? 'text-green-700' : 'text-red-700'} font-semibold mb-1 flex items-center gap-2 justify-center">
                          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
                          Status Penutupan: TELAH DISAHKAN
                     </p>
                     ${confirmationTimeText} 
-                    <button onclick="printFinalReport()" class="btn bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-blue-700 flex items-center justify-center gap-2 text-sm w-full mt-3">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                           <path fill-rule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v6a2 2 0 002 2h12a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm1-1V4a1 1 0 001 1h6a1 1 0 001-1V3a1 1 0 00-1-1H7a1 1 0 00-1 1zm-2 9v2h12v-2H4zm2 2h6v2H6v-2z" clip-rule="evenodd" />
-                        </svg>
-                        Cetak / Eksport PDF
-                    </button>
+                    ${buttonHtml}
                 `;
+
             } else {
-                // Tunjukkan butang pengesahan asal
+                // CASE 4: Belum Disahkan Langsung
                 container.innerHTML = `
                     <button onclick="openICConfirmationModal('final_confirm', -1, 'TUTUP TUGASAN')" id="final-confirm-btn" class="btn bg-orange-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-orange-700 flex items-center justify-center gap-2 text-sm w-full">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
@@ -1440,26 +1467,69 @@ Sekian, terima kasih.`;
                      timestampClosed: new Date().toISOString() // Simpan juga masa tutup di DB
                 });
                 
-                // Jika update Firebase berjaya, kemaskini currentTask di frontend segera
                 currentTask.isClosedByAdmin = true; 
 
             } catch (error) {
-                 console.error("Gagal mengemaskini status penutup admin:", error);
+                 console.error("Gagal mengemaskini status penutup admin di Firebase:", error);
                  alert("Ralat Firebase: Gagal mengemaskini status penutup. Sila cuba semula.");
-                 return; // Hentikan jika update DB gagal
+                 // Teruskan walaupun Firebase gagal, tetapi jangan simpan masa di local storage
+                 // Ini akan memicu Pengesahan Kali Kedua.
             }
             
             // 2. Kemaskini Local Storage (Untuk paparan UI segera)
             const key = `${FINAL_CONFIRMATION_KEY}${currentTaskId}`; 
             const timeKey = `${FINAL_CONFIRMATION_TIME_KEY}${currentTaskId}`;
-            const now = new Date().toISOString();
-            localStorage.setItem(key, 'true');
-            localStorage.setItem(timeKey, now);
             
-            alert(`Berjaya: Tugasan telah ditandakan sebagai Selesai/Ditutup secara Pentadbiran pada ${new Date(now).toLocaleString('ms-MY')}.`);
+            // Cuba simpan masa di Local Storage. Jika Firebase berjaya, kita akan dapat masa yang sah.
+            let now = null;
+            if (currentTask.timestampClosed) {
+                now = currentTask.timestampClosed;
+            } else {
+                 // Fallback untuk Pengesahan Kali Kedua. Cuma set status CONFIRM sahaja.
+                 now = null;
+            }
+
+            localStorage.setItem(key, 'true');
+            if(now) {
+                localStorage.setItem(timeKey, now);
+            } else {
+                localStorage.removeItem(timeKey); // Padam jika tiada, mencetuskan Pengesahan Kali Kedua
+            }
+            
+            alert(`Berjaya: Tugasan telah ditandakan sebagai Disahkan (Kali Pertama). Sila semak status masa.`);
             
             // 3. Muat semula UI
-            renderTaskDetails(); // Untuk kemaskini status hari/butang Sahkan Tugasan
+            renderTaskDetails(); 
+            updateFinalConfirmationUI();
+        }
+        
+        async function executeSecondConfirmation(actionName) {
+            const key = `${FINAL_CONFIRMATION_KEY}${currentTaskId}`; 
+            const timeKey = `${FINAL_CONFIRMATION_TIME_KEY}${currentTaskId}`;
+            const secondKey = `${FINAL_CONFIRMATION_SECOND_KEY}${currentTaskId}`;
+            
+            // 1. Kemaskini Local Storage (Simpan masa yang sah)
+            const now = new Date().toISOString();
+            localStorage.setItem(timeKey, now);
+            localStorage.setItem(secondKey, 'true'); // Tandakan pengesahan kedua berjaya.
+
+            // 2. Cuba update Firebase lagi (walaupun Local Storage adalah fallback)
+            try {
+                await updateDoc(doc(db, `artifacts/${appId}/public/data/spark_tasks`, currentTaskId), {
+                     timestampClosed: now, 
+                     isClosedByAdmin: true, // Pastikan ini sentiasa true
+                });
+                 currentTask.isClosedByAdmin = true; 
+                 currentTask.timestampClosed = now;
+            } catch (error) {
+                 console.error("Gagal mengemaskini masa penutup admin di Firebase kali kedua:", error);
+                 // Kita TIDAK memadam local storage, biarkan ia berfungsi sebagai rekod masa.
+            }
+            
+            alert(`Berjaya: Masa Pengesahan telah dikemaskini pada ${new Date(now).toLocaleString('ms-MY')}. Laporan sedia dicetak.`);
+            
+            // 3. Muat semula UI
+            renderTaskDetails(); 
             updateFinalConfirmationUI();
         }
         
@@ -1469,6 +1539,16 @@ Sekian, terima kasih.`;
                 return;
             }
             
+            const key = `${FINAL_CONFIRMATION_KEY}${currentTaskId}`; 
+            const timeKey = `${FINAL_CONFIRMATION_TIME_KEY}${currentTaskId}`; 
+            const isFinalConfirmed = localStorage.getItem(key) === 'true';
+            const confirmationTimeISO = localStorage.getItem(timeKey); 
+
+            if (!isFinalConfirmed || !confirmationTimeISO) {
+                 alert("Laporan tidak boleh dicetak kerana status pengesahan penutup atau waktu tidak direkodkan dengan sah.");
+                 return;
+            }
+
             const taskName = currentTask.nama.toUpperCase() || 'N/A';
             const pegawai = currentTask.pegawai || 'N/A';
             const sektor = currentTask.sektor || 'N/A';
@@ -1483,13 +1563,11 @@ Sekian, terima kasih.`;
                  hour: 'numeric', minute: '2-digit' 
             });
 
-            // Mendapatkan tarikh pengesahan admin dari Local Storage (untuk tujuan laporan cetak)
-            const timeKey = `${FINAL_CONFIRMATION_TIME_KEY}${currentTaskId}`; 
-            const confirmationTimeISO = localStorage.getItem(timeKey); 
-            const adminConfirmationTime = confirmationTimeISO ? new Date(confirmationTimeISO).toLocaleString('ms-MY', { 
+            // Mendapatkan tarikh pengesahan admin dari Local Storage (yang kini dijamin ada)
+            const adminConfirmationTime = new Date(confirmationTimeISO).toLocaleString('ms-MY', { 
                  day: 'numeric', month: 'long', year: 'numeric', 
                  hour: 'numeric', minute: '2-digit' 
-            }) : 'Tiada Pengesahan Admin Direkodkan';
+            });
 
             // Senarai Selesai
             let selesaiListHtml = skopSelesaiList.sort().map((item, index) => `
@@ -1638,6 +1716,7 @@ Sekian, terima kasih.`;
             
             // FUNGSI BARU
             executeFinalConfirmation,
+            executeSecondConfirmation, // Tambah fungsi baru
             updateFinalConfirmationUI,
             printFinalReport
         });
