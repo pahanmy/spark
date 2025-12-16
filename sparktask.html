@@ -489,7 +489,7 @@
         let db, auth, userId;
         const appId = firebaseConfig.projectId;
         let isSubmitting = false;
-        let selectedSubTugasanType = ''; // Status baru untuk menyimpan jenis yang dipilih
+        let selectedSubTugasanType = ''; 
 
         // Inisialisasi Firebase
         try {
@@ -630,7 +630,7 @@
                 let jumlahSelesai, total;
 
                 if (originalTotalSkop.length > 0) {
-                    // --- 1. Tentukan Kunci Padanan Berdasarkan Data Skop Sasaran ---
+                    // --- 1. Heuristik untuk menentukan kunci padanan (sama seperti task.html) ---
                     const skopSample = originalTotalSkop[0] || '';
                     const isSchoolSkop = skopSample.toUpperCase().match(/^(SK|SMK|SJK|KOLEJ|KV|SMAP|SABK|SRK|SRC|SRB)/) && originalTotalSkop.length > 0;
                     
@@ -638,14 +638,12 @@
                     const normalizedConfirmedKeys = new Set(allRekodSelesai.map(rekod => {
                         let keyToNormalize;
                         
-                        // Perbezaan KRITIKAL DIBETULKAN
                         if (isSchoolSkop) {
                             keyToNormalize = rekod.stesen_pengesah; 
                         } else {
-                            keyToNormalize = rekod.nama_pengesah; // Kunci Pegawai jika bukan skop Sekolah
+                            keyToNormalize = rekod.nama_pengesah; 
                         }
                         
-                        // Fallback (Seperti logik task.html)
                         keyToNormalize = keyToNormalize || rekod.stesen_pengesah || rekod.nama_pengesah;
                         
                         return normalizeName(keyToNormalize || '');
@@ -670,7 +668,10 @@
                 
                 const peratus = (total === 0) ? 0 : Math.round((jumlahSelesai / total) * 100);
                 
-                if (total > 0 && peratus === 100) {
+                // Jika isClosedByAdmin adalah true, kita anggap tugasan selesai secara pentadbiran
+                const isCompletedAdmin = tugasan.isClosedByAdmin || false;
+                
+                if (isCompletedAdmin || (total > 0 && peratus === 100)) {
                     totalSelesaiCount++;
                 } else {
                     totalBelumCount++;
@@ -707,7 +708,8 @@
                 const { jumlahSelesai, total, peratus } = data.progress;
                 const tugasan = data;
                 
-                const bakiHariInfo = kiraBakiHari(tugasan.tarikhSiap, peratus);
+                // Kirakan baki hari, tanpa menyemak isClosedByAdmin (biar task.html handle)
+                const bakiHariInfo = kiraBakiHari(tugasan.tarikhSiap, peratus); 
 
                 let newBadgeHtml = '';
                 if (tugasan.createdAt && tugasan.createdAt.toDate) {
@@ -1347,6 +1349,7 @@
         // --- Fungsi Bantuan (Helper) ---
 
         function kiraBakiHari(tarikhString, peratus) {
+            // Logik ini tidak menggunakan isClosedByAdmin, ia hanya mencerminkan status semasa berbanding tarikh.
             if (peratus == 100) {
                 return { teks: 'Selesai', badgeClass: 'bg-green-100 text-green-800' };
             }
@@ -1404,12 +1407,22 @@
             if (typeof name !== 'string') return '';
             let normalized = name.toUpperCase();
             
+            // Penormalan Standard: Buang BIN/BINTI dan tukar SG/SG. kepada SUNGAI
+            normalized = normalized.replace(/\b(BIN|BINTI|BT)\b\s*/g, '');
+            normalized = normalized.replace(/\b(B\s*I\s*N|B\s*I\s*N\s*T\s*I|B\s*T)\b\s*/g, '');
             normalized = normalized.replace(/\bSG\./g, 'SUNGAI'); 
             normalized = normalized.replace(/\bSG\b/g, 'SUNGAI'); 
             
+            // Tambahan untuk kendalikan SJK (C) / SJK (CINA)
+            // 1. Buang semua kurungan yang mengandungi CINA atau C
+            normalized = normalized.replace(/\s*\([^)]*(CINA|C)\s*[^)]*\)\s*/g, ''); 
+            // 2. Buang perkataan CINA yang terasing
+            normalized = normalized.replace(/\bCINA\b\s*/g, '');
+            
+            // Buang semua tanda baca
             normalized = normalized.replace(/[.,]/g, ''); 
             
-            // Perbezaan KRITIKAL: Buang SEMUA spasi untuk padanan yang ketat (seperti task.html)
+            // Buang SEMUA jarak kosong yang berlebihan (termasuk yang ditinggalkan selepas penormalan)
             normalized = normalized.replace(/\s+/g, ''); 
             
             return normalized.trim();
