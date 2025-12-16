@@ -668,18 +668,27 @@
                 
                 const peratus = (total === 0) ? 0 : Math.round((jumlahSelesai / total) * 100);
                 
-                // Jika isClosedByAdmin adalah true, kita anggap tugasan selesai secara pentadbiran
+                // === PENTING: LOGIK KONSISTENSI STATUS SELESAI ===
+                // Jika isClosedByAdmin adalah true ATAU peratus 100%, ia dikira selesai untuk kad ringkas dan lajur hari
                 const isCompletedAdmin = tugasan.isClosedByAdmin || false;
+                const isTrulyCompleted = isCompletedAdmin || (total > 0 && peratus === 100);
                 
-                // Logik untuk kad ringkas (menggunakan 100% ATAU ditutup admin)
-                if (isCompletedAdmin || (total > 0 && peratus === 100)) {
+                if (isTrulyCompleted) {
                     totalSelesaiCount++;
                 } else {
                     totalBelumCount++;
                 }
                 // ▲▲▲ TAMAT LOGIK PENGIRAAN PROGRES ▲▲▲
 
-                return { ...tugasan, progress: { jumlahSelesai, total, peratus } };
+                return { 
+                    ...tugasan, 
+                    progress: { 
+                        jumlahSelesai, 
+                        total, 
+                        peratus,
+                        isTrulyCompleted // Status ini akan digunakan untuk 'baki hari'
+                    } 
+                };
             });
             
             // KEMASKINI KAD RINGKAS
@@ -703,14 +712,16 @@
             }
 
             paginatedList.forEach((data, index) => {
-                const baris = document.createElement('tr');
-                baris.className = "hover:bg-gray-50 transition-colors duration-150";
-                
-                const { jumlahSelesai, total, peratus } = data.progress;
+                const { jumlahSelesai, total, peratus, isTrulyCompleted } = data.progress;
                 const tugasan = data;
                 
-                // Kirakan baki hari, tanpa menyemak isClosedByAdmin (biar task.html handle)
-                const bakiHariInfo = kiraBakiHari(tugasan.tarikhSiap, peratus); 
+                // Panggil kiraBakiHari dengan status Selesai yang dimaksimumkan
+                // Jika isTrulyCompleted=true, kita pass peratus=100 kepada kiraBakiHari
+                const effectivePeratus = isTrulyCompleted ? 100 : peratus;
+                const bakiHariInfo = kiraBakiHari(tugasan.tarikhSiap, effectivePeratus); 
+
+                const baris = document.createElement('tr');
+                baris.className = "hover:bg-gray-50 transition-colors duration-150";
 
                 let newBadgeHtml = '';
                 if (tugasan.createdAt && tugasan.createdAt.toDate) {
