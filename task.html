@@ -707,11 +707,11 @@
             // Logik Butang Buka Semula
             const reopenBtn = document.getElementById('reopen-task-btn');
             
-            if (bakiHariInfo.isCompleted && total > 0 && peratus < 100) {
-                 // Selesai kerana ditutup Admin, tetapi peratus kurang 100%. Boleh dibuka semula.
-                 reopenBtn.classList.remove('hidden');
-            } else if (bakiHariInfo.isOverdue) {
-                 // Terlewat dan ditutup secara automatik. Boleh dibuka semula.
+            const isOverdue = bakiHariInfo.isOverdue; // Baki Hari yang negatif
+            const isCompletedByAdmin = bakiHariInfo.isCompleted && isClosedByAdmin;
+
+            if ((isOverdue || isCompletedByAdmin) && peratus < 100) {
+                 // Hanya benarkan buka semula jika terlewat/ditutup TETAPI belum 100% organik
                  reopenBtn.classList.remove('hidden');
             } else {
                  reopenBtn.classList.add('hidden');
@@ -1336,7 +1336,7 @@ Sekian, terima kasih.`;
                     executeFinalConfirmation(pendingAction.name);
                 } else if (pendingAction.type === 'second_confirm') { 
                     executeSecondConfirmation(pendingAction.name);
-                } else if (pendingAction.type === 'reopen_task') { // FUNGSI BARU
+                } else if (pendingAction.type === 'reopen_task') { 
                     executeReopenTask();
                 }
                 
@@ -1486,13 +1486,11 @@ Sekian, terima kasih.`;
         }
 
         async function executeFinalConfirmation(actionName) {
-            // 1. Kemaskini Firebase (Tandakan tugas Selesai/Ditutup oleh Admin)
             try {
-                // Gunakan updateDoc dengan deleteField untuk timestampClosed, kemudian simpan semula
                 const timestamp = new Date().toISOString();
                 await updateDoc(doc(db, `artifacts/${appId}/public/data/spark_tasks`, currentTaskId), {
                      isClosedByAdmin: true,
-                     timestampClosed: timestamp // Coba simpan timestamp di DB
+                     timestampClosed: timestamp 
                 });
                 
                 currentTask.isClosedByAdmin = true; 
@@ -1501,12 +1499,11 @@ Sekian, terima kasih.`;
             } catch (error) {
                  console.error("Gagal mengemaskini status penutup admin di Firebase:", error);
                  alert("Ralat Firebase: Gagal mengemaskini status penutup. Membenarkan pengesahan kali kedua.");
-                 // Jika Firebase gagal, biarkan currentTask.timestampClosed null, memicu Pengesahan Kali Kedua
-                 currentTask.isClosedByAdmin = true; // Ini mesti di set true agar UI beralih
+                 
+                 currentTask.isClosedByAdmin = true; 
                  currentTask.timestampClosed = null;
             }
             
-            // 2. Kemaskini Local Storage
             const key = `${FINAL_CONFIRMATION_KEY}${currentTaskId}`; 
             const timeKey = `${FINAL_CONFIRMATION_TIME_KEY}${currentTaskId}`;
             
@@ -1514,12 +1511,11 @@ Sekian, terima kasih.`;
             if(currentTask.timestampClosed) {
                 localStorage.setItem(timeKey, currentTask.timestampClosed);
             } else {
-                localStorage.removeItem(timeKey); // Padam jika tiada, memicu Pengesahan Kali Kedua
+                localStorage.removeItem(timeKey); 
             }
             
             alert(`Berjaya: Tugasan telah ditandakan sebagai Disahkan. Sila semak status masa.`);
             
-            // 3. Muat semula UI
             renderTaskDetails(); 
             updateFinalConfirmationUI();
         }
@@ -1529,12 +1525,10 @@ Sekian, terima kasih.`;
             const timeKey = `${FINAL_CONFIRMATION_TIME_KEY}${currentTaskId}`;
             const secondKey = `${FINAL_CONFIRMATION_SECOND_KEY}${currentTaskId}`;
             
-            // 1. Simpan masa yang sah di Local Storage
             const now = new Date().toISOString();
             localStorage.setItem(timeKey, now);
-            localStorage.setItem(secondKey, 'true'); // Tandakan pengesahan kedua berjaya.
+            localStorage.setItem(secondKey, 'true'); 
 
-            // 2. Cuba update Firebase lagi
             try {
                 await updateDoc(doc(db, `artifacts/${appId}/public/data/spark_tasks`, currentTaskId), {
                      timestampClosed: now, 
@@ -1548,21 +1542,32 @@ Sekian, terima kasih.`;
             
             alert(`Berjaya: Masa Pengesahan telah dikemaskini pada ${new Date(now).toLocaleString('ms-MY')}. Laporan sedia dicetak.`);
             
-            // 3. Muat semula UI
             renderTaskDetails(); 
             updateFinalConfirmationUI();
         }
         
         // FUNGSI BARU: Buka Semula Tugasan
         async function executeReopenTask() {
-             if (!confirm("Anda pasti mahu membuka semula tugasan ini? Ini akan membuang status Selesai Admin.")) return;
+             if (!confirm("Anda pasti mahu membuka semula tugasan ini? Ini akan membuang status Selesai Admin dan memberikan tambahan 1 hari dari hari ini untuk pengisian.")) return;
             
              try {
-                // 1. Kemaskini Firebase: Buang status isClosedByAdmin dan timestampClosed
+                // Kira tarikh baharu: Hari Ini + 1 Hari
+                const today = new Date();
+                const newDueDate = new Date(today.getTime());
+                newDueDate.setDate(today.getDate() + 1); // Tambah 1 hari
+                
+                // Formatkan tarikh ke YYYY-MM-DD
+                const yyyy = newDueDate.getFullYear();
+                const mm = String(newDueDate.getMonth() + 1).padStart(2, '0');
+                const dd = String(newDueDate.getDate()).padStart(2, '0');
+                const formattedNewDueDate = `${yyyy}-${mm}-${dd}`;
+                
+                // 1. Kemaskini Firebase: Buang status isClosedByAdmin, timestampClosed, dan KEMASKINI tarikhSiap
                 const docRef = doc(db, `artifacts/${appId}/public/data/spark_tasks`, currentTaskId);
                 await updateDoc(docRef, {
                      isClosedByAdmin: deleteField(),
-                     timestampClosed: deleteField() 
+                     timestampClosed: deleteField(),
+                     tarikhSiap: formattedNewDueDate // Tetapkan tarikh baru
                 });
                 
                 // 2. Bersihkan Local Storage yang berkaitan
@@ -1572,9 +1577,10 @@ Sekian, terima kasih.`;
                 
                 // 3. Kemaskini status di frontend
                 currentTask.isClosedByAdmin = false; 
+                currentTask.tarikhSiap = formattedNewDueDate; // Kemaskini tarikh siap di frontend juga
                 delete currentTask.timestampClosed; 
                 
-                alert("Tugasan telah berjaya dibuka semula! Status baki hari kini aktif.");
+                alert(`Tugasan telah berjaya dibuka semula! Tarikh Wajib Siap yang baharu ialah ${dd}/${mm}/${yyyy}.`);
                 
                 // 4. Muat semula UI
                 renderTaskDetails(); 
@@ -1770,7 +1776,7 @@ Sekian, terima kasih.`;
             // FUNGSI BARU
             executeFinalConfirmation,
             executeSecondConfirmation, 
-            executeReopenTask, // DAFTARKAN FUNGSI BARU
+            executeReopenTask,
             updateFinalConfirmationUI,
             printFinalReport
         });
