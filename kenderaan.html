@@ -13,10 +13,19 @@
         .btn:hover { transform: translateY(-2px); }
         
         /* Gaya Kalendar */
-        .calendar-day { min-height: 100px; display: flex; flex-direction: column; cursor: pointer; background-color: white; }
+        .calendar-day { min-height: 100px; display: flex; flex-direction: column; cursor: pointer; background-color: white; border: 1px solid #e5e7eb; }
         .calendar-day:hover { background-color: #fff1f2; border-color: #f43f5e; }
-        .calendar-day.is-today { background-color: #fefce8; border: 2px solid #facc15; }
-        .calendar-day.has-events { background-color: #fff1f2; }
+        
+        /* HARI SEMASA (Lebih Jelas) */
+        .calendar-day.is-today { 
+            background-color: #eff6ff; /* Biru Muda */
+            border: 2px solid #3b82f6; /* Bingkai Biru Gelap */
+        }
+        .calendar-day.is-today .day-number {
+            color: #1d4ed8;
+            font-weight: 800;
+        }
+
         .calendar-day.selected { border: 2px solid #e11d48; background-color: #ffe4e6; }
         
         /* Tab */
@@ -24,7 +33,6 @@
         .tab-button:hover { color: #374151; border-color: #d1d5db; }
         .tab-button.active { color: #e11d48; border-color: #e11d48; font-weight: 600; }
         
-        /* Table Container */
         .table-container { max-height: 70vh; overflow-y: auto; }
     </style>
 </head>
@@ -59,7 +67,6 @@
             
             <div class="lg:col-span-2">
                 <div class="card p-6">
-                    
                     <div class="flex flex-wrap items-end gap-4 mb-6 bg-gray-50 p-4 rounded-lg border">
                         <div class="flex-grow">
                             <label class="block text-sm font-medium text-gray-700">Bulan</label>
@@ -76,8 +83,8 @@
                             </select>
                         </div>
                         <div class="flex-grow-[2]">
-                            <label class="block text-sm font-medium text-gray-700">Carian (Destinasi/Program)</label>
-                            <input type="text" id="search-input" placeholder="Cari..." class="mt-1 block w-full border-gray-300 rounded-md py-2 px-3 focus:outline-none focus:ring-rose-500 focus:border-rose-500 sm:text-sm shadow-sm">
+                            <label class="block text-sm font-medium text-gray-700">Carian</label>
+                            <input type="text" id="search-input" placeholder="Cth: Lawatan Kerja..." class="mt-1 block w-full border-gray-300 rounded-md py-2 px-3 focus:outline-none focus:ring-rose-500 focus:border-rose-500 sm:text-sm shadow-sm">
                         </div>
                     </div>
 
@@ -94,12 +101,10 @@
                             <h2 id="calendar-header" class="text-xl font-bold text-gray-800 uppercase"></h2>
                             <button id="next-month-btn" class="p-2 rounded-full hover:bg-gray-100 text-gray-600 font-bold">&gt;</button>
                         </div>
-
                         <div class="grid grid-cols-7 gap-2 text-center font-semibold text-sm text-gray-500 mb-2 uppercase tracking-wide">
                             <div>Ahad</div><div>Isnin</div><div>Selasa</div><div>Rabu</div><div>Khamis</div><div>Jumaat</div><div>Sabtu</div>
                         </div>
-                        <div id="calendar-grid" class="grid grid-cols-7 gap-2">
-                            </div>
+                        <div id="calendar-grid" class="grid grid-cols-7 gap-2"></div>
                     </div>
 
                     <div id="list-tab-content" class="tab-content hidden">
@@ -113,8 +118,7 @@
                                         <th class="p-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
                                     </tr>
                                 </thead>
-                                <tbody id="full-list-table-body" class="bg-white divide-y divide-gray-200">
-                                    </tbody>
+                                <tbody id="full-list-table-body" class="bg-white divide-y divide-gray-200"></tbody>
                             </table>
                         </div>
                         <p id="no-list-data" class="text-center text-gray-500 py-10 hidden">Tiada tempahan ditemui.</p>
@@ -133,22 +137,18 @@
                     </div>
                 </div>
             </div>
-
         </div>
     </main>
     
-    <footer class="text-center py-4 mt-8 border-t border-gray-200">
-        <p class="text-xs text-gray-500">Sistem SPARKfleet</p>
-    </footer>
+    <footer class="text-center py-4 mt-8 border-t border-gray-200"><p class="text-xs text-gray-500">Sistem SPARKfleet</p></footer>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // GANTI DENGAN CONFIG ANDA
+        // CONFIG
         const firebaseConfig = { apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM", authDomain: "myqrhadir.firebaseapp.com", projectId: "myqrhadir", storageBucket: "myqrhadir.appspot.com", messagingSenderId: "799691133747", appId: "1:799691133747:web:835a5e3e9413eace806446" };
-        
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         const auth = getAuth(app);
@@ -158,45 +158,29 @@
         let activeTab = 'calendar';
         let selectedDateEl = null;
 
-        // Definisi Short Name untuk paparan Kalendar
         const vehicleDetails = {
             "Toyota Hilux (QAA 1234)": { short: "HILUX" },
             "Van Toyota Hiace (QAB 5678)": { short: "VAN" },
             "Bas Mini (QAC 9012)": { short: "BAS" }
         };
 
-        onAuthStateChanged(auth, async (user) => { 
-            if (user) main(); 
-            else signInAnonymously(auth); 
-        });
+        onAuthStateChanged(auth, async (user) => { if (user) main(); else signInAnonymously(auth); });
 
-        function main() {
-            populateFilters(); // Penting: Isi dropdown dulu
-            setupEventListeners();
-            listenForData();
-        }
+        function main() { populateFilters(); setupEventListeners(); listenForData(); }
 
         function populateFilters() {
             const today = new Date();
-            const currentMonth = today.getMonth();
-            const currentYear = today.getFullYear();
-
-            // 1. Bulan
             const monthSelect = document.getElementById('month-select');
             const months = ["Januari", "Februari", "Mac", "April", "Mei", "Jun", "Julai", "Ogos", "September", "Oktober", "November", "Disember"];
-            monthSelect.innerHTML = months.map((m, i) => `<option value="${i}" ${i === currentMonth ? 'selected' : ''}>${m}</option>`).join('');
-            monthSelect.value = currentMonth; // Paksa nilai
+            monthSelect.innerHTML = months.map((m, i) => `<option value="${i}" ${i === today.getMonth() ? 'selected' : ''}>${m}</option>`).join('');
+            monthSelect.value = today.getMonth();
 
-            // 2. Tahun
             const yearSelect = document.getElementById('year-select');
-            yearSelect.innerHTML = `<option value="${currentYear}" selected>${currentYear}</option><option value="${currentYear+1}">${currentYear+1}</option>`;
-            yearSelect.value = currentYear; // Paksa nilai
+            yearSelect.innerHTML = `<option value="${today.getFullYear()}" selected>${today.getFullYear()}</option><option value="${today.getFullYear()+1}">${today.getFullYear()+1}</option>`;
+            yearSelect.value = today.getFullYear();
 
-            // 3. Kenderaan
             const vehicleSelect = document.getElementById('vehicle-select');
             vehicleSelect.innerHTML = '<option value="">SEMUA KENDERAAN</option>';
-            // Tambah secara manual atau dari DB jika mahu. Di sini kita guna manual berdasarkan vehicleDetails.
-            // (Nota: Tempahan baru mungkin "Menunggu Tetapan Admin", jadi kita boleh biarkan option kosong atau tambah standard list)
             ["Toyota Hilux (QAA 1234)", "Van Toyota Hiace (QAB 5678)", "Bas Mini (QAC 9012)"].forEach(v => {
                  vehicleSelect.innerHTML += `<option value="${v}">${v}</option>`;
             });
@@ -215,7 +199,7 @@
             const q = query(collection(db, `artifacts/${appId}/public/data/spark_vehicle_bookings`), orderBy("start", "asc"));
             onSnapshot(q, (snapshot) => {
                 allBookings = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                updateView(); // Refresh paparan
+                updateView();
             });
         }
 
@@ -234,11 +218,8 @@
         }
 
         function renderCalendar() {
-            const yearInput = document.getElementById('year-select').value;
-            const monthInput = document.getElementById('month-select').value;
-            const year = yearInput ? parseInt(yearInput) : new Date().getFullYear();
-            const month = monthInput ? parseInt(monthInput) : new Date().getMonth();
-
+            const year = parseInt(document.getElementById('year-select').value) || new Date().getFullYear();
+            const month = parseInt(document.getElementById('month-select').value) || new Date().getMonth();
             const months = ["JANUARI", "FEBRUARI", "MAC", "APRIL", "MEI", "JUN", "JULAI", "OGOS", "SEPTEMBER", "OKTOBER", "NOVEMBER", "DISEMBER"];
             document.getElementById('calendar-header').textContent = `${months[month]} ${year}`;
             
@@ -246,43 +227,39 @@
             grid.innerHTML = '';
             
             const daysInMonth = new Date(year, month + 1, 0).getDate();
-            const firstDayIndex = new Date(year, month, 1).getDay(); // 0 = Ahad
+            const firstDayIndex = new Date(year, month, 1).getDay();
 
-            // Kotak kosong awal bulan
-            for(let i=0; i<firstDayIndex; i++) {
-                grid.innerHTML += '<div class="bg-gray-50 border rounded-md min-h-[100px]"></div>';
-            }
+            for(let i=0; i<firstDayIndex; i++) grid.innerHTML += '<div class="bg-gray-50 border rounded-md min-h-[100px]"></div>';
 
-            // Kotak tarikh
             for(let day=1; day<=daysInMonth; day++) {
                 const date = new Date(year, month, day);
                 const events = getBookingsForDate(date);
-                
                 const isToday = new Date().toDateString() === date.toDateString();
-                const dayClass = isToday ? 'is-today' : 'bg-white';
-                const eventClass = events.length > 0 ? 'has-events' : '';
-
-                // Badges untuk events
+                
+                // EVENTS HTML
                 const eventsHtml = events.map(e => {
-                    // Cari short name, atau guna 'KDRN' jika "Menunggu Tetapan Admin"
-                    let shortName = 'KDRN'; 
-                    if (e.vehicle && vehicleDetails[e.vehicle]) {
-                        shortName = vehicleDetails[e.vehicle].short;
-                    } else if (e.vehicle === "Menunggu Tetapan Admin") {
-                        shortName = "UNDEF"; // Undefined / Pending
+                    let displayLabel = 'KDRN';
+                    let badgeClass = "bg-rose-100 text-rose-800 border-rose-200";
+
+                    // LOGIK: Jika belum ditetapkan, paparkan nama PROGRAM (Tajuk)
+                    if (e.vehicle === "Menunggu Tetapan Admin") {
+                        // Ambil nama program, pendekkan jika perlu
+                        displayLabel = (e.programName || "MOHON").substring(0, 15);
+                        badgeClass = "bg-yellow-100 text-yellow-800 border-yellow-200"; 
+                    } else if (vehicleDetails[e.vehicle]) {
+                        displayLabel = vehicleDetails[e.vehicle].short;
                     }
-                    
-                    const badgeColor = e.vehicle === "Menunggu Tetapan Admin" ? "bg-gray-200 text-gray-700" : "bg-rose-100 text-rose-800";
-                    return `<div class="${badgeColor} text-[10px] font-bold px-1 rounded truncate mt-1 border border-black/5" title="${e.vehicle}: ${e.destination}">${shortName}</div>`;
+
+                    return `<div class="${badgeClass} text-[10px] font-bold px-1 rounded truncate mt-1 border" title="${e.vehicle}: ${e.destination}">${displayLabel}</div>`;
                 }).join('');
 
-                // ID unik untuk DOM element hari ini supaya boleh highlight bila klik
                 const dayDivId = `day-div-${day}`;
-
+                
+                // Tambah class 'is-today' jika hari ini
                 let dayHtml = `
-                    <div id="${dayDivId}" class="calendar-day border rounded-md p-2 transition hover:shadow-md ${dayClass} ${eventClass}" onclick="showDayDetails('${date.toISOString()}', '${dayDivId}')">
+                    <div id="${dayDivId}" class="calendar-day border rounded-md p-2 transition hover:shadow-md ${isToday ? 'is-today' : 'bg-white'}" onclick="showDayDetails('${date.toISOString()}', '${dayDivId}')">
                         <div class="flex justify-between items-start">
-                            <span class="font-bold text-gray-700 text-sm">${day}</span>
+                            <span class="day-number text-gray-700 text-sm">${day}</span>
                             ${events.length > 0 ? `<span class="bg-rose-500 text-white text-[10px] rounded-full w-5 h-5 flex items-center justify-center shadow-sm">${events.length}</span>` : ''}
                         </div>
                         <div class="mt-1 overflow-y-auto max-h-[60px] space-y-1">
@@ -296,20 +273,16 @@
         function getBookingsForDate(date) {
             const search = document.getElementById('search-input').value.toLowerCase();
             const filterVehicle = document.getElementById('vehicle-select').value;
-            
             return allBookings.filter(b => {
                 if (!b.start) return false;
                 const start = b.start.toDate ? b.start.toDate() : new Date(b.start);
                 const end = b.end.toDate ? b.end.toDate() : new Date(b.end);
-                
                 const checkDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
                 const startDate = new Date(start.getFullYear(), start.getMonth(), start.getDate());
                 const endDate = new Date(end.getFullYear(), end.getMonth(), end.getDate());
-                
                 const isDateMatch = checkDate >= startDate && checkDate <= endDate;
                 const isVehicleMatch = !filterVehicle || b.vehicle === filterVehicle;
                 const isSearchMatch = (b.programName || '').toLowerCase().includes(search) || (b.destination || '').toLowerCase().includes(search);
-
                 return isDateMatch && isVehicleMatch && isSearchMatch;
             });
         }
@@ -319,13 +292,9 @@
             const bookings = getBookingsForDate(date);
             const listContainer = document.getElementById('booking-list-content');
             
-            // Highlight selection
             if(selectedDateEl) selectedDateEl.classList.remove('selected');
             const el = document.getElementById(elementId);
-            if(el) {
-                el.classList.add('selected');
-                selectedDateEl = el;
-            }
+            if(el) { el.classList.add('selected'); selectedDateEl = el; }
 
             document.getElementById('selected-date-text').textContent = date.toLocaleDateString('ms-MY', { day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase();
 
@@ -334,20 +303,26 @@
                 return;
             }
 
-            listContainer.innerHTML = bookings.map(b => `
-                <div class="bg-white border-l-4 ${b.vehicle === "Menunggu Tetapan Admin" ? 'border-gray-400' : 'border-rose-500'} p-4 rounded shadow-sm hover:shadow-md transition">
+            listContainer.innerHTML = bookings.map(b => {
+                // LOGIK STATUS DISPLAY
+                let vehicleDisplay = b.vehicle;
+                let statusColor = "text-rose-600 border-rose-500";
+                
+                if (b.vehicle === "Menunggu Tetapan Admin") {
+                    vehicleDisplay = "MENUNGGU KEPUTUSAN"; // Tukar teks ini
+                    statusColor = "text-yellow-600 border-yellow-500";
+                }
+
+                return `
+                <div class="bg-white border-l-4 ${statusColor} p-4 rounded shadow-sm hover:shadow-md transition">
                     <div class="flex justify-between items-start">
                         <div>
-                            <p class="font-bold text-sm uppercase ${b.vehicle === "Menunggu Tetapan Admin" ? 'text-gray-600' : 'text-rose-600'}">${b.vehicle}</p>
+                            <p class="font-bold text-sm uppercase ${statusColor.replace('border-', '')}">${vehicleDisplay}</p>
                             <p class="font-semibold text-gray-800 leading-tight mt-1 text-sm">${b.programName}</p>
                         </div>
                     </div>
-                    
                     <div class="mt-3 text-xs text-gray-600 space-y-2 bg-gray-50 p-2 rounded border border-gray-100">
-                        <div>
-                             <strong class="block text-gray-400 text-[10px] uppercase">Destinasi / Jadual:</strong>
-                             <div class="whitespace-pre-line pl-1">${b.destination || '-'}</div>
-                        </div>
+                        <div><strong class="text-gray-400 text-[10px] uppercase">Destinasi:</strong><div class="whitespace-pre-line pl-1">${b.destination || '-'}</div></div>
                         <div class="flex justify-between">
                             <span><strong class="text-gray-400 text-[10px] uppercase">Masa:</strong> ${formatTime(b.start)} - ${formatTime(b.end)}</span>
                             <span><strong class="text-gray-400 text-[10px] uppercase">Pax:</strong> ${b.passengers || '-'}</span>
@@ -355,14 +330,13 @@
                         <div><strong class="text-gray-400 text-[10px] uppercase">Pemohon:</strong> ${b.bookedBy_name}</div>
                         ${b.vipNames ? `<div class="text-rose-700 bg-rose-50 px-1 py-0.5 rounded border border-rose-100"><strong class="uppercase text-[10px]">VIP:</strong> ${b.vipNames}</div>` : ''}
                     </div>
-                </div>
-            `).join('');
+                </div>`;
+            }).join('');
         };
 
         function renderList() {
             const tbody = document.getElementById('full-list-table-body');
             const noData = document.getElementById('no-list-data');
-            
             const search = document.getElementById('search-input').value.toLowerCase();
             const filterVehicle = document.getElementById('vehicle-select').value;
             const yearFilter = parseInt(document.getElementById('year-select').value);
@@ -375,21 +349,23 @@
                        start.getMonth() === monthFilter &&
                        (!filterVehicle || b.vehicle === filterVehicle) &&
                        ((b.programName || '').toLowerCase().includes(search));
-            }).sort((a,b) => (b.start.toDate ? b.start.toDate() : new Date(b.start)) - (a.start.toDate ? a.start.toDate() : new Date(a.start))); // Descending sort
+            }).sort((a,b) => (b.start.toDate ? b.start.toDate() : new Date(b.start)) - (a.start.toDate ? a.start.toDate() : new Date(a.start)));
 
             tbody.innerHTML = '';
-            
-            if (filtered.length === 0) {
-                noData.classList.remove('hidden');
-                return;
-            }
+            if (filtered.length === 0) { noData.classList.remove('hidden'); return; }
             noData.classList.add('hidden');
 
             filtered.forEach(b => {
                  const start = b.start.toDate ? b.start.toDate() : new Date(b.start);
-                 const statusBadge = b.vehicle === "Menunggu Tetapan Admin" 
-                    ? `<span class="px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full text-[10px] font-bold uppercase">PROSES</span>`
-                    : `<span class="px-2 py-1 bg-green-100 text-green-800 rounded-full text-[10px] font-bold uppercase">DITERIMA</span>`;
+                 
+                 // LOGIK BADGE LIST
+                 let statusBadge = `<span class="px-2 py-1 bg-green-100 text-green-800 rounded-full text-[10px] font-bold uppercase">DITERIMA</span>`;
+                 let vehicleText = b.vehicle;
+                 
+                 if (b.vehicle === "Menunggu Tetapan Admin") {
+                     statusBadge = `<span class="px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full text-[10px] font-bold uppercase">KEPUTUSAN PERMOHONAN</span>`;
+                     vehicleText = "-";
+                 }
 
                  tbody.innerHTML += `
                     <tr class="hover:bg-gray-50 border-b last:border-0">
@@ -397,16 +373,13 @@
                             ${start.toLocaleDateString('ms-MY', {day:'2-digit', month:'2-digit'})}
                             <br><span class="text-xs text-gray-500">${formatTime(b.start)}</span>
                         </td>
-                        <td class="p-3 text-sm font-semibold text-rose-600 uppercase text-xs">${b.vehicle}</td>
+                        <td class="p-3 text-sm font-semibold text-rose-600 uppercase text-xs">${vehicleText}</td>
                         <td class="p-3 text-sm text-gray-700">
                             <div class="font-bold text-xs line-clamp-2" title="${b.destination}">${b.destination}</div>
                             <div class="text-[10px] mt-1 text-gray-500 uppercase">${b.programName}</div>
                         </td>
-                        <td class="p-3 text-sm">
-                            ${statusBadge}
-                        </td>
-                    </tr>
-                 `;
+                        <td class="p-3 text-sm">${statusBadge}</td>
+                    </tr>`;
             });
         }
 
@@ -418,19 +391,10 @@
         function changeMonth(dir) {
             const select = document.getElementById('month-select');
             const yearSelect = document.getElementById('year-select');
-            
             let newIndex = select.selectedIndex + dir;
-            
-            if (newIndex > 11) {
-                newIndex = 0;
-                yearSelect.value = parseInt(yearSelect.value) + 1;
-            } else if (newIndex < 0) {
-                newIndex = 11;
-                yearSelect.value = parseInt(yearSelect.value) - 1;
-            }
-            
+            if (newIndex > 11) { newIndex = 0; yearSelect.value = parseInt(yearSelect.value) + 1; } 
+            else if (newIndex < 0) { newIndex = 11; yearSelect.value = parseInt(yearSelect.value) - 1; }
             select.selectedIndex = newIndex;
-            
             select.dispatchEvent(new Event('change'));
             yearSelect.dispatchEvent(new Event('change'));
         }
