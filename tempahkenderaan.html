@@ -22,6 +22,9 @@
         .tab-btn { padding: 8px 16px; border-bottom: 2px solid transparent; color: #6b7280; font-weight: 500; transition: 0.2s; }
         .tab-btn.active { border-bottom: 2px solid #e11d48; color: #e11d48; background-color: #fff1f2; }
         .tab-btn:hover:not(.active) { color: #374151; background-color: #f3f4f6; }
+
+        /* Paksa Huruf Besar */
+        input[type="text"], textarea { text-transform: uppercase; }
     </style>
 </head>
 <body class="bg-gray-50 flex flex-col min-h-screen">
@@ -74,11 +77,11 @@
                     <h3 class="font-bold text-gray-800 mb-3 text-lg">Rumusan</h3>
                     <div class="space-y-2 text-sm">
                         <p class="text-xs text-gray-500">Program</p>
-                        <p id="sum-program" class="font-semibold text-gray-800 mb-2">-</p>
+                        <p id="sum-program" class="font-semibold text-gray-800 mb-2 uppercase">-</p>
                         <p class="text-xs text-gray-500">Tempoh</p>
                         <p id="sum-duration" class="font-medium text-rose-600 mb-2">-</p>
                         <p class="text-xs text-gray-500">Penglibatan VIP</p>
-                        <p id="sum-vip" class="font-medium text-gray-800">-</p>
+                        <p id="sum-vip" class="font-medium text-gray-800 uppercase">-</p>
                     </div>
                 </div>
             </div>
@@ -94,7 +97,7 @@
                         
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Tujuan / Nama Program</label>
-                            <input type="text" id="program-name" oninput="updateSummary()" required placeholder="Cth: Lawatan Kerja KPKK ke Miri" class="block w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-rose-500 focus:border-rose-500" disabled>
+                            <input type="text" id="program-name" oninput="this.value = this.value.toUpperCase(); updateSummary()" required placeholder="CTH: LAWATAN KERJA KE MIRI" class="block w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-rose-500 focus:border-rose-500" disabled>
                         </div>
 
                         <div class="bg-blue-50 p-4 rounded-lg border border-blue-200">
@@ -118,7 +121,7 @@
                             </div>
 
                             <div id="single-day-view" class="p-4 space-y-3">
-                                <p class="text-xs text-gray-500 italic mb-2">Sila masukkan masa dan lokasi untuk hari tersebut.</p>
+                                <p class="text-xs text-gray-500 italic mb-2">Masa akan ditambah secara automatik 1 jam dari lokasi sebelumnya.</p>
                                 <div id="single-day-list" class="space-y-2">
                                     </div>
                                 <button type="button" onclick="addSingleDayRow()" class="text-sm text-rose-600 hover:underline flex items-center gap-1 mt-2">
@@ -137,7 +140,7 @@
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t">
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Nama VIP (Jika ada)</label>
-                                <input type="text" id="vip-names" oninput="updateSummary()" placeholder="Cth: Pegawai PPD, KPP..." class="block w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-rose-500 focus:border-rose-500" disabled>
+                                <input type="text" id="vip-names" oninput="this.value = this.value.toUpperCase(); updateSummary()" placeholder="CTH: PEGAWAI PPD, KPP..." class="block w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-rose-500 focus:border-rose-500" disabled>
                                 <p class="text-xs text-gray-500 mt-1">Untuk makluman pemandu (Protokol).</p>
                             </div>
                             <div>
@@ -152,11 +155,11 @@
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Bil. Penumpang</label>
-                                <input type="number" id="passenger-count" min="1" placeholder="0" class="block w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-rose-500 focus:border-rose-500" disabled>
+                                <input type="number" id="passenger-count" min="1" value="3" placeholder="3" class="block w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-rose-500 focus:border-rose-500" disabled>
                             </div>
                             <div class="md:col-span-2">
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Catatan Tambahan (Logistik)</label>
-                                <input type="text" id="notes" placeholder="Cth: Perlu ruang kargo..." class="block w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-rose-500 focus:border-rose-500" disabled>
+                                <input type="text" id="notes" oninput="this.value = this.value.toUpperCase()" placeholder="CTH: PERLU RUANG KARGO..." class="block w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-rose-500 focus:border-rose-500" disabled>
                             </div>
                         </div>
 
@@ -200,8 +203,21 @@
 
         onAuthStateChanged(auth, (user) => { if (!user) signInAnonymously(auth); });
 
+        // --- Helper: Kira Masa Seterusnya (Increment +1 Jam) ---
+        function getNextTime(container) {
+            const inputs = container.querySelectorAll('.time-input');
+            if (inputs.length > 0) {
+                const lastInput = inputs[inputs.length - 1];
+                if (lastInput.value) {
+                    let [hours, mins] = lastInput.value.split(':').map(Number);
+                    hours = (hours + 1) % 24; // Tambah 1 jam, reset ke 00 jika 24
+                    return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+                }
+            }
+            return "08:00"; // Masa Mula Default
+        }
+
         // --- LOGIK TARIKH & TAB ---
-        
         window.handleDateChange = () => {
             const sDate = document.getElementById('start-date').value;
             const eDate = document.getElementById('end-date').value;
@@ -221,7 +237,6 @@
             dayDiff = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
 
             if (dayDiff > 1) {
-                // Mod Lebih Sehari (Tab)
                 isMultiDay = true;
                 badge.textContent = `${dayDiff} Hari`;
                 badge.className = "text-xs bg-purple-100 border-purple-200 px-2 py-1 rounded shadow-sm text-purple-700 font-bold";
@@ -229,16 +244,16 @@
                 document.getElementById('multi-day-view').classList.remove('hidden');
                 renderTabs(start, dayDiff);
             } else {
-                // Mod 1 Hari
                 isMultiDay = false;
                 badge.textContent = "1 Hari";
                 badge.className = "text-xs bg-white border px-2 py-1 rounded shadow-sm text-gray-600";
                 document.getElementById('single-day-view').classList.remove('hidden');
                 document.getElementById('multi-day-view').classList.add('hidden');
                 
-                // Jika kosong, tambah 2 row default
-                if(document.getElementById('single-day-list').children.length === 0) {
-                    addSingleDayRow(); addSingleDayRow();
+                const list = document.getElementById('single-day-list');
+                if(list.children.length === 0) {
+                    addSingleDayRow(); // 8:00
+                    addSingleDayRow(); // 9:00
                 }
             }
             updateSummary();
@@ -248,7 +263,6 @@
             const tabContainer = document.getElementById('day-tabs');
             const contentContainer = document.getElementById('day-contents');
             
-            // Simpan data lama jika ada (optional enhancement, skip for simplicity now to avoid bugs)
             tabContainer.innerHTML = '';
             contentContainer.innerHTML = '';
 
@@ -258,7 +272,6 @@
                 const dateStr = currentDate.toLocaleDateString('ms-MY', { day: 'numeric', month: 'short' });
                 const dayId = `day-${i}`;
 
-                // Create Button
                 const btn = document.createElement('button');
                 btn.type = 'button';
                 btn.className = `tab-btn whitespace-nowrap ${i === 0 ? 'active' : ''}`;
@@ -266,11 +279,10 @@
                 btn.onclick = () => switchTab(i);
                 tabContainer.appendChild(btn);
 
-                // Create Content Div
                 const content = document.createElement('div');
                 content.id = `content-${dayId}`;
                 content.className = `${i === 0 ? '' : 'hidden'} space-y-2 day-content-wrapper`;
-                content.dataset.dateLabel = `Hari ${i + 1} (${dateStr})`; // Untuk rujukan simpanan
+                content.dataset.dateLabel = `Hari ${i + 1} (${dateStr})`;
                 content.innerHTML = `
                     <div class="day-rows space-y-2"></div>
                     <button type="button" onclick="addMultiDayRow('${content.id}')" class="text-sm text-purple-600 hover:underline flex items-center gap-1 mt-2">
@@ -278,27 +290,23 @@
                     </button>
                 `;
                 contentContainer.appendChild(content);
-                
-                // Tambah default row untuk setiap hari
-                addMultiDayRow(content.id); 
+                addMultiDayRow(content.id); // Add first row
             }
         };
 
         window.switchTab = (index) => {
             const btns = document.querySelectorAll('.tab-btn');
             const contents = document.querySelectorAll('#day-contents > div');
-            
             btns.forEach((b, i) => b.classList.toggle('active', i === index));
             contents.forEach((c, i) => c.classList.toggle('hidden', i !== index));
         };
 
-        // --- FUNGSI BARIS (ROW) ---
-
-        const createRowHtml = (isMulti = false) => `
+        // --- FUNGSI BARIS (ROW) DENGAN AUTO TIME ---
+        const createRowHtml = (defaultTime = "08:00") => `
             <div class="flex gap-2 items-center input-row">
-                <input type="time" class="time-input block w-24 px-2 py-2 border border-gray-300 rounded-md text-sm focus:ring-rose-500" required>
+                <input type="time" value="${defaultTime}" class="time-input block w-24 px-2 py-2 border border-gray-300 rounded-md text-sm focus:ring-rose-500" required>
                 <div class="flex-grow relative">
-                     <input type="text" class="loc-input block w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-rose-500" placeholder="Lokasi / Aktiviti" required>
+                     <input type="text" oninput="this.value = this.value.toUpperCase()" class="loc-input block w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-rose-500" placeholder="LOKASI / AKTIVITI" required>
                 </div>
                 <button type="button" onclick="this.parentElement.remove()" class="text-gray-400 hover:text-red-500">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
@@ -307,15 +315,18 @@
         `;
 
         window.addSingleDayRow = () => {
-            document.getElementById('single-day-list').insertAdjacentHTML('beforeend', createRowHtml());
+            const container = document.getElementById('single-day-list');
+            const nextTime = getNextTime(container);
+            container.insertAdjacentHTML('beforeend', createRowHtml(nextTime));
         };
 
         window.addMultiDayRow = (contentId) => {
-            document.querySelector(`#${contentId} .day-rows`).insertAdjacentHTML('beforeend', createRowHtml(true));
+            const container = document.querySelector(`#${contentId} .day-rows`);
+            const nextTime = getNextTime(container);
+            container.insertAdjacentHTML('beforeend', createRowHtml(nextTime));
         };
 
         // --- VALIDASI & SUBMIT ---
-
         window.validateApplicant = async () => {
             const icInput = document.getElementById('applicant-ic');
             const ic = icInput.value.replace(/[^0-9]/g, '');
@@ -343,10 +354,8 @@
                     form.classList.remove('disabled-form');
                     form.querySelectorAll('input, button').forEach(el => el.disabled = false);
                     
-                    // Default phone from DB if available (optional)
                     if(data.phone) document.getElementById('contact-phone').value = data.phone;
                     
-                    // Set default dates
                     const today = new Date().toISOString().split('T')[0];
                     if(!document.getElementById('start-date').value) {
                         document.getElementById('start-date').value = today;
@@ -361,8 +370,8 @@
         };
 
         window.updateSummary = () => {
-            document.getElementById('sum-program').textContent = document.getElementById('program-name').value || '-';
-            const vip = document.getElementById('vip-names').value;
+            document.getElementById('sum-program').textContent = document.getElementById('program-name').value.toUpperCase() || '-';
+            const vip = document.getElementById('vip-names').value.toUpperCase();
             document.getElementById('sum-vip').textContent = vip || 'Tiada';
             
             if(dayDiff > 0) document.getElementById('sum-duration').textContent = `${dayDiff} Hari`;
@@ -374,11 +383,10 @@
 
             if (!currentApplicant) { alert("Sila sahkan IC."); return; }
 
-            // 1. Kumpul Data Jadual Pergerakan
+            // 1. Kumpul Data Jadual
             let itineraryText = "";
             
             if (!isMultiDay) {
-                // Single Day Logic
                 const rows = document.querySelectorAll('#single-day-list .input-row');
                 let dayMoves = [];
                 rows.forEach(row => {
@@ -388,7 +396,6 @@
                 });
                 itineraryText = dayMoves.join(" -> ");
             } else {
-                // Multi Day Logic
                 const dayWrappers = document.querySelectorAll('.day-content-wrapper');
                 let allDays = [];
                 dayWrappers.forEach(wrapper => {
@@ -422,11 +429,11 @@
                 await addDoc(collection(db, `artifacts/${appId}/public/data/spark_vehicle_bookings`), {
                     vehicle: "Menunggu Tetapan Admin",
                     programName: document.getElementById('program-name').value.toUpperCase(),
-                    destination: itineraryText, // Simpan format teks kompleks di sini
-                    passengers: document.getElementById('passenger-count').value || "0",
+                    destination: itineraryText,
+                    passengers: document.getElementById('passenger-count').value || "3",
                     vipNames: document.getElementById('vip-names').value.toUpperCase(),
                     contactPhone: document.getElementById('contact-phone').value,
-                    notes: document.getElementById('notes').value,
+                    notes: document.getElementById('notes').value.toUpperCase(),
                     start: start,
                     end: end,
                     bookedBy_ic: currentApplicant.ic,
