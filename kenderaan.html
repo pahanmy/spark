@@ -30,7 +30,7 @@
         /* Timeline dalam Modal */
         .timeline-box { position: relative; padding-left: 1.5rem; border-left: 2px solid #e2e8f0; padding-bottom: 1rem; }
         .timeline-box:last-child { border-left: 2px solid transparent; }
-        .timeline-marker { position: absolute; left: -0.4rem; top: 0.3rem; height: 0.8rem; width: 0.8rem; border-radius: 50%; background-color: #e11d48; border: 2px solid white; }
+        .timeline-marker { position: absolute; left: -0.4rem; top: 0.3rem; height: 0.8rem; width: 0.8rem; border-radius: 50%; background-color: #e11d48; border: 2px solid white; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
     </style>
 </head>
 <body class="bg-gray-50 flex flex-col min-h-screen">
@@ -239,7 +239,6 @@
             else renderList();
         }
 
-        // --- CALENDAR LOGIC ---
         function renderCalendar() {
             const year = parseInt(document.getElementById('year-select').value) || new Date().getFullYear();
             const month = parseInt(document.getElementById('month-select').value) || new Date().getMonth();
@@ -289,9 +288,94 @@
                     </div>`;
                 grid.innerHTML += dayHtml;
             }
+
+            // AUTO-SELECT TODAY
+            const today = new Date();
+            if (year === today.getFullYear() && month === today.getMonth()) {
+                const todayDay = today.getDate();
+                const todayId = `day-div-${todayDay}`;
+                setTimeout(() => {
+                    const el = document.getElementById(todayId);
+                    if (el && !selectedDateEl) {
+                        showDayDetails(today.toISOString(), todayId);
+                    }
+                }, 50);
+            }
         }
 
-        // --- LIST LOGIC (WITH NEW BUTTON) ---
+        function getBookingsForDate(date) {
+            const search = document.getElementById('search-input').value.toLowerCase();
+            const filterVehicle = document.getElementById('vehicle-select').value;
+            return allBookings.filter(b => {
+                if (!b.start) return false;
+                const start = b.start.toDate ? b.start.toDate() : new Date(b.start);
+                const end = b.end.toDate ? b.end.toDate() : new Date(b.end);
+                const checkDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+                const startDate = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+                const endDate = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+                const isDateMatch = checkDate >= startDate && checkDate <= endDate;
+                const isVehicleMatch = !filterVehicle || b.vehicle === filterVehicle;
+                const isSearchMatch = (b.programName || '').toLowerCase().includes(search) || (b.destination || '').toLowerCase().includes(search);
+                return isDateMatch && isVehicleMatch && isSearchMatch;
+            });
+        }
+
+        window.showDayDetails = (dateStr, elementId) => {
+            const date = new Date(dateStr);
+            const bookings = getBookingsForDate(date);
+            const listContainer = document.getElementById('booking-list-content');
+            
+            if(selectedDateEl && document.body.contains(selectedDateEl)) {
+                selectedDateEl.classList.remove('selected');
+            }
+            const el = document.getElementById(elementId);
+            if(el) { el.classList.add('selected'); selectedDateEl = el; }
+
+            document.getElementById('selected-date-text').textContent = date.toLocaleDateString('ms-MY', { day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase();
+
+            if(!bookings.length) {
+                listContainer.innerHTML = '<div class="text-center py-8 border-2 border-dashed border-gray-200 rounded-lg"><p class="text-gray-500 font-medium text-sm">Tiada tempahan pada tarikh ini.</p></div>';
+                return;
+            }
+
+            listContainer.innerHTML = bookings.map(b => {
+                let vehicleDisplay = b.vehicle;
+                let statusColor = "text-rose-600 border-rose-500";
+                
+                if (b.vehicle === "Menunggu Tetapan Admin") {
+                    vehicleDisplay = "MENUNGGU KEPUTUSAN";
+                    statusColor = "text-yellow-600 border-yellow-500";
+                }
+
+                let driverSection = '';
+                if(b.driverName) {
+                    driverSection = `<div class="pt-2 mt-2 border-t border-gray-200"><strong class="text-gray-500 text-[10px] uppercase">Pemandu:</strong> <span class="font-bold text-gray-800">${b.driverName}</span></div>`;
+                }
+
+                return `
+                <div class="bg-white border-l-4 ${statusColor} p-4 rounded shadow-sm hover:shadow-md transition">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="font-bold text-sm uppercase ${statusColor.replace('border-', '')}">${vehicleDisplay}</p>
+                            <p class="font-semibold text-gray-800 leading-tight mt-1 text-sm">${b.programName}</p>
+                        </div>
+                    </div>
+                    <div class="mt-3 text-xs text-gray-600 space-y-2 bg-gray-50 p-2 rounded border border-gray-100">
+                        <button onclick="openItineraryModal('${b.id}')" class="w-full text-left text-rose-600 font-bold text-[10px] uppercase hover:underline flex items-center gap-1 mb-1">
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                            Lihat Jadual Penuh
+                        </button>
+                        <div class="flex justify-between">
+                            <span><strong class="text-gray-400 text-[10px] uppercase">Masa:</strong> ${formatTime(b.start)} - ${formatTime(b.end)}</span>
+                            <span><strong class="text-gray-400 text-[10px] uppercase">Pax:</strong> ${b.passengers || '-'}</span>
+                        </div>
+                        <div><strong class="text-gray-400 text-[10px] uppercase">Pemohon:</strong> ${b.bookedBy_name}</div>
+                        ${driverSection}
+                    </div>
+                </div>`;
+            }).join('');
+        };
+
         function renderList() {
             const tbody = document.getElementById('full-list-table-body');
             const noData = document.getElementById('no-list-data');
@@ -365,20 +449,14 @@
             let contentHtml = '';
 
             const rawDest = booking.destination || '';
-            
-            // Format Timeline yang Cantik
-            // Split by newline first (jika ada multi-day)
             const lines = rawDest.split('\n');
             
             lines.forEach(line => {
                 if(line.includes('[Hari')) {
-                    // Header Hari
                     contentHtml += `<div class="font-bold text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded mt-3 mb-2 inline-block">${line.replace(':', '')}</div>`;
                 } else if (line.trim() !== '') {
-                    // Baris Lokasi (Cuba pisahkan ->)
                     const parts = line.split('->');
                     parts.forEach(part => {
-                        // Bersihkan teks (buang tanda dash - jika ada di awal)
                         const cleanPart = part.replace(/^-\s*/, '').trim(); 
                         if(cleanPart) {
                             contentHtml += `
@@ -399,78 +477,6 @@
 
         window.closeItineraryModal = () => {
             document.getElementById('itinerary-modal').classList.add('hidden');
-        };
-
-        // --- HELPER FUNCTIONS ---
-        function getBookingsForDate(date) {
-            const search = document.getElementById('search-input').value.toLowerCase();
-            const filterVehicle = document.getElementById('vehicle-select').value;
-            return allBookings.filter(b => {
-                if (!b.start) return false;
-                const start = b.start.toDate ? b.start.toDate() : new Date(b.start);
-                const end = b.end.toDate ? b.end.toDate() : new Date(b.end);
-                const checkDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-                const startDate = new Date(start.getFullYear(), start.getMonth(), start.getDate());
-                const endDate = new Date(end.getFullYear(), end.getMonth(), end.getDate());
-                const isDateMatch = checkDate >= startDate && checkDate <= endDate;
-                const isVehicleMatch = !filterVehicle || b.vehicle === filterVehicle;
-                const isSearchMatch = (b.programName || '').toLowerCase().includes(search) || (b.destination || '').toLowerCase().includes(search);
-                return isDateMatch && isVehicleMatch && isSearchMatch;
-            });
-        }
-
-        window.showDayDetails = (dateStr, elementId) => {
-            const date = new Date(dateStr);
-            const bookings = getBookingsForDate(date);
-            const listContainer = document.getElementById('booking-list-content');
-            
-            if(selectedDateEl) selectedDateEl.classList.remove('selected');
-            const el = document.getElementById(elementId);
-            if(el) { el.classList.add('selected'); selectedDateEl = el; }
-
-            document.getElementById('selected-date-text').textContent = date.toLocaleDateString('ms-MY', { day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase();
-
-            if(!bookings.length) {
-                listContainer.innerHTML = '<div class="text-center py-8 border-2 border-dashed border-gray-200 rounded-lg"><p class="text-gray-500 font-medium text-sm">Tiada tempahan pada tarikh ini.</p></div>';
-                return;
-            }
-
-            listContainer.innerHTML = bookings.map(b => {
-                let vehicleDisplay = b.vehicle;
-                let statusColor = "text-rose-600 border-rose-500";
-                
-                if (b.vehicle === "Menunggu Tetapan Admin") {
-                    vehicleDisplay = "MENUNGGU KEPUTUSAN";
-                    statusColor = "text-yellow-600 border-yellow-500";
-                }
-
-                let driverSection = '';
-                if(b.driverName) {
-                    driverSection = `<div class="pt-2 mt-2 border-t border-gray-200"><strong class="text-gray-500 text-[10px] uppercase">Pemandu:</strong> <span class="font-bold text-gray-800">${b.driverName}</span></div>`;
-                }
-
-                return `
-                <div class="bg-white border-l-4 ${statusColor} p-4 rounded shadow-sm hover:shadow-md transition">
-                    <div class="flex justify-between items-start">
-                        <div>
-                            <p class="font-bold text-sm uppercase ${statusColor.replace('border-', '')}">${vehicleDisplay}</p>
-                            <p class="font-semibold text-gray-800 leading-tight mt-1 text-sm">${b.programName}</p>
-                        </div>
-                    </div>
-                    <div class="mt-3 text-xs text-gray-600 space-y-2 bg-gray-50 p-2 rounded border border-gray-100">
-                        <button onclick="openItineraryModal('${b.id}')" class="w-full text-left text-rose-600 font-bold text-[10px] uppercase hover:underline flex items-center gap-1 mb-1">
-                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                            Lihat Jadual Penuh
-                        </button>
-                        <div class="flex justify-between">
-                            <span><strong class="text-gray-400 text-[10px] uppercase">Masa:</strong> ${formatTime(b.start)} - ${formatTime(b.end)}</span>
-                            <span><strong class="text-gray-400 text-[10px] uppercase">Pax:</strong> ${b.passengers || '-'}</span>
-                        </div>
-                        <div><strong class="text-gray-400 text-[10px] uppercase">Pemohon:</strong> ${b.bookedBy_name}</div>
-                        ${driverSection}
-                    </div>
-                </div>`;
-            }).join('');
         };
 
         function formatTime(timestamp) { 
