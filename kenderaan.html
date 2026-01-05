@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SPARKfleet – Kalendar Tempahan Kenderaan</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Poppins', sans-serif; background-color: #f8f9fa; }
@@ -112,7 +116,7 @@
                                         <th class="p-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Tarikh</th>
                                         <th class="p-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Kenderaan & Pemandu</th>
                                         <th class="p-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Destinasi & Program</th>
-                                        <th class="p-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                                        <th class="p-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status & Tindakan</th>
                                     </tr>
                                 </thead>
                                 <tbody id="full-list-table-body" class="bg-white divide-y divide-gray-200"></tbody>
@@ -169,7 +173,6 @@
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // CONFIG
         const firebaseConfig = { apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM", authDomain: "myqrhadir.firebaseapp.com", projectId: "myqrhadir", storageBucket: "myqrhadir.appspot.com", messagingSenderId: "799691133747", appId: "1:799691133747:web:835a5e3e9413eace806446" };
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
@@ -289,7 +292,6 @@
                 grid.innerHTML += dayHtml;
             }
 
-            // AUTO-SELECT TODAY
             const today = new Date();
             if (year === today.getFullYear() && month === today.getMonth()) {
                 const todayDay = today.getDate();
@@ -404,15 +406,27 @@
                  let vehicleText = `<span class="font-bold text-rose-600 text-xs">${b.vehicle}</span>`;
                  let driverInfo = '<span class="text-gray-400 italic text-[10px]">Belum ditetapkan</span>';
                  
+                 // BUTTON LOGIC
+                 let actionButton = '';
+                 
                  if (b.vehicle === "Menunggu Tetapan Admin") {
-                     statusBadge = `<span class="px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full text-[10px] font-bold uppercase">KEPUTUSAN PERMOHONAN</span>`;
+                     statusBadge = `<span class="px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full text-[10px] font-bold uppercase">MENUNGGU KEPUTUSAN</span>`;
                      vehicleText = '<span class="text-gray-500 italic text-xs">Belum ditetapkan</span>';
                      driverInfo = '<span class="text-gray-400 italic text-[10px]">-</span>';
                  } else if (b.driverName) {
                      driverInfo = `<div class="text-gray-800 text-xs font-semibold mt-1 flex items-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-gray-500" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd" /></svg> ${b.driverName}</div>`;
                  }
 
-                 // BUTANG LIHAT JADUAL ditambah di sini
+                 // Check for Approved status specifically for PDF download
+                 if (b.status === 'DILULUSKAN') {
+                     actionButton = `
+                        <button onclick="downloadBookingPDF('${b.id}')" class="text-white bg-rose-600 hover:bg-rose-700 text-xs flex items-center gap-1 px-3 py-1.5 rounded shadow-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+                            Borang PDF
+                        </button>
+                     `;
+                 }
+
                  tbody.innerHTML += `
                     <tr class="hover:bg-gray-50 border-b last:border-0">
                         <td class="p-3 text-sm text-gray-900 font-medium">
@@ -425,15 +439,106 @@
                         </td>
                         <td class="p-3 text-sm text-gray-700">
                             <div class="text-[10px] mt-1 text-gray-900 font-semibold uppercase mb-1">${b.programName}</div>
-                            <button onclick="openItineraryModal('${b.id}')" class="text-rose-600 hover:text-rose-800 text-xs flex items-center gap-1 border border-rose-200 bg-rose-50 px-2 py-1 rounded">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd" /></svg>
-                                Lihat Jadual Pergerakan
-                            </button>
+                            <div class="flex gap-2">
+                                <button onclick="openItineraryModal('${b.id}')" class="text-gray-600 hover:text-gray-800 text-xs flex items-center gap-1 border border-gray-300 bg-white px-2 py-1 rounded">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd" /></svg>
+                                    Jadual
+                                </button>
+                            </div>
                         </td>
-                        <td class="p-3 text-sm">${statusBadge}</td>
+                        <td class="p-3 text-sm space-y-2">
+                            <div>${statusBadge}</div>
+                            ${actionButton}
+                        </td>
                     </tr>`;
             });
         }
+
+        // --- PDF GENERATION LOGIC ---
+        window.downloadBookingPDF = (id) => {
+            const booking = allBookings.find(b => b.id === id);
+            if(!booking) return;
+
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+
+            // Header
+            doc.setFontSize(14);
+            doc.setFont("helvetica", "bold");
+            doc.text("JABATAN PENDIDIKAN NEGERI SARAWAK", 105, 20, null, null, "center");
+            doc.setFontSize(12);
+            doc.text("BORANG TEMPAHAN KENDERAAN (DILULUSKAN)", 105, 28, null, null, "center");
+            
+            // Garisan
+            doc.setLineWidth(0.5);
+            doc.line(20, 35, 190, 35);
+
+            // Info Pemohon
+            doc.setFontSize(10);
+            doc.setFont("helvetica", "bold");
+            doc.text("A. MAKLUMAT PEMOHON & PROGRAM", 20, 45);
+            doc.setFont("helvetica", "normal");
+            
+            const start = booking.start.toDate ? booking.start.toDate() : new Date(booking.start);
+            const end = booking.end.toDate ? booking.end.toDate() : new Date(booking.end);
+
+            const infoData = [
+                ["Nama Pemohon", booking.bookedBy_name],
+                ["No. IC", booking.bookedBy_ic],
+                ["Nama Program", booking.programName],
+                ["Tarikh Mula", start.toLocaleDateString('ms-MY') + " (" + formatTime(booking.start) + ")"],
+                ["Tarikh Tamat", end.toLocaleDateString('ms-MY') + " (" + formatTime(booking.end) + ")"],
+                ["Bil. Penumpang", booking.passengers || "-"]
+            ];
+
+            doc.autoTable({
+                startY: 50,
+                head: [],
+                body: infoData,
+                theme: 'plain',
+                styles: { fontSize: 10, cellPadding: 1 },
+                columnStyles: { 0: { fontStyle: 'bold', width: 40 } }
+            });
+
+            // Info Kenderaan (Penting)
+            let finalY = doc.lastAutoTable.finalY + 10;
+            doc.setFont("helvetica", "bold");
+            doc.text("B. BUTIRAN KENDERAAN & PEMANDU (DILULUSKAN)", 20, finalY);
+            
+            const vehicleData = [
+                ["Kenderaan", booking.vehicle],
+                ["Nama Pemandu", booking.driverName || "SEDANG DIKEMASKINI"],
+                ["Jabatan/Unit", booking.department || "-"]
+            ];
+
+            doc.autoTable({
+                startY: finalY + 5,
+                body: vehicleData,
+                theme: 'grid', // Grid untuk nampak rasmi
+                styles: { fontSize: 10, cellPadding: 2, lineColor: [0, 0, 0] },
+                columnStyles: { 0: { fontStyle: 'bold', width: 40, fillColor: [240, 240, 240] } }
+            });
+
+            // Itinerary
+            finalY = doc.lastAutoTable.finalY + 10;
+            doc.setFont("helvetica", "bold");
+            doc.text("C. JADUAL PERGERAKAN", 20, finalY);
+            
+            // Clean itinerary text
+            const cleanDest = (booking.destination || "").replace(/->/g, " ke ");
+            const splitDest = doc.splitTextToSize(cleanDest, 170);
+            
+            doc.setFont("helvetica", "normal");
+            doc.text(splitDest, 20, finalY + 7);
+
+            // Footer
+            const pageHeight = doc.internal.pageSize.height;
+            doc.setFontSize(8);
+            doc.text("Dokumen ini dijana secara automatik oleh SPARKfleet.", 20, pageHeight - 10);
+            doc.text(`Tarikh Cetakan: ${new Date().toLocaleDateString('ms-MY')}`, 150, pageHeight - 10);
+
+            doc.save(`Tempahan_${booking.programName.substring(0, 10)}.pdf`);
+        };
 
         // --- ITINERARY MODAL LOGIC ---
         window.openItineraryModal = (id) => {
