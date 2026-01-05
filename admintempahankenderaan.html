@@ -20,9 +20,13 @@
         
         /* Status Badges */
         .badge { padding: 0.25rem 0.6rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; }
-        .badge-proses { background-color: #fef3c7; color: #92400e; } /* Kuning */
-        .badge-lulus { background-color: #d1fae5; color: #065f46; } /* Hijau */
-        .badge-tolak { background-color: #fee2e2; color: #991b1b; } /* Merah */
+        .badge-proses { background-color: #fef3c7; color: #92400e; }
+        .badge-lulus { background-color: #d1fae5; color: #065f46; }
+        .badge-tolak { background-color: #fee2e2; color: #991b1b; }
+        
+        /* Tab untuk Modal Urus */
+        .asset-tab.active { border-bottom: 2px solid #e11d48; color: #e11d48; font-weight: 600; }
+        .asset-tab { color: #6b7280; cursor: pointer; padding-bottom: 5px; }
     </style>
 </head>
 <body class="bg-gray-50 flex flex-col min-h-screen">
@@ -34,6 +38,10 @@
                 <p class="text-sm text-gray-500 hidden sm:block">Pengurusan Tempahan Kenderaan</p>
             </div>
             <div class="flex items-center gap-2">
+                <button onclick="openAssetModal()" class="btn bg-gray-800 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-gray-900 text-sm flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                    Urus Aset
+                </button>
                 <a href="kenderaan.html" class="btn bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg shadow-md text-sm">Lihat Kalendar</a>
                 <a href="tempahkenderaan.html" class="btn bg-rose-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-rose-700 text-sm">Tambah Manual</a>
             </div>
@@ -75,7 +83,6 @@
         <div class="card p-6">
             <div class="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
                 <h2 class="text-lg font-bold text-gray-800">Senarai Tempahan</h2>
-                
                 <div class="flex items-center gap-2">
                     <label class="text-xs text-gray-600">Papar:</label>
                     <select id="rows-per-page" onchange="changeRowsPerPage()" class="border border-gray-300 rounded text-xs py-1 px-2 focus:ring-rose-500">
@@ -98,8 +105,7 @@
                             <th class="text-center">Tindakan</th>
                         </tr>
                     </thead>
-                    <tbody id="admin-table-body" class="bg-white">
-                        </tbody>
+                    <tbody id="admin-table-body" class="bg-white"></tbody>
                 </table>
             </div>
 
@@ -114,11 +120,57 @@
             <div id="loading-spinner" class="text-center py-10">
                 <p class="text-gray-500 animate-pulse">Memuatkan data...</p>
             </div>
-            <div id="no-data-msg" class="hidden text-center py-10 text-gray-500">
-                Tiada rekod dijumpai.
-            </div>
+            <div id="no-data-msg" class="hidden text-center py-10 text-gray-500">Tiada rekod dijumpai.</div>
         </div>
     </main>
+
+    <div id="asset-modal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop hidden">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 m-4 transform transition-all h-[80vh] flex flex-col">
+            <div class="flex justify-between items-center mb-4 border-b pb-2">
+                <h3 class="text-lg font-bold text-gray-900">Urus Aset & Pemandu</h3>
+                <button onclick="closeAssetModal()" class="text-gray-400 hover:text-gray-600"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
+            </div>
+
+            <div class="flex gap-4 mb-4 border-b">
+                <button onclick="switchAssetTab('vehicle')" id="tab-btn-vehicle" class="asset-tab active text-sm">Kenderaan</button>
+                <button onclick="switchAssetTab('driver')" id="tab-btn-driver" class="asset-tab text-sm">Pemandu</button>
+            </div>
+
+            <div class="flex-grow overflow-y-auto pr-2">
+                <div id="tab-content-vehicle" class="space-y-4">
+                    <form onsubmit="addVehicle(event)" class="bg-gray-50 p-3 rounded-lg border flex gap-2 items-end">
+                        <div class="flex-grow">
+                            <label class="text-xs text-gray-500 block mb-1">Nama Kenderaan</label>
+                            <input type="text" id="new-vehicle-name" required placeholder="Toyota Hilux" class="w-full text-xs p-2 border rounded uppercase">
+                        </div>
+                        <div class="w-24">
+                            <label class="text-xs text-gray-500 block mb-1">No. Plat</label>
+                            <input type="text" id="new-vehicle-plate" required placeholder="QAA 1234" class="w-full text-xs p-2 border rounded uppercase">
+                        </div>
+                        <button type="submit" class="bg-indigo-600 text-white p-2 rounded hover:bg-indigo-700"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg></button>
+                    </form>
+                    <div id="vehicle-list" class="space-y-2"></div>
+                </div>
+
+                <div id="tab-content-driver" class="hidden space-y-4">
+                    <form onsubmit="addDriver(event)" class="bg-gray-50 p-3 rounded-lg border flex flex-col gap-2">
+                        <div class="flex gap-2">
+                            <div class="flex-grow">
+                                <label class="text-xs text-gray-500 block mb-1">Nama Pemandu</label>
+                                <input type="text" id="new-driver-name" required placeholder="ALI BIN ABU" class="w-full text-xs p-2 border rounded uppercase">
+                            </div>
+                            <div class="flex-grow">
+                                <label class="text-xs text-gray-500 block mb-1">Sekolah / Jabatan</label>
+                                <input type="text" id="new-driver-dept" required placeholder="PPD MIRI" class="w-full text-xs p-2 border rounded uppercase">
+                            </div>
+                        </div>
+                        <button type="submit" class="bg-indigo-600 text-white w-full py-1.5 rounded hover:bg-indigo-700 text-xs font-bold flex justify-center items-center gap-1"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg> Tambah Pemandu</button>
+                    </form>
+                    <div id="driver-list" class="space-y-2"></div>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <div id="assign-modal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop hidden">
         <div class="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 m-4 transform transition-all">
@@ -135,23 +187,21 @@
                 
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-1">Tetapkan Kenderaan</label>
-                    <select id="modal-vehicle" required class="block w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-rose-500 focus:border-rose-500">
+                    <select id="modal-vehicle" required class="block w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-rose-500 focus:border-rose-500 uppercase">
                         <option value="">-- Sila Pilih --</option>
-                        <option value="Toyota Hilux (QAA 1234)">Toyota Hilux (QAA 1234)</option>
-                        <option value="Van Toyota Hiace (QAB 5678)">Van Toyota Hiace (QAB 5678)</option>
-                        <option value="Bas Mini (QAC 9012)">Bas Mini (QAC 9012)</option>
-                        <option value="Kenderaan Sewaan / Luar">Kenderaan Sewaan / Luar</option>
-                    </select>
+                        </select>
                 </div>
 
                 <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-1">Nama Pemandu</label>
-                    <input type="text" id="modal-driver" required placeholder="Nama Pemandu" class="block w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-rose-500 focus:border-rose-500 uppercase">
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Pilih Pemandu</label>
+                    <select id="modal-driver" onchange="autoFillDept()" required class="block w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-rose-500 focus:border-rose-500 uppercase">
+                        <option value="">-- Sila Pilih Pemandu --</option>
+                        </select>
                 </div>
 
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-1">Jabatan / PPD / Sekolah</label>
-                    <input type="text" id="modal-dept" required placeholder="Cth: PPD MIRI" class="block w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-rose-500 focus:border-rose-500 uppercase" value="PPD MIRI">
+                    <input type="text" id="modal-dept" required placeholder="Cth: PPD MIRI" class="block w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-rose-500 focus:border-rose-500 uppercase" readonly>
                 </div>
 
                 <div class="pt-4 flex justify-end space-x-3 border-t mt-4">
@@ -165,7 +215,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, onSnapshot, query, orderBy, doc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, onSnapshot, query, orderBy, doc, updateDoc, deleteDoc, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // CONFIG
         const firebaseConfig = { apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM", authDomain: "myqrhadir.firebaseapp.com", projectId: "myqrhadir", storageBucket: "myqrhadir.appspot.com", messagingSenderId: "799691133747", appId: "1:799691133747:web:835a5e3e9413eace806446" };
@@ -175,6 +225,8 @@
         const appId = firebaseConfig.projectId;
 
         let allBookings = [];
+        let vehicleList = [];
+        let driverList = [];
         let currentPage = 1;
         let rowsPerPage = 10;
 
@@ -184,134 +236,97 @@
         });
 
         function main() {
-            // Sort by 'start' DESC (Latest date first)
+            // Listen Bookings
             const q = query(collection(db, `artifacts/${appId}/public/data/spark_vehicle_bookings`), orderBy("start", "desc"));
-            
             onSnapshot(q, (snapshot) => {
                 allBookings = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                
                 calculateStats();
                 renderTable();
-                
                 document.getElementById('loading-spinner').classList.add('hidden');
                 document.getElementById('no-data-msg').classList.toggle('hidden', allBookings.length > 0);
             });
-        }
 
-        // --- 1. Fungsi Statistik ---
-        function calculateStats() {
-            const total = allBookings.length;
-            const lulus = allBookings.filter(b => b.status === 'DILULUSKAN').length;
-            const gagal = allBookings.filter(b => b.status === 'DITOLAK').length;
+            // Listen Vehicles
+            const vQ = query(collection(db, `artifacts/${appId}/public/data/spark_fleet_vehicles`), orderBy("name", "asc"));
+            onSnapshot(vQ, (snapshot) => {
+                vehicleList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderVehicleList();
+            });
 
-            document.getElementById('stat-total').textContent = total;
-            document.getElementById('stat-lulus').textContent = lulus;
-            document.getElementById('stat-gagal').textContent = gagal;
-        }
-
-        // --- 2. Fungsi Render & Pagination ---
-        window.changeRowsPerPage = () => {
-            rowsPerPage = parseInt(document.getElementById('rows-per-page').value);
-            currentPage = 1; // Reset ke page 1 bila tukar view
-            renderTable();
-        };
-
-        window.prevPage = () => {
-            if (currentPage > 1) {
-                currentPage--;
-                renderTable();
-            }
-        };
-
-        window.nextPage = () => {
-            const totalPages = Math.ceil(allBookings.length / rowsPerPage);
-            if (currentPage < totalPages) {
-                currentPage++;
-                renderTable();
-            }
-        };
-
-        function renderTable() {
-            const tbody = document.getElementById('admin-table-body');
-            tbody.innerHTML = '';
-
-            // Logic Pagination
-            const startIdx = (currentPage - 1) * rowsPerPage;
-            const endIdx = startIdx + rowsPerPage;
-            const paginatedItems = allBookings.slice(startIdx, endIdx);
-
-            // Update Info Text
-            document.getElementById('show-start').textContent = allBookings.length > 0 ? startIdx + 1 : 0;
-            document.getElementById('show-end').textContent = Math.min(endIdx, allBookings.length);
-            document.getElementById('show-total').textContent = allBookings.length;
-
-            // Update Button State
-            document.getElementById('btn-prev').disabled = currentPage === 1;
-            document.getElementById('btn-next').disabled = endIdx >= allBookings.length;
-
-            paginatedItems.forEach(b => {
-                const start = b.start.toDate ? b.start.toDate() : new Date(b.start);
-                const end = b.end.toDate ? b.end.toDate() : new Date(b.end);
-                
-                // Status Logic
-                let badgeClass = "badge-proses";
-                let statusText = "BARU / PROSES";
-                
-                if (b.status === 'DILULUSKAN') {
-                    badgeClass = "badge-lulus";
-                    statusText = "DILULUSKAN";
-                } else if (b.status === 'DITOLAK') {
-                    badgeClass = "badge-tolak";
-                    statusText = "GAGAL / DITOLAK";
-                }
-
-                const vehicleText = (b.vehicle === "Menunggu Tetapan Admin" || !b.vehicle) 
-                    ? `<span class="text-gray-400 italic text-xs">Belum ditetapkan</span>` 
-                    : `<span class="font-bold text-rose-600 text-xs">${b.vehicle}</span>`;
-                
-                const driverInfo = b.driverName 
-                    ? `<div class="text-xs font-semibold">${b.driverName}</div><div class="text-[10px] text-gray-500">${b.department || '-'}</div>`
-                    : `<span class="text-gray-400 text-xs">-</span>`;
-
-                tbody.innerHTML += `
-                    <tr>
-                        <td>
-                            <div class="font-medium text-gray-900 text-sm">${start.toLocaleDateString('ms-MY')}</div>
-                            <div class="text-xs text-gray-500">${formatTime(start)} - ${formatTime(end)}</div>
-                        </td>
-                        <td>
-                            <div class="font-bold text-gray-800 uppercase text-xs break-words w-48">${b.programName}</div>
-                            <div class="text-xs text-gray-500 mt-1">Oleh: ${b.bookedBy_name}</div>
-                            ${b.vipNames ? `<div class="mt-1 text-[10px] bg-rose-50 text-rose-700 px-1 rounded inline-block border border-rose-100">VIP: ${b.vipNames}</div>` : ''}
-                        </td>
-                        <td>
-                            <div class="text-xs whitespace-pre-line max-w-xs overflow-hidden text-ellipsis text-gray-600" title="${b.destination}">${b.destination}</div>
-                        </td>
-                        <td>
-                            <span class="badge ${badgeClass}">${statusText}</span>
-                            <div class="mt-1">${vehicleText}</div>
-                        </td>
-                        <td>
-                            ${driverInfo}
-                        </td>
-                        <td class="text-center whitespace-nowrap">
-                            <div class="flex flex-col gap-1">
-                                <button onclick="openAssignModal('${b.id}')" class="btn bg-indigo-600 text-white px-2 py-1 rounded text-xs hover:bg-indigo-700 shadow-sm">
-                                    ${b.status === 'DILULUSKAN' ? 'Kemaskini' : 'Luluskan'}
-                                </button>
-                                ${b.status !== 'DITOLAK' ? 
-                                    `<button onclick="rejectBooking('${b.id}')" class="btn bg-yellow-500 text-white px-2 py-1 rounded text-xs hover:bg-yellow-600 shadow-sm">Tolak</button>` : ''
-                                }
-                                <button onclick="deleteBooking('${b.id}')" class="btn text-red-500 hover:text-red-700 text-xs underline">Padam</button>
-                            </div>
-                        </td>
-                    </tr>
-                `;
+            // Listen Drivers
+            const dQ = query(collection(db, `artifacts/${appId}/public/data/spark_fleet_drivers`), orderBy("name", "asc"));
+            onSnapshot(dQ, (snapshot) => {
+                driverList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderDriverList();
             });
         }
 
-        // --- 3. Fungsi Actions (Modal, Save, Delete) ---
+        // --- ASSET MANAGEMENT LOGIC ---
+        window.openAssetModal = () => { document.getElementById('asset-modal').classList.remove('hidden'); }
+        window.closeAssetModal = () => { document.getElementById('asset-modal').classList.add('hidden'); }
         
+        window.switchAssetTab = (tab) => {
+            document.getElementById('tab-btn-vehicle').classList.toggle('active', tab === 'vehicle');
+            document.getElementById('tab-btn-driver').classList.toggle('active', tab === 'driver');
+            document.getElementById('tab-content-vehicle').classList.toggle('hidden', tab !== 'vehicle');
+            document.getElementById('tab-content-driver').classList.toggle('hidden', tab !== 'driver');
+        }
+
+        window.addVehicle = async (e) => {
+            e.preventDefault();
+            const name = document.getElementById('new-vehicle-name').value.toUpperCase();
+            const plate = document.getElementById('new-vehicle-plate').value.toUpperCase();
+            try {
+                await addDoc(collection(db, `artifacts/${appId}/public/data/spark_fleet_vehicles`), { name, plate, fullName: `${name} (${plate})` });
+                document.getElementById('new-vehicle-name').value = '';
+                document.getElementById('new-vehicle-plate').value = '';
+            } catch(err) { alert("Gagal menambah kenderaan."); }
+        }
+
+        window.deleteAsset = async (collectionName, id) => {
+            if(confirm("Padam rekod ini?")) {
+                await deleteDoc(doc(db, `artifacts/${appId}/public/data/${collectionName}`, id));
+            }
+        }
+
+        function renderVehicleList() {
+            const list = document.getElementById('vehicle-list');
+            list.innerHTML = vehicleList.map(v => `
+                <div class="flex justify-between items-center bg-white p-2 border rounded shadow-sm">
+                    <div>
+                        <p class="text-xs font-bold uppercase text-gray-800">${v.name}</p>
+                        <p class="text-[10px] text-gray-500 uppercase">${v.plate}</p>
+                    </div>
+                    <button onclick="deleteAsset('spark_fleet_vehicles', '${v.id}')" class="text-red-500 hover:text-red-700 text-xs">Padam</button>
+                </div>
+            `).join('');
+        }
+
+        window.addDriver = async (e) => {
+            e.preventDefault();
+            const name = document.getElementById('new-driver-name').value.toUpperCase();
+            const dept = document.getElementById('new-driver-dept').value.toUpperCase();
+            try {
+                await addDoc(collection(db, `artifacts/${appId}/public/data/spark_fleet_drivers`), { name, dept });
+                document.getElementById('new-driver-name').value = '';
+                document.getElementById('new-driver-dept').value = '';
+            } catch(err) { alert("Gagal menambah pemandu."); }
+        }
+
+        function renderDriverList() {
+            const list = document.getElementById('driver-list');
+            list.innerHTML = driverList.map(d => `
+                <div class="flex justify-between items-center bg-white p-2 border rounded shadow-sm">
+                    <div>
+                        <p class="text-xs font-bold uppercase text-gray-800">${d.name}</p>
+                        <p class="text-[10px] text-gray-500 uppercase">${d.dept}</p>
+                    </div>
+                    <button onclick="deleteAsset('spark_fleet_drivers', '${d.id}')" class="text-red-500 hover:text-red-700 text-xs">Padam</button>
+                </div>
+            `).join('');
+        }
+
+        // --- ASSIGNMENT LOGIC ---
         window.openAssignModal = (id) => {
             const booking = allBookings.find(b => b.id === id);
             if(!booking) return;
@@ -323,15 +338,39 @@
             const start = booking.start.toDate ? booking.start.toDate() : new Date(booking.start);
             document.getElementById('modal-date').textContent = start.toLocaleDateString('ms-MY');
 
-            // Default values
-            document.getElementById('modal-vehicle').value = (booking.vehicle === "Menunggu Tetapan Admin") ? "" : booking.vehicle;
-            document.getElementById('modal-driver').value = booking.driverName || "";
-            document.getElementById('modal-dept').value = booking.department || "PPD MIRI";
+            // Populate Dropdowns Dynamically
+            const vSelect = document.getElementById('modal-vehicle');
+            vSelect.innerHTML = '<option value="">-- Sila Pilih --</option>';
+            vehicleList.forEach(v => {
+                vSelect.innerHTML += `<option value="${v.fullName}">${v.fullName}</option>`;
+            });
+            // Option manual untuk kes sewaan
+            vSelect.innerHTML += `<option value="KENDERAAN LUAR / SEWAAN">KENDERAAN LUAR / SEWAAN</option>`;
+
+            const dSelect = document.getElementById('modal-driver');
+            dSelect.innerHTML = '<option value="">-- Sila Pilih Pemandu --</option>';
+            driverList.forEach(d => {
+                // Simpan dept dalam data attribute
+                dSelect.innerHTML += `<option value="${d.name}" data-dept="${d.dept}">${d.name}</option>`;
+            });
+
+            // Set current values if assigned
+            if (booking.vehicle && booking.vehicle !== "Menunggu Tetapan Admin") vSelect.value = booking.vehicle;
+            if (booking.driverName) dSelect.value = booking.driverName;
+            document.getElementById('modal-dept').value = booking.department || "";
         };
 
-        window.closeModal = () => {
-            document.getElementById('assign-modal').classList.add('hidden');
-        };
+        window.autoFillDept = () => {
+            const dSelect = document.getElementById('modal-driver');
+            const selectedOption = dSelect.options[dSelect.selectedIndex];
+            const dept = selectedOption.getAttribute('data-dept');
+            if(dept) {
+                document.getElementById('modal-dept').value = dept;
+            } else {
+                document.getElementById('modal-dept').value = ""; // Clear if custom/none
+                document.getElementById('modal-dept').readOnly = false; // Allow manual edit
+            }
+        }
 
         window.saveAssignment = async (e) => {
             e.preventDefault();
@@ -344,13 +383,12 @@
                 const ref = doc(db, `artifacts/${appId}/public/data/spark_vehicle_bookings`, id);
                 await updateDoc(ref, {
                     vehicle: document.getElementById('modal-vehicle').value,
-                    driverName: document.getElementById('modal-driver').value.toUpperCase(),
-                    department: document.getElementById('modal-dept').value.toUpperCase(),
+                    driverName: document.getElementById('modal-driver').value,
+                    department: document.getElementById('modal-dept').value,
                     status: 'DILULUSKAN' 
                 });
                 closeModal();
             } catch (err) {
-                console.error(err);
                 alert("Gagal. Pastikan anda login.");
             } finally {
                 btn.disabled = false;
@@ -358,26 +396,65 @@
             }
         };
 
-        window.rejectBooking = async (id) => {
-            if(confirm("Adakah anda pasti mahu MENOLAK permohonan ini?")) {
-                try {
-                    const ref = doc(db, `artifacts/${appId}/public/data/spark_vehicle_bookings`, id);
-                    await updateDoc(ref, {
-                        status: 'DITOLAK',
-                        vehicle: 'PERMOHONAN DITOLAK'
-                    });
-                } catch(err) { alert("Gagal mengemaskini."); }
-            }
+        // --- CORE FUNCTIONS (Stats, Table, Paging) ---
+        function calculateStats() {
+            const total = allBookings.length;
+            const lulus = allBookings.filter(b => b.status === 'DILULUSKAN').length;
+            const gagal = allBookings.filter(b => b.status === 'DITOLAK').length;
+            document.getElementById('stat-total').textContent = total;
+            document.getElementById('stat-lulus').textContent = lulus;
+            document.getElementById('stat-gagal').textContent = gagal;
+        }
+
+        window.changeRowsPerPage = () => {
+            rowsPerPage = parseInt(document.getElementById('rows-per-page').value);
+            currentPage = 1; 
+            renderTable();
         };
 
-        window.deleteBooking = async (id) => {
-            if(confirm("AWAS: Adakah anda pasti mahu memadam rekod ini sepenuhnya? Data akan hilang.")) {
-                try {
-                    await deleteDoc(doc(db, `artifacts/${appId}/public/data/spark_vehicle_bookings`, id));
-                } catch(err) { alert("Gagal memadam."); }
-            }
-        };
+        window.prevPage = () => { if (currentPage > 1) { currentPage--; renderTable(); } };
+        window.nextPage = () => { if (currentPage < Math.ceil(allBookings.length / rowsPerPage)) { currentPage++; renderTable(); } };
 
+        function renderTable() {
+            const tbody = document.getElementById('admin-table-body');
+            tbody.innerHTML = '';
+            const startIdx = (currentPage - 1) * rowsPerPage;
+            const paginatedItems = allBookings.slice(startIdx, startIdx + rowsPerPage);
+
+            document.getElementById('show-start').textContent = allBookings.length > 0 ? startIdx + 1 : 0;
+            document.getElementById('show-end').textContent = Math.min(startIdx + rowsPerPage, allBookings.length);
+            document.getElementById('show-total').textContent = allBookings.length;
+            document.getElementById('btn-prev').disabled = currentPage === 1;
+            document.getElementById('btn-next').disabled = (startIdx + rowsPerPage) >= allBookings.length;
+
+            paginatedItems.forEach(b => {
+                const start = b.start.toDate ? b.start.toDate() : new Date(b.start);
+                const end = b.end.toDate ? b.end.toDate() : new Date(b.end);
+                
+                let badgeClass = "badge-proses";
+                let statusText = "BARU / PROSES";
+                if (b.status === 'DILULUSKAN') { badgeClass = "badge-lulus"; statusText = "DILULUSKAN"; }
+                else if (b.status === 'DITOLAK') { badgeClass = "badge-tolak"; statusText = "DITOLAK"; }
+
+                const vehicleText = (b.vehicle === "Menunggu Tetapan Admin" || !b.vehicle) ? `<span class="text-gray-400 italic text-xs">Belum ditetapkan</span>` : `<span class="font-bold text-rose-600 text-xs">${b.vehicle}</span>`;
+                const driverInfo = b.driverName ? `<div class="text-xs font-semibold">${b.driverName}</div><div class="text-[10px] text-gray-500">${b.department || '-'}</div>` : `<span class="text-gray-400 text-xs">-</span>`;
+
+                tbody.innerHTML += `
+                    <tr>
+                        <td><div class="font-medium text-gray-900 text-sm">${start.toLocaleDateString('ms-MY')}</div><div class="text-xs text-gray-500">${formatTime(start)}</div></td>
+                        <td><div class="font-bold text-gray-800 uppercase text-xs break-words w-48">${b.programName}</div><div class="text-xs text-gray-500 mt-1">Oleh: ${b.bookedBy_name}</div>${b.vipNames ? `<div class="mt-1 text-[10px] bg-rose-50 text-rose-700 px-1 rounded inline-block border border-rose-100">VIP: ${b.vipNames}</div>` : ''}</td>
+                        <td><div class="text-xs whitespace-pre-line max-w-xs overflow-hidden text-ellipsis text-gray-600" title="${b.destination}">${b.destination}</div></td>
+                        <td><span class="badge ${badgeClass}">${statusText}</span><div class="mt-1">${vehicleText}</div></td>
+                        <td>${driverInfo}</td>
+                        <td class="text-center whitespace-nowrap"><div class="flex flex-col gap-1"><button onclick="openAssignModal('${b.id}')" class="btn bg-indigo-600 text-white px-2 py-1 rounded text-xs hover:bg-indigo-700 shadow-sm">${b.status === 'DILULUSKAN' ? 'Kemaskini' : 'Luluskan'}</button>${b.status !== 'DITOLAK' ? `<button onclick="rejectBooking('${b.id}')" class="btn bg-yellow-500 text-white px-2 py-1 rounded text-xs hover:bg-yellow-600 shadow-sm">Tolak</button>` : ''}<button onclick="deleteBooking('${b.id}')" class="btn text-red-500 hover:text-red-700 text-xs underline">Padam</button></div></td>
+                    </tr>
+                `;
+            });
+        }
+
+        window.closeModal = () => document.getElementById('assign-modal').classList.add('hidden');
+        window.rejectBooking = async (id) => { if(confirm("Tolak permohonan ini?")) { await updateDoc(doc(db, `artifacts/${appId}/public/data/spark_vehicle_bookings`, id), { status: 'DITOLAK', vehicle: 'PERMOHONAN DITOLAK' }); } };
+        window.deleteBooking = async (id) => { if(confirm("Padam rekod ini?")) { await deleteDoc(doc(db, `artifacts/${appId}/public/data/spark_vehicle_bookings`, id)); } };
         function formatTime(date) { return date.toLocaleTimeString('ms-MY', {hour: '2-digit', minute:'2-digit'}); }
     </script>
 </body>
