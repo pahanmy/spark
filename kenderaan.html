@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SPARKfleet – Kalendar Tempahan Kenderaan</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Poppins', sans-serif; background-color: #f8f9fa; }
+        .card { background-color: white; border-radius: 0.75rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
+        .btn { transition: 0.3s; }
+        .btn:hover { transform: translateY(-2px); }
+        .calendar-day { min-height: 100px; display: flex; flex-direction: column; }
+        .calendar-day.has-events { background-color: #fff1f2; cursor: pointer; } /* Merah muda untuk kenderaan */
+        .calendar-day.has-events:hover { background-color: #ffe4e6; }
+        .calendar-day.selected { border: 2px solid #e11d48; background-color: #fda4af; }
+        .calendar-day.is-today { background-color: #fef9c3; border: 1px solid #facc15; }
+        .modal-backdrop { background-color: rgba(0,0,0,0.5); }
+        .tab-button.active { border-bottom: 2px solid #e11d48; color: #e11d48; font-weight: 600; }
+    </style>
+</head>
+<body class="bg-gray-50 flex flex-col min-h-screen">
+
+    <header class="bg-white shadow-sm sticky top-0 z-10">
+        <div class="max-w-screen-2xl mx-auto py-4 px-4 sm:px-6 lg:px-8 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="bg-rose-600 p-2 rounded-lg text-white">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" viewBox="0 0 20 20" fill="currentColor"><path d="M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" /><path d="M3 4a1 1 0 00-1 1v10a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H10a.75.75 0 01.75.75v.5a.75.75 0 00.75.75h3a.75.75 0 00.75-.75v-.5a.75.75 0 01.75-.75h1.05a2.5 2.5 0 014.9 0H19a1 1 0 001-1V5a1 1 0 00-1-1H3zM14 7a1 1 0 00-1 1v3a1 1 0 001 1h2a1 1 0 001-1V8a1 1 0 00-1-1h-2z" /></svg>
+                </div>
+                <div><h1 class="text-2xl font-bold text-rose-600">SPARKfleet</h1><p class="text-sm text-gray-500">Kalendar Tempahan Kenderaan Jabatan</p></div>
+            </div>
+            <div class="flex items-center gap-2">
+                <a href="index.html" class="btn bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg shadow-md text-sm">Halaman Utama</a>
+                <a href="semak.html" class="btn bg-rose-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-rose-700 text-sm">Tempah Kenderaan</a>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-screen-2xl mx-auto py-6 sm:px-6 lg:px-8 flex-grow w-full">
+        <div class="grid grid-cols-1 lg:grid-cols-3 lg:gap-8">
+            <div class="lg:col-span-2">
+                <div class="card p-6">
+                    <div class="flex flex-wrap items-end gap-4 mb-6 bg-gray-50 p-4 rounded-lg border">
+                        <div class="flex-grow"><label class="block text-sm font-medium text-gray-700">Bulan</label><select id="month-select" class="mt-1 block w-full border-gray-300 rounded-md py-2"></select></div>
+                        <div class="flex-grow"><label class="block text-sm font-medium text-gray-700">Tahun</label><select id="year-select" class="mt-1 block w-full border-gray-300 rounded-md py-2"></select></div>
+                        <div class="flex-grow"><label class="block text-sm font-medium text-gray-700">Jenis Kenderaan</label><select id="vehicle-select" class="mt-1 block w-full border-gray-300 rounded-md py-2"><option value="">SEMUA KENDERAAN</option></select></div>
+                        <div class="flex-grow"><label class="block text-sm font-medium text-gray-700">Carian</label><input type="text" id="search-input" placeholder="Destinasi / Program..." class="mt-1 block w-full border-gray-300 rounded-md py-2 px-3"></div>
+                    </div>
+
+                    <div class="border-b border-gray-200 mb-6">
+                        <nav class="-mb-px flex space-x-8">
+                            <button onclick="showTab('calendar')" id="tab-calendar" class="tab-button active py-3 px-1 border-b-2 text-sm font-medium">Kalendar Bulanan</button>
+                            <button onclick="showTab('list')" id="tab-list" class="tab-button py-3 px-1 border-b-2 border-transparent text-sm font-medium">Senarai Keseluruhan</button>
+                        </nav>
+                    </div>
+
+                    <div id="calendar-tab-content" class="tab-content">
+                        <div class="flex justify-between items-center mb-4">
+                            <button id="prev-month-btn" class="p-2 rounded-full hover:bg-gray-100">&lt;</button>
+                            <h2 id="calendar-header" class="text-xl font-bold text-gray-800 uppercase"></h2>
+                            <button id="next-month-btn" class="p-2 rounded-full hover:bg-gray-100">&gt;</button>
+                        </div>
+                        <div class="grid grid-cols-7 gap-2 text-center font-semibold text-sm text-gray-600 mb-2 uppercase"><div>Ahad</div><div>Isnin</div><div>Selasa</div><div>Rabu</div><div>Khamis</div><div>Jumaat</div><div>Sabtu</div></div>
+                        <div id="calendar-grid" class="grid grid-cols-7 gap-2"></div>
+                    </div>
+
+                    <div id="list-tab-content" class="tab-content hidden">
+                        <div class="table-container max-h-[80vh] overflow-y-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50"><tr><th class="p-3 text-left text-xs font-medium text-gray-500 uppercase">Tarikh</th><th class="p-3 text-left text-xs font-medium text-gray-500 uppercase">Kenderaan</th><th class="p-3 text-left text-xs font-medium text-gray-500 uppercase">Destinasi & Tujuan</th><th class="p-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th></tr></thead>
+                                <tbody id="full-list-table-body" class="bg-white divide-y divide-gray-200"></tbody>
+                            </table>
+                        </div>
+                        <p id="no-list-data" class="text-center text-gray-500 py-10 hidden">Tiada tempahan.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="lg:col-span-1 mt-8 lg:mt-0">
+                <div class="card p-6 h-full">
+                    <h3 class="text-xl font-bold text-gray-800 mb-4 uppercase">Tempahan: <span id="selected-date-text">HARI INI</span></h3>
+                    <div id="booking-list-content" class="space-y-4"></div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // GANTI DENGAN CONFIG FIREBASE ANDA SENDIRI
+        const firebaseConfig = { apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM", authDomain: "myqrhadir.firebaseapp.com", projectId: "myqrhadir", storageBucket: "myqrhadir.appspot.com", messagingSenderId: "799691133747", appId: "1:799691133747:web:835a5e3e9413eace806446" };
+        
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        const appId = firebaseConfig.projectId;
+
+        let allBookings = [];
+        let currentDate = new Date();
+        let activeTab = 'calendar';
+
+        // Definisi Kenderaan
+        const vehicleDetails = {
+            "Toyota Hilux (QAA 1234)": { type: "4WD", short: "Hilux" },
+            "Van Toyota Hiace (QAB 5678)": { type: "Van", short: "Van Hiace" },
+            "Bas Mini (QAC 9012)": { type: "Bus", short: "Bas Mini" }
+        };
+
+        onAuthStateChanged(auth, async (user) => { if (user) main(); else signInAnonymously(auth); });
+
+        function main() {
+            setupEventListeners();
+            populateFilters();
+            listenForData();
+        }
+
+        function setupEventListeners() {
+            document.getElementById('month-select').addEventListener('change', updateView);
+            document.getElementById('year-select').addEventListener('change', updateView);
+            document.getElementById('vehicle-select').addEventListener('change', updateView);
+            document.getElementById('search-input').addEventListener('input', updateView);
+            document.getElementById('prev-month-btn').addEventListener('click', () => changeMonth(-1));
+            document.getElementById('next-month-btn').addEventListener('click', () => changeMonth(1));
+        }
+
+        function populateFilters() {
+            const vehicleSelect = document.getElementById('vehicle-select');
+            Object.keys(vehicleDetails).forEach(v => {
+                vehicleSelect.innerHTML += `<option value="${v}">${v}</option>`;
+            });
+
+            const monthSelect = document.getElementById('month-select');
+            ["Jan", "Feb", "Mac", "Apr", "Mei", "Jun", "Jul", "Ogos", "Sep", "Okt", "Nov", "Dis"].forEach((m, i) => {
+                monthSelect.innerHTML += `<option value="${i}" ${i === new Date().getMonth() ? 'selected' : ''}>${m}</option>`;
+            });
+
+            const yearSelect = document.getElementById('year-select');
+            const y = new Date().getFullYear();
+            yearSelect.innerHTML = `<option value="${y}">${y}</option><option value="${y+1}">${y+1}</option>`;
+        }
+
+        function listenForData() {
+            // PERHATIAN: Collection name ialah 'spark_vehicle_bookings'
+            const q = query(collection(db, `artifacts/${appId}/public/data/spark_vehicle_bookings`), orderBy("start", "asc"));
+            onSnapshot(q, (snapshot) => {
+                allBookings = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                updateView();
+            });
+        }
+
+        window.showTab = (tab) => {
+            activeTab = tab;
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.getElementById(`${tab}-tab-content`).classList.remove('hidden');
+            document.querySelectorAll('.tab-button').forEach(el => el.classList.remove('active'));
+            document.getElementById(`tab-${tab}`).classList.add('active');
+            updateView();
+        }
+
+        function updateView() {
+            if (activeTab === 'calendar') renderCalendar();
+            else renderList();
+        }
+
+        function renderCalendar() {
+            const year = parseInt(document.getElementById('year-select').value);
+            const month = parseInt(document.getElementById('month-select').value);
+            document.getElementById('calendar-header').textContent = `${document.getElementById('month-select').options[month].text} ${year}`;
+            
+            const grid = document.getElementById('calendar-grid');
+            grid.innerHTML = '';
+            
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const firstDay = new Date(year, month, 1).getDay();
+
+            for(let i=0; i<firstDay; i++) grid.innerHTML += '<div></div>';
+
+            for(let day=1; day<=daysInMonth; day++) {
+                const date = new Date(year, month, day);
+                const events = getBookingsForDate(date);
+                
+                let dayHtml = `
+                    <div class="calendar-day border rounded-md p-2 transition ${events.length ? 'has-events' : 'bg-white'}" onclick="showDayDetails('${date.toISOString()}')">
+                        <div class="font-bold text-gray-700">${day}</div>
+                        <div class="text-xs space-y-1 mt-1">
+                            ${events.map(e => `<div class="bg-rose-100 text-rose-800 rounded px-1 truncate">${vehicleDetails[e.vehicle]?.short || 'Kenderaan'}</div>`).join('')}
+                        </div>
+                    </div>`;
+                grid.innerHTML += dayHtml;
+            }
+        }
+
+        function getBookingsForDate(date) {
+            const search = document.getElementById('search-input').value.toLowerCase();
+            const filterVehicle = document.getElementById('vehicle-select').value;
+            
+            return allBookings.filter(b => {
+                const start = b.start.toDate();
+                const end = b.end.toDate();
+                const bookingDate = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+                const queryDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+                
+                const isDateMatch = queryDate >= bookingDate && queryDate <= new Date(end.getFullYear(), end.getMonth(), end.getDate());
+                const isVehicleMatch = !filterVehicle || b.vehicle === filterVehicle;
+                const isSearchMatch = (b.programName || '').toLowerCase().includes(search) || (b.destination || '').toLowerCase().includes(search);
+
+                return isDateMatch && isVehicleMatch && isSearchMatch;
+            });
+        }
+
+        window.showDayDetails = (dateStr) => {
+            const date = new Date(dateStr);
+            const bookings = getBookingsForDate(date);
+            const listContainer = document.getElementById('booking-list-content');
+            document.getElementById('selected-date-text').textContent = date.toLocaleDateString('ms-MY');
+
+            if(!bookings.length) {
+                listContainer.innerHTML = '<p class="text-center text-gray-500 py-4">Tiada tempahan.</p>';
+                return;
+            }
+
+            listContainer.innerHTML = bookings.map(b => `
+                <div class="bg-white border p-4 rounded-lg shadow-sm">
+                    <p class="font-bold text-rose-600">${b.vehicle}</p>
+                    <p class="font-medium text-gray-800">${b.programName}</p>
+                    <p class="text-sm text-gray-600 mt-1">Destinasi: ${b.destination || 'Tidak dinyatakan'}</p>
+                    <div class="text-xs text-gray-500 mt-2 pt-2 border-t">
+                        <p>Masa: ${formatTime(b.start.toDate())} - ${formatTime(b.end.toDate())}</p>
+                        <p>Pemohon: ${b.bookedBy_name}</p>
+                    </div>
+                </div>
+            `).join('');
+        };
+
+        function renderList() {
+            // Logik senarai penuh sama seperti tempahanbilik.html tetapi diadaptasi
+            const tbody = document.getElementById('full-list-table-body');
+            tbody.innerHTML = '';
+            // (Logik render senarai ringkas untuk menjimatkan ruang kod...)
+             const bookings = allBookings.sort((a,b) => b.start.toDate() - a.start.toDate()); // Terkini atas
+             bookings.forEach(b => {
+                 tbody.innerHTML += `
+                    <tr class="hover:bg-gray-50 border-b">
+                        <td class="p-3 text-sm text-gray-600">${b.start.toDate().toLocaleDateString('ms-MY')}</td>
+                        <td class="p-3 text-sm font-medium">${vehicleDetails[b.vehicle]?.short || b.vehicle}</td>
+                        <td class="p-3 text-sm text-gray-600">
+                            <div class="font-medium">${b.destination}</div>
+                            <div class="text-xs">${b.programName}</div>
+                        </td>
+                        <td class="p-3 text-sm"><span class="px-2 py-1 bg-green-100 text-green-800 rounded text-xs">Aktif</span></td>
+                    </tr>
+                 `;
+             });
+        }
+
+        function formatTime(date) { return date.toLocaleTimeString('ms-MY', {hour: '2-digit', minute:'2-digit'}); }
+        function changeMonth(dir) {
+            const select = document.getElementById('month-select');
+            select.selectedIndex = (select.selectedIndex + dir + 12) % 12;
+            select.dispatchEvent(new Event('change'));
+        }
+    </script>
+</body>
+</html>
