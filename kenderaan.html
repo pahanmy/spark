@@ -16,16 +16,9 @@
         .calendar-day { min-height: 100px; display: flex; flex-direction: column; cursor: pointer; background-color: white; border: 1px solid #e5e7eb; }
         .calendar-day:hover { background-color: #fff1f2; border-color: #f43f5e; }
         
-        /* HARI SEMASA (Lebih Jelas) */
-        .calendar-day.is-today { 
-            background-color: #eff6ff; /* Biru Muda */
-            border: 2px solid #3b82f6; /* Bingkai Biru Gelap */
-        }
-        .calendar-day.is-today .day-number {
-            color: #1d4ed8;
-            font-weight: 800;
-        }
-
+        /* HARI SEMASA */
+        .calendar-day.is-today { background-color: #eff6ff; border: 2px solid #3b82f6; }
+        .calendar-day.is-today .day-number { color: #1d4ed8; font-weight: 800; }
         .calendar-day.selected { border: 2px solid #e11d48; background-color: #ffe4e6; }
         
         /* Tab */
@@ -113,7 +106,7 @@
                                 <thead class="bg-gray-50 sticky top-0">
                                     <tr>
                                         <th class="p-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Tarikh</th>
-                                        <th class="p-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Kenderaan</th>
+                                        <th class="p-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Kenderaan & Pemandu</th>
                                         <th class="p-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Destinasi & Program</th>
                                         <th class="p-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
                                     </tr>
@@ -147,7 +140,6 @@
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // CONFIG
         const firebaseConfig = { apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM", authDomain: "myqrhadir.firebaseapp.com", projectId: "myqrhadir", storageBucket: "myqrhadir.appspot.com", messagingSenderId: "799691133747", appId: "1:799691133747:web:835a5e3e9413eace806446" };
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
@@ -236,18 +228,17 @@
                 const events = getBookingsForDate(date);
                 const isToday = new Date().toDateString() === date.toDateString();
                 
-                // EVENTS HTML
                 const eventsHtml = events.map(e => {
                     let displayLabel = 'KDRN';
                     let badgeClass = "bg-rose-100 text-rose-800 border-rose-200";
 
-                    // LOGIK: Jika belum ditetapkan, paparkan nama PROGRAM (Tajuk)
                     if (e.vehicle === "Menunggu Tetapan Admin") {
-                        // Ambil nama program, pendekkan jika perlu
                         displayLabel = (e.programName || "MOHON").substring(0, 15);
                         badgeClass = "bg-yellow-100 text-yellow-800 border-yellow-200"; 
                     } else if (vehicleDetails[e.vehicle]) {
                         displayLabel = vehicleDetails[e.vehicle].short;
+                    } else {
+                        displayLabel = e.vehicle.substring(0, 10);
                     }
 
                     return `<div class="${badgeClass} text-[10px] font-bold px-1 rounded truncate mt-1 border" title="${e.vehicle}: ${e.destination}">${displayLabel}</div>`;
@@ -255,7 +246,6 @@
 
                 const dayDivId = `day-div-${day}`;
                 
-                // Tambah class 'is-today' jika hari ini
                 let dayHtml = `
                     <div id="${dayDivId}" class="calendar-day border rounded-md p-2 transition hover:shadow-md ${isToday ? 'is-today' : 'bg-white'}" onclick="showDayDetails('${date.toISOString()}', '${dayDivId}')">
                         <div class="flex justify-between items-start">
@@ -304,13 +294,18 @@
             }
 
             listContainer.innerHTML = bookings.map(b => {
-                // LOGIK STATUS DISPLAY
                 let vehicleDisplay = b.vehicle;
                 let statusColor = "text-rose-600 border-rose-500";
                 
                 if (b.vehicle === "Menunggu Tetapan Admin") {
-                    vehicleDisplay = "MENUNGGU KEPUTUSAN"; // Tukar teks ini
+                    vehicleDisplay = "MENUNGGU KEPUTUSAN";
                     statusColor = "text-yellow-600 border-yellow-500";
+                }
+
+                // Driver info in detail view
+                let driverSection = '';
+                if(b.driverName) {
+                    driverSection = `<div class="pt-2 mt-2 border-t border-gray-200"><strong class="text-gray-500 text-[10px] uppercase">Pemandu:</strong> <span class="font-bold text-gray-800">${b.driverName}</span></div>`;
                 }
 
                 return `
@@ -328,7 +323,7 @@
                             <span><strong class="text-gray-400 text-[10px] uppercase">Pax:</strong> ${b.passengers || '-'}</span>
                         </div>
                         <div><strong class="text-gray-400 text-[10px] uppercase">Pemohon:</strong> ${b.bookedBy_name}</div>
-                        ${b.vipNames ? `<div class="text-rose-700 bg-rose-50 px-1 py-0.5 rounded border border-rose-100"><strong class="uppercase text-[10px]">VIP:</strong> ${b.vipNames}</div>` : ''}
+                        ${driverSection}
                     </div>
                 </div>`;
             }).join('');
@@ -358,13 +353,18 @@
             filtered.forEach(b => {
                  const start = b.start.toDate ? b.start.toDate() : new Date(b.start);
                  
-                 // LOGIK BADGE LIST
                  let statusBadge = `<span class="px-2 py-1 bg-green-100 text-green-800 rounded-full text-[10px] font-bold uppercase">DITERIMA</span>`;
-                 let vehicleText = b.vehicle;
+                 let vehicleText = `<span class="font-bold text-rose-600 text-xs">${b.vehicle}</span>`;
+                 
+                 // KEMAS KINI: Paparan Pemandu
+                 let driverInfo = '<span class="text-gray-400 italic text-[10px]">Belum ditetapkan</span>';
                  
                  if (b.vehicle === "Menunggu Tetapan Admin") {
-                     statusBadge = `<span class="px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full text-[10px] font-bold uppercase">KEPUTUSAN PERMOHONAN</span>`;
-                     vehicleText = "-";
+                     statusBadge = `<span class="px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full text-[10px] font-bold uppercase">MENUNGGU KEPUTUSAN</span>`;
+                     vehicleText = '<span class="text-gray-500 italic text-xs">Belum ditetapkan</span>';
+                     driverInfo = '<span class="text-gray-400 italic text-[10px]">-</span>';
+                 } else if (b.driverName) {
+                     driverInfo = `<div class="text-gray-800 text-xs font-semibold mt-1 flex items-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-gray-500" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd" /></svg> ${b.driverName}</div>`;
                  }
 
                  tbody.innerHTML += `
@@ -373,7 +373,10 @@
                             ${start.toLocaleDateString('ms-MY', {day:'2-digit', month:'2-digit'})}
                             <br><span class="text-xs text-gray-500">${formatTime(b.start)}</span>
                         </td>
-                        <td class="p-3 text-sm font-semibold text-rose-600 uppercase text-xs">${vehicleText}</td>
+                        <td class="p-3 text-sm uppercase">
+                            ${vehicleText}
+                            ${driverInfo}
+                        </td>
                         <td class="p-3 text-sm text-gray-700">
                             <div class="font-bold text-xs line-clamp-2" title="${b.destination}">${b.destination}</div>
                             <div class="text-[10px] mt-1 text-gray-500 uppercase">${b.programName}</div>
