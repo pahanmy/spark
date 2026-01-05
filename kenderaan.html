@@ -15,18 +15,22 @@
         /* Gaya Kalendar */
         .calendar-day { min-height: 100px; display: flex; flex-direction: column; cursor: pointer; background-color: white; border: 1px solid #e5e7eb; }
         .calendar-day:hover { background-color: #fff1f2; border-color: #f43f5e; }
-        
-        /* HARI SEMASA */
         .calendar-day.is-today { background-color: #eff6ff; border: 2px solid #3b82f6; }
         .calendar-day.is-today .day-number { color: #1d4ed8; font-weight: 800; }
         .calendar-day.selected { border: 2px solid #e11d48; background-color: #ffe4e6; }
         
-        /* Tab */
+        /* Tab & Modal */
         .tab-button { padding-bottom: 0.75rem; color: #6b7280; font-weight: 500; border-bottom: 2px solid transparent; transition: 0.2s; }
         .tab-button:hover { color: #374151; border-color: #d1d5db; }
         .tab-button.active { color: #e11d48; border-color: #e11d48; font-weight: 600; }
+        .modal-backdrop { background-color: rgba(0,0,0,0.5); }
         
         .table-container { max-height: 70vh; overflow-y: auto; }
+
+        /* Timeline dalam Modal */
+        .timeline-box { position: relative; padding-left: 1.5rem; border-left: 2px solid #e2e8f0; padding-bottom: 1rem; }
+        .timeline-box:last-child { border-left: 2px solid transparent; }
+        .timeline-marker { position: absolute; left: -0.4rem; top: 0.3rem; height: 0.8rem; width: 0.8rem; border-radius: 50%; background-color: #e11d48; border: 2px solid white; }
     </style>
 </head>
 <body class="bg-gray-50 flex flex-col min-h-screen">
@@ -63,21 +67,21 @@
                     <div class="flex flex-wrap items-end gap-4 mb-6 bg-gray-50 p-4 rounded-lg border">
                         <div class="flex-grow">
                             <label class="block text-sm font-medium text-gray-700">Bulan</label>
-                            <select id="month-select" class="mt-1 block w-full border-gray-300 rounded-md py-2 px-3 focus:outline-none focus:ring-rose-500 focus:border-rose-500 sm:text-sm shadow-sm"></select>
+                            <select id="month-select" class="mt-1 block w-full border-gray-300 rounded-md py-2 px-3 sm:text-sm"></select>
                         </div>
                         <div class="flex-grow">
                             <label class="block text-sm font-medium text-gray-700">Tahun</label>
-                            <select id="year-select" class="mt-1 block w-full border-gray-300 rounded-md py-2 px-3 focus:outline-none focus:ring-rose-500 focus:border-rose-500 sm:text-sm shadow-sm"></select>
+                            <select id="year-select" class="mt-1 block w-full border-gray-300 rounded-md py-2 px-3 sm:text-sm"></select>
                         </div>
                         <div class="flex-grow">
                             <label class="block text-sm font-medium text-gray-700">Jenis Kenderaan</label>
-                            <select id="vehicle-select" class="mt-1 block w-full border-gray-300 rounded-md py-2 px-3 focus:outline-none focus:ring-rose-500 focus:border-rose-500 sm:text-sm shadow-sm">
+                            <select id="vehicle-select" class="mt-1 block w-full border-gray-300 rounded-md py-2 px-3 sm:text-sm">
                                 <option value="">SEMUA KENDERAAN</option>
                             </select>
                         </div>
                         <div class="flex-grow-[2]">
                             <label class="block text-sm font-medium text-gray-700">Carian</label>
-                            <input type="text" id="search-input" placeholder="Cth: Lawatan Kerja..." class="mt-1 block w-full border-gray-300 rounded-md py-2 px-3 focus:outline-none focus:ring-rose-500 focus:border-rose-500 sm:text-sm shadow-sm">
+                            <input type="text" id="search-input" placeholder="Cth: Lawatan Kerja..." class="mt-1 block w-full border-gray-300 rounded-md py-2 px-3 sm:text-sm">
                         </div>
                     </div>
 
@@ -132,6 +136,31 @@
             </div>
         </div>
     </main>
+
+    <div id="itinerary-modal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop hidden">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg p-6 m-4 transform transition-all relative">
+            <button onclick="closeItineraryModal()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+            
+            <h3 class="text-xl font-bold text-gray-900 mb-2 border-b pb-3 uppercase">📋 Jadual Pergerakan</h3>
+            
+            <div class="mb-4 bg-gray-50 p-3 rounded-lg text-sm border border-gray-100">
+                <p class="font-bold text-gray-800 uppercase" id="modal-program-name"></p>
+                <div class="flex justify-between mt-2 text-gray-600">
+                    <span id="modal-driver-info"></span>
+                    <span id="modal-vehicle-info" class="font-semibold text-rose-600"></span>
+                </div>
+            </div>
+
+            <div class="max-h-[60vh] overflow-y-auto pr-2" id="modal-timeline-content">
+                </div>
+
+            <div class="mt-6 text-right">
+                <button onclick="closeItineraryModal()" class="btn bg-gray-200 text-gray-800 font-semibold py-2 px-6 rounded-lg text-sm hover:bg-gray-300">Tutup</button>
+            </div>
+        </div>
+    </div>
     
     <footer class="text-center py-4 mt-8 border-t border-gray-200"><p class="text-xs text-gray-500">Sistem SPARKfleet</p></footer>
 
@@ -140,6 +169,7 @@
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
+        // CONFIG
         const firebaseConfig = { apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM", authDomain: "myqrhadir.firebaseapp.com", projectId: "myqrhadir", storageBucket: "myqrhadir.appspot.com", messagingSenderId: "799691133747", appId: "1:799691133747:web:835a5e3e9413eace806446" };
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
@@ -209,6 +239,7 @@
             else renderList();
         }
 
+        // --- CALENDAR LOGIC ---
         function renderCalendar() {
             const year = parseInt(document.getElementById('year-select').value) || new Date().getFullYear();
             const month = parseInt(document.getElementById('month-select').value) || new Date().getMonth();
@@ -260,6 +291,117 @@
             }
         }
 
+        // --- LIST LOGIC (WITH NEW BUTTON) ---
+        function renderList() {
+            const tbody = document.getElementById('full-list-table-body');
+            const noData = document.getElementById('no-list-data');
+            const search = document.getElementById('search-input').value.toLowerCase();
+            const filterVehicle = document.getElementById('vehicle-select').value;
+            const yearFilter = parseInt(document.getElementById('year-select').value);
+            const monthFilter = parseInt(document.getElementById('month-select').value);
+
+            const filtered = allBookings.filter(b => {
+                if(!b.start) return false;
+                const start = b.start.toDate ? b.start.toDate() : new Date(b.start);
+                return start.getFullYear() === yearFilter && 
+                       start.getMonth() === monthFilter &&
+                       (!filterVehicle || b.vehicle === filterVehicle) &&
+                       ((b.programName || '').toLowerCase().includes(search));
+            }).sort((a,b) => (b.start.toDate ? b.start.toDate() : new Date(b.start)) - (a.start.toDate ? a.start.toDate() : new Date(a.start)));
+
+            tbody.innerHTML = '';
+            if (filtered.length === 0) { noData.classList.remove('hidden'); return; }
+            noData.classList.add('hidden');
+
+            filtered.forEach(b => {
+                 const start = b.start.toDate ? b.start.toDate() : new Date(b.start);
+                 
+                 let statusBadge = `<span class="px-2 py-1 bg-green-100 text-green-800 rounded-full text-[10px] font-bold uppercase">DITERIMA</span>`;
+                 let vehicleText = `<span class="font-bold text-rose-600 text-xs">${b.vehicle}</span>`;
+                 let driverInfo = '<span class="text-gray-400 italic text-[10px]">Belum ditetapkan</span>';
+                 
+                 if (b.vehicle === "Menunggu Tetapan Admin") {
+                     statusBadge = `<span class="px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full text-[10px] font-bold uppercase">KEPUTUSAN PERMOHONAN</span>`;
+                     vehicleText = '<span class="text-gray-500 italic text-xs">Belum ditetapkan</span>';
+                     driverInfo = '<span class="text-gray-400 italic text-[10px]">-</span>';
+                 } else if (b.driverName) {
+                     driverInfo = `<div class="text-gray-800 text-xs font-semibold mt-1 flex items-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-gray-500" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd" /></svg> ${b.driverName}</div>`;
+                 }
+
+                 // BUTANG LIHAT JADUAL ditambah di sini
+                 tbody.innerHTML += `
+                    <tr class="hover:bg-gray-50 border-b last:border-0">
+                        <td class="p-3 text-sm text-gray-900 font-medium">
+                            ${start.toLocaleDateString('ms-MY', {day:'2-digit', month:'2-digit'})}
+                            <br><span class="text-xs text-gray-500">${formatTime(b.start)}</span>
+                        </td>
+                        <td class="p-3 text-sm uppercase">
+                            ${vehicleText}
+                            ${driverInfo}
+                        </td>
+                        <td class="p-3 text-sm text-gray-700">
+                            <div class="text-[10px] mt-1 text-gray-900 font-semibold uppercase mb-1">${b.programName}</div>
+                            <button onclick="openItineraryModal('${b.id}')" class="text-rose-600 hover:text-rose-800 text-xs flex items-center gap-1 border border-rose-200 bg-rose-50 px-2 py-1 rounded">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd" /></svg>
+                                Lihat Jadual Pergerakan
+                            </button>
+                        </td>
+                        <td class="p-3 text-sm">${statusBadge}</td>
+                    </tr>`;
+            });
+        }
+
+        // --- ITINERARY MODAL LOGIC ---
+        window.openItineraryModal = (id) => {
+            const booking = allBookings.find(b => b.id === id);
+            if(!booking) return;
+
+            document.getElementById('itinerary-modal').classList.remove('hidden');
+            document.getElementById('modal-program-name').textContent = booking.programName;
+            document.getElementById('modal-driver-info').textContent = booking.driverName ? `Pemandu: ${booking.driverName}` : 'Pemandu: -';
+            document.getElementById('modal-vehicle-info').textContent = booking.vehicle === "Menunggu Tetapan Admin" ? "Belum Ditetapkan" : booking.vehicle;
+
+            const container = document.getElementById('modal-timeline-content');
+            let contentHtml = '';
+
+            const rawDest = booking.destination || '';
+            
+            // Format Timeline yang Cantik
+            // Split by newline first (jika ada multi-day)
+            const lines = rawDest.split('\n');
+            
+            lines.forEach(line => {
+                if(line.includes('[Hari')) {
+                    // Header Hari
+                    contentHtml += `<div class="font-bold text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded mt-3 mb-2 inline-block">${line.replace(':', '')}</div>`;
+                } else if (line.trim() !== '') {
+                    // Baris Lokasi (Cuba pisahkan ->)
+                    const parts = line.split('->');
+                    parts.forEach(part => {
+                        // Bersihkan teks (buang tanda dash - jika ada di awal)
+                        const cleanPart = part.replace(/^-\s*/, '').trim(); 
+                        if(cleanPart) {
+                            contentHtml += `
+                                <div class="timeline-box">
+                                    <div class="timeline-marker"></div>
+                                    <p class="text-sm text-gray-800">${cleanPart}</p>
+                                </div>
+                            `;
+                        }
+                    });
+                }
+            });
+
+            if(!contentHtml) contentHtml = '<p class="text-gray-400 italic text-center">Tiada maklumat pergerakan terperinci.</p>';
+            
+            container.innerHTML = contentHtml;
+        };
+
+        window.closeItineraryModal = () => {
+            document.getElementById('itinerary-modal').classList.add('hidden');
+        };
+
+        // --- HELPER FUNCTIONS ---
         function getBookingsForDate(date) {
             const search = document.getElementById('search-input').value.toLowerCase();
             const filterVehicle = document.getElementById('vehicle-select').value;
@@ -302,7 +444,6 @@
                     statusColor = "text-yellow-600 border-yellow-500";
                 }
 
-                // Driver info in detail view
                 let driverSection = '';
                 if(b.driverName) {
                     driverSection = `<div class="pt-2 mt-2 border-t border-gray-200"><strong class="text-gray-500 text-[10px] uppercase">Pemandu:</strong> <span class="font-bold text-gray-800">${b.driverName}</span></div>`;
@@ -317,7 +458,10 @@
                         </div>
                     </div>
                     <div class="mt-3 text-xs text-gray-600 space-y-2 bg-gray-50 p-2 rounded border border-gray-100">
-                        <div><strong class="text-gray-400 text-[10px] uppercase">Destinasi:</strong><div class="whitespace-pre-line pl-1">${b.destination || '-'}</div></div>
+                        <button onclick="openItineraryModal('${b.id}')" class="w-full text-left text-rose-600 font-bold text-[10px] uppercase hover:underline flex items-center gap-1 mb-1">
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                            Lihat Jadual Penuh
+                        </button>
                         <div class="flex justify-between">
                             <span><strong class="text-gray-400 text-[10px] uppercase">Masa:</strong> ${formatTime(b.start)} - ${formatTime(b.end)}</span>
                             <span><strong class="text-gray-400 text-[10px] uppercase">Pax:</strong> ${b.passengers || '-'}</span>
@@ -328,63 +472,6 @@
                 </div>`;
             }).join('');
         };
-
-        function renderList() {
-            const tbody = document.getElementById('full-list-table-body');
-            const noData = document.getElementById('no-list-data');
-            const search = document.getElementById('search-input').value.toLowerCase();
-            const filterVehicle = document.getElementById('vehicle-select').value;
-            const yearFilter = parseInt(document.getElementById('year-select').value);
-            const monthFilter = parseInt(document.getElementById('month-select').value);
-
-            const filtered = allBookings.filter(b => {
-                if(!b.start) return false;
-                const start = b.start.toDate ? b.start.toDate() : new Date(b.start);
-                return start.getFullYear() === yearFilter && 
-                       start.getMonth() === monthFilter &&
-                       (!filterVehicle || b.vehicle === filterVehicle) &&
-                       ((b.programName || '').toLowerCase().includes(search));
-            }).sort((a,b) => (b.start.toDate ? b.start.toDate() : new Date(b.start)) - (a.start.toDate ? a.start.toDate() : new Date(a.start)));
-
-            tbody.innerHTML = '';
-            if (filtered.length === 0) { noData.classList.remove('hidden'); return; }
-            noData.classList.add('hidden');
-
-            filtered.forEach(b => {
-                 const start = b.start.toDate ? b.start.toDate() : new Date(b.start);
-                 
-                 let statusBadge = `<span class="px-2 py-1 bg-green-100 text-green-800 rounded-full text-[10px] font-bold uppercase">DITERIMA</span>`;
-                 let vehicleText = `<span class="font-bold text-rose-600 text-xs">${b.vehicle}</span>`;
-                 
-                 // KEMAS KINI: Paparan Pemandu
-                 let driverInfo = '<span class="text-gray-400 italic text-[10px]">Belum ditetapkan</span>';
-                 
-                 if (b.vehicle === "Menunggu Tetapan Admin") {
-                     statusBadge = `<span class="px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full text-[10px] font-bold uppercase">MENUNGGU KEPUTUSAN</span>`;
-                     vehicleText = '<span class="text-gray-500 italic text-xs">Belum ditetapkan</span>';
-                     driverInfo = '<span class="text-gray-400 italic text-[10px]">-</span>';
-                 } else if (b.driverName) {
-                     driverInfo = `<div class="text-gray-800 text-xs font-semibold mt-1 flex items-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-gray-500" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd" /></svg> ${b.driverName}</div>`;
-                 }
-
-                 tbody.innerHTML += `
-                    <tr class="hover:bg-gray-50 border-b last:border-0">
-                        <td class="p-3 text-sm text-gray-900 font-medium">
-                            ${start.toLocaleDateString('ms-MY', {day:'2-digit', month:'2-digit'})}
-                            <br><span class="text-xs text-gray-500">${formatTime(b.start)}</span>
-                        </td>
-                        <td class="p-3 text-sm uppercase">
-                            ${vehicleText}
-                            ${driverInfo}
-                        </td>
-                        <td class="p-3 text-sm text-gray-700">
-                            <div class="font-bold text-xs line-clamp-2" title="${b.destination}">${b.destination}</div>
-                            <div class="text-[10px] mt-1 text-gray-500 uppercase">${b.programName}</div>
-                        </td>
-                        <td class="p-3 text-sm">${statusBadge}</td>
-                    </tr>`;
-            });
-        }
 
         function formatTime(timestamp) { 
             const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
