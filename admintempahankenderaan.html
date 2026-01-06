@@ -30,25 +30,34 @@
         .asset-tab.active { border-bottom: 2px solid #e11d48; color: #e11d48; font-weight: 600; }
         .asset-tab { color: #6b7280; cursor: pointer; padding-bottom: 5px; }
 
-        /* Timeline Styles */
+        /* --- FLIGHT/CAR ITINERARY STYLES (MODAL) --- */
         .flight-segment { position: relative; padding-left: 1.8rem; padding-bottom: 1.5rem; border-left: 2px dashed #cbd5e1; margin-left: 0.5rem; }
         .flight-segment:last-child { border-left: 2px solid transparent; padding-bottom: 0; }
         .flight-icon { position: absolute; left: -0.55rem; top: 0; width: 1.2rem; height: 1.2rem; border: 2px solid #e11d48; border-radius: 50%; background-color: white; display: flex; align-items: center; justify-content: center; color: #e11d48; z-index: 10; }
         .flight-time { font-family: 'Courier Prime', monospace; font-weight: 700; color: #be123c; font-size: 0.75rem; background-color: #ffe4e6; padding: 2px 6px; border-radius: 4px; display: inline-block; margin-bottom: 4px; letter-spacing: -0.5px; }
         .flight-loc { font-weight: 700; color: #1f2937; text-transform: uppercase; font-size: 0.85rem; line-height: 1.3; display: block; }
-        .flight-day-header { font-size: 0.7rem; font-weight: 800; text-transform: uppercase; color: #4b5563; background: #f3f4f6; padding: 4px 10px; border-radius: 6px; display: inline-block; margin: 10px 0 10px 0; border: 1px solid #e5e7eb; letter-spacing: 0.05em; }
-
-        /* Mini Itinerary */
-        .mini-segment { position: relative; padding-left: 1rem; border-left: 1px dashed #cbd5e1; padding-bottom: 0.5rem; margin-left: 0.25rem; }
-        .mini-segment:last-child { border-left: 1px solid transparent; }
-        .mini-icon { position: absolute; left: -0.35rem; top: 0.15rem; width: 0.8rem; height: 0.8rem; background: white; border: 1px solid #e11d48; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #e11d48; }
-
-        /* Tab Styles (Modal) */
-        .tab-nav-btn { padding: 8px 16px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; border-bottom: 2px solid transparent; color: #9ca3af; margin-right: 4px; transition: 0.2s; background: none; }
+        
+        /* GAYA TAB JADUAL */
+        .tab-nav-btn {
+            padding: 8px 16px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            border-bottom: 2px solid transparent;
+            color: #9ca3af;
+            margin-right: 4px;
+            transition: 0.2s;
+            background: none;
+        }
         .tab-nav-btn:hover { color: #4b5563; background: #f9fafb; }
         .tab-nav-btn.active { color: #e11d48; border-bottom: 2px solid #e11d48; background: #fff1f2; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* --- MINI ITINERARY STYLES (TABLE) --- */
+        .mini-segment { position: relative; padding-left: 1rem; border-left: 1px dashed #cbd5e1; padding-bottom: 0.5rem; margin-left: 0.25rem; }
+        .mini-segment:last-child { border-left: 1px solid transparent; }
+        .mini-icon { position: absolute; left: -0.35rem; top: 0.15rem; width: 0.8rem; height: 0.8rem; background: white; border: 1px solid #e11d48; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #e11d48; }
     </style>
 </head>
 <body class="bg-gray-50 flex flex-col min-h-screen">
@@ -319,6 +328,95 @@
         }
 
         // --- CORE FUNCTIONS ---
+        function calculateStats() {
+            document.getElementById('stat-total').textContent = allBookings.length;
+            document.getElementById('stat-lulus').textContent = allBookings.filter(b => b.status === 'DILULUSKAN').length;
+            document.getElementById('stat-gagal').textContent = allBookings.filter(b => b.status === 'DITOLAK').length;
+        }
+
+        // --- RENDER TABLE ---
+        function renderTable() {
+            const tbody = document.getElementById('admin-table-body'); 
+            tbody.innerHTML = '';
+            
+            const startIdx = (currentPage - 1) * rowsPerPage; 
+            const paginatedItems = allBookings.slice(startIdx, startIdx + rowsPerPage);
+            
+            document.getElementById('show-start').textContent = allBookings.length > 0 ? startIdx + 1 : 0;
+            document.getElementById('show-end').textContent = Math.min(startIdx + rowsPerPage, allBookings.length);
+            document.getElementById('show-total').textContent = allBookings.length;
+            document.getElementById('btn-prev').disabled = currentPage === 1;
+            document.getElementById('btn-next').disabled = (startIdx + rowsPerPage) >= allBookings.length;
+
+            paginatedItems.forEach(b => {
+                const start = b.start.toDate ? b.start.toDate() : new Date(b.start);
+                let badgeClass = b.status === 'DILULUSKAN' ? "badge-lulus" : (b.status === 'DITOLAK' ? "badge-tolak" : "badge-proses");
+                let statusText = b.status === 'DILULUSKAN' ? "DILULUSKAN" : (b.status === 'DITOLAK' ? "DITOLAK" : "BARU / PROSES");
+                
+                let driverDisplay = (b.status === 'DILULUSKAN') ? b.driverName : null;
+                const driverInfo = driverDisplay ? `<div class="text-xs font-semibold text-gray-800 break-words w-40">${driverDisplay}</div><div class="text-[10px] text-gray-500">${b.department || ''}</div>` : `<span class="text-gray-400 text-xs italic">Belum ditetapkan</span>`;
+                const vehicleText = (b.vehicle === "Menunggu Tetapan Admin" || !b.vehicle || b.vehicle === "PERMOHONAN DITOLAK") ? `<span class="text-gray-400 italic text-xs">${b.vehicle || 'Belum ditetapkan'}</span>` : `<span class="font-bold text-rose-600 text-xs block w-24 break-words">${b.vehicle}</span>`;
+
+                const itineraryHtml = renderTableItinerary(b.destination);
+
+                // Action Buttons Construction
+                let actions = `
+                    <button onclick="viewDetails('${b.id}')" class="text-gray-500 hover:text-indigo-600 bg-gray-100 p-2 rounded-full hover:bg-indigo-50 shadow-sm" title="Lihat & Proses">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                    </button>
+                `;
+
+                if (b.status === 'DILULUSKAN') {
+                    // NEW: SHARE BUTTON
+                    actions += `
+                        <button onclick="openNotifyModal('${b.id}')" class="text-green-500 hover:text-green-700 p-2 rounded-full hover:bg-green-50" title="Maklumkan Pemohon (WhatsApp)">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" /></svg>
+                        </button>
+                    `;
+                }
+
+                if (b.status !== 'DITOLAK') {
+                    actions += `<button onclick="rejectBooking('${b.id}')" class="text-red-500 hover:text-red-700 p-2 rounded-full hover:bg-red-50" title="Tolak Segera"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" /></svg></button>`;
+                }
+                
+                actions += `<button onclick="deleteBooking('${b.id}')" class="text-gray-400 hover:text-red-600 p-2 rounded-full hover:bg-gray-100" title="Padam Rekod"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>`;
+
+                tbody.innerHTML += `
+                    <tr>
+                        <td><div class="font-medium text-gray-900 text-sm">${start.toLocaleDateString('ms-MY')}</div><div class="text-xs text-gray-500">${formatTime(start)}</div></td>
+                        <td><div class="font-bold text-gray-800 uppercase text-xs break-words w-48">${b.programName}</div><div class="text-xs text-gray-500 mt-1">Oleh: ${b.bookedBy_name}</div></td>
+                        <td onclick="viewDetails('${b.id}')" class="cursor-pointer hover:bg-gray-50">${itineraryHtml}</td>
+                        <td><span class="badge ${badgeClass}">${statusText}</span><div class="mt-1">${vehicleText}</div></td>
+                        <td>${driverInfo}</td>
+                        <td class="text-center whitespace-nowrap"><div class="flex items-center justify-center gap-2">${actions}</div></td>
+                    </tr>`;
+            });
+        }
+
+        // --- NEW: NOTIFY SHARE (WHATSAPP/TELEGRAM) ---
+        window.openNotifyModal = (id) => {
+            const booking = allBookings.find(b => b.id === id);
+            if(!booking) return;
+            if(!booking.bookedBy_phone) { alert("Tiada nombor telefon pemohon."); return; }
+            
+            // Format Phone
+            let phone = booking.bookedBy_phone.replace(/\D/g,'');
+            if(phone.startsWith('01')) phone = '6' + phone;
+            
+            const start = booking.start.toDate ? booking.start.toDate() : new Date(booking.start);
+            const startStr = start.toLocaleDateString('ms-MY');
+
+            const msg = `*SPARKfleet: Status Permohonan*\n\nTahniah, permohonan kenderaan anda telah *DILULUSKAN*.\n\n📅 Program: ${booking.programName}\n🗓 Tarikh: ${startStr}\n🚗 Kenderaan: ${booking.vehicle}\n👨‍✈️ Pemandu: ${booking.driverName}\n\nSila semak butiran lanjut di sistem.`;
+            const encodedMsg = encodeURIComponent(msg);
+
+            if(confirm("Tekan OK untuk WhatsApp, atau CANCEL untuk Telegram.")) {
+                 window.open(`https://wa.me/${phone}?text=${encodedMsg}`, '_blank');
+            } else {
+                 window.open(`https://t.me/+${phone}?text=${encodedMsg}`, '_blank');
+            }
+        };
+
+        // --- ASSET MANAGEMENT ---
         window.openAssetModal = () => document.getElementById('asset-modal').classList.remove('hidden');
         window.closeAssetModal = () => document.getElementById('asset-modal').classList.add('hidden');
         window.switchAssetTab = (tab) => {
@@ -341,12 +439,6 @@
         function renderVehicleList() { document.getElementById('vehicle-list').innerHTML = vehicleList.map(v => `<div class="flex justify-between items-center bg-white p-2 border rounded shadow-sm"><div><p class="text-xs font-bold uppercase text-gray-800">${v.name}</p><p class="text-[10px] text-gray-500 uppercase">${v.plate}</p></div><button onclick="deleteAsset('spark_fleet_vehicles', '${v.id}')" class="text-red-500 hover:text-red-700 text-xs">Padam</button></div>`).join(''); }
         function renderDriverList() { document.getElementById('driver-list').innerHTML = driverList.map(d => `<div class="flex justify-between items-center bg-white p-2 border rounded shadow-sm"><div><p class="text-xs font-bold uppercase text-gray-800">${d.name}</p><p class="text-[10px] text-gray-500 uppercase">${d.dept}</p></div><button onclick="deleteAsset('spark_fleet_drivers', '${d.id}')" class="text-red-500 hover:text-red-700 text-xs">Padam</button></div>`).join(''); }
 
-        function calculateStats() {
-            document.getElementById('stat-total').textContent = allBookings.length;
-            document.getElementById('stat-lulus').textContent = allBookings.filter(b => b.status === 'DILULUSKAN').length;
-            document.getElementById('stat-gagal').textContent = allBookings.filter(b => b.status === 'DITOLAK').length;
-        }
-
         // --- VIEW DETAILS LOGIC ---
         window.viewDetails = (id) => {
             const b = allBookings.find(item => item.id === id);
@@ -361,22 +453,16 @@
             document.getElementById('view-applicant').textContent = b.bookedBy_name || '-';
             document.getElementById('view-sector').textContent = b.bookedBy_sector || '-';
             document.getElementById('view-phone').textContent = b.bookedBy_phone || '-';
+            const vipEl = document.getElementById('view-vip'); if(vipEl) vipEl.textContent = (b.vipNames && b.vipNames.trim() !== "") ? b.vipNames : 'TIADA';
             
-            const vipEl = document.getElementById('view-vip');
-            if(vipEl) vipEl.textContent = (b.vipNames && b.vipNames.trim() !== "") ? b.vipNames : 'TIADA';
-            
-            const contactLabel = document.getElementById('view-contact-label');
-            const contactName = document.getElementById('view-contact');
-            const contactPhone = document.getElementById('view-contact-phone');
-
             if (b.status === 'DILULUSKAN') {
-                if(contactLabel) contactLabel.textContent = "Pemandu Ditugaskan:";
-                if(contactName) contactName.textContent = b.driverName || '-';
-                if(contactPhone) contactPhone.textContent = ""; 
+                document.getElementById('view-contact-label').textContent = "Pemandu Ditugaskan:";
+                document.getElementById('view-contact').textContent = b.driverName || '-';
+                document.getElementById('view-contact-phone').textContent = ""; 
             } else {
-                if(contactLabel) contactLabel.textContent = "Pegawai Dihubungi:";
-                if(contactName) contactName.textContent = b.driverName || '-'; 
-                if(contactPhone) contactPhone.textContent = b.contactPhone || '-';
+                document.getElementById('view-contact-label').textContent = "Pegawai Dihubungi:";
+                document.getElementById('view-contact').textContent = b.driverName || '-'; 
+                document.getElementById('view-contact-phone').textContent = b.contactPhone || '-';
             }
 
             const s = new Date(start); s.setHours(0,0,0,0);
@@ -412,34 +498,7 @@
                 btnReject.textContent = "Tolak Permohonan";
                 statusDisplay.innerHTML = `<span class="text-yellow-600">STATUS: BARU / PROSES</span>`;
             }
-
             document.getElementById('details-modal').classList.remove('hidden');
-        };
-
-        // --- NEW: SHARE NOTIFICATION ---
-        window.openNotifyModal = (id) => {
-            const booking = allBookings.find(b => b.id === id);
-            if(!booking) return;
-            if(!booking.bookedBy_phone) { alert("Tiada nombor telefon pemohon."); return; }
-            
-            // Auto-format phone (019... -> 6019...)
-            let phone = booking.bookedBy_phone.replace(/\D/g,'');
-            if(phone.startsWith('01')) phone = '6' + phone;
-            
-            const start = booking.start.toDate ? booking.start.toDate() : new Date(booking.start);
-            const startStr = start.toLocaleDateString('ms-MY');
-
-            const msg = `*SPARKfleet: Status Permohonan*\n\nTahniah, permohonan kenderaan anda telah *DILULUSKAN*.\n\n📅 Program: ${booking.programName}\n🗓 Tarikh: ${startStr}\n🚗 Kenderaan: ${booking.vehicle}\n👨‍✈️ Pemandu: ${booking.driverName}\n\nSila semak butiran lanjut di sistem.`;
-            const encodedMsg = encodeURIComponent(msg);
-
-            // Create simple selection using native confirm is tricky for 2 options.
-            // Let's just prompt or open WA default.
-            // Better: Add a choice.
-            if(confirm("Hantar notifikasi melalui WhatsApp? (Klik Cancel untuk Telegram)")) {
-                 window.open(`https://wa.me/${phone}?text=${encodedMsg}`, '_blank');
-            } else {
-                 window.open(`https://t.me/+${phone}?text=${encodedMsg}`, '_blank');
-            }
         };
 
         window.closeDetailsModal = () => document.getElementById('details-modal').classList.add('hidden');
@@ -451,7 +510,7 @@
             }
         };
 
-        // --- ASSIGNMENT LOGIC (KONVOI + DAILY) ---
+        // --- ASSIGNMENT LOGIC ---
         window.addAssignmentRow = (defaultVehicle = "", defaultDriver = "") => {
             const container = document.getElementById('assignment-container');
             const rowId = 'row-' + Date.now();
@@ -460,7 +519,6 @@
             vOptions += `<option value="KENDERAAN LUAR / SEWAAN" ${"KENDERAAN LUAR / SEWAAN" === defaultVehicle ? 'selected' : ''}>KENDERAAN LUAR</option>`;
             let dOptions = '<option value="">Pilih Pemandu</option>';
             driverList.forEach(d => dOptions += `<option value="${d.name}" ${d.name === defaultDriver ? 'selected' : ''}>${d.name}</option>`);
-            
             const rowHtml = `<div id="${rowId}" class="flex gap-2 items-center assignment-row bg-gray-50 p-2 rounded border border-gray-200"><div class="flex-grow"><select class="assign-vehicle block w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-rose-500 uppercase">${vOptions}</select></div><div class="flex-grow"><select class="assign-driver block w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-rose-500 uppercase" onchange="autoUpdateDept(this)">${dOptions}</select></div><button type="button" onclick="document.getElementById('${rowId}').remove()" class="text-red-500 hover:text-red-700 p-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button></div>`;
             container.insertAdjacentHTML('beforeend', rowHtml);
         };
@@ -471,11 +529,10 @@
             document.getElementById('assign-modal').classList.remove('hidden');
             document.getElementById('edit-id').value = id;
             document.getElementById('modal-program').textContent = booking.programName;
-            
             const start = booking.start.toDate ? booking.start.toDate() : new Date(booking.start);
             const end = booking.end.toDate ? booking.end.toDate() : new Date(booking.end);
             document.getElementById('modal-date').textContent = start.toLocaleDateString('ms-MY');
-            
+
             document.getElementById('edit-start-date').value = start.toISOString();
             document.getElementById('edit-end-date').value = end.toISOString();
 
@@ -493,7 +550,6 @@
             } else {
                 addAssignmentRow();
             }
-            
             document.getElementById('modal-dept').value = booking.department || "";
 
             const s = new Date(start); s.setHours(0,0,0,0);
@@ -510,21 +566,9 @@
                 for(let i=0; i<dayCount; i++) {
                     let d = new Date(s); d.setDate(s.getDate() + i);
                     let dateStr = d.toLocaleDateString('ms-MY', {day:'2-digit', month:'2-digit'});
-                    
-                    dailyContainer.innerHTML += `
-                    <div class="flex items-center gap-2 daily-row border-b border-gray-100 pb-2">
-                        <div class="w-16 text-xs font-bold text-gray-500">${dateStr}</div>
-                        <select class="daily-select w-24 text-[10px] border border-gray-300 rounded" onchange="toggleDailyInput(this)">
-                            <option value="same">Sama</option>
-                            <option value="diff">Lain-lain</option>
-                        </select>
-                        <input type="text" class="daily-input hidden flex-grow text-xs border border-gray-300 rounded px-2 py-1 uppercase" placeholder="Nama Pemandu / Kenderaan (Hari ini)">
-                        <input type="hidden" class="daily-date-val" value="${dateStr}">
-                    </div>`;
+                    dailyContainer.innerHTML += `<div class="flex items-center gap-2 daily-row border-b border-gray-100 pb-2"><div class="w-16 text-xs font-bold text-gray-500">${dateStr}</div><select class="daily-select w-24 text-[10px] border border-gray-300 rounded" onchange="toggleDailyInput(this)"><option value="same">Sama</option><option value="diff">Lain-lain</option></select><input type="text" class="daily-input hidden flex-grow text-xs border border-gray-300 rounded px-2 py-1 uppercase" placeholder="Nama Pemandu / Kenderaan (Hari ini)"><input type="hidden" class="daily-date-val" value="${dateStr}"></div>`;
                 }
-            } else {
-                dailySection.classList.add('hidden');
-            }
+            } else { dailySection.classList.add('hidden'); }
         };
 
         window.toggleDailyInput = (selectEl) => {
@@ -542,24 +586,16 @@
         window.closeModal = () => document.getElementById('assign-modal').classList.add('hidden');
 
         window.saveAssignment = async (e) => {
-            e.preventDefault(); 
-            const id = document.getElementById('edit-id').value; 
-            const btn = e.target.querySelector('button[type="submit"]'); 
-            btn.disabled = true; btn.innerText = "Menyimpan...";
-            
+            e.preventDefault(); const id = document.getElementById('edit-id').value; const btn = e.target.querySelector('button[type="submit"]'); btn.disabled = true; btn.innerText = "Menyimpan...";
             const rows = document.querySelectorAll('.assignment-row');
-            let vehiclesArr = [];
-            let driversArr = [];
+            let vehiclesArr = []; let driversArr = [];
             rows.forEach(row => {
                 const v = row.querySelector('.assign-vehicle').value;
                 const d = row.querySelector('.assign-driver').value;
                 if(v && d) { vehiclesArr.push(v); driversArr.push(d); }
             });
 
-            if (vehiclesArr.length === 0) {
-                alert("Sila tetapkan sekurang-kurangnya satu pasangan kenderaan dan pemandu utama.");
-                btn.disabled = false; btn.innerText = "Simpan & Luluskan"; return;
-            }
+            if (vehiclesArr.length === 0) { alert("Sila tetapkan sekurang-kurangnya satu pasangan kenderaan dan pemandu utama."); btn.disabled = false; btn.innerText = "Simpan & Luluskan"; return; }
 
             const mainVehicles = vehiclesArr.join(' & ');
             const mainDrivers = driversArr.join(' & ');
@@ -584,8 +620,7 @@
 
             try {
                 await updateDoc(doc(db, `artifacts/${appId}/public/data/spark_vehicle_bookings`, id), {
-                    vehicle: mainVehicles, 
-                    driverName: finalDriverString,
+                    vehicle: mainVehicles, driverName: finalDriverString,
                     department: document.getElementById('modal-dept').value,
                     status: 'DILULUSKAN' 
                 });
@@ -594,10 +629,7 @@
         };
 
         function renderItineraryWithTabs(destinationText, containerId, startDateObj, totalDays) {
-            const container = document.getElementById(containerId);
-            container.innerHTML = '';
-            const destText = destinationText || "";
-            let dayContentMap = {};
+            const container = document.getElementById(containerId); container.innerHTML = ''; const destText = destinationText || ""; let dayContentMap = {};
             if (destText.includes('[Hari')) {
                 const blocks = destText.split(/(?=\[.*\]:)/g);
                 blocks.forEach(block => {
@@ -667,6 +699,10 @@
             return html;
         }
 
+        window.changeRowsPerPage = () => { rowsPerPage = parseInt(document.getElementById('rows-per-page').value); currentPage = 1; renderTable(); };
+        window.prevPage = () => { if (currentPage > 1) { currentPage--; renderTable(); } };
+        window.nextPage = () => { if (currentPage < Math.ceil(allBookings.length / rowsPerPage)) { currentPage++; renderTable(); } };
+        
         window.deleteAsset = async (col, id) => { if(confirm("Padam?")) await deleteDoc(doc(db, `artifacts/${appId}/public/data/${col}`, id)); }
         window.deleteBooking = async (id) => { if(confirm("ADAKAH ANDA PASTI? Rekod ini akan dipadam kekal dari pangkalan data.")) { await deleteDoc(doc(db, `artifacts/${appId}/public/data/spark_vehicle_bookings`, id)); } };
         function formatTime(d) { return d.toLocaleTimeString('ms-MY', {hour: '2-digit', minute:'2-digit'}); }
