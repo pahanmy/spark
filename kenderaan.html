@@ -51,7 +51,6 @@
         .emoji-btn { font-size: 1.5rem; filter: grayscale(100%); transition: all 0.2s; cursor: pointer; opacity: 0.5; }
         .emoji-btn:hover { transform: scale(1.2); opacity: 1; filter: grayscale(0%); }
         .emoji-wrapper.selected .emoji-btn { transform: scale(1.3); filter: grayscale(0%); opacity: 1; }
-        
         .emoji-1.selected .emoji-btn { text-shadow: 0 0 10px rgba(239, 68, 68, 0.6); } 
         .emoji-2.selected .emoji-btn { text-shadow: 0 0 10px rgba(249, 115, 22, 0.6); } 
         .emoji-3.selected .emoji-btn { text-shadow: 0 0 10px rgba(234, 179, 8, 0.6); }  
@@ -462,10 +461,9 @@
             listContainer.innerHTML = bookings.map(b => {
                 let vehicleDisplay = b.vehicle === "Menunggu Tetapan Admin" ? "MENUNGGU KEPUTUSAN" : b.vehicle;
                 let statusColor = b.vehicle === "Menunggu Tetapan Admin" ? "text-yellow-600 border-yellow-500" : "text-rose-600 border-rose-500";
-                
-                // Show driver only if approved, else dash
+                // Show driver only if APPROVED, else dash
                 let driverText = (b.status === 'DILULUSKAN' && b.driverName) ? b.driverName : '-';
-                
+
                 return `
                 <div class="bg-white border-l-4 ${statusColor} p-4 rounded shadow-sm hover:shadow-md transition">
                     <div>
@@ -511,11 +509,12 @@
 
             filtered.forEach(b => {
                  const start = b.start.toDate ? b.start.toDate() : new Date(b.start);
+                 const end = b.end.toDate ? b.end.toDate() : new Date(b.end);
+                 
                  let vehicleText = `<span class="font-bold text-rose-600 text-xs">${b.vehicle}</span>`;
                  let driverInfo = '<span class="text-gray-400 italic text-[10px]">Belum ditetapkan</span>';
                  let statusBadge = `<span class="px-2 py-1 bg-green-100 text-green-800 rounded-full text-[10px] font-bold uppercase">DITERIMA</span>`;
                  
-                 // --- HIGHLIGHT ROW ---
                  let rowClass = "hover:bg-gray-50 border-b last:border-0";
                  if (b.status === 'DILULUSKAN') {
                      rowClass = "bg-green-50 hover:bg-green-100 border-b last:border-0 border-l-4 border-l-green-500";
@@ -531,7 +530,7 @@
 
                  let actionButtons = `<div class="flex gap-2 mt-1 flex-wrap">`;
 
-                 // BUTANG SHARE
+                 // BUTANG SHARE (NEW)
                  actionButtons += `
                     <button onclick="openShareModal('${b.programName}', '${start.toLocaleDateString()}', '${b.status}')" class="text-white bg-blue-500 hover:bg-blue-600 text-xs flex items-center gap-1 px-3 py-1 rounded shadow-sm">
                         <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg> Kongsi
@@ -551,12 +550,23 @@
                  }
                  actionButtons += `</div>`;
 
+                 // LOGIK TARIKH (DATE RANGE)
+                 const startDateStr = start.toLocaleDateString('ms-MY', {day:'2-digit', month:'2-digit'});
+                 const endDateStr = end.toLocaleDateString('ms-MY', {day:'2-digit', month:'2-digit'});
+                 const isMultiDay = startDateStr !== endDateStr;
+
+                 let dateDisplay = "";
+                 if (isMultiDay) {
+                    dateDisplay = `<div class="font-bold text-indigo-700 text-sm">${startDateStr} - ${endDateStr}</div>
+                                   <div class="text-[10px] text-gray-500">${formatTime(start)}</div>`;
+                 } else {
+                    dateDisplay = `<div class="font-medium text-gray-900 text-sm">${startDateStr}</div>
+                                   <div class="text-xs text-gray-500">${formatTime(start)} - ${formatTime(end)}</div>`;
+                 }
+
                  tbody.innerHTML += `
                     <tr class="${rowClass}">
-                        <td class="p-3 text-sm text-gray-900 font-medium">
-                            ${start.toLocaleDateString('ms-MY', {day:'2-digit', month:'2-digit'})}
-                            <br><span class="text-xs text-gray-500">${formatTime(b.start)}</span>
-                        </td>
+                        <td class="p-3 text-sm text-gray-900 font-medium">${dateDisplay}</td>
                         <td class="p-3 text-sm uppercase">${vehicleText}${driverInfo}</td>
                         <td class="p-3 text-sm text-gray-700">
                             <div class="text-[10px] mt-1 text-gray-900 font-semibold uppercase mb-1">${b.programName}</div>
@@ -568,7 +578,7 @@
             });
         }
 
-        // --- SHARE MODAL LOGIC ---
+        // --- SHARE MODAL LOGIC (NEW) ---
         window.openShareModal = (program, date, status) => {
             shareDetails = { program, date, status };
             document.getElementById('share-modal').classList.remove('hidden');
@@ -590,16 +600,12 @@
             closeShareModal();
         };
 
-        // --- RATING MODAL LOGIC ---
+        // --- RATING MODAL LOGIC (UPDATED FOR 4 CATEGORIES) ---
         window.openRatingModal = (bookingId, driverName, bookerIc) => {
             currentRatingBookingId = bookingId;
             currentRatingBookerIc = bookerIc;
             ratingValues = { driving: 0, punctuality: 0, service: 0, overall: 0 };
-            
-            // Check ID before set (Fix bug)
-            const driverEl = document.getElementById('rating-driver-name');
-            if(driverEl) driverEl.textContent = driverName;
-            
+            document.getElementById('rating-driver-name').textContent = driverName;
             document.getElementById('rating-verify-ic').value = '';
             document.getElementById('rating-comment').value = '';
             document.querySelectorAll('.emoji-wrapper').forEach(el => el.classList.remove('selected'));
@@ -628,7 +634,7 @@
                     ratingPunctuality: ratingValues.punctuality,
                     ratingService: ratingValues.service,
                     ratingOverall: ratingValues.overall,
-                    rating: ratingValues.overall, // Legacy support
+                    rating: ratingValues.overall, // For legacy support
                     ratingComment: document.getElementById('rating-comment').value,
                     ratedAt: serverTimestamp()
                 });
@@ -637,7 +643,7 @@
             } catch (error) { console.error("Error:", error); alert("Gagal menghantar penilaian."); }
         };
 
-        // --- PDF GENERATOR ---
+        // --- PDF GENERATOR (FLIGHT STYLE TIMELINE) ---
         window.downloadBookingPDF = (id) => {
             const b = allBookings.find(x => x.id === id);
             if(!b) return;
@@ -671,26 +677,13 @@
             currentY += 10;
 
             const destText = b.destination || "";
-            // Use same Day Block logic for PDF
-            const dayBlocks = destText.split(/(?=\[.*\]:)/g).filter(b => b.trim() !== '');
-            let lines = [];
-            
-            if(dayBlocks.length > 0) {
-                 dayBlocks.forEach(block => {
-                     const headerMatch = block.match(/^\[(.*?)\]:/);
-                     if (headerMatch) lines.push(headerMatch[0]); 
-                     const contentLines = block.replace(/^\[.*?\]:\s*/, '').trim().split('\n');
-                     lines = lines.concat(contentLines);
-                 });
-            } else {
-                 lines = destText.split('\n');
-            }
+            const rawLines = destText.includes('->') ? destText.split('->') : destText.split('\n');
 
             doc.setFontSize(10);
             const lineX = 40; 
             const contentX = 48; 
 
-            lines.forEach((rawLine, i) => {
+            rawLines.forEach((rawLine, i) => {
                 const line = rawLine.trim();
                 if(!line) return;
 
@@ -723,7 +716,7 @@
                     doc.text(timeStr, 20, currentY);
                 }
 
-                if (i < lines.length - 1) {
+                if (i < rawLines.length - 1) {
                     doc.setDrawColor(180, 180, 180); 
                     doc.setLineDash([1, 1], 0); 
                     doc.line(lineX, currentY + 2, lineX, currentY + 10); 
@@ -755,6 +748,7 @@
             
             let driverText = (b.status === 'DILULUSKAN' && b.driverName) ? b.driverName : '-';
             document.getElementById('modal-driver-info').textContent = `Pemandu: ${driverText}`;
+            document.getElementById('modal-vehicle-info').textContent = b.vehicle;
             
             // Calculate Day Count
             const start = b.start.toDate ? b.start.toDate() : new Date(b.start);
@@ -769,7 +763,8 @@
             
             renderItineraryWithTabs(b.destination, 'modal-timeline-content', start, dayCount);
         };
-
+        
+        // --- FUNGSI RENDER TAB BARU (FORCE DAYS) ---
         function renderItineraryWithTabs(destinationText, containerId, startDateObj, totalDays) {
             const container = document.getElementById(containerId);
             container.innerHTML = '';
@@ -826,7 +821,7 @@
                 container.innerHTML = tabsHtml + contentHtml;
             }
         }
-
+        
         function renderTimelineHTML(text) {
             let html = '';
             const carIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" viewBox="0 0 20 20" fill="currentColor"><path d="M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" /><path d="M3 4a1 1 0 00-1 1v10a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H10a.75.75 0 01.75.75v.5a.75.75 0 00.75.75h3a.75.75 0 00.75-.75v-.5a.75.75 0 01.75-.75h1.05a2.5 2.5 0 014.9 0H19a1 1 0 001-1V5a1 1 0 00-1-1H3zM14 7a1 1 0 00-1 1v3a1 1 0 001 1h2a1 1 0 001-1V8a1 1 0 00-1-1h-2z" /></svg>`;
@@ -848,12 +843,11 @@
             });
             return html;
         }
-
-        // Global Tab Switcher
+        
         window.switchItineraryTab = (containerId, index) => {
             const container = document.getElementById(containerId);
             if(!container) return;
-            const btns = container.querySelectorAll('button.tab-nav-btn'); // More specific selector
+            const btns = container.querySelectorAll('button.tab-nav-btn');
             btns.forEach((btn, i) => { if(i === index) btn.classList.add('active'); else btn.classList.remove('active'); });
             const contents = container.querySelectorAll(`div[id^="content-${containerId}-"]`);
             contents.forEach((div, i) => { if(i === index) div.classList.remove('hidden'); else div.classList.add('hidden'); });
