@@ -6,6 +6,8 @@
     <title>SPARKfleet – Tempah Kenderaan</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@700&display=swap" rel="stylesheet">
+    
     <style>
         body { font-family: 'Poppins', sans-serif; background-color: #f8f9fa; }
         .card { background-color: white; border-radius: 0.75rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
@@ -26,10 +28,77 @@
         /* Paksa Huruf Besar */
         input[type="text"], textarea { text-transform: uppercase; }
 
-        /* Timeline Styles untuk Rumusan */
-        .timeline-item { position: relative; padding-left: 1.25rem; border-left: 2px solid #e5e7eb; padding-bottom: 0.75rem; }
-        .timeline-item:last-child { border-left: 2px solid transparent; }
-        .timeline-dot { position: absolute; left: -0.35rem; top: 0.25rem; height: 0.7rem; width: 0.7rem; border-radius: 50%; background-color: #e11d48; border: 2px solid white; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+        /* --- FLIGHT ITINERARY STYLES (GAYA BARU) --- */
+        
+        /* Garisan Putus-putus Menegak */
+        .flight-segment {
+            position: relative;
+            padding-left: 1.5rem; /* Ruang untuk garisan & ikon */
+            padding-bottom: 1.5rem;
+            border-left: 2px dashed #cbd5e1; /* Garis putus-putus kelabu */
+            margin-left: 0.5rem;
+        }
+        .flight-segment:last-child {
+            border-left: 2px solid transparent; /* Hilangkan garis untuk item terakhir */
+            padding-bottom: 0;
+        }
+
+        /* Ikon Bulatan / Kapal Terbang */
+        .flight-icon {
+            position: absolute;
+            left: -0.55rem; /* Centerkan pada garisan */
+            top: 0.1rem;
+            width: 1.1rem;
+            height: 1.1rem;
+            background-color: white;
+            border: 2px solid #e11d48; /* Rose-600 */
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.6rem;
+            color: #e11d48;
+            z-index: 10;
+        }
+
+        /* Teks Masa (Ala Tiket) */
+        .flight-time {
+            font-family: 'Courier Prime', 'Courier New', monospace; 
+            font-weight: 700;
+            color: #be123c;
+            font-size: 0.75rem;
+            background-color: #ffe4e6;
+            padding: 2px 6px;
+            border-radius: 4px;
+            display: inline-block;
+            margin-bottom: 2px;
+            letter-spacing: -0.5px;
+        }
+
+        /* Teks Lokasi */
+        .flight-loc {
+            font-weight: 700;
+            color: #1f2937;
+            text-transform: uppercase;
+            font-size: 0.8rem;
+            line-height: 1.2;
+            display: block;
+        }
+
+        /* Header Hari (Untuk Multi-day) */
+        .flight-day-header {
+            font-size: 0.65rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            color: #4b5563;
+            background: #f3f4f6;
+            padding: 2px 8px;
+            border-radius: 4px;
+            display: inline-block;
+            margin-bottom: 8px;
+            border: 1px solid #e5e7eb;
+            letter-spacing: 0.05em;
+        }
     </style>
 </head>
 <body class="bg-gray-50 flex flex-col min-h-screen">
@@ -79,7 +148,9 @@
                 </div>
                 
                 <div id="summary-card" class="bg-white rounded-xl shadow-md p-6 border-t-4 border-rose-500 hidden sticky top-24">
-                    <h3 class="font-bold text-gray-800 mb-1 text-lg">Rumusan Pemandu</h3>
+                    <h3 class="font-bold text-gray-800 mb-1 text-lg flex items-center gap-2">
+                        <span>📋 Rumusan Pemandu</span>
+                    </h3>
                     <p class="text-xs text-gray-500 mb-4 border-b pb-2">Semakan pantas jadual perjalanan.</p>
                     
                     <div class="space-y-3 text-sm">
@@ -89,9 +160,12 @@
                         </div>
                         
                         <div class="bg-gray-50 rounded-lg p-3 border border-gray-100">
-                            <p class="text-[10px] text-gray-400 uppercase tracking-wide mb-2">Jadual Pergerakan</p>
+                            <p class="text-[10px] text-gray-400 uppercase tracking-wide mb-2 flex justify-between">
+                                <span>Jadual Pergerakan</span>
+                                <span class="text-rose-500 font-bold">LIVE PREVIEW</span>
+                            </p>
                             <div id="sum-itinerary" class="text-xs">
-                                <p class="text-gray-400 italic text-center py-2">Masa & Lokasi belum diisi</p>
+                                <p class="text-gray-400 italic text-center py-4 border-2 border-dashed rounded-lg">Masa & Lokasi belum diisi</p>
                             </div>
                         </div>
 
@@ -487,50 +561,101 @@
             } catch (err) { console.error(err); }
         };
 
+        // --- FUNGSI UPDATE SUMMARY YANG BARU (FLIGHT ITINERARY STYLE) ---
         window.updateSummary = () => {
+            // 1. Update Header Info
             document.getElementById('sum-program').textContent = document.getElementById('program-name').value.toUpperCase() || '-';
-            const contact = document.getElementById('contact-name').value.toUpperCase();
-            document.getElementById('sum-officer').textContent = contact || 'Tiada';
             
+            // Logic Pegawai Dihubungi
+            const contactName = document.getElementById('contact-name').value.toUpperCase();
+            const sumContactEl = document.getElementById('sum-contact');
+            if(sumContactEl) sumContactEl.textContent = contactName || '-';
+
+            // Logic Penumpang
             const pax = document.getElementById('passenger-count').value;
             document.getElementById('sum-pax').textContent = pax ? `${pax} Orang` : '3 Orang';
             
+            // 2. Build Flight Itinerary HTML
             let html = '';
+
+            // Helper function untuk buat baris (Row Builder)
+            const createFlightRow = (time, loc, isLastItem) => {
+                // Icon: Jika item terakhir, guna petak (Stop), lain guna icon flight/bulat
+                const iconHtml = isLastItem 
+                    ? `<div class="flight-icon bg-rose-600 border-rose-600 text-white">■</div>` // Petak Merah (Tamat)
+                    : `<div class="flight-icon">✈️</div>`; // Kapal terbang (Perlepasan/Transit)
+
+                return `
+                <div class="flight-segment">
+                    ${iconHtml}
+                    <span class="flight-time">${time}</span>
+                    <span class="flight-loc">${loc}</span>
+                </div>`;
+            };
+
             if(!isMultiDay) {
+                // --- SINGLE DAY MODE ---
                 const rows = document.querySelectorAll('#single-day-list .input-row');
                 if(rows.length === 0) {
-                     html = '<p class="text-gray-400 italic text-center py-2">Masa & Lokasi belum diisi</p>';
+                        html = '<div class="text-center py-4 border-2 border-dashed border-gray-200 rounded text-gray-400 text-xs italic bg-gray-50">Menunggu destinasi...</div>';
                 } else {
-                    rows.forEach(row => {
+                    html += '<div class="mt-2 pl-2">'; // Wrapper padding
+                    rows.forEach((row, index) => {
                         const t = row.querySelector('.time-input').value;
                         const l = row.querySelector('.loc-input').value;
+                        const isLast = index === rows.length - 1;
+                        
                         if(t && l) {
-                            html += `<div class="timeline-item"><div class="timeline-dot"></div><span class="font-bold text-gray-700 mr-2">${t}</span><span class="uppercase">${l}</span></div>`;
+                            html += createFlightRow(t, l, isLast);
                         }
                     });
+                    html += '</div>';
                 }
             } else {
-                 const dayWrappers = document.querySelectorAll('.day-content-wrapper');
-                 dayWrappers.forEach(wrapper => {
-                     const label = wrapper.dataset.dateLabel;
-                     const rows = wrapper.querySelectorAll('.input-row');
-                     
-                     let hasContent = false;
-                     let dayHtml = `<div class="mb-2"><p class="font-bold text-gray-800 text-[10px] bg-gray-200 px-1 inline-block rounded mb-1">${label}</p>`;
-                     
-                     rows.forEach(row => {
-                        const t = row.querySelector('.time-input').value;
-                        const l = row.querySelector('.loc-input').value;
-                        if(t && l) {
-                            hasContent = true;
-                            dayHtml += `<div class="timeline-item"><div class="timeline-dot"></div><span class="font-bold text-gray-700 mr-2">${t}</span><span class="uppercase">${l}</span></div>`;
+                    // --- MULTI DAY MODE ---
+                    const dayWrappers = document.querySelectorAll('.day-content-wrapper');
+                    let hasContent = false;
+                    
+                    html += '<div class="mt-2 pl-4">'; // Wrapper padding
+                    
+                    dayWrappers.forEach((wrapper, dayIndex) => {
+                        const label = wrapper.dataset.dateLabel; // e.g., "Hari 1 (12 Oct)"
+                        const rows = wrapper.querySelectorAll('.input-row');
+                        
+                        // Cek jika hari ni ada data
+                        let dayHasData = false;
+                        let dayRowsHtml = '';
+                        
+                        rows.forEach((row, rowIndex) => {
+                            const t = row.querySelector('.time-input').value;
+                            const l = row.querySelector('.loc-input').value;
+                            if(t && l) {
+                                dayHasData = true;
+                                hasContent = true;
+                                // Logic untuk icon last item dalam hari tersebut
+                                const isLastInDay = rowIndex === rows.length - 1;
+                                dayRowsHtml += createFlightRow(t, l, isLastInDay);
+                            }
+                        });
+
+                        if(dayHasData) {
+                            // Masukkan Header Hari & Content Hari
+                            html += `
+                            <div class="mb-2">
+                                <div class="flight-segment border-l-0 pb-0 pl-0">
+                                    <span class="flight-day-header">${label}</span>
+                                </div>
+                                <div class="border-l-2 border-dashed border-gray-300 ml-3 pl-6 -mt-2 pb-4">
+                                     <div style="position: relative; left: -1.75rem;">
+                                        ${dayRowsHtml}
+                                     </div>
+                                </div>
+                            </div>`;
                         }
-                     });
-                     dayHtml += `</div>`;
-                     
-                     if(hasContent) html += dayHtml;
-                 });
-                 if(!html) html = '<p class="text-gray-400 italic text-center py-2">Masa & Lokasi belum diisi</p>';
+                    });
+                    html += '</div>';
+
+                    if(!hasContent) html = '<div class="text-center py-4 border-2 border-dashed border-gray-200 rounded text-gray-400 text-xs italic bg-gray-50">Menunggu destinasi...</div>';
             }
             
             document.getElementById('sum-itinerary').innerHTML = html;
