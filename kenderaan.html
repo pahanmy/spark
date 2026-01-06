@@ -10,6 +10,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
 
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@700&display=swap" rel="stylesheet">
+
     <style>
         body { font-family: 'Poppins', sans-serif; background-color: #f8f9fa; }
         .card { background-color: white; border-radius: 0.75rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
@@ -31,16 +33,72 @@
         
         .table-container { max-height: 70vh; overflow-y: auto; }
 
-        /* Timeline Styles (CANTIK SEPERTI ASAL) */
-        .timeline-box { position: relative; padding-left: 1.5rem; border-left: 2px solid #e2e8f0; padding-bottom: 1.25rem; }
-        .timeline-box:last-child { border-left: 2px solid transparent; }
-        .timeline-marker { position: absolute; left: -0.35rem; top: 0.35rem; height: 0.75rem; width: 0.75rem; border-radius: 50%; background-color: #e11d48; border: 2px solid white; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
-        .timeline-time { font-weight: 700; color: #be123c; font-size: 0.75rem; background-color: #ffe4e6; padding: 2px 6px; border-radius: 4px; display: inline-block; margin-bottom: 4px; }
-        .timeline-loc { font-weight: 600; color: #1f2937; display: block; line-height: 1.2; text-transform: uppercase; font-size: 0.9rem; }
-
         /* Emoji Rating */
         .emoji-btn { font-size: 1.5rem; filter: grayscale(100%); transition: all 0.2s; cursor: default; }
         .emoji-btn.active { filter: grayscale(0%); transform: scale(1.2); }
+
+        /* --- FLIGHT ITINERARY STYLES (GAYA KERETA/FLIGHT) --- */
+        /* Ini adalah style yang sama dari tempahkenderaan.html */
+        
+        .flight-segment {
+            position: relative;
+            padding-left: 1.8rem;
+            padding-bottom: 1.5rem;
+            border-left: 2px dashed #cbd5e1;
+            margin-left: 0.5rem;
+        }
+        .flight-segment:last-child {
+            border-left: 2px solid transparent;
+            padding-bottom: 0;
+        }
+        .flight-icon {
+            position: absolute;
+            left: -0.55rem;
+            top: 0;
+            width: 1.2rem;
+            height: 1.2rem;
+            border: 2px solid #e11d48;
+            border-radius: 50%;
+            background-color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #e11d48;
+            z-index: 10;
+        }
+        .flight-time {
+            font-family: 'Courier Prime', monospace;
+            font-weight: 700;
+            color: #be123c;
+            font-size: 0.75rem;
+            background-color: #ffe4e6;
+            padding: 2px 6px;
+            border-radius: 4px;
+            display: inline-block;
+            margin-bottom: 4px;
+            letter-spacing: -0.5px;
+        }
+        .flight-loc {
+            font-weight: 700;
+            color: #1f2937;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+            line-height: 1.3;
+            display: block;
+        }
+        .flight-day-header {
+            font-size: 0.7rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            color: #4b5563;
+            background: #f3f4f6;
+            padding: 4px 10px;
+            border-radius: 6px;
+            display: inline-block;
+            margin: 10px 0 10px 0;
+            border: 1px solid #e5e7eb;
+            letter-spacing: 0.05em;
+        }
     </style>
 </head>
 <body class="bg-gray-50 flex flex-col min-h-screen">
@@ -127,7 +185,7 @@
                     <div id="list-tab-content" class="tab-content hidden">
                         <div class="table-container">
                             <table class="min-w-full divide-y divide-gray-200">
-                                <thead class="bg-gray-50 sticky top-0">
+                                <thead class="bg-gray-50 sticky top-0 z-10">
                                     <tr>
                                         <th class="p-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Tarikh</th>
                                         <th class="p-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Kenderaan & Pemandu</th>
@@ -163,7 +221,9 @@
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
             
-            <h3 class="text-xl font-bold text-gray-900 mb-2 border-b pb-3 uppercase">📋 Jadual Pergerakan</h3>
+            <h3 class="text-xl font-bold text-gray-900 mb-2 border-b pb-3 uppercase flex items-center gap-2">
+                📋 Jadual Pergerakan
+            </h3>
             
             <div class="mb-4 bg-gray-50 p-3 rounded-lg text-sm border border-gray-100">
                 <p class="font-bold text-gray-800 uppercase" id="modal-program-name"></p>
@@ -552,6 +612,7 @@
             doc.save(`Tempahan_${b.programName.substring(0,10)}.pdf`);
         };
 
+        // --- NEW: ITINERARY MODAL PARSER (GAYA KERETA) ---
         window.openItineraryModal = (id) => {
             const b = allBookings.find(x => x.id === id);
             if(!b) return;
@@ -563,29 +624,69 @@
             const container = document.getElementById('modal-timeline-content');
             let contentHtml = '';
             
-            // CANTIKKAN DISPLAY ITINERARY (RESTORED LOGIC)
-            const lines = (b.destination || '').split('\n');
+            // Helper function untuk baris perjalanan (Car Icon)
+            const renderFlightRow = (time, loc) => {
+                const carIconSvg = `
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" />
+                        <path d="M3 4a1 1 0 00-1 1v10a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H10a.75.75 0 01.75.75v.5a.75.75 0 00.75.75h3a.75.75 0 00.75-.75v-.5a.75.75 0 01.75-.75h1.05a2.5 2.5 0 014.9 0H19a1 1 0 001-1V5a1 1 0 00-1-1H3zM14 7a1 1 0 00-1 1v3a1 1 0 001 1h2a1 1 0 001-1V8a1 1 0 00-1-1h-2z" />
+                    </svg>`;
+                return `
+                <div class="flight-segment">
+                    <div class="flight-icon bg-white text-rose-600 shadow-sm">${carIconSvg}</div>
+                    ${time ? `<span class="flight-time">${time}</span>` : ''}
+                    <span class="flight-loc">${loc}</span>
+                </div>`;
+            };
+
+            const destText = b.destination || '';
+            let lines = [];
+
+            // Detect format: Arrow (->) single day OR Newlines
+            if (destText.includes('->')) {
+                // Single day arrow format
+                lines = destText.split('->').map(s => s.trim());
+            } else {
+                // Standard multiline / Bullet format
+                lines = destText.split('\n');
+            }
+
+            let groupBuffer = "";
+
             lines.forEach(line => {
-                const match = line.match(/\[(.*?)\] (.*)/);
-                if (match) {
-                    // Jika ada format [08:00] Location
-                    contentHtml += `
-                    <div class="timeline-box">
-                        <div class="timeline-marker"></div>
-                        <span class="timeline-time">${match[1]}</span>
-                        <span class="timeline-loc">${match[2]}</span>
-                    </div>`;
-                } else if (line.trim().startsWith('[')) {
-                    // Jika Header Hari
-                    contentHtml += `<div class="font-bold text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded mt-4 mb-2 inline-block shadow-sm uppercase">${line.replace(/\[|\]/g, '')}</div>`;
-                } else if(line.trim() !== '') {
-                    // Fallback
-                    contentHtml += `<div class="timeline-box"><div class="timeline-marker"></div><span class="timeline-loc">${line}</span></div>`;
+                line = line.trim();
+                if(!line) return;
+
+                // Cek Header Hari [Hari X...]
+                if (line.startsWith('[') && line.endsWith(']:')) {
+                    // Tutup group sebelum ini jika ada
+                     if(groupBuffer) { contentHtml += groupBuffer; groupBuffer = ""; }
+                     
+                     contentHtml += `
+                     <div class="mb-2">
+                         <div class="flight-segment border-l-0 pb-0 pl-0">
+                             <span class="flight-day-header">${line.replace('[','').replace(']:','')}</span>
+                         </div>
+                     </div>`;
+                     return;
+                }
+
+                // Cek Masa & Lokasi. Regex support:
+                // 1. "08:00 LOKASI"
+                // 2. "- 08:00 LOKASI" (bullet)
+                const timeMatch = line.match(/(?:-\s*)?(\d{1,2}:\d{2})\s+(.*)/);
+                
+                if (timeMatch) {
+                    contentHtml += renderFlightRow(timeMatch[1], timeMatch[2]);
+                } else {
+                    // Fallback (tiada masa dikesan, paparkan teks shj)
+                    contentHtml += renderFlightRow("", line.replace(/^- /, ''));
                 }
             });
-            
-            container.innerHTML = contentHtml || '<p class="text-gray-400 italic text-center">Tiada maklumat.</p>';
+
+            container.innerHTML = contentHtml || '<p class="text-gray-400 italic text-center py-4">Tiada maklumat jadual.</p>';
         };
+        
         window.closeItineraryModal = () => document.getElementById('itinerary-modal').classList.add('hidden');
 
         // --- ADMIN LOGIN ---
