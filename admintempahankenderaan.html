@@ -266,8 +266,7 @@
                     <div id="daily-override-section" class="hidden">
                         <h4 class="text-xs font-bold text-gray-700 uppercase mb-2 border-b border-gray-200 pb-1 mt-6">Pengesahan Pemandu Harian</h4>
                         <p class="text-[10px] text-gray-500 mb-3">Jika pemandu/kenderaan berubah pada hari tertentu, sila pilih "Lain-lain" dan masukkan butiran.</p>
-                        <div id="daily-rows-container" class="space-y-3">
-                            </div>
+                        <div id="daily-rows-container" class="space-y-3"></div>
                     </div>
 
                     <div class="border-t pt-4">
@@ -417,6 +416,32 @@
             document.getElementById('details-modal').classList.remove('hidden');
         };
 
+        // --- NEW: SHARE NOTIFICATION ---
+        window.openNotifyModal = (id) => {
+            const booking = allBookings.find(b => b.id === id);
+            if(!booking) return;
+            if(!booking.bookedBy_phone) { alert("Tiada nombor telefon pemohon."); return; }
+            
+            // Auto-format phone (019... -> 6019...)
+            let phone = booking.bookedBy_phone.replace(/\D/g,'');
+            if(phone.startsWith('01')) phone = '6' + phone;
+            
+            const start = booking.start.toDate ? booking.start.toDate() : new Date(booking.start);
+            const startStr = start.toLocaleDateString('ms-MY');
+
+            const msg = `*SPARKfleet: Status Permohonan*\n\nTahniah, permohonan kenderaan anda telah *DILULUSKAN*.\n\n📅 Program: ${booking.programName}\n🗓 Tarikh: ${startStr}\n🚗 Kenderaan: ${booking.vehicle}\n👨‍✈️ Pemandu: ${booking.driverName}\n\nSila semak butiran lanjut di sistem.`;
+            const encodedMsg = encodeURIComponent(msg);
+
+            // Create simple selection using native confirm is tricky for 2 options.
+            // Let's just prompt or open WA default.
+            // Better: Add a choice.
+            if(confirm("Hantar notifikasi melalui WhatsApp? (Klik Cancel untuk Telegram)")) {
+                 window.open(`https://wa.me/${phone}?text=${encodedMsg}`, '_blank');
+            } else {
+                 window.open(`https://t.me/+${phone}?text=${encodedMsg}`, '_blank');
+            }
+        };
+
         window.closeDetailsModal = () => document.getElementById('details-modal').classList.add('hidden');
         window.approveFromDetails = () => { closeDetailsModal(); openAssignModal(currentDetailId); };
         window.rejectFromDetails = async () => { 
@@ -426,7 +451,7 @@
             }
         };
 
-        // --- NEW: ASSIGNMENT LOGIC (KONVOI + DAILY) ---
+        // --- ASSIGNMENT LOGIC (KONVOI + DAILY) ---
         window.addAssignmentRow = (defaultVehicle = "", defaultDriver = "") => {
             const container = document.getElementById('assignment-container');
             const rowId = 'row-' + Date.now();
@@ -457,11 +482,9 @@
             const container = document.getElementById('assignment-container');
             container.innerHTML = '';
             
-            // MAIN ASSIGNMENT PARSING
             if (booking.status === 'DILULUSKAN' && booking.vehicle && booking.driverName) {
-                // If it contains day specific format (contains ':'), we assume the first part is main or just reset
                 if(booking.driverName.includes(':')) {
-                     addAssignmentRow(); // Fallback to empty for now or parse complex logic
+                     addAssignmentRow(); 
                 } else {
                     const vehicles = booking.vehicle.split(' & ');
                     const drivers = booking.driverName.split(' & ');
@@ -473,7 +496,6 @@
             
             document.getElementById('modal-dept').value = booking.department || "";
 
-            // --- DAILY OVERRIDE LOGIC ---
             const s = new Date(start); s.setHours(0,0,0,0);
             const e = new Date(end); e.setHours(0,0,0,0);
             const diffTime = Math.abs(e - s);
@@ -525,7 +547,6 @@
             const btn = e.target.querySelector('button[type="submit"]'); 
             btn.disabled = true; btn.innerText = "Menyimpan...";
             
-            // 1. Collect Main Assignment
             const rows = document.querySelectorAll('.assignment-row');
             let vehiclesArr = [];
             let driversArr = [];
@@ -542,8 +563,6 @@
 
             const mainVehicles = vehiclesArr.join(' & ');
             const mainDrivers = driversArr.join(' & ');
-
-            // 2. Collect Daily Overrides
             let finalDriverString = mainDrivers;
             const dailyRows = document.querySelectorAll('.daily-row');
             let hasOverrides = false;
@@ -552,7 +571,6 @@
             dailyRows.forEach(row => {
                 const isDiff = row.querySelector('.daily-select').value === 'diff';
                 const dateStr = row.querySelector('.daily-date-val').value;
-                
                 if (isDiff) {
                     hasOverrides = true;
                     const customTxt = row.querySelector('.daily-input').value || "TIADA";
@@ -562,14 +580,11 @@
                 }
             });
 
-            if (hasOverrides) {
-                finalDriverString = overrideText.join(' | ');
-                // Optionally append override info to vehicle string too if needed, but keeping simple for now
-            }
+            if (hasOverrides) { finalDriverString = overrideText.join(' | '); }
 
             try {
                 await updateDoc(doc(db, `artifacts/${appId}/public/data/spark_vehicle_bookings`, id), {
-                    vehicle: mainVehicles, // We keep vehicle generic for filter, details in driver string if complex
+                    vehicle: mainVehicles, 
                     driverName: finalDriverString,
                     department: document.getElementById('modal-dept').value,
                     status: 'DILULUSKAN' 
@@ -651,6 +666,9 @@
             html += '</div>';
             return html;
         }
+
+        window.deleteAsset = async (col, id) => { if(confirm("Padam?")) await deleteDoc(doc(db, `artifacts/${appId}/public/data/${col}`, id)); }
+        window.deleteBooking = async (id) => { if(confirm("ADAKAH ANDA PASTI? Rekod ini akan dipadam kekal dari pangkalan data.")) { await deleteDoc(doc(db, `artifacts/${appId}/public/data/spark_vehicle_bookings`, id)); } };
         function formatTime(d) { return d.toLocaleTimeString('ms-MY', {hour: '2-digit', minute:'2-digit'}); }
     </script>
 </body>
