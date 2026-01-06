@@ -37,9 +37,7 @@
         .emoji-btn { font-size: 1.5rem; filter: grayscale(100%); transition: all 0.2s; cursor: default; }
         .emoji-btn.active { filter: grayscale(0%); transform: scale(1.2); }
 
-        /* --- FLIGHT ITINERARY STYLES (GAYA KERETA/FLIGHT) --- */
-        /* Ini adalah style yang sama dari tempahkenderaan.html */
-        
+        /* --- FLIGHT/CAR ITINERARY STYLES --- */
         .flight-segment {
             position: relative;
             padding-left: 1.8rem;
@@ -579,12 +577,14 @@
             } catch (error) { console.error("Error:", error); alert("Gagal menghantar penilaian."); }
         };
 
-        // --- PDF & ITINERARY MODAL ---
+        // --- PDF GENERATOR (UPDATED: FLIGHT STYLE TIMELINE) ---
         window.downloadBookingPDF = (id) => {
             const b = allBookings.find(x => x.id === id);
             if(!b) return;
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF();
+            
+            // Header
             doc.setFontSize(14); doc.setFont("helvetica", "bold");
             doc.text("PEJABAT PENDIDIKAN DAERAH MIRI", 105, 20, null, null, "center");
             doc.setFontSize(12); doc.text("BORANG TEMPAHAN KENDERAAN (DILULUSKAN)", 105, 28, null, null, "center");
@@ -593,6 +593,7 @@
             const start = b.start.toDate ? b.start.toDate() : new Date(b.start);
             const end = b.end.toDate ? b.end.toDate() : new Date(b.end);
             
+            // Info Table
             doc.autoTable({ startY: 50, head: [], body: [
                 ["Nama Pemohon", b.bookedBy_name],
                 ["Nama Program", b.programName],
@@ -601,18 +602,97 @@
                 ["Penumpang", b.passengers]
             ], theme: 'plain' });
             
-            let finalY = doc.lastAutoTable.finalY + 10;
-            doc.setFont("helvetica", "bold"); doc.text("BUTIRAN KENDERAAN", 20, finalY);
-            doc.autoTable({ startY: finalY + 5, body: [["Kenderaan", b.vehicle], ["Pemandu", b.driverName]], theme: 'grid' });
+            let currentY = doc.lastAutoTable.finalY + 10;
+            doc.setFont("helvetica", "bold"); doc.text("BUTIRAN KENDERAAN", 20, currentY);
+            doc.autoTable({ startY: currentY + 5, body: [["Kenderaan", b.vehicle], ["Pemandu", b.driverName]], theme: 'grid' });
             
-            finalY = doc.lastAutoTable.finalY + 10;
-            doc.text("JADUAL PERGERAKAN", 20, finalY);
-            const splitDest = doc.splitTextToSize(b.destination || "", 170);
-            doc.setFont("helvetica", "normal"); doc.text(splitDest, 20, finalY + 7);
+            // --- DRAW FLIGHT-STYLE ITINERARY ---
+            currentY = doc.lastAutoTable.finalY + 15;
+            doc.setFont("helvetica", "bold");
+            doc.setTextColor(0, 0, 0);
+            doc.text("JADUAL PERGERAKAN (ITINERARY)", 20, currentY);
+            currentY += 10;
+
+            const destText = b.destination || "";
+            // Parse text (support "->" or newlines)
+            const rawLines = destText.includes('->') ? destText.split('->') : destText.split('\n');
+
+            doc.setFontSize(10);
+            const lineX = 40; // Vertical line X position
+            const contentX = 48; // Text content X position
+
+            rawLines.forEach((rawLine, i) => {
+                const line = rawLine.trim();
+                if(!line) return;
+
+                // Check page break
+                if (currentY > 270) { doc.addPage(); currentY = 20; }
+
+                // 1. Header Logic [HARI 1]
+                if (line.startsWith('[') && line.endsWith(']:')) {
+                    doc.setFillColor(245, 245, 245); // Light gray bg
+                    doc.setDrawColor(200, 200, 200);
+                    doc.roundedRect(20, currentY-4, 170, 8, 1, 1, 'FD');
+                    doc.setFont("helvetica", "bold");
+                    doc.setTextColor(50, 50, 50);
+                    doc.text(line.replace(/[\[\]:]/g, ''), 25, currentY+1);
+                    currentY += 14;
+                    return;
+                }
+
+                // 2. Parse Time & Location
+                let timeStr = "";
+                let locStr = line;
+                // Regex match 08:00
+                const timeMatch = line.match(/(?:-\s*)?(\d{1,2}:\d{2})\s+(.*)/);
+                if (timeMatch) {
+                    timeStr = timeMatch[1];
+                    locStr = timeMatch[2];
+                } else {
+                    // Clean bullet points
+                    locStr = line.replace(/^- /, '');
+                }
+
+                // 3. Draw Timeline Visuals
+                
+                // Draw Time (Left side)
+                if(timeStr) {
+                    doc.setFont("courier", "bold");
+                    doc.setTextColor(190, 18, 60); // Rose color
+                    doc.text(timeStr, 20, currentY);
+                }
+
+                // Draw Vertical Dashed Line (connector)
+                // Only draw if not the last item
+                if (i < rawLines.length - 1) {
+                    doc.setDrawColor(180, 180, 180); // Gray
+                    doc.setLineDash([1, 1], 0); // Dashed
+                    doc.line(lineX, currentY + 2, lineX, currentY + 10); // Short down line
+                    doc.setLineDash([]); // Reset
+                }
+
+                // Draw Circle Node (Simulate Car Icon/Stop)
+                doc.setFillColor(255, 255, 255);
+                doc.setDrawColor(225, 29, 72); // Rose-600
+                doc.setLineWidth(0.5);
+                doc.circle(lineX, currentY - 1, 1.5, 'FD'); 
+
+                // Draw Location Text
+                doc.setFont("helvetica", "normal");
+                doc.setTextColor(0, 0, 0);
+                
+                // Handle long text wrapping
+                const splitLoc = doc.splitTextToSize(locStr, 140);
+                doc.text(splitLoc, contentX, currentY);
+
+                // Increment Y based on text height
+                currentY += (splitLoc.length * 6) + 6; 
+            });
+
             doc.save(`Tempahan_${b.programName.substring(0,10)}.pdf`);
         };
 
-        // --- NEW: ITINERARY MODAL PARSER (GAYA KERETA) ---
+        // --- ITINERARY MODAL PARSER (WEB) ---
         window.openItineraryModal = (id) => {
             const b = allBookings.find(x => x.id === id);
             if(!b) return;
@@ -624,7 +704,7 @@
             const container = document.getElementById('modal-timeline-content');
             let contentHtml = '';
             
-            // Helper function untuk baris perjalanan (Car Icon)
+            // Helper function for web modal row
             const renderFlightRow = (time, loc) => {
                 const carIconSvg = `
                     <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" viewBox="0 0 20 20" fill="currentColor">
@@ -641,27 +721,14 @@
 
             const destText = b.destination || '';
             let lines = [];
-
-            // Detect format: Arrow (->) single day OR Newlines
-            if (destText.includes('->')) {
-                // Single day arrow format
-                lines = destText.split('->').map(s => s.trim());
-            } else {
-                // Standard multiline / Bullet format
-                lines = destText.split('\n');
-            }
+            if (destText.includes('->')) lines = destText.split('->').map(s => s.trim());
+            else lines = destText.split('\n');
 
             let groupBuffer = "";
-
             lines.forEach(line => {
                 line = line.trim();
                 if(!line) return;
-
-                // Cek Header Hari [Hari X...]
                 if (line.startsWith('[') && line.endsWith(']:')) {
-                    // Tutup group sebelum ini jika ada
-                     if(groupBuffer) { contentHtml += groupBuffer; groupBuffer = ""; }
-                     
                      contentHtml += `
                      <div class="mb-2">
                          <div class="flight-segment border-l-0 pb-0 pl-0">
@@ -670,20 +737,13 @@
                      </div>`;
                      return;
                 }
-
-                // Cek Masa & Lokasi. Regex support:
-                // 1. "08:00 LOKASI"
-                // 2. "- 08:00 LOKASI" (bullet)
                 const timeMatch = line.match(/(?:-\s*)?(\d{1,2}:\d{2})\s+(.*)/);
-                
                 if (timeMatch) {
                     contentHtml += renderFlightRow(timeMatch[1], timeMatch[2]);
                 } else {
-                    // Fallback (tiada masa dikesan, paparkan teks shj)
                     contentHtml += renderFlightRow("", line.replace(/^- /, ''));
                 }
             });
-
             container.innerHTML = contentHtml || '<p class="text-gray-400 italic text-center py-4">Tiada maklumat jadual.</p>';
         };
         
