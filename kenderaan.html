@@ -42,24 +42,20 @@
 
         /* --- EMOJI RATING STYLES (MULTI-ROW) --- */
         .emoji-btn { 
-            font-size: 1.5rem; /* Saiz sederhana untuk muat 4 baris */
+            font-size: 1.5rem; 
             filter: grayscale(100%); 
             transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
             cursor: pointer; 
             opacity: 0.5;
         }
         .emoji-btn:hover { transform: scale(1.2); opacity: 1; filter: grayscale(0%); }
-        
-        /* Aktif apabila dipilih */
         .emoji-wrapper.selected .emoji-btn { transform: scale(1.3); filter: grayscale(0%); opacity: 1; }
         
-        /* Warna Emosi */
         .emoji-1.selected .emoji-btn { text-shadow: 0 0 10px rgba(239, 68, 68, 0.6); } 
         .emoji-2.selected .emoji-btn { text-shadow: 0 0 10px rgba(249, 115, 22, 0.6); } 
         .emoji-3.selected .emoji-btn { text-shadow: 0 0 10px rgba(234, 179, 8, 0.6); }  
         .emoji-4.selected .emoji-btn { text-shadow: 0 0 10px rgba(59, 130, 246, 0.6); }  
         .emoji-5.selected .emoji-btn { text-shadow: 0 0 10px rgba(34, 197, 94, 0.6); } 
-
     </style>
 </head>
 <body class="bg-gray-50 flex flex-col min-h-screen">
@@ -200,7 +196,9 @@
     <div id="rating-modal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop hidden">
         <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-6 m-4 transform transition-all max-h-[90vh] overflow-y-auto">
             <h3 class="text-lg font-bold text-gray-900 mb-1 text-center">Penilaian Perkhidmatan</h3>
-            <div id="rating-info" class="bg-indigo-50 p-2 rounded-lg mb-4 text-xs text-indigo-800 border border-indigo-100 mt-2 text-center uppercase font-bold"></div>
+            <div id="rating-info" class="bg-indigo-50 p-2 rounded-lg mb-4 text-xs text-indigo-800 border border-indigo-100 mt-2 text-center uppercase font-bold">
+                <p id="rating-driver-name"></p>
+            </div>
             
             <div class="space-y-4 mb-4">
                 <div>
@@ -291,13 +289,7 @@
         let currentRatingBookingId = null;
         let currentRatingBookerIc = null;
         
-        // --- NEW: State untuk simpan 4 nilai rating ---
-        let ratingValues = {
-            driving: 0,
-            punctuality: 0,
-            service: 0,
-            overall: 0
-        };
+        let ratingValues = { driving: 0, punctuality: 0, service: 0, overall: 0 };
 
         const vehicleDetails = {
             "Toyota Hilux (QAA 1234)": { short: "HILUX" },
@@ -517,7 +509,7 @@
                  let actionButtons = `<div class="flex gap-2 mt-1">`;
 
                  if (b.status === 'DILULUSKAN') {
-                     // Check if 'rating' (legacy) or 'ratingOverall' exists to show status
+                     // Check legacy or new rating data
                      let hasRated = b.rating || b.ratingOverall;
                      let ratingButton = hasRated ? 
                         `<span class="text-[10px] bg-white text-green-600 px-2 py-1 rounded border border-green-200 cursor-default font-bold shadow-sm flex items-center gap-1">✅ Telah Dinilai</span>` :
@@ -551,69 +543,43 @@
         window.openRatingModal = (bookingId, driverName, bookerIc) => {
             currentRatingBookingId = bookingId;
             currentRatingBookerIc = bookerIc;
-            
-            // Reset Values
             ratingValues = { driving: 0, punctuality: 0, service: 0, overall: 0 };
-            
             document.getElementById('rating-driver-name').textContent = driverName;
             document.getElementById('rating-verify-ic').value = '';
             document.getElementById('rating-comment').value = '';
-            
-            // Clear selections
             document.querySelectorAll('.emoji-wrapper').forEach(el => el.classList.remove('selected'));
             document.getElementById('rating-modal').classList.remove('hidden');
         };
 
         window.closeRatingModal = () => document.getElementById('rating-modal').classList.add('hidden');
 
-        // New Selection Function
         window.selectRating = (category, val) => {
             ratingValues[category] = val;
-            
-            // Clear row selection
             const rowBtns = document.querySelectorAll(`[id^="btn-${category}-"]`);
             rowBtns.forEach(btn => btn.classList.remove('selected'));
-            
-            // Select clicked
             document.getElementById(`btn-${category}-${val}`).classList.add('selected');
         };
 
         window.submitRating = async () => {
-            // Validate all fields
             if (ratingValues.driving === 0 || ratingValues.punctuality === 0 || ratingValues.service === 0 || ratingValues.overall === 0) {
                 alert("Sila lengkapkan semua 4 kategori penilaian.");
                 return;
             }
-
             const inputIc = document.getElementById('rating-verify-ic').value.trim();
-            if (inputIc !== currentRatingBookerIc) { 
-                alert("Nombor IC tidak sepadan dengan pemohon asal."); 
-                return; 
-            }
-
+            if (inputIc !== currentRatingBookerIc) { alert("Nombor IC tidak sepadan dengan pemohon asal."); return; }
             try {
                 await updateDoc(doc(db, `artifacts/${appId}/public/data/spark_vehicle_bookings`, currentRatingBookingId), {
-                    // Save detailed ratings
                     ratingDriving: ratingValues.driving,
                     ratingPunctuality: ratingValues.punctuality,
                     ratingService: ratingValues.service,
                     ratingOverall: ratingValues.overall,
-                    
-                    // Legacy field support (for backward compatibility if needed)
-                    rating: ratingValues.overall, 
-                    
+                    rating: ratingValues.overall, // For legacy support
                     ratingComment: document.getElementById('rating-comment').value,
                     ratedAt: serverTimestamp()
                 });
-                
-                // Mesej Penghargaan
                 alert("TERIMA KASIH!\n\nPenilaian anda amat dihargai. Maklum balas ini akan membantu kami meningkatkan kualiti perkhidmatan SPARKfleet.\n\nSelamat Maju Jaya!");
-                
                 closeRatingModal();
-            } catch (error) { 
-                console.error("Error:", error); 
-                alert("Gagal menghantar penilaian."); 
-            }
+            } catch (error) { console.error("Error:", error); alert("Gagal menghantar penilaian."); }
         };
 
         // --- PDF GENERATOR (FLIGHT STYLE TIMELINE) ---
