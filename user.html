@@ -66,7 +66,6 @@
         @keyframes loadProgress { 0% { width: 0; } }
         .progress-bar-fill { animation: loadProgress 1.5s ease-out forwards; }
 
-        /* Calendar Grid (Untuk Takwim Biasa) */
         .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
         .calendar-cell {
             background-color: white; min-height: 60px; padding: 0.25rem; position: relative;
@@ -82,6 +81,15 @@
         .calendar-today .calendar-day-number { background-color: #4f46e5; color: white; }
         .event-indicator { height: 6px; width: 6px; background-color: #4f46e5; border-radius: 50%; display: inline-block; margin: 2px 1px; }
 
+        /* Badge Baru Animation */
+        @keyframes pulse-new {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        .badge-new {
+            animation: pulse-new 2s infinite;
+        }
     </style>
 </head>
 <body class="bg-gray-50 flex flex-col min-h-screen">
@@ -616,10 +624,27 @@
                 const tasksRef = collection(db, `artifacts/${appId}/public/data/spark_tasks`);
                 const tasksSnapshot = await getDocs(tasksRef);
                 
-                // Fetch Planner Data (Ordered query would be better, but sorting on client for simplicity)
+                const cleanUserIc = normalizeIc(ic);
+
+                // --- FETCH PLANNER (My Created + Tagged) ---
                 const plannerRef = collection(db, `artifacts/${appId}/public/data/spark_planner`);
-                const qPlanner = query(plannerRef, where("ic", "==", normalizeIc(ic)));
-                const plannerSnapshot = await getDocs(qPlanner);
+                
+                // 1. Aktiviti yang saya buat
+                const qOwn = query(plannerRef, where("ic", "==", cleanUserIc));
+                
+                // 2. Aktiviti yang saya di-tag (New logic)
+                const qTagged = query(plannerRef, where("taggedIcs", "array-contains", cleanUserIc));
+
+                // Execute in parallel
+                const [ownSnap, taggedSnap] = await Promise.all([getDocs(qOwn), getDocs(qTagged)]);
+
+                // Merge and dedup
+                const plannerMap = new Map();
+                
+                ownSnap.forEach(doc => plannerMap.set(doc.id, { id: doc.id, ...doc.data() }));
+                taggedSnap.forEach(doc => plannerMap.set(doc.id, { id: doc.id, ...doc.data() }));
+                
+                plannerList = Array.from(plannerMap.values());
 
                 // Fetch All Users (for tagging)
                 const usersRef = collection(db, `artifacts/${appId}/public/data/spark_participants`);
@@ -636,7 +661,6 @@
                 });
                 
                 // Fetch Saved Groups
-                const cleanUserIc = normalizeIc(ic);
                 const groupsRef = collection(db, `artifacts/${appId}/public/data/spark_user_groups`);
                 const qGroups = query(groupsRef, where("ownerIc", "==", cleanUserIc));
                 const groupSnap = await getDocs(qGroups);
@@ -650,7 +674,6 @@
                 createdList = [];
                 taskList = [];
                 allProgramsList = [];
-                plannerList = [];
                 
                 let participantData = null;
                 
@@ -690,10 +713,6 @@
                      if (taskCreator === cleanUserIc || taskPegawaiIc === cleanUserIc) {
                          taskList.push({ id: taskDoc.id, ...taskData });
                      }
-                });
-
-                plannerSnapshot.forEach(doc => {
-                    plannerList.push({ id: doc.id, ...doc.data() });
                 });
 
                 if (participantData) {
@@ -995,7 +1014,6 @@
                 const startDateObj = new Date(ev.startDate);
                 const day = startDateObj.getDate();
                 const monthShort = startDateObj.toLocaleDateString('ms-MY', { month: 'short' }).toUpperCase();
-                const dayName = startDateObj.toLocaleDateString('ms-MY', { weekday: 'long' }).toUpperCase();
                 
                 // Highlight today
                 const isToday = ev.startDate === todayStr;
@@ -1015,6 +1033,19 @@
                     dateDisplay += ` - ${endDay} ${endMonthShort}`;
                 }
 
+                // Check "BARU" label (Created < 24 hours ago)
+                let showNewLabel = false;
+                if (ev.createdAt) {
+                    const createdDate = ev.createdAt.toDate ? ev.createdAt.toDate() : new Date(ev.createdAt);
+                    const now = new Date();
+                    const diffHours = (now - createdDate) / (1000 * 60 * 60);
+                    if (diffHours < 24) showNewLabel = true;
+                }
+
+                // Check ownership (Tagged vs Created)
+                const isMyEvent = ev.ic === currentUserIc;
+                const tagLabel = isMyEvent ? '' : '<span class="text-[9px] font-bold bg-purple-100 text-purple-700 px-2 py-0.5 rounded uppercase ml-2">DITAG</span>';
+
                 const item = document.createElement('div');
                 item.className = `flex flex-row p-4 rounded-lg border border-gray-100 shadow-sm hover:shadow-md transition-shadow ${borderClass}`;
                 item.innerHTML = `
@@ -1024,15 +1055,17 @@
                     </div>
                     <div class="pl-4 flex-grow">
                         <div class="flex justify-between items-start">
-                            <div>
-                                <h4 class="text-sm font-bold text-gray-800 uppercase">${ev.title}</h4>
-                                <p class="text-xs text-teal-600 font-semibold mt-0.5 uppercase flex items-center gap-1">
-                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                                    ${timeDisplay}
-                                </p>
+                            <div class="flex items-center flex-wrap">
+                                <h4 class="text-sm font-bold text-gray-800 uppercase mr-2">${ev.title}</h4>
+                                ${showNewLabel ? '<span class="badge-new text-[9px] font-bold bg-red-500 text-white px-2 py-0.5 rounded uppercase shadow-sm">BARU</span>' : ''}
+                                ${tagLabel}
                             </div>
-                            ${isToday ? '<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-teal-200 text-teal-800 uppercase">HARI INI</span>' : ''}
+                            ${isToday ? '<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-teal-200 text-teal-800 uppercase ml-2 whitespace-nowrap">HARI INI</span>' : ''}
                         </div>
+                        <p class="text-xs text-teal-600 font-semibold mt-1 uppercase flex items-center gap-1">
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            ${timeDisplay}
+                        </p>
                         <div class="mt-2 text-xs text-gray-500 space-y-1">
                             ${ev.location ? `<p class="flex items-center gap-1 uppercase"><svg class="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg> ${ev.location}</p>` : ''}
                             ${ev.participants ? `<p class="flex items-center gap-1 text-gray-400 truncate w-full"><svg class="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg> ${ev.participants}</p>` : ''}
