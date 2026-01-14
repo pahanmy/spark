@@ -420,12 +420,13 @@
     
     <div id="sector-setup-modal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop hidden">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-sm p-6 relative">
-            <h3 class="text-lg font-bold text-gray-900 mb-2 uppercase">Tetapan Sektor</h3>
-            <p class="text-xs text-gray-500 mb-4">Sila pilih sektor anda sebelum meneruskan.</p>
+            <h3 class="text-lg font-bold text-gray-900 mb-2 uppercase">Tetapan Sektor & Unit</h3>
+            <p class="text-xs text-gray-500 mb-4">Sila pilih Sektor dan Unit anda sebelum meneruskan.</p>
             <form onsubmit="saveSector(event)">
+                
                 <div class="mb-4">
                     <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Sektor</label>
-                    <select id="user-sector-select" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-teal-500 focus:border-teal-500 text-xs uppercase" required>
+                    <select id="user-sector-select" onchange="populateUnits(this.value)" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-teal-500 focus:border-teal-500 text-xs uppercase" required>
                         <option value="">-- PILIH SEKTOR --</option>
                         <option value="SEKTOR PERANCANGAN">SEKTOR PERANCANGAN</option>
                         <option value="SEKTOR PEMBELAJARAN">SEKTOR PEMBELAJARAN</option>
@@ -433,9 +434,16 @@
                         <option value="SEKTOR PENTAKSIRAN & PEPERIKSAAN">SEKTOR PENTAKSIRAN & PEPERIKSAAN</option>
                         <option value="SEKTOR PSIKOLOGI & KAUNSELING">SEKTOR PSIKOLOGI & KAUNSELING</option>
                         <option value="SEKTOR PENGURUSAN">SEKTOR PENGURUSAN</option>
-                        <option value="LAIN-LAIN">LAIN-LAIN</option>
                     </select>
                 </div>
+
+                <div id="unit-field-container" class="mb-4 hidden">
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Unit</label>
+                    <select id="user-unit-select" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-teal-500 focus:border-teal-500 text-xs uppercase" required>
+                        <option value="">-- PILIH UNIT --</option>
+                        </select>
+                </div>
+
                 <button type="submit" class="w-full bg-teal-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-teal-700 uppercase text-sm">
                     Simpan
                 </button>
@@ -604,7 +612,8 @@
         const appId = firebaseConfig.projectId;
 
         let currentUserIc = "";
-        let currentUserSector = ""; // Store sector info
+        let currentUserSector = ""; 
+        let currentUserUnit = ""; // Store Unit info
         
         let attendanceList = [];
         let createdList = [];
@@ -612,7 +621,6 @@
         let allProgramsList = [];
         let plannerList = [];
         
-        // Planner Variables
         let allUsersData = []; 
         let selectedParticipants = []; 
         let mySavedGroups = []; 
@@ -625,6 +633,40 @@
         let currentTab = 'attendance';
         let currentCalendarDate = new Date();
         let currentPlannerDate = new Date();
+
+        // DATA: Unit per Sektor (Sila kemaskini ikut keperluan sebenar)
+        const sectorUnitData = {
+            "SEKTOR PERANCANGAN": [
+                "UNIT PERANCANGAN DAN PENGURUSAN PPD",
+                "UNIT PENGURUSAN MAKLUMAT (ICT)",
+                "UNIT DATA DAN MAKLUMAT"
+            ],
+            "SEKTOR PEMBELAJARAN": [
+                "UNIT BAHASA",
+                "UNIT SAINS DAN MATEMATIK",
+                "UNIT TVET",
+                "UNIT SAINS SOSIAL & KEMANUSIAAN",
+                "UNIT PENDIDIKAN ISLAM",
+                "UNIT PENDIDIKAN KHAS",
+                "UNIT PEMULIHAN KHAS",
+                "UNIT SUMBER PENDIDIKAN"
+            ],
+            "SEKTOR PEMBANGUNAN MURID": [
+                "UNIT HAL EHWAL MURID",
+                "UNIT PEMBANGUNAN BAKAT MURID"
+            ],
+            "SEKTOR PENTAKSIRAN & PEPERIKSAAN": [
+                "UNIT PENTAKSIRAN & PEPERIKSAAN"
+            ],
+            "SEKTOR PSIKOLOGI & KAUNSELING": [
+                "UNIT PSIKOLOGI & KAUNSELING"
+            ],
+            "SEKTOR PENGURUSAN": [
+                "UNIT PENTADBIRAN DAN KUMPULAN SOKONGAN",
+                "UNIT KEWANGAN DAN AKAUN",
+                "UNIT INFRASTRUKTUR DAN PEROLEHAN"
+            ]
+        };
 
         // AUTH & SESSION
         onAuthStateChanged(auth, async (user) => {
@@ -675,7 +717,7 @@
             try {
                 const cleanUserIc = normalizeIc(ic);
                 
-                // Fetch User Profile (To get Sector)
+                // Fetch User Profile (To get Sector & Unit)
                 const usersRef = collection(db, `artifacts/${appId}/public/data/spark_participants`);
                 const qUser = query(usersRef, where("ic", "==", cleanUserIc));
                 const userSnap = await getDocs(qUser);
@@ -683,17 +725,17 @@
                 if (!userSnap.empty) {
                     const userData = userSnap.docs[0].data();
                     participantDocId = userSnap.docs[0].id;
-                    currentUserSector = userData.sector || ""; // Get sector
+                    currentUserSector = userData.sector || "";
+                    currentUserUnit = userData.unit || ""; // Get unit
                 }
 
-                // Fetch Main Data
                 const programsRef = collection(db, `artifacts/${appId}/public/data/spark_programs`);
                 const programsSnapshot = await getDocs(programsRef);
 
                 const tasksRef = collection(db, `artifacts/${appId}/public/data/spark_tasks`);
                 const tasksSnapshot = await getDocs(tasksRef);
                 
-                // Fetch Planner Data (My Created + Tagged)
+                // Fetch Planner Data
                 const plannerRef = collection(db, `artifacts/${appId}/public/data/spark_planner`);
                 const qOwn = query(plannerRef, where("ic", "==", cleanUserIc));
                 const qTagged = query(plannerRef, where("taggedIcs", "array-contains", cleanUserIc));
@@ -705,7 +747,6 @@
                 taggedSnap.forEach(doc => plannerMap.set(doc.id, { id: doc.id, ...doc.data() }));
                 plannerList = Array.from(plannerMap.values());
 
-                // Fetch All Users (for tagging)
                 const usersSnapshot = await getDocs(usersRef);
                 allUsersData = [];
                 usersSnapshot.forEach(doc => {
@@ -718,7 +759,6 @@
                     }
                 });
                 
-                // Fetch Saved Groups
                 const groupsRef = collection(db, `artifacts/${appId}/public/data/spark_user_groups`);
                 const qGroups = query(groupsRef, where("ownerIc", "==", cleanUserIc));
                 const groupSnap = await getDocs(qGroups);
@@ -1114,7 +1154,6 @@
                         </div>
                     </div>
                 `;
-                // CLICK: Show Details Modal
                 item.onclick = () => showPlannerDetails(ev);
                 container.appendChild(item);
             });
@@ -1173,38 +1212,62 @@
             modal.classList.remove('hidden');
         }
 
-        // --- SECTOR SETUP LOGIC ---
+        // --- SECTOR SETUP LOGIC (WITH UNIT) ---
         window.clickAddButton = function() {
-            if (!currentUserSector) {
-                // Show Sector Modal
+            if (!currentUserSector || !currentUserUnit) {
                 document.getElementById('sector-setup-modal').classList.remove('hidden');
             } else {
                 openPlannerModal();
             }
         }
 
+        window.populateUnits = function(sector) {
+            const unitSelect = document.getElementById('user-unit-select');
+            const unitContainer = document.getElementById('unit-field-container');
+            
+            unitSelect.innerHTML = '<option value="">-- PILIH UNIT --</option>';
+            
+            if (sector && sectorUnitData[sector]) {
+                sectorUnitData[sector].forEach(unit => {
+                    const opt = document.createElement('option');
+                    opt.value = unit;
+                    opt.textContent = unit;
+                    unitSelect.appendChild(opt);
+                });
+                unitContainer.classList.remove('hidden');
+            } else {
+                unitContainer.classList.add('hidden');
+            }
+        }
+
         window.saveSector = async function(e) {
             e.preventDefault();
             const sector = document.getElementById('user-sector-select').value;
-            if(!sector) return alert("Sila pilih sektor!");
+            const unit = document.getElementById('user-unit-select').value;
+            
+            if(!sector || !unit) return alert("Sila pilih Sektor dan Unit!");
 
             try {
                 if (participantDocId) {
-                    await updateDoc(doc(db, `artifacts/${appId}/public/data/spark_participants`, participantDocId), { sector: sector });
+                    await updateDoc(doc(db, `artifacts/${appId}/public/data/spark_participants`, participantDocId), { 
+                        sector: sector,
+                        unit: unit 
+                    });
                 } else {
-                    // Create minimal user doc if missing
                     await addDoc(collection(db, `artifacts/${appId}/public/data/spark_participants`), {
                         ic: currentUserIc,
                         name: document.getElementById('user-name').textContent,
-                        sector: sector
+                        sector: sector,
+                        unit: unit
                     });
                 }
                 currentUserSector = sector;
+                currentUserUnit = unit;
                 document.getElementById('sector-setup-modal').classList.add('hidden');
                 openPlannerModal();
             } catch (err) {
                 console.error("Error saving sector:", err);
-                alert("Gagal menyimpan sektor.");
+                alert("Gagal menyimpan data.");
             }
         }
 
@@ -1409,7 +1472,7 @@
             const title = document.getElementById('plan-title').value.toUpperCase();
             const location = document.getElementById('plan-location').value.toUpperCase();
             const notes = document.getElementById('plan-notes').value.toUpperCase();
-            const isPublic = document.getElementById('is-public-program').checked; // Capture Public status
+            const isPublic = document.getElementById('is-public-program').checked; 
             
             const startDate = document.getElementById('plan-start-date').value;
             const startTime = document.getElementById('plan-start-time').value;
@@ -1435,7 +1498,8 @@
             try {
                 const newPlan = {
                     ic: currentUserIc,
-                    sector: currentUserSector, // Save Sector
+                    sector: currentUserSector, 
+                    unit: currentUserUnit, // Added Unit
                     title,
                     startDate,
                     startTime,
@@ -1446,7 +1510,7 @@
                     participants: participantNames, 
                     taggedIcs: taggedIcs, 
                     notes,
-                    isPublic: isPublic, // Save Public Status
+                    isPublic: isPublic, 
                     createdAt: new Date()
                 };
                 
@@ -1561,10 +1625,10 @@
         window.clearParticipants = clearParticipants;
         window.removeParticipant = removeParticipant;
         
-        // Expose new functions
         window.clickAddButton = clickAddButton;
         window.saveSector = saveSector;
         window.showPlannerDetails = showPlannerDetails;
+        window.populateUnits = populateUnits;
     </script>
 </body>
 </html>
