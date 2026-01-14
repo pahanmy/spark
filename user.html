@@ -597,8 +597,22 @@
                 </div>
 
                 <div>
-                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Catatan</label>
-                    <textarea id="plan-notes" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-teal-500 focus:border-teal-500 text-sm uppercase" placeholder="Nota tambahan..."></textarea>
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Catatan / Minit / Info</label>
+                    <textarea id="plan-notes" rows="6" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-teal-500 focus:border-teal-500 text-sm" placeholder="Tampal teks panjang dari Telegram/WhatsApp di sini..."></textarea>
+                    
+                    <div class="mt-2 p-2 border border-dashed border-gray-300 rounded bg-gray-50">
+                        <label class="block text-xs font-bold text-gray-600 uppercase mb-1 flex items-center gap-1">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                            Muat Naik Gambar (Pilihan)
+                        </label>
+                        <input type="file" id="plan-image-file" accept="image/*" onchange="uploadImageToImgBB(this)" class="block w-full text-xs text-gray-500 file:mr-4 file:py-1 file:px-2 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100">
+                        <input type="hidden" id="plan-image-url">
+                        <div id="image-upload-status" class="text-xs text-gray-500 mt-1 italic"></div>
+                        <div id="image-preview" class="hidden mt-2">
+                             <img src="" alt="Preview" class="max-h-[150px] rounded border border-gray-200">
+                             <button type="button" onclick="clearImage()" class="text-[10px] text-red-500 underline mt-1">Padam Gambar</button>
+                        </div>
+                    </div>
                 </div>
 
                 <button type="submit" id="btn-save-plan" class="w-full bg-teal-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-teal-700 transition shadow-md uppercase text-sm mt-2">
@@ -654,7 +668,7 @@
         
         let editingPlannerId = null; // Track ID for editing
 
-        // DATA: Unit per Sektor (Sila kemaskini ikut keperluan sebenar)
+        // DATA: Unit per Sektor
         const sectorUnitData = {
             "SEKTOR PERANCANGAN": [
                 "UNIT PERANCANGAN DAN PENGURUSAN PPD",
@@ -747,7 +761,7 @@
                     const userData = userSnap.docs[0].data();
                     participantDocId = userSnap.docs[0].id;
                     currentUserSector = userData.sector || "";
-                    currentUserUnit = userData.unit || ""; // Get unit
+                    currentUserUnit = userData.unit || ""; 
                 }
 
                 const programsRef = collection(db, `artifacts/${appId}/public/data/spark_programs`);
@@ -850,7 +864,7 @@
                 document.getElementById('total-programs-count').textContent = totalPrograms;
                 
                 updateInfographics(totalPrograms);
-                switchTab('planner'); // CHANGE DEFAULT TO PLANNER (AKTIVITI SAYA)
+                switchTab('planner'); 
                 setupParticipantSearch();
 
             } catch (error) {
@@ -1087,7 +1101,7 @@
             document.getElementById('event-modal').classList.remove('hidden');
         }
 
-        // --- PLANNER FUNCTIONS (LIST VIEW) ---
+        // --- PLANNER FUNCTIONS ---
         
         window.changePlannerMonth = function(offset) {
             currentPlannerDate.setMonth(currentPlannerDate.getMonth() + offset);
@@ -1180,7 +1194,7 @@
             });
         }
 
-        // --- SHOW DETAILS MODAL (WITH EDIT/DELETE/SPARK) ---
+        // --- SHOW DETAILS MODAL ---
         window.showPlannerDetails = function(eventData) {
             const modal = document.getElementById('planner-details-modal');
             const content = document.getElementById('planner-details-content');
@@ -1222,10 +1236,11 @@
                         <p class="font-medium text-gray-800 uppercase">${eventData.location || '-'}</p>
                     </div>
 
-                    ${eventData.notes ? `
+                    ${eventData.notes || eventData.imageUrl ? `
                     <div class="bg-gray-50 p-3 rounded-lg border border-gray-100">
-                        <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Catatan</p>
-                        <p class="text-gray-700 italic">${eventData.notes}</p>
+                        <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Catatan / Minit / Info</p>
+                        ${eventData.imageUrl ? `<img src="${eventData.imageUrl}" class="w-full rounded mb-3 border border-gray-200 shadow-sm" alt="Gambar Aktiviti">` : ''}
+                        <div class="text-gray-700 text-sm whitespace-pre-wrap leading-relaxed font-normal">${eventData.notes || 'Tiada catatan.'}</div>
                     </div>` : ''}
 
                     ${eventData.participants ? `
@@ -1242,7 +1257,6 @@
             actions.innerHTML = '';
             actions.classList.remove('hidden');
 
-            // Butang JANA SPARK (HANYA PEMBUAT SAHAJA)
             if (eventData.ic === currentUserIc) {
                 const btnSpark = document.createElement('button');
                 btnSpark.className = "flex-1 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded uppercase shadow-md flex justify-center items-center gap-2";
@@ -1252,7 +1266,6 @@
                 };
                 actions.appendChild(btnSpark);
 
-                // Butang Edit/Delete (Hanya untuk pemilik)
                 const btnEdit = document.createElement('button');
                 btnEdit.className = "text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded uppercase";
                 btnEdit.textContent = "UBAH";
@@ -1281,7 +1294,6 @@
         window.deletePlannerActivity = async function(id) {
             try {
                 await deleteDoc(doc(db, `artifacts/${appId}/public/data/spark_planner`, id));
-                // Remove from local array
                 plannerList = plannerList.filter(p => p.id !== id);
                 renderPlannerList();
                 alert("Aktiviti berjaya dipadam.");
@@ -1296,7 +1308,7 @@
             window.location.href = 'tukarspark.html';
         }
 
-        // --- SECTOR SETUP LOGIC (WITH UNIT) ---
+        // --- SECTOR SETUP LOGIC ---
         window.clickAddButton = function() {
             if (!currentUserSector || !currentUserUnit) {
                 document.getElementById('sector-setup-modal').classList.remove('hidden');
@@ -1355,7 +1367,7 @@
             }
         }
 
-        // --- PLANNER MODAL & PARTICIPANT LOGIC ---
+        // --- PLANNER MODAL ---
 
         window.toggleMeetingMode = function() {
             const mode = document.getElementById('plan-mode').value;
@@ -1368,7 +1380,6 @@
             }
         }
 
-        // 1. Toggle Tarikh & Masa Inputs
         window.toggleDateRange = function() {
             const isOneDay = document.getElementById('is-one-day').checked;
             const endDateContainer = document.getElementById('end-date-container');
@@ -1383,7 +1394,6 @@
             }
         }
 
-        // 2. Setup Participant Search
         function setupParticipantSearch() {
             const input = document.getElementById('participant-search-input');
             const dropdown = document.getElementById('participant-dropdown');
@@ -1468,7 +1478,6 @@
             });
         }
 
-        // --- GROUP FUNCTIONS ---
         function updateGroupDropdown() {
             const select = document.getElementById('group-selector');
             select.innerHTML = '<option value="">-- PILIH SENARAI SIMPANAN --</option>';
@@ -1519,6 +1528,60 @@
             }
         }
 
+        // --- IMGBB UPLOAD LOGIC ---
+        window.uploadImageToImgBB = async function(inputElement) {
+            const file = inputElement.files[0];
+            if (!file) return;
+
+            const statusDiv = document.getElementById('image-upload-status');
+            const previewDiv = document.getElementById('image-preview');
+            const urlInput = document.getElementById('plan-image-url');
+
+            statusDiv.textContent = "Memuat naik gambar...";
+            statusDiv.classList.remove("text-red-500", "text-green-500");
+            statusDiv.classList.add("text-blue-500");
+
+            const formData = new FormData();
+            formData.append('image', file);
+            
+            try {
+                const response = await fetch('https://api.imgbb.com/1/upload?key=a7c600ac733fe14649cacd8e65619c4b', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    const imageUrl = data.data.url;
+                    urlInput.value = imageUrl;
+                    
+                    // Show Preview
+                    previewDiv.classList.remove('hidden');
+                    previewDiv.querySelector('img').src = imageUrl;
+
+                    statusDiv.textContent = "Gambar berjaya dimuat naik.";
+                    statusDiv.classList.remove("text-blue-500");
+                    statusDiv.classList.add("text-green-500");
+                } else {
+                    throw new Error("Gagal memuat naik.");
+                }
+            } catch (error) {
+                console.error("ImgBB Error:", error);
+                statusDiv.textContent = "Gagal memuat naik gambar.";
+                statusDiv.classList.remove("text-blue-500");
+                statusDiv.classList.add("text-red-500");
+                inputElement.value = ""; 
+            }
+        }
+
+        window.clearImage = function() {
+            document.getElementById('plan-image-file').value = "";
+            document.getElementById('plan-image-url').value = "";
+            document.getElementById('image-preview').classList.add('hidden');
+            document.getElementById('image-upload-status').textContent = "";
+        }
+
         // --- OPEN/SAVE MODAL ---
 
         window.openPlannerModal = function(dateStr = '', existingEvents = [], editData = null) {
@@ -1533,10 +1596,21 @@
                 
                 document.getElementById('plan-title').value = editData.title;
                 document.getElementById('plan-location').value = editData.location;
-                document.getElementById('plan-notes').value = editData.notes;
+                // Don't uppercase notes to preserve user typing
+                document.getElementById('plan-notes').value = editData.notes || "";
                 document.getElementById('is-public-program').checked = editData.isPublic;
                 document.getElementById('plan-mode').value = editData.mode || "BERSEMUKA";
                 document.getElementById('plan-link').value = editData.link || "";
+                
+                // Handle Image
+                const imgUrl = editData.imageUrl || "";
+                document.getElementById('plan-image-url').value = imgUrl;
+                if(imgUrl) {
+                    document.getElementById('image-preview').classList.remove('hidden');
+                    document.getElementById('image-preview').querySelector('img').src = imgUrl;
+                } else {
+                    document.getElementById('image-preview').classList.add('hidden');
+                }
                 
                 document.getElementById('plan-start-date').value = editData.startDate;
                 document.getElementById('plan-start-time').value = editData.startTime;
@@ -1579,6 +1653,9 @@
                 document.getElementById('plan-mode').value = "BERSEMUKA";
                 document.getElementById('plan-link').value = "";
                 
+                // Reset Image
+                clearImage();
+                
                 document.getElementById('is-one-day').checked = true;
                 
                 selectedParticipants = [];
@@ -1615,8 +1692,10 @@
             
             const title = document.getElementById('plan-title').value.toUpperCase();
             const location = document.getElementById('plan-location').value.toUpperCase();
-            const notes = document.getElementById('plan-notes').value.toUpperCase();
+            // Preserve case for notes
+            const notes = document.getElementById('plan-notes').value;
             const isPublic = document.getElementById('is-public-program').checked; 
+            const imageUrl = document.getElementById('plan-image-url').value;
             
             const mode = document.getElementById('plan-mode').value;
             const link = document.getElementById('plan-link').value;
@@ -1656,6 +1735,7 @@
                     location,
                     mode, 
                     link, 
+                    imageUrl,
                     participants: participantNames, 
                     taggedIcs: taggedIcs, 
                     notes,
@@ -1791,6 +1871,10 @@
         window.showPlannerDetails = showPlannerDetails;
         window.populateUnits = populateUnits;
         window.toggleMeetingMode = toggleMeetingMode;
+        
+        // Expose new functions
+        window.uploadImageToImgBB = uploadImageToImgBB;
+        window.clearImage = clearImage;
     </script>
 </body>
 </html>
