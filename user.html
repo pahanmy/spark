@@ -196,7 +196,7 @@
                             SparkTask
                         </button>
                          <button id="tab-takwim" onclick="switchTab('takwim')" class="nav-tab">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2-2h-2M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                             Takwim
                         </button>
                         <button id="tab-planner" onclick="switchTab('planner')" class="nav-tab">
@@ -270,7 +270,7 @@
                         <div class="card p-6 bg-white border border-gray-100 shadow-lg">
                             <div class="flex justify-between items-center mb-6">
                                 <h3 class="text-lg font-bold text-gray-800 uppercase flex items-center gap-2">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2-2h-2M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                                     TAKWIM <span id="calendar-month-year" class="text-indigo-600"></span>
                                 </h3>
                                 <div class="flex gap-2">
@@ -464,6 +464,9 @@
             
             <div id="planner-details-content" class="space-y-4 text-sm">
                 </div>
+            
+            <div id="planner-actions" class="mt-6 flex justify-end gap-2 border-t border-gray-100 pt-4 hidden">
+                </div>
         </div>
     </div>
 
@@ -486,7 +489,7 @@
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
             
-            <h3 class="text-lg font-bold text-gray-800 mb-1 uppercase">Rancang Aktiviti</h3>
+            <h3 id="planner-modal-title" class="text-lg font-bold text-gray-800 mb-1 uppercase">Rancang Aktiviti</h3>
             <p class="text-xs text-gray-500 mb-4">Masukkan butiran aktiviti anda.</p>
             
             <form onsubmit="savePlannerActivity(event)" class="space-y-4">
@@ -609,7 +612,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, collection, query, where, getDocs, setDoc, updateDoc, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, collection, query, where, getDocs, setDoc, updateDoc, addDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM",
@@ -647,6 +650,8 @@
         let currentTab = 'attendance';
         let currentCalendarDate = new Date();
         let currentPlannerDate = new Date();
+        
+        let editingPlannerId = null; // Track ID for editing
 
         // DATA: Unit per Sektor (Sila kemaskini ikut keperluan sebenar)
         const sectorUnitData = {
@@ -1173,10 +1178,11 @@
             });
         }
 
-        // --- SHOW DETAILS MODAL ---
+        // --- SHOW DETAILS MODAL (WITH EDIT/DELETE) ---
         window.showPlannerDetails = function(eventData) {
             const modal = document.getElementById('planner-details-modal');
             const content = document.getElementById('planner-details-content');
+            const actions = document.getElementById('planner-actions');
             
             const startDateFormatted = new Date(eventData.startDate).toLocaleDateString('ms-MY', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
             let endDateFormatted = '';
@@ -1229,7 +1235,51 @@
                     </div>` : ''}
                 </div>
             `;
+            
+            // Show Actions if user is owner
+            actions.innerHTML = '';
+            if (eventData.ic === currentUserIc) {
+                actions.classList.remove('hidden');
+                
+                const btnEdit = document.createElement('button');
+                btnEdit.className = "text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded uppercase";
+                btnEdit.textContent = "KEMASKINI";
+                btnEdit.onclick = () => {
+                    modal.classList.add('hidden');
+                    // Pass full event data to Edit
+                    openPlannerModal(null, null, eventData); 
+                };
+                
+                const btnDelete = document.createElement('button');
+                btnDelete.className = "text-xs bg-red-100 hover:bg-red-200 text-red-600 font-bold py-2 px-4 rounded uppercase";
+                btnDelete.textContent = "PADAM";
+                btnDelete.onclick = () => {
+                    if(confirm("Adakah anda pasti mahu memadam aktiviti ini?")) {
+                        deletePlannerActivity(eventData.id);
+                        modal.classList.add('hidden');
+                    }
+                };
+                
+                actions.appendChild(btnDelete);
+                actions.appendChild(btnEdit);
+            } else {
+                actions.classList.add('hidden');
+            }
+
             modal.classList.remove('hidden');
+        }
+
+        window.deletePlannerActivity = async function(id) {
+            try {
+                await deleteDoc(doc(db, `artifacts/${appId}/public/data/spark_planner`, id));
+                // Remove from local array
+                plannerList = plannerList.filter(p => p.id !== id);
+                renderPlannerList();
+                alert("Aktiviti berjaya dipadam.");
+            } catch (err) {
+                console.error("Error deleting:", err);
+                alert("Gagal memadam.");
+            }
         }
 
         // --- SECTOR SETUP LOGIC (WITH UNIT) ---
@@ -1457,41 +1507,94 @@
 
         // --- OPEN/SAVE MODAL ---
 
-        window.openPlannerModal = function(dateStr = '', existingEvents = []) {
+        window.openPlannerModal = function(dateStr = '', existingEvents = [], editData = null) {
             const formModal = document.getElementById('planner-modal-form');
+            const titleLabel = document.getElementById('planner-modal-title');
+            const btnSave = document.getElementById('btn-save-plan');
             
-            // Reset fields
-            document.getElementById('plan-title').value = '';
-            document.getElementById('plan-location').value = '';
-            document.getElementById('plan-notes').value = '';
-            document.getElementById('participant-search-input').value = '';
-            document.getElementById('participant-dropdown').innerHTML = '';
-            document.getElementById('is-public-program').checked = false;
-            
-            // Reset Mode & Link
-            document.getElementById('plan-mode').value = "BERSEMUKA";
-            document.getElementById('plan-link').value = "";
-            document.getElementById('plan-link-container').classList.add('hidden');
-            
-            document.getElementById('is-one-day').checked = true;
-            toggleDateRange();
+            if (editData) {
+                // EDIT MODE
+                editingPlannerId = editData.id;
+                titleLabel.textContent = "KEMASKINI AKTIVITI";
+                btnSave.textContent = "KEMASKINI";
+                
+                document.getElementById('plan-title').value = editData.title;
+                document.getElementById('plan-location').value = editData.location;
+                document.getElementById('plan-notes').value = editData.notes;
+                document.getElementById('is-public-program').checked = editData.isPublic;
+                document.getElementById('plan-mode').value = editData.mode || "BERSEMUKA";
+                document.getElementById('plan-link').value = editData.link || "";
+                
+                document.getElementById('plan-start-date').value = editData.startDate;
+                document.getElementById('plan-start-time').value = editData.startTime;
+                
+                const isOneDay = editData.isOneDay;
+                document.getElementById('is-one-day').checked = isOneDay;
+                
+                if (isOneDay) {
+                    document.getElementById('plan-end-time-single').value = editData.endTime;
+                } else {
+                    document.getElementById('plan-end-date').value = editData.endDate;
+                    document.getElementById('plan-end-time-multi').value = editData.endTime;
+                }
+                
+                // Load participants from tag IDs
+                selectedParticipants = [];
+                // We reconstruct simple objects from names string for display or use the IDs if we had full user list.
+                // Simplified: Re-use names string for display, but ideally we match with allUsersData
+                if(editData.taggedIcs && editData.taggedIcs.length > 0) {
+                     // Try to match ICs back to names
+                     editData.taggedIcs.forEach(ic => {
+                         const user = allUsersData.find(u => u.ic === ic);
+                         if(user) selectedParticipants.push(user);
+                     });
+                } else if (editData.participants) {
+                    // Fallback to text split if no taggedIcs (legacy support)
+                    editData.participants.split(',').forEach(pName => {
+                        if(pName.trim()) selectedParticipants.push({name: pName.trim(), ic: 'unknown'});
+                    });
+                }
+                renderSelectedParticipants();
 
-            selectedParticipants = [];
-            const myName = document.getElementById('user-name').textContent;
-            if(myName !== "TIADA REKOD") {
-                 selectedParticipants.push({ name: myName, ic: currentUserIc });
+            } else {
+                // ADD MODE
+                editingPlannerId = null;
+                titleLabel.textContent = "RANCANG AKTIVITI";
+                btnSave.textContent = "SIMPAN AKTIVITI";
+                
+                // Reset fields
+                document.getElementById('plan-title').value = '';
+                document.getElementById('plan-location').value = '';
+                document.getElementById('plan-notes').value = '';
+                document.getElementById('participant-search-input').value = '';
+                document.getElementById('participant-dropdown').innerHTML = '';
+                document.getElementById('is-public-program').checked = false;
+                
+                // Reset Mode & Link
+                document.getElementById('plan-mode').value = "BERSEMUKA";
+                document.getElementById('plan-link').value = "";
+                
+                document.getElementById('is-one-day').checked = true;
+                
+                selectedParticipants = [];
+                const myName = document.getElementById('user-name').textContent;
+                if(myName !== "TIADA REKOD") {
+                     selectedParticipants.push({ name: myName, ic: currentUserIc });
+                }
+                renderSelectedParticipants();
+
+                const todayStr = new Date().toISOString().split('T')[0];
+                const targetDate = dateStr || todayStr;
+
+                document.getElementById('plan-start-date').value = targetDate;
+                document.getElementById('plan-end-date').value = targetDate;
+                document.getElementById('plan-start-time').value = "08:00";
+                document.getElementById('plan-end-time-single').value = "17:00";
+                document.getElementById('plan-end-time-multi').value = "17:00";
             }
-            renderSelectedParticipants();
-
-            const todayStr = new Date().toISOString().split('T')[0];
-            const targetDate = dateStr || todayStr;
-
-            document.getElementById('plan-start-date').value = targetDate;
-            document.getElementById('plan-end-date').value = targetDate; // Default
-            document.getElementById('plan-start-time').value = "08:00";
-            document.getElementById('plan-end-time-single').value = "17:00";
-            document.getElementById('plan-end-time-multi').value = "17:00";
             
+            toggleDateRange();
+            toggleMeetingMode();
             formModal.classList.remove('hidden');
         }
 
@@ -1527,7 +1630,7 @@
                 if (endDate < startDate) {
                     alert("Tarikh Tamat tidak boleh sebelum Tarikh Mula.");
                     btn.disabled = false;
-                    btn.textContent = "SIMPAN AKTIVITI";
+                    btn.textContent = "SIMPAN";
                     return;
                 }
             }
@@ -1536,7 +1639,7 @@
             const taggedIcs = selectedParticipants.map(u => u.ic);
 
             try {
-                const newPlan = {
+                const planData = {
                     ic: currentUserIc,
                     sector: currentUserSector, 
                     unit: currentUserUnit,
@@ -1547,28 +1650,42 @@
                     endTime, 
                     isOneDay,
                     location,
-                    mode, // Saved
-                    link, // Saved
+                    mode, 
+                    link, 
                     participants: participantNames, 
                     taggedIcs: taggedIcs, 
                     notes,
                     isPublic: isPublic, 
-                    createdAt: new Date()
+                    updatedAt: new Date()
                 };
                 
-                await addDoc(collection(db, `artifacts/${appId}/public/data/spark_planner`), newPlan);
+                if (editingPlannerId) {
+                    // UPDATE EXISTING
+                    const docRef = doc(db, `artifacts/${appId}/public/data/spark_planner`, editingPlannerId);
+                    await updateDoc(docRef, planData);
+                    
+                    // Update Local List
+                    const index = plannerList.findIndex(p => p.id === editingPlannerId);
+                    if (index !== -1) {
+                        plannerList[index] = { id: editingPlannerId, ...planData, createdAt: plannerList[index].createdAt }; // Preserve createdAt
+                    }
+                    alert("Aktiviti berjaya dikemaskini!");
+                } else {
+                    // CREATE NEW
+                    planData.createdAt = new Date();
+                    const docRef = await addDoc(collection(db, `artifacts/${appId}/public/data/spark_planner`), planData);
+                    plannerList.push({ id: docRef.id, ...planData });
+                    alert("Aktiviti berjaya disimpan!");
+                }
                 
-                plannerList.push(newPlan);
                 renderPlannerList();
-                
-                alert("Aktiviti berjaya disimpan!");
                 closePlannerModal();
             } catch (error) {
                 console.error("Error saving plan:", error);
                 alert("Gagal menyimpan. Sila cuba lagi.");
             } finally {
                 btn.disabled = false;
-                btn.textContent = "SIMPAN AKTIVITI";
+                btn.textContent = "SIMPAN";
             }
         }
 
@@ -1660,6 +1777,7 @@
         window.openPlannerModal = openPlannerModal;
         window.closePlannerModal = closePlannerModal;
         window.savePlannerActivity = savePlannerActivity;
+        window.deletePlannerActivity = deletePlannerActivity; // EXPOSED
         
         window.toggleDateRange = toggleDateRange;
         window.saveCurrentGroup = saveCurrentGroup;
