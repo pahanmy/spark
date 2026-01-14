@@ -440,6 +440,11 @@
         const appId = firebaseConfig.projectId;
         const DEVELOPER_IC = "890522135381";
 
+        // Pembolehubah Global untuk Slideshow
+        let bannerImages = [];
+        let currentBannerIndex = 0;
+        let bannerInterval;
+
         try {
             const app = initializeApp(firebaseConfig);
             db = getFirestore(app);
@@ -458,6 +463,68 @@
                 }
             }
         });
+
+        // --- DYNAMIC SLIDESHOW LOGIC ---
+        async function loadDynamicBanner() {
+            try {
+                const settingsDocRef = doc(db, `artifacts/${appId}/public/data/spark_settings`, 'landing_page');
+                const docSnap = await getDoc(settingsDocRef);
+                
+                const bannerImg = document.getElementById('hero-banner-img');
+                if (!bannerImg) return;
+
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    
+                    // Semak jika ada array gambar (Format Baru)
+                    if (data.bannerImages && Array.isArray(data.bannerImages) && data.bannerImages.length > 0) {
+                        bannerImages = data.bannerImages;
+                        startSlideshow();
+                    } 
+                    // Semak jika ada single url (Format Lama)
+                    else if (data.bannerUrl) {
+                        bannerImg.src = data.bannerUrl;
+                        // Reset rotation kalau ada data lama
+                        const rotation = data.bannerRotation || 0;
+                        bannerImg.style.transform = `rotate(${rotation}deg)`;
+                    }
+                }
+            } catch (e) { console.error("Error loading banner:", e); }
+        }
+
+        function startSlideshow() {
+            const bannerImg = document.getElementById('hero-banner-img');
+            
+            // Papar gambar pertama
+            if (bannerImages.length > 0) {
+                bannerImg.src = bannerImages[0];
+                bannerImg.style.transform = 'rotate(0deg)';
+            }
+
+            // Jika hanya ada 1 gambar, tak perlu loop
+            if (bannerImages.length <= 1) return;
+
+            // Logik penukaran gambar: 3600000 = 1 Jam
+            const intervalTime = 5000; // Demo: 5 Saat. Tukar ke 3600000 untuk 1 jam.
+
+            if(bannerInterval) clearInterval(bannerInterval); // Clear jika ada interval lama
+
+            bannerInterval = setInterval(() => {
+                // Efek Fade Out
+                bannerImg.style.opacity = 0;
+
+                setTimeout(() => {
+                    currentBannerIndex = (currentBannerIndex + 1) % bannerImages.length;
+                    bannerImg.src = bannerImages[currentBannerIndex];
+                    
+                    // Efek Fade In
+                    bannerImg.onload = () => {
+                        bannerImg.style.opacity = 0.9; // Ikut opacity asal class Tailwind
+                    };
+                }, 500); // Tunggu 0.5 saat sebelum tukar src
+
+            }, intervalTime);
+        }
 
         // --- Helper Function ---
         function escapeHtml(unsafe) {
@@ -636,18 +703,6 @@
             }
         }
 
-        // --- DYNAMIC BANNER LOGIC ---
-        async function loadDynamicBanner() {
-            try {
-                const settingsDocRef = doc(db, `artifacts/${appId}/public/data/spark_settings`, 'landing_page');
-                const docSnap = await getDoc(settingsDocRef);
-                if (docSnap.exists() && docSnap.data().bannerUrl) {
-                    const bannerImg = document.getElementById('hero-banner-img');
-                    if(bannerImg) bannerImg.src = docSnap.data().bannerUrl;
-                }
-            } catch (e) { console.error("Error loading banner:", e); }
-        }
-
         function main() {
             if (!userId) return;
             document.getElementById('load-program-btn').addEventListener('click', loadProgram);
@@ -663,7 +718,7 @@
 
             initializeDashboardData();
             renderFeedbackLog();
-            loadDynamicBanner(); // Panggil fungsi banner
+            loadDynamicBanner(); // Panggil fungsi Slideshow
 
             const versionInfo = document.getElementById('version-info');
             if(versionInfo) {
