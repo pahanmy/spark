@@ -142,7 +142,7 @@
     
     <footer class="text-center py-4 mt-8 border-t border-gray-200">
         <p class="text-sm text-gray-600">Projek Inovasi oleh <a href="https://pahanmy.github.io/works/" target="_blank" class="font-semibold text-emerald-500 hover:underline">Pahan</a></p>
-        <p id="version-info" class="text-xs text-gray-500">Versi Takwim User 2.0 (2025)</p>
+        <p id="version-info" class="text-xs text-gray-500">Versi Takwim User 2.1 (2025)</p>
     </footer>
 
     <div id="ic-verify-modal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop hidden">
@@ -315,7 +315,8 @@
             }
         }
         
-        // NEW: Function to Calculate Monthly Stats
+        // --- DEFINITIONS OF MISSING FUNCTIONS START HERE ---
+
         function updateMonthlyStats(year, month) {
             let officialCount = 0;
             let plannerCount = 0;
@@ -500,7 +501,6 @@
                     <div class="space-y-3 mb-4">
                 ` + birthdays.map(b => {
                     const encodedDob = btoa(b.dob);
-                    // Pautan TERUS ke kotak ucapan
                     const ucapLink = `birthday.html?name=${encodeURIComponent(b.name)}&dob=${encodedDob}`;
                     
                     return `
@@ -519,7 +519,7 @@
                 }).join('') + '</div>';
             }
 
-            // 2. Official Programs (Indigo)
+            // 2. Official Programs
             const programs = getProgramsForDate(date).filter(p => p.name.toLowerCase().includes(searchTerm));
             if (programs.length > 0) {
                  fullHtml += `
@@ -544,7 +544,7 @@
                 `}).join('') + '</div>';
             }
 
-            // 3. User Planner Activities (Green/Emerald)
+            // 3. User Planner Activities
             const activities = getPlannerForDate(date).filter(p => p.title.toLowerCase().includes(searchTerm));
             if (activities.length > 0) {
                  fullHtml += `
@@ -552,7 +552,6 @@
                     <div class="space-y-3">
                 ` + activities.map(a => {
                     const dataString = encodeURIComponent(JSON.stringify(a));
-                    // Show Participants Summary directly
                     const involved = a.participants || "Tiada Maklumat";
                     
                     return `
@@ -580,46 +579,90 @@
             }
         }
 
-        window.openActivityModal = (encodedData) => {
-            const data = JSON.parse(decodeURIComponent(encodedData));
+        // Functions exposed to window
+        function populateYearFilter() {
+            const yearSelect = document.getElementById('year-select');
+            const programYears = allPrograms.map(p => new Date(p.startDate).getFullYear());
+            const plannerYears = allPlannerActivities.map(p => new Date(p.startDate).getFullYear());
+            const years = [...new Set([...programYears, ...plannerYears])];
             
-            document.getElementById('modal-activity-title').textContent = data.title;
-            document.getElementById('modal-activity-location').innerHTML = `<svg class="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg> ${data.location}`;
-            document.getElementById('modal-activity-time').innerHTML = `<svg class="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> ${data.startTime} - ${data.endTime || '...'}`;
-            
-            // Show participants in modal too
-            const participantsEl = document.getElementById('modal-activity-participants');
-            participantsEl.textContent = data.participants || "Tiada Maklumat";
-
-            const notesEl = document.getElementById('modal-activity-notes');
-            const notesContainer = document.getElementById('modal-activity-notes-container');
-            if (data.notes) {
-                notesEl.textContent = data.notes;
-                notesContainer.classList.remove('hidden');
-            } else {
-                notesContainer.classList.add('hidden');
+            const currentYear = new Date().getFullYear();
+            if (!years.includes(currentYear)) {
+                years.push(currentYear);
             }
-
-            const imgEl = document.getElementById('modal-activity-image');
-            const imgContainer = document.getElementById('modal-activity-image-container');
-            if (data.imageUrl) {
-                imgEl.src = data.imageUrl;
-                imgContainer.classList.remove('hidden');
-            } else {
-                imgContainer.classList.add('hidden');
-            }
-
-            const linkBtn = document.getElementById('modal-activity-link');
-            if (data.link) {
-                linkBtn.href = data.link;
-                linkBtn.classList.remove('hidden');
-            } else {
-                linkBtn.classList.add('hidden');
-            }
-
-            document.getElementById('activity-info-modal').classList.remove('hidden');
+            yearSelect.innerHTML = years.sort((a,b) => b-a).map(y => `<option value="${y}" ${y === currentYear ? 'selected' : ''}>${y}</option>`).join('');
         }
 
+        function populateMonthFilter() {
+            const monthSelect = document.getElementById('month-select');
+            const monthNames = ["Januari", "Februari", "Mac", "April", "Mei", "Jun", "Julai", "Ogos", "September", "Oktober", "November", "Disember"];
+            const currentMonth = new Date().getMonth();
+            monthSelect.innerHTML = monthNames.map((m, i) => `<option value="${i}" ${i === currentMonth ? 'selected' : ''}>${m}</option>`).join('');
+        }
+
+        function updateCalendarView() {
+            const year = parseInt(document.getElementById('year-select').value, 10);
+            const month = parseInt(document.getElementById('month-select').value, 10);
+            currentDate = new Date(year, month, 1);
+            renderCalendar(year, month);
+        }
+
+        function changeMonth(direction) {
+            currentDate.setMonth(currentDate.getMonth() + direction);
+            document.getElementById('year-select').value = currentDate.getFullYear();
+            document.getElementById('month-select').value = currentDate.getMonth();
+            renderCalendar(currentDate.getFullYear(), currentDate.getMonth());
+        }
+
+        function promptIcVerification(programId, penyelarasIc) {
+            const modal = document.getElementById('ic-verify-modal');
+            modal.classList.remove('hidden');
+            document.getElementById('verify-program-id').value = programId;
+            document.getElementById('verify-penyelaras-ic').value = penyelarasIc;
+            document.getElementById('ic-input').value = '';
+            document.getElementById('verify-error').classList.add('hidden');
+        }
+
+        function handleVerification() {
+            const programId = document.getElementById('verify-program-id').value;
+            const correctIc = document.getElementById('verify-penyelaras-ic').value;
+            const enteredIc = document.getElementById('ic-input').value.trim();
+
+            if (enteredIc === correctIc) {
+                window.location.href = `program.html?kod=${programId}`;
+            } else {
+                document.getElementById('verify-error').classList.remove('hidden');
+            }
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.add('hidden');
+            if (modalId === 'share-modal') {
+                document.getElementById('copy-success').classList.add('hidden');
+                document.getElementById('copy-btn').textContent = "Salin";
+            }
+            if (modalId === 'ic-verify-modal') {
+                document.getElementById('verify-error').classList.add('hidden');
+                document.getElementById('ic-input').value = '';
+            }
+        }
+        
+        function copyShareText() {
+            const modalText = document.getElementById('share-modal-text-content');
+            modalText.select();
+            navigator.clipboard.writeText(modalText.value).then(() => {
+                const copySuccess = document.getElementById('copy-success');
+                const copyBtn = document.getElementById('copy-btn');
+                copySuccess.classList.remove('hidden');
+                copyBtn.textContent = "Berjaya!";
+                setTimeout(() => {
+                    copySuccess.classList.add('hidden');
+                    copyBtn.textContent = "Salin";
+                }, 2000);
+            });
+        }
+
+        // --- EXPORT TO WINDOW SCOPE ---
         window.populateYearFilter = populateYearFilter;
         window.populateMonthFilter = populateMonthFilter;
         window.updateCalendarView = updateCalendarView;
