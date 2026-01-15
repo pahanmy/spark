@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SPARK – Takwim Utama & Aktiviti</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Poppins', sans-serif; background-color: #f8f9fa; }
+        .card { background-color: white; border-radius: 0.75rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); }
+        .btn { transition: background-color 0.3s, transform 0.2s; }
+        .btn:hover { transform: translateY(-2px); }
+        .calendar-day { 
+            min-height: 110px; /* Sedikit tinggi untuk muat lebih info */
+            max-height: 110px;
+            display: flex;
+            flex-direction: column;
+        }
+        .event-list {
+            overflow-y: auto;
+            flex-grow: 1;
+        }
+        /* Official Programs (Indigo) */
+        .calendar-day.has-events { background-color: #eef2ff; cursor: pointer; }
+        .calendar-day.has-events:hover { background-color: #e0e7ff; }
+        
+        /* User Planner Activities (Green/Emerald) */
+        .calendar-day.has-planner { background-color: #ecfdf5; cursor: pointer; }
+        .calendar-day.has-planner:hover { background-color: #d1fae5; }
+        
+        /* Birthdays (Pink) */
+        .calendar-day.has-birthdays { background-color: #fff1f2; cursor: pointer; }
+        .calendar-day.has-birthdays:hover { background-color: #ffe4e6; }
+
+        /* Mixed Events */
+        .calendar-day.mixed-events { background-color: #f3f4f6; cursor: pointer; }
+
+        .calendar-day.selected { border-width: 2px; border-color: #4f46e5; background-color: #c7d2fe; }
+        .calendar-day.is-today { background-color: #fef9c3; border: 1px solid #facc15; }
+        .modal-backdrop { background-color: rgba(0,0,0,0.5); }
+        
+        /* Scrollbar hide for cleaner look */
+        .event-list::-webkit-scrollbar { width: 2px; }
+        .event-list::-webkit-scrollbar-track { background: transparent; }
+        .event-list::-webkit-scrollbar-thumb { background: #cbd5e1; }
+    </style>
+</head>
+<body class="bg-gray-50 flex flex-col min-h-screen">
+
+    <header class="bg-white shadow-sm sticky top-0 z-10">
+        <div class="max-w-screen-2xl mx-auto py-4 px-4 sm:px-6 lg:px-8 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="bg-emerald-600 p-2 rounded-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-bold text-emerald-600">SPARK</h1>
+                    <p class="text-sm text-gray-500">Takwim Rasmi & Aktiviti Umum</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="window.history.back()" class="btn bg-gray-100 text-gray-700 font-semibold py-2 px-4 rounded-lg shadow-sm hover:bg-gray-200 flex items-center gap-2 text-sm capitalize">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
+                    </svg>
+                    Kembali
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-screen-2xl mx-auto py-6 sm:px-6 lg:px-8 flex-grow w-full">
+        <div class="grid grid-cols-1 lg:grid-cols-3 lg:gap-8">
+            
+            <div class="lg:col-span-2">
+                <div class="card p-6">
+                    <div class="flex flex-wrap items-end gap-4 mb-6 bg-gray-50 p-4 rounded-lg border">
+                        <div class="flex-grow md:flex-grow-0">
+                            <label for="month-select" class="block text-sm font-medium text-gray-700">Bulan</label>
+                            <select id="month-select" class="mt-1 block w-full pl-3 pr-10 py-2 border-gray-300 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm rounded-md"></select>
+                        </div>
+                        <div class="flex-grow md:flex-grow-0">
+                            <label for="year-select" class="block text-sm font-medium text-gray-700">Tahun</label>
+                            <select id="year-select" class="mt-1 block w-full pl-3 pr-10 py-2 border-gray-300 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm rounded-md"></select>
+                        </div>
+                        <div class="flex-grow">
+                            <label for="search-input" class="block text-sm font-medium text-gray-700">Carian Program/Aktiviti</label>
+                            <input type="text" id="search-input" placeholder="Taip nama program..." class="mt-1 block w-full px-3 py-2 border-gray-300 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm rounded-md">
+                        </div>
+                    </div>
+                    
+                    <div class="flex flex-wrap gap-4 mb-4 text-xs font-semibold uppercase justify-center sm:justify-start">
+                        <div class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-indigo-500"></span> Program Rasmi</div>
+                        <div class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-emerald-500"></span> Aktiviti Umum</div>
+                        <div class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-pink-500"></span> Hari Jadi</div>
+                    </div>
+
+                    <div class="flex justify-between items-center mb-4">
+                        <button id="prev-month-btn" class="p-2 rounded-full hover:bg-gray-100">&lt;</button>
+                        <h2 id="calendar-header" class="text-xl font-bold text-gray-800 uppercase"></h2>
+                        <button id="next-month-btn" class="p-2 rounded-full hover:bg-gray-100">&gt;</button>
+                    </div>
+
+                    <div id="calendar-weekdays" class="grid grid-cols-7 gap-2 text-center font-semibold text-sm text-gray-600 mb-2 uppercase">
+                        <div>Ahad</div><div>Isnin</div><div>Selasa</div><div>Rabu</div><div>Khamis</div><div>Jumaat</div><div>Sabtu</div>
+                    </div>
+                    <div id="calendar-grid" class="grid grid-cols-7 gap-2">
+                    </div>
+                </div>
+            </div>
+
+            <div class="lg:col-span-1">
+                <div id="program-list-container" class="mt-8 lg:mt-0">
+                    <div class="card p-6 h-full">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4 uppercase">Agenda <span id="selected-date-text"></span></h3>
+                        <div id="program-list-content" class="space-y-4"></div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+    
+    <footer class="text-center py-4 mt-8 border-t border-gray-200">
+        <p class="text-sm text-gray-600">Projek Inovasi oleh <a href="https://pahanmy.github.io/works/" target="_blank" class="font-semibold text-emerald-500 hover:underline">Pahan</a></p>
+        <p id="version-info" class="text-xs text-gray-500">Versi Takwim User 1.0 (2025)</p>
+    </footer>
+
+    <div id="ic-verify-modal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop hidden">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-sm p-6 text-center">
+            <h3 class="text-xl font-semibold mb-2 uppercase">Pengesahan Diperlukan</h3>
+            <p class="text-sm text-gray-600 mb-4 uppercase">Masukkan No. IC Penyelaras untuk membuka laporan/butiran penuh.</p>
+            <input type="hidden" id="verify-program-id">
+            <input type="hidden" id="verify-penyelaras-ic">
+            <input type="text" id="ic-input" placeholder="No. IC Penyelaras" class="block w-full text-center px-4 py-2 border border-gray-300 rounded-md mb-2">
+            <p id="verify-error" class="text-red-500 text-sm hidden mb-4 uppercase">No. IC tidak sepadan.</p>
+            <div class="mt-4 flex justify-center space-x-3">
+                <button type="button" onclick="closeModal('ic-verify-modal')" class="btn bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg uppercase">Batal</button>
+                <button type="button" onclick="handleVerification()" class="btn bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg uppercase">Buka</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="activity-info-modal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop hidden">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-md p-6 m-4 max-h-[90vh] overflow-y-auto">
+            <h3 id="modal-activity-title" class="text-lg font-bold text-emerald-700 uppercase mb-2"></h3>
+            <div class="space-y-3 text-sm text-gray-700">
+                <p id="modal-activity-time" class="flex items-center gap-2 font-semibold"></p>
+                <p id="modal-activity-location" class="flex items-center gap-2"></p>
+                
+                <div id="modal-activity-notes-container" class="bg-gray-50 p-3 rounded border border-gray-100 hidden">
+                    <p class="text-xs font-bold text-gray-400 uppercase mb-1">Catatan</p>
+                    <p id="modal-activity-notes" class="whitespace-pre-wrap"></p>
+                </div>
+
+                <div id="modal-activity-image-container" class="hidden mt-2">
+                    <img id="modal-activity-image" src="" alt="Lampiran" class="w-full rounded border">
+                </div>
+            </div>
+            <div class="mt-6 flex justify-end space-x-3">
+                 <a id="modal-activity-link" href="#" target="_blank" class="hidden btn bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg uppercase text-xs flex items-center">
+                    Buka Pautan
+                </a>
+                <button type="button" onclick="closeModal('activity-info-modal')" class="btn bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg uppercase text-xs">Tutup</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="share-modal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop hidden">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
+            <h3 id="share-modal-title" class="text-xl font-semibold mb-2 text-pink-600">Kongsi Ucapan</h3>
+            <textarea id="share-modal-text-content" rows="8" readonly class="w-full p-2 border border-gray-300 rounded-md bg-gray-50 text-sm text-gray-700"></textarea>
+            <p id="copy-success" class="text-green-600 text-sm text-center hidden mt-2">Berjaya disalin!</p>
+            <div class="mt-4 flex justify-end space-x-3">
+                <button type="button" onclick="closeModal('share-modal')" class="btn bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg uppercase text-sm">Tutup</button>
+                <button type="button" id="copy-btn" onclick="copyShareText()" class="btn bg-green-600 text-white font-semibold py-2 px-4 rounded-lg uppercase text-sm">Salin</button>
+            </div>
+        </div>
+    </div>
+    
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, onSnapshot, query, orderBy, where } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const firebaseConfig = { apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM", authDomain: "myqrhadir.firebaseapp.com", projectId: "myqrhadir", storageBucket: "myqrhadir.appspot.com", messagingSenderId: "799691133747", appId: "1:799691133747:web:835a5e3e9413eace806446" };
+        
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        const appId = firebaseConfig.projectId;
+        
+        let allPrograms = [];     // Official Programs
+        let allBirthdays = [];    // Birthdays
+        let allPlannerActivities = []; // Public User Activities
+        
+        let currentDate = new Date();
+        let selectedDateElement = null;
+        let isInitialLoad = true;
+
+        onAuthStateChanged(auth, async (user) => {
+            if (user) main();
+            else { try { await signInAnonymously(auth); } catch (error) { console.error("Gagal daftar masuk:", error); } }
+        });
+
+        function main() {
+            setupEventListeners();
+            populateMonthFilter();
+            initializeRightPanel();
+            listenForProgramChanges();
+            listenForBirthdayChanges();
+            listenForPlannerChanges(); // New Listener
+        }
+
+        function setupEventListeners() {
+            document.getElementById('month-select').addEventListener('change', updateCalendarView);
+            document.getElementById('year-select').addEventListener('change', updateCalendarView);
+            document.getElementById('search-input').addEventListener('input', () => {
+                renderCalendar(currentDate.getFullYear(), currentDate.getMonth());
+                if (selectedDateElement) {
+                    const date = parseDateString(selectedDateElement.dataset.date);
+                    displayProgramsForDate(date, selectedDateElement);
+                } else {
+                    displayTodaysPrograms();
+                }
+            });
+            document.getElementById('prev-month-btn').addEventListener('click', () => changeMonth(-1));
+            document.getElementById('next-month-btn').addEventListener('click', () => changeMonth(1));
+        }
+
+        function initializeRightPanel() {
+            const programListContent = document.getElementById('program-list-content');
+            document.getElementById('selected-date-text').textContent = "HARI INI";
+            programListContent.innerHTML = `
+                <div class="border-2 border-dashed border-gray-300 rounded-xl p-5 text-center text-gray-500 h-full flex flex-col justify-center items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    <p class="mt-4 text-sm font-semibold">Tiada Agenda Hari Ini</p>
+                    <p class="mt-1 text-xs">Klik tarikh pada kalendar untuk melihat info.</p>
+                </div>
+            `;
+        }
+        
+        // 1. Listen for Official Programs
+        function listenForProgramChanges() {
+            const programsRef = collection(db, `artifacts/${appId}/public/data/spark_programs`);
+            const q = query(programsRef, orderBy("startDate", "asc"));
+
+            onSnapshot(q, (snapshot) => {
+                allPrograms = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                populateYearFilter();
+                refreshView();
+            });
+        }
+        
+        // 2. Listen for Birthdays
+        function listenForBirthdayChanges() {
+            const birthdaysRef = collection(db, `artifacts/${appId}/public/data/spark_birthdays`);
+            const q = query(birthdaysRef, orderBy("dob", "asc"));
+
+            onSnapshot(q, (snapshot) => {
+                allBirthdays = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                refreshView();
+            });
+        }
+
+        // 3. Listen for PUBLIC Planner Activities (NEW)
+        function listenForPlannerChanges() {
+            const plannerRef = collection(db, `artifacts/${appId}/public/data/spark_planner`);
+            // Fetch only public items
+            const q = query(plannerRef, where("isPublic", "==", true));
+
+            onSnapshot(q, (snapshot) => {
+                allPlannerActivities = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                refreshView();
+            });
+        }
+        
+        function refreshView() {
+            renderCalendar(currentDate.getFullYear(), currentDate.getMonth());
+            if (isInitialLoad) {
+                displayTodaysPrograms();
+                isInitialLoad = false;
+            } else if (selectedDateElement) {
+                // If a date is currently selected, refresh that specific view
+                const date = parseDateString(selectedDateElement.dataset.date);
+                displayProgramsForDate(date, selectedDateElement);
+            }
+        }
+        
+        function renderCalendar(year, month) {
+            const calendarGrid = document.getElementById('calendar-grid');
+            const calendarHeader = document.getElementById('calendar-header');
+            calendarGrid.innerHTML = '';
+            
+            const monthNames = ["Januari", "Februari", "Mac", "April", "Mei", "Jun", "Julai", "Ogos", "September", "Oktober", "November", "Disember"];
+            calendarHeader.textContent = `${monthNames[month]} ${year}`.toUpperCase();
+
+            const firstDayOfMonth = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+            for (let i = 0; i < firstDayOfMonth; i++) {
+                calendarGrid.insertAdjacentHTML('beforeend', '<div class="border rounded-md bg-gray-50"></div>');
+            }
+
+            for (let day = 1; day <= daysInMonth; day++) {
+                const date = new Date(year, month, day);
+                const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+                const programs = getProgramsForDate(date);
+                const birthdays = getBirthdaysForDate(date);
+                const activities = getPlannerForDate(date); // User Public Activities
+
+                const isToday = new Date().toDateString() === date.toDateString();
+                
+                let dayClasses = 'calendar-day border rounded-md p-2 transition-colors relative';
+                let eventHtml = '';
+                let indicatorsHtml = '';
+
+                let hasOfficial = programs.length > 0;
+                let hasPlanner = activities.length > 0;
+                let hasBirthday = birthdays.length > 0;
+
+                // Color Logic
+                if (hasOfficial && hasPlanner) dayClasses += ' mixed-events';
+                else if (hasOfficial) dayClasses += ' has-events';
+                else if (hasPlanner) dayClasses += ' has-planner'; // Green background
+                else if (hasBirthday) dayClasses += ' has-birthdays';
+                
+                if (isToday) dayClasses += ' is-today';
+
+                // Indicators
+                if (hasOfficial) indicatorsHtml += `<div class="absolute top-1 right-1 bg-indigo-500 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full shadow" title="Program Rasmi">${programs.length}</div>`;
+                
+                // Planner Indicator (Green)
+                if (hasPlanner) {
+                    const rightOffset = hasOfficial ? 'right-6' : 'right-1';
+                    indicatorsHtml += `<div class="absolute top-1 ${rightOffset} bg-emerald-500 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full shadow" title="Aktiviti Umum">${activities.length}</div>`;
+                }
+
+                // Event List Rendering
+                // 1. Official
+                eventHtml += programs.map(p => `<div class="bg-indigo-100 text-indigo-800 text-[10px] rounded px-1 truncate mb-0.5 font-medium">${p.name.toUpperCase()}</div>`).join('');
+                // 2. Planner (User Activities)
+                eventHtml += activities.map(a => `<div class="bg-emerald-100 text-emerald-800 text-[10px] rounded px-1 truncate mb-0.5 font-medium">${a.title.toUpperCase()}</div>`).join('');
+                // 3. Birthdays
+                eventHtml += birthdays.map(b => `<div class="bg-pink-100 text-pink-800 text-[10px] rounded px-1 truncate mb-0.5">🎂 ${b.name.split(' ')[0].toUpperCase()}</div>`).join('');
+
+                const dayHtml = `
+                    <div class="${dayClasses}" data-date="${dateString}">
+                        ${indicatorsHtml}
+                        <div class="font-semibold text-gray-800 text-sm mb-1">${day}</div>
+                        <div class="event-list">${eventHtml}</div>
+                    </div>
+                `;
+                calendarGrid.insertAdjacentHTML('beforeend', dayHtml);
+            }
+            
+            calendarGrid.querySelectorAll('.calendar-day').forEach(el => {
+                el.addEventListener('click', (e) => {
+                    const target = e.currentTarget;
+                    if(target.querySelector('.event-list').innerHTML !== "") {
+                        const date = parseDateString(target.dataset.date);
+                        displayProgramsForDate(date, target);
+                    }
+                });
+            });
+        }
+
+        function parseDateString(dateString) {
+            const parts = dateString.split('-');
+            return new Date(parts[0], parts[1] - 1, parts[2]);
+        }
+        
+        function formatTime(timeString) {
+            if (!timeString) return '';
+            const [hour, minute] = timeString.split(':');
+            const h = parseInt(hour, 10);
+            const ampm = h >= 12 ? 'ptg' : 'pagi';
+            let formattedHour = h % 12;
+            if (formattedHour === 0) formattedHour = 12;
+            return `${formattedHour}:${minute} ${ampm}`;
+        }
+
+        function getProgramsForDate(date) {
+            const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+            return allPrograms.filter(p => {
+                const startDate = parseDateString(p.startDate);
+                const endDate = p.endDate ? parseDateString(p.endDate) : startDate;
+                return dateOnly >= startDate && dateOnly <= endDate;
+            });
+        }
+
+        // NEW: Get Planner Activities
+        function getPlannerForDate(date) {
+            const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+            return allPlannerActivities.filter(p => {
+                const startDate = parseDateString(p.startDate);
+                // Planner uses isOneDay or endDate
+                let endDate = startDate;
+                if(!p.isOneDay && p.endDate) {
+                    endDate = parseDateString(p.endDate);
+                }
+                return dateOnly >= startDate && dateOnly <= endDate;
+            });
+        }
+
+        function getBirthdaysForDate(date) {
+            const month = date.getMonth() + 1;
+            const day = date.getDate();
+            return allBirthdays.filter(b => {
+                if (!b.dob) return false;
+                const parts = b.dob.split('-');
+                const bMonth = parseInt(parts[1], 10);
+                const bDay = parseInt(parts[2], 10);
+                return bMonth === month && bDay === day;
+            });
+        }
+        
+        function displayTodaysPrograms() {
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const day = String(today.getDate()).padStart(2, '0');
+            const dateString = `${year}-${month}-${day}`;
+
+            const todayCell = document.querySelector(`.calendar-day[data-date="${dateString}"]`);
+            if (todayCell) {
+                 // Check if it has any event classes
+                 if (todayCell.classList.contains('has-events') || todayCell.classList.contains('has-birthdays') || todayCell.classList.contains('has-planner')) {
+                    displayProgramsForDate(today, todayCell);
+                 } else {
+                     initializeRightPanel();
+                 }
+            } else {
+                 initializeRightPanel(); 
+            }
+        }
+
+        function displayProgramsForDate(date, element) {
+            if (selectedDateElement) {
+                selectedDateElement.classList.remove('selected');
+            }
+            selectedDateElement = element;
+            selectedDateElement.classList.add('selected');
+            
+            const programListContent = document.getElementById('program-list-content');
+            const searchTerm = document.getElementById('search-input').value.toLowerCase();
+            
+            let fullHtml = '';
+
+            // 1. Birthdays
+            const birthdays = getBirthdaysForDate(date);
+            if (birthdays.length > 0) {
+                fullHtml += `
+                    <h4 class="text-sm font-bold text-pink-600 uppercase mb-2">Sambutan Hari Jadi</h4>
+                    <div class="space-y-3 mb-4">
+                ` + birthdays.map(b => {
+                    const encodedDob = btoa(b.dob);
+                    const readNoteLink = `birthdaynote.html?name=${encodeURIComponent(b.name)}&dob=${encodedDob}`;
+                    
+                    return `
+                    <div class="bg-pink-50 border border-pink-200 rounded-xl p-3 text-gray-800 flex items-center justify-between">
+                        <div class="flex items-center gap-3 overflow-hidden">
+                            <span class="text-xl">🎂</span>
+                            <div class="truncate">
+                                <p class="font-bold text-sm text-pink-700 truncate">${b.name.toUpperCase()}</p>
+                            </div>
+                        </div>
+                         <a href="${readNoteLink}" target="_blank" class="flex-shrink-0 bg-pink-500 hover:bg-pink-600 text-white text-[10px] font-bold py-1.5 px-3 rounded-lg uppercase">
+                            Ucapan
+                        </a>
+                    </div>
+                    `
+                }).join('') + '</div>';
+            }
+
+            // 2. Official Programs (Indigo)
+            const programs = getProgramsForDate(date).filter(p => p.name.toLowerCase().includes(searchTerm));
+            if (programs.length > 0) {
+                 fullHtml += `
+                    <h4 class="text-sm font-bold text-indigo-600 uppercase mb-2 mt-4">Program Rasmi PPD</h4>
+                    <div class="space-y-3">
+                ` + programs.map(p => {
+                    const endDate = p.endDate ? parseDateString(p.endDate) : parseDateString(p.startDate);
+                    const today = new Date(); today.setHours(0,0,0,0);
+                    const isPast = endDate < today;
+                    
+                    return `
+                    <div class="bg-white border-l-4 border-indigo-500 shadow-sm rounded-r-lg p-3 text-gray-800">
+                        <p class="font-bold text-sm text-indigo-700 uppercase leading-tight">${p.name.toUpperCase()}</p>
+                        <div class="text-xs text-gray-500 mt-2 space-y-1">
+                             <p class="flex items-center gap-1"><svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg> ${p.location.toUpperCase()}</p>
+                             <p class="flex items-center gap-1"><svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> ${p.startTime} - ${p.endTime}</p>
+                        </div>
+                        <button onclick="promptIcVerification('${p.id}', '${p.penyelaras_ic}')" class="mt-2 w-full bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold py-1.5 px-2 rounded border border-indigo-200 uppercase" ${isPast ? 'disabled' : ''}>
+                            ${isPast ? 'Tamat' : 'Lihat Laporan/Butiran'}
+                        </button>
+                    </div>
+                `}).join('') + '</div>';
+            }
+
+            // 3. User Planner Activities (Green/Emerald)
+            const activities = getPlannerForDate(date).filter(p => p.title.toLowerCase().includes(searchTerm));
+            if (activities.length > 0) {
+                 fullHtml += `
+                    <h4 class="text-sm font-bold text-emerald-600 uppercase mb-2 mt-4">Aktiviti & Program Umum</h4>
+                    <div class="space-y-3">
+                ` + activities.map(a => {
+                    // Pass data using encoded JSON to avoid quote issues
+                    const dataString = encodeURIComponent(JSON.stringify(a));
+                    
+                    return `
+                    <div class="bg-emerald-50 border-l-4 border-emerald-500 shadow-sm rounded-r-lg p-3 text-gray-800">
+                        <p class="font-bold text-sm text-emerald-800 uppercase leading-tight">${a.title.toUpperCase()}</p>
+                        <div class="text-xs text-gray-600 mt-2 space-y-1">
+                             <p class="flex items-center gap-1"><svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg> ${a.location.toUpperCase()}</p>
+                             <p class="flex items-center gap-1"><svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> ${a.startTime} - ${a.endTime || '...'}</p>
+                             <p class="flex items-center gap-1 opacity-75 mt-1"><svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg> ${a.unit || 'UMUM'}</p>
+                        </div>
+                        <button onclick="openActivityModal('${dataString}')" class="mt-2 w-full bg-white hover:bg-emerald-50 text-emerald-700 text-xs font-bold py-1.5 px-2 rounded border border-emerald-200 uppercase">
+                            Info Lanjut
+                        </button>
+                    </div>
+                `}).join('') + '</div>';
+            }
+            
+            const dateText = date.toDateString() === new Date().toDateString() ? 'HARI INI' : date.toLocaleDateString('ms-MY', { day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase();
+            document.getElementById('selected-date-text').textContent = dateText;
+            
+            if (fullHtml === '') {
+                programListContent.innerHTML = `<div class="border-2 border-dashed border-gray-300 rounded-xl p-5 text-center text-gray-500 h-full flex flex-col justify-center items-center"><p class="mt-4 text-sm font-semibold">Tiada sebarang aktiviti pada tarikh ini.</p></div>`;
+            } else {
+                programListContent.innerHTML = fullHtml;
+            }
+        }
+
+        // --- NEW: Handle Activity Modal for Planner Items ---
+        window.openActivityModal = (encodedData) => {
+            const data = JSON.parse(decodeURIComponent(encodedData));
+            
+            document.getElementById('modal-activity-title').textContent = data.title;
+            document.getElementById('modal-activity-location').innerHTML = `<svg class="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg> ${data.location}`;
+            document.getElementById('modal-activity-time').innerHTML = `<svg class="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> ${data.startTime} - ${data.endTime || '...'}`;
+            
+            // Notes
+            const notesEl = document.getElementById('modal-activity-notes');
+            const notesContainer = document.getElementById('modal-activity-notes-container');
+            if (data.notes) {
+                notesEl.textContent = data.notes;
+                notesContainer.classList.remove('hidden');
+            } else {
+                notesContainer.classList.add('hidden');
+            }
+
+            // Image
+            const imgEl = document.getElementById('modal-activity-image');
+            const imgContainer = document.getElementById('modal-activity-image-container');
+            if (data.imageUrl) {
+                imgEl.src = data.imageUrl;
+                imgContainer.classList.remove('hidden');
+            } else {
+                imgContainer.classList.add('hidden');
+            }
+
+            // Link
+            const linkBtn = document.getElementById('modal-activity-link');
+            if (data.link) {
+                linkBtn.href = data.link;
+                linkBtn.classList.remove('hidden');
+            } else {
+                linkBtn.classList.add('hidden');
+            }
+
+            document.getElementById('activity-info-modal').classList.remove('hidden');
+        }
+
+        function populateYearFilter() {
+            const yearSelect = document.getElementById('year-select');
+            // Combine years from both collections
+            const programYears = allPrograms.map(p => new Date(p.startDate).getFullYear());
+            const plannerYears = allPlannerActivities.map(p => new Date(p.startDate).getFullYear());
+            const years = [...new Set([...programYears, ...plannerYears])];
+            
+            const currentYear = new Date().getFullYear();
+            if (!years.includes(currentYear)) {
+                years.push(currentYear);
+            }
+            yearSelect.innerHTML = years.sort((a,b) => b-a).map(y => `<option value="${y}" ${y === currentYear ? 'selected' : ''}>${y}</option>`).join('');
+        }
+
+        function populateMonthFilter() {
+            const monthSelect = document.getElementById('month-select');
+            const monthNames = ["Januari", "Februari", "Mac", "April", "Mei", "Jun", "Julai", "Ogos", "September", "Oktober", "November", "Disember"];
+            const currentMonth = new Date().getMonth();
+            monthSelect.innerHTML = monthNames.map((m, i) => `<option value="${i}" ${i === currentMonth ? 'selected' : ''}>${m}</option>`).join('');
+        }
+
+        function updateCalendarView() {
+            const year = parseInt(document.getElementById('year-select').value, 10);
+            const month = parseInt(document.getElementById('month-select').value, 10); // Fixed ID
+            currentDate = new Date(year, month, 1);
+            renderCalendar(year, month);
+        }
+
+        function changeMonth(direction) {
+            currentDate.setMonth(currentDate.getMonth() + direction);
+            document.getElementById('year-select').value = currentDate.getFullYear();
+            document.getElementById('month-select').value = currentDate.getMonth();
+            renderCalendar(currentDate.getFullYear(), currentDate.getMonth());
+        }
+
+        window.promptIcVerification = (programId, penyelarasIc) => {
+            const modal = document.getElementById('ic-verify-modal');
+            modal.classList.remove('hidden');
+            document.getElementById('verify-program-id').value = programId;
+            document.getElementById('verify-penyelaras-ic').value = penyelarasIc;
+            document.getElementById('ic-input').value = '';
+            document.getElementById('verify-error').classList.add('hidden');
+        };
+
+        window.handleVerification = () => {
+            const programId = document.getElementById('verify-program-id').value;
+            const correctIc = document.getElementById('verify-penyelaras-ic').value;
+            const enteredIc = document.getElementById('ic-input').value.trim();
+
+            if (enteredIc === correctIc) {
+                window.location.href = `program.html?kod=${programId}`;
+            } else {
+                document.getElementById('verify-error').classList.remove('hidden');
+            }
+        };
+
+        window.closeModal = (modalId) => {
+            document.getElementById(modalId).classList.add('hidden');
+            if (modalId === 'share-modal') {
+                document.getElementById('copy-success').classList.add('hidden');
+                document.getElementById('copy-btn').textContent = "Salin";
+            }
+            if (modalId === 'ic-verify-modal') {
+                document.getElementById('verify-error').classList.add('hidden');
+                document.getElementById('ic-input').value = '';
+            }
+        };
+        
+        window.copyShareText = () => {
+            const modalText = document.getElementById('share-modal-text-content');
+            modalText.select();
+            navigator.clipboard.writeText(modalText.value).then(() => {
+                const copySuccess = document.getElementById('copy-success');
+                const copyBtn = document.getElementById('copy-btn');
+                copySuccess.classList.remove('hidden');
+                copyBtn.textContent = "Berjaya!";
+                setTimeout(() => {
+                    copySuccess.classList.add('hidden');
+                    copyBtn.textContent = "Salin";
+                }, 2000);
+            });
+        };
+    </script>
+</body>
+</html>
