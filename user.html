@@ -1125,7 +1125,7 @@
             renderPlannerList();
         }
 
-        window.renderPlannerList = function() {
+       window.renderPlannerList = function() {
             const date = currentPlannerDate;
             const month = date.getMonth();
             const year = date.getFullYear();
@@ -1135,6 +1135,7 @@
             const container = document.getElementById('planner-list-container');
             container.innerHTML = '';
 
+            // Filter ikut bulan yang dipilih
             const filteredEvents = plannerList.filter(p => {
                 const pDate = new Date(p.startDate);
                 return pDate.getMonth() === month && pDate.getFullYear() === year;
@@ -1151,53 +1152,77 @@
             }
 
             const today = new Date();
+            today.setHours(0,0,0,0); // Reset jam hari ini untuk pengiraan tepat
             const todayStr = today.toISOString().split('T')[0];
 
             filteredEvents.forEach(ev => {
                 const startDateObj = new Date(ev.startDate);
                 const day = startDateObj.getDate();
                 const monthShort = startDateObj.toLocaleDateString('ms-MY', { month: 'short' }).toUpperCase();
+                const dayName = startDateObj.toLocaleDateString('ms-MY', { weekday: 'long' }).toUpperCase(); // Dapatkan nama hari (ISNIN, dsb)
                 
-                const isToday = ev.startDate === todayStr;
-                const borderClass = isToday ? 'border-l-4 border-l-teal-500 bg-teal-50' : 'border-l-4 border-l-transparent bg-gray-50';
+                // Logik Pengiraan Hari (Countdown)
+                const eventDate = new Date(ev.startDate);
+                eventDate.setHours(0,0,0,0);
+                
+                // Kira beza masa dalam milisaat, kemudian tukar ke hari
+                const diffTime = eventDate - today; 
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+
+                let countdownBadge = '';
+                let borderClass = 'border-l-4 border-l-transparent bg-gray-50'; // Default style
+
+                if (diffDays === 0) {
+                    countdownBadge = '<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-green-100 text-green-700 uppercase whitespace-nowrap border border-green-200">HARI INI</span>';
+                    borderClass = 'border-l-4 border-l-green-500 bg-green-50'; // Highlight hari ini
+                } else if (diffDays === 1) {
+                    countdownBadge = '<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-blue-100 text-blue-700 uppercase whitespace-nowrap border border-blue-200">ESOK</span>';
+                    borderClass = 'border-l-4 border-l-blue-400 bg-blue-50'; // Highlight esok
+                } else if (diffDays > 1) {
+                    countdownBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-gray-200 text-gray-600 uppercase whitespace-nowrap">${diffDays} HARI LAGI</span>`;
+                } else {
+                    // Program dah lepas
+                    countdownBadge = '<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-gray-100 text-gray-400 uppercase whitespace-nowrap">SELESAI</span>';
+                    borderClass = 'border-l-4 border-l-gray-300 bg-gray-100 opacity-75'; // Dimkan yang dah lepas
+                }
                 
                 let timeDisplay = ev.startTime || '';
                 if (ev.endTime) timeDisplay += ` - ${ev.endTime}`;
                 if (!timeDisplay) timeDisplay = "SEPANJANG HARI";
                 
-                let showNewLabel = false;
-                if (ev.createdAt) {
-                    const createdDate = ev.createdAt.toDate ? ev.createdAt.toDate() : new Date(ev.createdAt);
-                    const now = new Date();
-                    const diffHours = (now - createdDate) / (1000 * 60 * 60);
-                    if (diffHours < 24) showNewLabel = true;
-                }
-
+                // Label "DITAG" jika bukan program sendiri
                 const isMyEvent = ev.ic === currentUserIc;
-                const tagLabel = isMyEvent ? '' : '<span class="text-[9px] font-bold bg-purple-100 text-purple-700 px-2 py-0.5 rounded uppercase ml-2">DITAG</span>';
+                const tagLabel = isMyEvent ? '' : '<span class="text-[9px] font-bold bg-purple-100 text-purple-700 px-2 py-0.5 rounded uppercase ml-2 border border-purple-200">DITAG</span>';
 
                 const item = document.createElement('div');
-                item.className = `flex flex-row p-4 rounded-lg border border-gray-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer ${borderClass}`;
+                item.className = `flex flex-row p-3 rounded-lg border border-gray-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer mb-3 ${borderClass}`;
                 item.innerHTML = `
-                    <div class="flex flex-col items-center justify-center pr-4 border-r border-gray-200 min-w-[70px]">
+                    <div class="flex flex-col items-center justify-center pr-3 border-r border-gray-200 min-w-[70px]">
+                        <span class="text-[10px] font-bold text-gray-500 uppercase leading-none mb-1">${dayName}</span>
                         <span class="text-2xl font-bold text-gray-800 leading-none">${day}</span>
-                        <span class="text-[10px] font-bold text-gray-500 uppercase">${monthShort}</span>
+                        <span class="text-[10px] font-bold text-gray-400 uppercase mt-1">${monthShort}</span>
                     </div>
-                    <div class="pl-4 flex-grow">
-                        <div class="flex justify-between items-start">
-                            <div class="flex items-center flex-wrap">
-                                <h4 class="text-sm font-bold text-gray-800 uppercase mr-2">${ev.title}</h4>
-                                ${showNewLabel ? '<span class="badge-new text-[9px] font-bold bg-red-500 text-white px-2 py-0.5 rounded uppercase shadow-sm">BARU</span>' : ''}
+                    <div class="pl-3 flex-grow overflow-hidden">
+                        <div class="flex justify-between items-start mb-1">
+                            <div class="flex items-center flex-wrap gap-1">
+                                <h4 class="text-sm font-bold text-gray-800 uppercase truncate leading-tight">${ev.title}</h4>
                                 ${tagLabel}
                             </div>
-                            ${isToday ? '<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-teal-200 text-teal-800 uppercase ml-2 whitespace-nowrap">HARI INI</span>' : ''}
+                            <div class="ml-2 flex-shrink-0">
+                                ${countdownBadge}
+                            </div>
                         </div>
-                        <p class="text-xs text-teal-600 font-semibold mt-1 uppercase flex items-center gap-1">
+                        
+                        <p class="text-xs text-teal-600 font-semibold uppercase flex items-center gap-1">
                             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                             ${timeDisplay}
                         </p>
-                        <div class="mt-2 text-xs text-gray-500 space-y-1">
-                            ${ev.location ? `<p class="flex items-center gap-1 uppercase"><svg class="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg> ${ev.location}</p>` : ''}
+                        
+                        <div class="mt-1 text-xs text-gray-500 flex items-center gap-1 truncate">
+                            ${ev.location ? `
+                                <svg class="w-3 h-3 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg> 
+                                <span class="uppercase truncate">${ev.location}</span>
+                            ` : ''}
                         </div>
                     </div>
                 `;
@@ -1742,7 +1767,6 @@
             
             const title = document.getElementById('plan-title').value.toUpperCase();
             const location = document.getElementById('plan-location').value.toUpperCase();
-            // Preserve case for notes
             const notes = document.getElementById('plan-notes').value;
             const isPublic = document.getElementById('is-public-program').checked; 
             const imageUrl = document.getElementById('plan-image-url').value;
@@ -1767,6 +1791,65 @@
                     return;
                 }
             }
+
+            const participantNames = selectedParticipants.map(u => u.name).join(', ');
+            const taggedIcs = selectedParticipants.map(u => u.ic);
+
+            try {
+                const planData = {
+                    ic: currentUserIc,
+                    sector: currentUserSector, 
+                    unit: currentUserUnit,
+                    title,
+                    startDate,
+                    startTime,
+                    endDate,
+                    endTime, 
+                    isOneDay,
+                    location,
+                    mode, 
+                    link, 
+                    imageUrl,
+                    participants: participantNames, 
+                    taggedIcs: taggedIcs, 
+                    notes,
+                    isPublic: isPublic, 
+                    updatedAt: new Date() // Timestamp untuk sort
+                };
+                
+                if (editingPlannerId) {
+                    // --- LOGIK KEMASKINI (EDIT) ---
+                    const docRef = doc(db, `artifacts/${appId}/public/data/spark_planner`, editingPlannerId);
+                    await updateDoc(docRef, planData);
+                    
+                    // Kemaskini array local supaya tak perlu refresh
+                    const index = plannerList.findIndex(p => p.id === editingPlannerId);
+                    if (index !== -1) {
+                        plannerList[index] = { id: editingPlannerId, ...planData, createdAt: plannerList[index].createdAt }; 
+                    }
+                    alert("Aktiviti berjaya dikemaskini!");
+                } else {
+                    // --- LOGIK TAMBAH BARU (ADD) ---
+                    planData.createdAt = new Date();
+                    const docRef = await addDoc(collection(db, `artifacts/${appId}/public/data/spark_planner`), planData);
+                    
+                    // Masukkan ke array local terus supaya tak perlu refresh
+                    plannerList.push({ id: docRef.id, ...planData });
+                    alert("Aktiviti berjaya disimpan!");
+                }
+                
+                // PENTING: Render semula senarai serta-merta
+                renderPlannerList();
+                closePlannerModal();
+
+            } catch (error) {
+                console.error("Error saving plan:", error);
+                alert("Gagal menyimpan. Sila cuba lagi.");
+            } finally {
+                btn.disabled = false;
+                btn.textContent = "SIMPAN";
+            }
+        }
 
             const participantNames = selectedParticipants.map(u => u.name).join(', ');
             const taggedIcs = selectedParticipants.map(u => u.ic);
