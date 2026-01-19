@@ -160,7 +160,7 @@
                         </label>
                         <label class="flex items-center cursor-pointer">
                             <input type="checkbox" id="chk-objektif" class="w-3 h-3 text-blue-600 rounded" onchange="updatePreview()">
-                            <span class="ml-1 text-[9px] font-bold text-gray-500 uppercase">Mod Senarai</span>
+                            <span class="ml-1 text-[9px] font-bold text-gray-500 uppercase">Guna Bullet Point</span>
                         </label>
                     </div>
                     <p class="text-[9px] text-gray-400 italic mb-1">*Tekan Enter untuk baris baru (poin).</p>
@@ -392,6 +392,14 @@
         window.imageMode = 2;
         window.imageFiles = [null, null, null, null];
         window.imageUrls = ["", "", "", ""];
+        window.bgFile = null;
+        window.bgUrl = "";
+        window.bgOpacity = 0.1;
+        
+        // --- NEW: Logo & Org Name Storage ---
+        window.logoFile = null;
+        window.logoUrl = "";
+        
         window.activeCropIndex = null;
         window.cropper = null;
 
@@ -467,9 +475,10 @@
             }
         }
 
-        // --- BACKGROUND & OPACITY ---
+        // --- BACKGROUND, LOGO & OPACITY ---
         window.changeBackground = function(input) {
             if (input.files && input.files[0]) {
+                window.bgFile = input.files[0]; 
                 const reader = new FileReader();
                 reader.onload = function(e) {
                     document.getElementById('paper-bg').style.backgroundImage = `url('${e.target.result}')`;
@@ -478,7 +487,18 @@
             }
         }
 
+        window.changeLogo = function(input) {
+            if(!window.isSparkPro) { alert("Menukar logo adalah ciri SPARK PRO."); input.value = ""; return; }
+            if (input.files && input.files[0]) {
+                window.logoFile = input.files[0]; // Store file for upload
+                const reader = new FileReader();
+                reader.onload = function(e) { document.getElementById('header-logo').src = e.target.result; }
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+
         window.adjustBgOpacity = function(val) {
+            window.bgOpacity = val;
             document.getElementById('paper-bg').style.opacity = val;
         }
 
@@ -578,12 +598,22 @@
             const btn = document.getElementById('btn-save');
             btn.innerHTML = "Proses..."; btn.disabled = true;
             try {
+                // Upload Report Images
                 const uploadedUrls = [];
                 for(let i=0; i<4; i++) {
                     let finalUrl = window.imageUrls[i] || "";
                     if(window.imageFiles[i]) finalUrl = await uploadToImgBB(window.imageFiles[i]);
                     uploadedUrls.push(finalUrl);
                 }
+
+                // Upload Background Image (If New)
+                let finalBgUrl = window.bgUrl || "";
+                if(window.bgFile) finalBgUrl = await uploadToImgBB(window.bgFile);
+
+                // Upload Logo Image (If New)
+                let finalLogoUrl = window.logoUrl || "";
+                if(window.logoFile) finalLogoUrl = await uploadToImgBB(window.logoFile);
+
                 const dataToSave = {
                     ic: window.currentUserIc, tajuk: document.getElementById('in-tajuk').value,
                     tarikhMula: document.getElementById('in-tarikh-mula').value, tarikhTamat: document.getElementById('in-tarikh-tamat').value,
@@ -591,11 +621,17 @@
                     dapatan: document.getElementById('in-dapatan').value, isu: document.getElementById('in-isu').value,
                     nama: document.getElementById('in-nama').value, jawatan: document.getElementById('in-jawatan').value,
                     img1: uploadedUrls[0], img2: uploadedUrls[1], img3: uploadedUrls[2], img4: uploadedUrls[3],
+                    backgroundUrl: finalBgUrl, backgroundOpacity: window.bgOpacity,
+                    logoUrl: finalLogoUrl, // Saved!
+                    orgName: document.getElementById('in-org-name').value, // Saved!
+                    subOrgName: document.getElementById('in-sub-org').value, // Saved!
                     imageMode: window.imageMode, updatedAt: new Date()
                 };
+
                 const reportId = document.getElementById('report-id').value;
                 if(reportId) await updateDoc(doc(db, `artifacts/${appId}/public/data/spark_opr_records`, reportId), dataToSave);
                 else { dataToSave.createdAt = new Date(); await addDoc(collection(db, `artifacts/${appId}/public/data/spark_opr_records`), dataToSave); }
+                
                 await generatePDF(true);
                 loadSavedReports();
             } catch (error) { console.error(error); alert("Ralat: " + error.message); } finally { btn.innerHTML = "Simpan & PDF"; btn.disabled = false; }
@@ -646,15 +682,6 @@
         window.updateHeader = function() {
             document.getElementById('out-org-name').textContent = document.getElementById('in-org-name').value;
             document.getElementById('out-sub-org').textContent = document.getElementById('in-sub-org').value;
-        }
-
-        window.changeLogo = function(input) {
-            if(!window.isSparkPro) { alert("Menukar logo adalah ciri SPARK PRO."); input.value = ""; return; }
-            if (input.files && input.files[0]) {
-                const reader = new FileReader();
-                reader.onload = function(e) { document.getElementById('header-logo').src = e.target.result; }
-                reader.readAsDataURL(input.files[0]);
-            }
         }
 
         async function loadUserAndPrograms() {
@@ -729,6 +756,22 @@
             document.getElementById('in-jawatan').value = report.jawatan;
             window.imageUrls = [report.img1||"", report.img2||"", report.img3||"", report.img4||""];
             window.imageFiles = [null, null, null, null];
+            
+            // Restore Background
+            window.bgUrl = report.backgroundUrl || "";
+            window.bgOpacity = report.backgroundOpacity || 0.1;
+            if(window.bgUrl) document.getElementById('paper-bg').style.backgroundImage = `url('${window.bgUrl}')`;
+            document.getElementById('paper-bg').style.opacity = window.bgOpacity;
+            document.getElementById('bg-opacity').value = window.bgOpacity;
+
+            // Restore Logo & Header (New!)
+            window.logoUrl = report.logoUrl || "";
+            if(window.logoUrl) document.getElementById('header-logo').src = window.logoUrl;
+            
+            document.getElementById('in-org-name').value = report.orgName || "PEJABAT PENDIDIKAN DAERAH MIRI";
+            document.getElementById('in-sub-org').value = report.subOrgName || "KEMENTERIAN PENDIDIKAN MALAYSIA";
+            updateHeader(); // Apply text change
+
             if(report.imageMode === 4 && window.imageMode === 2) toggleImageCount();
             if((!report.imageMode || report.imageMode === 2) && window.imageMode === 4) toggleImageCount();
             refreshImages(); updatePreview(); showTab('form');
