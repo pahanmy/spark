@@ -856,22 +856,18 @@
             return ic;
         }
 
-        async function loadUserData(ic) {
+
+async function loadUserData(ic) {
             try {
-                // Kod untuk mengemaskini Background Header (Gambar ATAU Warna)
+                // Kod Background Header (Kekal)
                 const settingsDocRef = doc(db, `artifacts/${appId}/public/data/spark_settings`, 'landing_page');
                 getDoc(settingsDocRef).then((snap) => {
                     if(snap.exists()) {
                         const data = snap.data();
                         const header = document.getElementById('dynamic-header-bg');
                         if(header) {
-                            if (data.headerBgUrl) {
-                                // Jika ada gambar, guna gambar
-                                header.style.background = `url('${data.headerBgUrl}') center center / cover no-repeat`;
-                            } else if (data.gradientStart && data.gradientEnd) {
-                                // Jika tiada gambar, guna gradient warna
-                                header.style.background = `linear-gradient(to bottom right, ${data.gradientStart}, ${data.gradientEnd})`;
-                            }
+                            if (data.headerBgUrl) header.style.background = `url('${data.headerBgUrl}') center center / cover no-repeat`;
+                            else if (data.gradientStart && data.gradientEnd) header.style.background = `linear-gradient(to bottom right, ${data.gradientStart}, ${data.gradientEnd})`;
                         }
                     }
                 });
@@ -890,8 +886,15 @@
                     currentUserSector = userData.sector || "";
                     currentUserUnit = userData.unit || ""; 
                     profileImageUrl = userData.profileImageUrl || null;
-                    isSparkPro = userData.isPro === true; 
+                    
+                    // --- KEMASKINI: LOGIK PENENTUAN PRO ---
+                    const adminIC = "890522135381";
+                    // Pro jika: Data database kata 'true' ATAU IC adalah Admin
+                    isSparkPro = (userData.isPro === true) || (cleanUserIc === adminIC); 
+                    // --------------------------------------
                 }
+                
+                // ... (Kod selebihnya dalam fungsi ini kekal sama: Profile Image, Fetch Programs, Tasks, Planner dll)
                 
                 const defaultIcon = document.getElementById('default-profile-icon');
                 const userImage = document.getElementById('user-profile-image');
@@ -982,7 +985,6 @@
                         attendanceList.push({ programData, participantData: pData });
                     }
 
-                    // Logic untuk "Program Saya" (Penyelaras atau Pembuat)
                     const progCreatedBy = programData.createdBy ? normalizeIc(programData.createdBy) : '';
                     const progAdminIc = programData.penyelaras_ic ? normalizeIc(programData.penyelaras_ic) : (programData.admin_ic ? normalizeIc(programData.admin_ic) : '');
                     
@@ -1014,7 +1016,7 @@
                 }
                 
                 const totalPrograms = attendanceList.length + createdList.length + taskList.length;
-                updateInfographics(totalPrograms); 
+                updateInfographics(totalPrograms); // Kemaskini Badge
                 switchTab('planner'); 
                 setupParticipantSearch();
 
@@ -1023,11 +1025,17 @@
                 alert("Gagal memuatkan data. Sila cuba lagi.");
             }
         }
+
+
+
+        
         
         // --- UPDATE INFOGRAPHICS & BADGE STATUS ---
         // Dikemaskini untuk mengekalkan posisi 'floating' (separuh luar)
-        function updateInfographics(total) {
+
+function updateInfographics(total) {
             const target = 100;
+            // Kira progress bar (kekal sebagai visual aktiviti)
             const percentage = Math.min((total / target) * 100, 100);
             const progressBar = document.getElementById('sparkpro-progress-bar');
             progressBar.style.width = `${percentage}%`;
@@ -1040,27 +1048,35 @@
             const badgeTextLabel = document.getElementById('badge-text-label');
             const iconRegular = document.getElementById('icon-regular');
             
-            // Kelas asas untuk posisi floating (absolute)
             const baseClasses = "absolute -top-5 right-6 md:right-10 z-30 group px-4 py-2 rounded-xl border shadow-lg flex items-center gap-3 transition-all transform hover:scale-105";
 
-            if (remaining === 0) {
-                 remainingEl.innerHTML = `TAHNIAH! ANDA SPARK <span class="bg-red-600 text-white px-1 py-0.5 rounded text-[9px] ml-1">PRO</span>`;
+            // --- KEMASKINI LOGIK: UTAMAKAN STATUS DARI DATABASE ---
+            
+            // Jika Database kata PRO (atau Admin), paparkan PRO.
+            // Jika tidak, semak jika user dah capai 100 program (logic asal).
+            if (isSparkPro || remaining === 0) {
+                 remainingEl.innerHTML = isSparkPro 
+                    ? `STATUS: <span class="text-green-600 font-bold">AKTIF (PRO)</span>` 
+                    : `TAHNIAH! ANDA LAYAK <span class="bg-red-600 text-white px-1 py-0.5 rounded text-[9px] ml-1">PRO</span>`;
+                 
                  remainingEl.classList.remove('text-gray-500');
                  remainingEl.classList.add('text-green-600', 'font-bold');
 
-                 // SPARK PRO: Emas/Amber style
+                 // Style SPARK PRO (Emas)
                  badgeBtn.className = `${baseClasses} bg-gradient-to-r from-yellow-50 to-amber-50 hover:from-yellow-100 hover:to-amber-100 text-yellow-800 hover:text-yellow-900 border-yellow-200 hover:border-yellow-300`;
                  badgeTextLabel.textContent = "SPARK PRO";
                  badgeTextLabel.className = "text-xs font-bold uppercase text-yellow-700";
             } else {
+                 // Style AKAUN BIASA (Kelabu)
                  remainingEl.innerHTML = `${remaining} LAGI UNTUK SPARK <span class="bg-red-600 text-white px-1 rounded text-[9px] align-middle">PRO</span>`;
                  
-                 // AKAUN BIASA: Kelabu style
                  badgeBtn.className = `${baseClasses} bg-gray-50 hover:bg-gray-100 text-gray-600 hover:text-gray-800 border-gray-200 hover:border-gray-300`;
                  badgeTextLabel.textContent = "AKAUN BIASA";
                  badgeTextLabel.className = "text-xs font-bold uppercase text-gray-600";
             }
         }
+
+        
 
         // --- CROPPER LOGIC ---
         window.triggerProfileUpload = function() {
