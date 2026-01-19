@@ -507,11 +507,40 @@ service cloud.firestore {
         }
 
         // ===== FUNGSI KEMASKINI PROGRAM BARU =====
+       // ===== FUNGSI KEMASKINI PROGRAM (DENGAN PENGESAHAN IC) =====
         async function updateProgram(event) {
             event.preventDefault();
-            if (isSubmitting || !currentLoadedProgram) return; 
+
+            // 1. Semakan Data Program Sedia Ada
+            if (!currentLoadedProgram) {
+                alert("Data program belum dimuatkan sepenuhnya.");
+                return;
+            }
+
+            // ============================================================
+            // LANGKAH KESELAMATAN BARU: PENGESAHAN IC
+            // ============================================================
+            const enteredIC = prompt("🔒 PENGESAHAN KESELAMATAN:\n\nSila masukkan No. Kad Pengenalan (IC) Penyelaras untuk mengesahkan bahawa anda pemilik program ini:");
+
+            // Jika pengguna tekan 'Cancel'
+            if (enteredIC === null) return;
+
+            // Bersihkan nombor (buang sengkang '-' atau jarak)
+            const cleanInputIC = enteredIC.replace(/[^0-9]/g, '').trim();
+            const cleanOwnerIC = (currentLoadedProgram.penyelaras_ic || '').replace(/[^0-9]/g, '').trim();
+
+            // Bandingkan IC Input dengan IC dalam Database
+            if (cleanInputIC === '' || cleanInputIC !== cleanOwnerIC) {
+                alert("⛔ AKSES DITOLAK: No. IC yang dimasukkan tidak sepadan dengan rekod penyelaras program ini.\n\nKemaskini dibatalkan.");
+                return; // HENTIKAN PROSES DISINI
+            }
+            // ============================================================
+
+            if (isSubmitting) return; 
             isSubmitting = true;
+            
             const submitButton = event.target.querySelector('button[type=submit]');
+            const originalButtonText = submitButton.innerHTML;
             submitButton.disabled = true;
             submitButton.innerHTML = `<svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Mengemas kini...`;
 
@@ -530,14 +559,16 @@ service cloud.firestore {
 
             const bookingNeeded = document.getElementById('booking-needed').checked;
             const roomBooked = document.getElementById('booking-room-select').value;
-            const oldRoomBooked = currentLoadedProgram.roomBooked; // Bilik sedia ada
+            const oldRoomBooked = currentLoadedProgram.roomBooked; 
             const oldBookingNeeded = currentLoadedProgram.bookingNeeded;
             
             // 2. Semakan Tempahan Bilik (Hanya jika Booking Needed ON)
             if (bookingNeeded) {
-                if (!roomBooked) { alert('Sila pilih bilik untuk ditempah.'); isSubmitting = false; submitButton.disabled = false; submitButton.innerHTML = '<svg ...>Kemaskini Program'; return; }
+                if (!roomBooked) { 
+                    alert('Sila pilih bilik untuk ditempah.'); 
+                    isSubmitting = false; submitButton.disabled = false; submitButton.innerHTML = originalButtonText; return; 
+                }
                 
-                // Jika bilik, tarikh, atau masa berubah, semak ketersediaan
                 const isBookingChanged = (roomBooked !== oldRoomBooked) || (startDateTime.toISOString() !== new Date(`${currentLoadedProgram.startDate}T${currentLoadedProgram.startTime}`).toISOString()) || (endDateTimeFull.toISOString() !== new Date(`${currentLoadedProgram.endDate}T${currentLoadedProgram.endTime}`).toISOString());
                 
                 if (isBookingChanged) {
@@ -545,7 +576,7 @@ service cloud.firestore {
                     
                     if (!result.available) {
                         showBookingStatusModal(result);
-                        isSubmitting = false; submitButton.disabled = false; submitButton.innerHTML = '<svg ...>Kemaskini Program'; return; // Hentikan proses
+                        isSubmitting = false; submitButton.disabled = false; submitButton.innerHTML = originalButtonText; return; 
                     }
                 }
             }
@@ -582,12 +613,9 @@ service cloud.firestore {
                 quota: isNaN(quotaAsNumber) ? null : quotaAsNumber,
                 method: document.querySelector('input[name="program-method"]:checked').value, 
                 meetLink: document.getElementById('meet-link').value || null,
-                
-                // Modul Tambahan
                 bookingNeeded: bookingNeeded,
                 roomBooked: bookingNeeded ? roomBooked : null,
                 surveyNeeded: document.getElementById('survey-needed').checked,
-                // surveyKey & evaluationKey dikekalkan (jangan diubah)
                 evaluationNeeded: document.getElementById('evaluation-needed').checked,
                 eCertificateNeeded: document.getElementById('ecert-needed').checked,
                 referenceNeeded: referenceNeeded,
@@ -597,14 +625,14 @@ service cloud.firestore {
             const programRef = doc(db, `artifacts/${appId}/public/data/spark_programs`, currentLoadedProgram.id);
             const bookingRef = doc(db, `artifacts/${appId}/public/data/spark_bookings`, currentLoadedProgram.id);
 
-            // 6. Jalankan Transaksi untuk Program & Booking
+            // 6. Jalankan Transaksi
             try {
                 await runTransaction(db, async (transaction) => {
                     // KEMASKINI PROGRAM
                     transaction.update(programRef, updateData);
                     
                     if (bookingNeeded) {
-                        // KEMASKINI/TAMBAH BOOKING BARU
+                        // KEMASKINI/TAMBAH BOOKING
                         const newBooking = {
                             programKey: currentLoadedProgram.id,
                             programName: updateData.name,
@@ -618,22 +646,22 @@ service cloud.firestore {
                         transaction.set(bookingRef, newBooking);
 
                     } else if (oldBookingNeeded) {
-                        // HAPUS BOOKING LAMA JIKA TIDAK DIPERLUKAN LAGI
+                        // HAPUS BOOKING LAMA
                         transaction.delete(bookingRef);
                     }
                 });
 
-                alert("Maklumat program berjaya dikemaskini.");
+                alert("✅ BERJAYA: Maklumat program telah dikemaskini.");
                 window.location.href = `program.html?kod=${currentLoadedProgram.id}`;
 
             } catch (error) {
                  console.error("Error updating program:", error);
                  if (error.code === 'permission-denied') { showPermissionErrorModal(); }
-                 alert("Gagal mengemaskini program. Sila cuba lagi.");
+                 else { alert(`Gagal mengemaskini program.\nRalat: ${error.message}`); }
             } finally {
                 isSubmitting = false; 
                 submitButton.disabled = false;
-                submitButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd" /></svg>Kemaskini Program';
+                submitButton.innerHTML = originalButtonText;
             }
         }
         
