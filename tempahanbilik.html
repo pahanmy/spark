@@ -23,13 +23,16 @@
             overflow-y: auto;
             flex-grow: 1;
         }
-        /* Menggunakan warna indigo untuk tempahan */
         .calendar-day.has-events { background-color: #eef2ff; cursor: pointer; }
         .calendar-day.has-events:hover { background-color: #e0e7ff; }
 
         .calendar-day.selected { border-width: 2px; border-color: #4f46e5; background-color: #c7d2fe; }
         .calendar-day.is-today { background-color: #fef9c3; border: 1px solid #facc15; }
         .modal-backdrop { background-color: rgba(0,0,0,0.5); }
+        
+        /* Style untuk status Batal */
+        .cancelled-booking { opacity: 0.6; background-color: #f3f4f6; text-decoration: line-through; color: #6b7280; }
+        .cancelled-booking .no-strikethrough { text-decoration: none; }
     </style>
 </head>
 <body class="bg-gray-50 flex flex-col min-h-screen">
@@ -142,6 +145,7 @@
                                         <th class="text-xs font-semibold uppercase tracking-wider text-gray-500 sticky top-0 bg-white z-10 p-3">Bilik</th>
                                         <th class="text-xs font-semibold uppercase tracking-wider text-gray-500 sticky top-0 bg-white z-10 p-3">Program & Penyelaras</th>
                                         <th class="text-xs font-semibold uppercase tracking-wider text-gray-500 sticky top-0 bg-white z-10 p-3">Status</th>
+                                        <th class="text-xs font-semibold uppercase tracking-wider text-gray-500 sticky top-0 bg-white z-10 p-3">Tindakan</th>
                                     </tr>
                                 </thead>
                                 <tbody id="full-list-table-body" class="bg-white divide-y divide-gray-200">
@@ -167,20 +171,22 @@
     
     <footer class="text-center py-4 mt-8 border-t border-gray-200">
         <p class="text-sm text-gray-600">Projek Inovasi oleh <a href="https://pahanmy.github.io/works/" target="_blank" class="font-semibold text-indigo-500 hover:underline">Pahan</a></p>
-        <p id="version-info" class="text-xs text-gray-500">Versi 2.4 (2025)</p>
+        <p id="version-info" class="text-xs text-gray-500">Versi 2.5 (2025)</p>
     </footer>
 
     <div id="ic-verify-modal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop hidden">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-sm p-6 text-center">
-            <h3 class="text-xl font-semibold mb-2 uppercase">Pengesahan Diperlukan</h3>
-            <p class="text-sm text-gray-600 mb-4 uppercase">Sila masukkan No. IC anda sebagai penyelaras untuk membuka pautan program ini.</p>
+            <h3 class="text-xl font-semibold mb-2 uppercase" id="modal-title">Pengesahan Diperlukan</h3>
+            <p class="text-sm text-gray-600 mb-4 uppercase" id="modal-desc">Sila masukkan No. IC anda sebagai penyelaras untuk meneruskan.</p>
+            
             <input type="hidden" id="verify-program-id">
-            <input type="hidden" id="verify-penyelaras-ic">
-            <input type="text" id="ic-input" placeholder="No. IC Penyelaras (tanpa sengkang)" class="block w-full text-center px-4 py-2 border border-gray-300 rounded-md mb-2">
+            <input type="hidden" id="verify-doc-id"> <input type="hidden" id="verify-penyelaras-ic">
+            <input type="hidden" id="verify-action-type"> <input type="text" id="ic-input" placeholder="No. IC Penyelaras (tanpa sengkang)" class="block w-full text-center px-4 py-2 border border-gray-300 rounded-md mb-2">
             <p id="verify-error" class="text-red-500 text-sm hidden mb-4 uppercase">No. IC tidak sepadan.</p>
+            
             <div class="mt-4 flex justify-center space-x-3">
                 <button type="button" onclick="closeModal('ic-verify-modal')" class="btn bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg uppercase">Batal</button>
-                <button type="button" onclick="handleVerification()" class="btn bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg uppercase">Sahkan & Buka</button>
+                <button type="button" onclick="handleVerification()" class="btn bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg uppercase" id="modal-confirm-btn">Sahkan</button>
             </div>
         </div>
     </div>
@@ -188,7 +194,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, onSnapshot, query, orderBy, where, Timestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, onSnapshot, query, orderBy, where, Timestamp, doc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const firebaseConfig = { apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM", authDomain: "myqrhadir.firebaseapp.com", projectId: "myqrhadir", storageBucket: "myqrhadir.appspot.com", messagingSenderId: "799691133747", appId: "1:799691133747:web:835a5e3e9413eace806446" };
         
@@ -203,28 +209,12 @@
         let isInitialLoad = true;
         let activeTab = 'calendar';
 
-        // ▼▼▼ SENARAI BILIK & IKON (DIKEMAS KINI DENGAN STEM HUB) ▼▼▼
         const roomDetails = {
-            "Bilik Mesyuarat Wisma Persekutuan": {
-                icon: `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-indigo-500" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a1 1 0 110 2h-3a1 1 0 01-1-1v-2a1 1 0 00-1-1H9a1 1 0 00-1 1v2a1 1 0 01-1 1H4a1 1 0 110-2V4zm3 1h2v2H7V5zm2 4H7v2h2V9zm2 0h2v2h-2V9zm2-4h-2v2h2V5z" clip-rule="evenodd" /></svg>`,
-                shortName: "Wisma Persekutuan"
-            },
-            "Bilik Mesyuarat Sektor Perancangan": {
-                icon: `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-500" viewBox="0 0 20 20" fill="currentColor"><path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" /></svg>`,
-                shortName: "Sektor Perancangan"
-            },
-            "Bilik Peperiksaan 1": {
-                icon: `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-green-500" viewBox="0 0 20 20" fill="currentColor"><path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" /><path fill-rule="evenodd" d="M4 5a2 2 0 012-2h8a2 2 0 012 2v10a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h4a1 1 0 100-2H7z" clip-rule="evenodd" /></svg>`,
-                shortName: "Peperiksaan 1"
-            },
-            "Bilik Peperiksaan 2": {
-                icon: `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-yellow-500" viewBox="0 0 20 20" fill="currentColor"><path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" /><path fill-rule="evenodd" d="M4 5a2 2 0 012-2h8a2 2 0 012 2v10a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm2 0a1 1 0 000 2h.01a1 1 0 100-2H9zm2 0a1 1 0 000 2h.01a1 1 0 100-2H11zm2 0a1 1 0 000 2h.01a1 1 0 100-2H13z" clip-rule="evenodd" /></svg>`,
-                shortName: "Peperiksaan 2"
-            },
-             "STEM HUB": {
-                icon: `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3L20 12.25L9.75 21.5L4 16.75V7.75L9.75 3Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M4 12.25H20" /></svg>`,
-                shortName: "STEM HUB"
-            }
+            "Bilik Mesyuarat Wisma Persekutuan": { icon: `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-indigo-500" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a1 1 0 110 2h-3a1 1 0 01-1-1v-2a1 1 0 00-1-1H9a1 1 0 00-1 1v2a1 1 0 01-1 1H4a1 1 0 110-2V4zm3 1h2v2H7V5zm2 4H7v2h2V9zm2 0h2v2h-2V9zm2-4h-2v2h2V5z" clip-rule="evenodd" /></svg>`, shortName: "Wisma Persekutuan" },
+            "Bilik Mesyuarat Sektor Perancangan": { icon: `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-500" viewBox="0 0 20 20" fill="currentColor"><path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" /></svg>`, shortName: "Sektor Perancangan" },
+            "Bilik Peperiksaan 1": { icon: `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-green-500" viewBox="0 0 20 20" fill="currentColor"><path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" /><path fill-rule="evenodd" d="M4 5a2 2 0 012-2h8a2 2 0 012 2v10a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h4a1 1 0 100-2H7z" clip-rule="evenodd" /></svg>`, shortName: "Peperiksaan 1" },
+            "Bilik Peperiksaan 2": { icon: `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-yellow-500" viewBox="0 0 20 20" fill="currentColor"><path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" /><path fill-rule="evenodd" d="M4 5a2 2 0 012-2h8a2 2 0 012 2v10a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm2 0a1 1 0 000 2h.01a1 1 0 100-2H9zm2 0a1 1 0 000 2h.01a1 1 0 100-2H11zm2 0a1 1 0 000 2h.01a1 1 0 100-2H13z" clip-rule="evenodd" /></svg>`, shortName: "Peperiksaan 2" },
+             "STEM HUB": { icon: `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3L20 12.25L9.75 21.5L4 16.75V7.75L9.75 3Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M4 12.25H20" /></svg>`, shortName: "STEM HUB" }
         };
 
         onAuthStateChanged(auth, async (user) => {
@@ -238,15 +228,12 @@
             populateRoomFilter(); 
             initializeRightPanel();
             listenForBookingChanges();
-            // Tunjukkan tab kalendar secara lalai
             showTab(activeTab); 
         }
 
-        // ▼▼▼ FUNGSI BARU UNTUK MENGEMASKINI PAPARAN UTAMA BERGANTUNG PADA TAB AKTIF DAN PENAPIS ▼▼▼
         function updateView() {
             if (activeTab === 'calendar') {
                 updateCalendarView();
-                // Logik untuk mengemas kini panel kanan dengan carian
                 if (selectedDateElement) {
                     const date = parseDateString(selectedDateElement.dataset.date);
                     displayBookingsForDate(date, selectedDateElement); 
@@ -257,9 +244,7 @@
                  renderAllBookingsList();
             }
         }
-        // ▲▲▲ TAMAT FUNGSI BARU ▲▲▲
 
-        // ▼▼▼ FUNGSI BARU UNTUK MENGURUSKAN TAB - DIKEMAS KINI DENGAN GAYA PILL ▼▼▼
         window.showTab = (tabName) => {
             activeTab = tabName;
             
@@ -269,39 +254,29 @@
 
             document.getElementById(`${tabName}-tab-content`).classList.remove('hidden');
 
-            // Logik Tukar Gaya Butang
             const btnCal = document.getElementById('tab-calendar');
             const btnList = document.getElementById('tab-list');
-            
-            // Kelas untuk butang Aktif (Putih, Shadow, Teks Indigo)
             const activeClasses = "bg-white text-indigo-600 shadow-sm ring-1 ring-black/5 font-semibold";
-            // Kelas untuk butang Tidak Aktif (Kelabu)
             const inactiveClasses = "text-gray-500 hover:text-gray-700 hover:bg-gray-200/50 font-medium";
 
             if (tabName === 'calendar') {
                 btnCal.className = `flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm transition-all duration-300 ${activeClasses}`;
                 btnList.className = `flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm transition-all duration-300 ${inactiveClasses}`;
-                
-                // Tunjukkan panel kanan
                 document.getElementById('program-list-container').classList.remove('hidden');
                 renderCalendar(currentDate.getFullYear(), currentDate.getMonth());
             } else {
                 btnCal.className = `flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm transition-all duration-300 ${inactiveClasses}`;
                 btnList.className = `flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm transition-all duration-300 ${activeClasses}`;
-                
                 renderAllBookingsList();
-                // Sembunyikan panel kanan
                 document.getElementById('program-list-container').classList.add('hidden');
             }
         }
-        // ▲▲▲ TAMAT FUNGSI TAB ▲▲▲
 
         function setupEventListeners() {
             document.getElementById('month-select').addEventListener('change', updateView);
             document.getElementById('year-select').addEventListener('change', updateView);
             document.getElementById('room-select').addEventListener('change', updateView); 
             document.getElementById('search-input').addEventListener('input', updateView);
-            
             document.getElementById('prev-month-btn').addEventListener('click', () => changeMonth(-1));
             document.getElementById('next-month-btn').addEventListener('click', () => changeMonth(1));
         }
@@ -322,11 +297,8 @@
         
         function populateRoomFilter() {
             const roomSelect = document.getElementById('room-select');
-            roomSelect.innerHTML = '<option value="">SEMUA BILIK</option>'; // Opsyen lalai
-            
-            const rooms = Object.keys(roomDetails);
-            
-            rooms.forEach(roomName => {
+            roomSelect.innerHTML = '<option value="">SEMUA BILIK</option>'; 
+            Object.keys(roomDetails).forEach(roomName => {
                 const option = document.createElement('option');
                 option.value = roomName;
                 option.textContent = roomName;
@@ -335,7 +307,6 @@
         }
 
         function listenForBookingChanges() {
-            // Mengambil semua tempahan, disusun mengikut tarikh mula
             const bookingsRef = collection(db, `artifacts/${appId}/public/data/spark_bookings`);
             const q = query(bookingsRef, orderBy("start", "asc")); 
 
@@ -343,12 +314,15 @@
                 allBookings = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 populateYearFilter();
                 
-                // Kemas kini paparan mengikut tab aktif
                 if (activeTab === 'calendar') {
                     renderCalendar(currentDate.getFullYear(), currentDate.getMonth());
                     if (isInitialLoad) {
                         displayTodaysBookings();
                         isInitialLoad = false;
+                    } else if (selectedDateElement) {
+                        // Refresh side panel jika ada perubahan pada tarikh yang dipilih
+                        const date = parseDateString(selectedDateElement.dataset.date);
+                        displayBookingsForDate(date, selectedDateElement);
                     }
                 } else if (activeTab === 'list') {
                     renderAllBookingsList();
@@ -358,12 +332,10 @@
             });
         }
         
-        // ▼▼▼ KEMAS KINI: FUNGSI RENDER SENARAI KESELURUHAN (TAB KEDUA) - DIPERBETULKAN SORTING DAN LAJUR ▼▼▼
         function renderAllBookingsList() {
             const tbody = document.getElementById('full-list-table-body');
             const noDataEl = document.getElementById('no-list-data');
             
-            // Ambil nilai dari penapis
             const searchTerm = document.getElementById('search-input').value.toLowerCase();
             const selectedYear = parseInt(document.getElementById('year-select').value, 10);
             const selectedMonth = parseInt(document.getElementById('month-select').value, 10);
@@ -371,24 +343,17 @@
             
             const today = new Date();
 
-            // Penapis Carian, Bilik, Bulan, dan Tahun
             const filteredBookings = allBookings
                 .filter(b => {
                     if (!b.start || typeof b.start.toDate !== 'function') return false;
-
                     const bookingDate = b.start.toDate();
                     const bookingYear = bookingDate.getFullYear();
                     const bookingMonth = bookingDate.getMonth();
                     const roomName = b.room || ''; 
 
-                    // Penapis Tahun & Bulan
                     const isYearMatch = bookingYear === selectedYear;
                     const isMonthMatch = bookingMonth === selectedMonth;
-                    
-                    // Penapis Bilik
                     const isRoomMatch = !selectedRoom || roomName === selectedRoom;
-
-                    // Penapis Carian Program (hanya nama program)
                     const isSearchMatch = b.programName.toLowerCase().includes(searchTerm);
                     
                     return isYearMatch && isMonthMatch && isRoomMatch && isSearchMatch;
@@ -403,13 +368,11 @@
                 noDataEl.classList.add('hidden');
             }
 
-            // Susun mengikut tarikh mula (menaik: 1hb hingga 31hb)
             const sortedBookings = filteredBookings.sort((a, b) => {
                 const dateA = a.start && a.start.toDate ? a.start.toDate() : new Date(0);
                 const dateB = b.start && b.start.toDate ? b.start.toDate() : new Date(0);
-                return dateA - dateB; // Susun menaik (Ascending)
+                return dateA - dateB;
             });
-
 
             sortedBookings.forEach(booking => {
                 const startDateTime = booking.start && booking.start.toDate ? booking.start.toDate() : null;
@@ -420,14 +383,18 @@
                 const startTime = startDateTime ? formatTimeFromDate(startDateTime) : 'N/A';
                 const endTime = endDateTime ? formatTimeFromDate(endDateTime) : 'N/A'; 
                 
-                // Tentukan status dan warna baris
                 let statusBadge;
                 let rowClasses = 'hover:bg-gray-50';
                 let rowTextColor = 'text-gray-700';
+                const isCancelled = booking.status === 'BATAL';
 
-                if (endDateTime < today) {
+                if (isCancelled) {
+                    statusBadge = `<span class="inline-flex items-center rounded-md bg-red-50 px-2 py-1 text-xs font-bold text-red-700 ring-1 ring-inset ring-red-600/20">DIBATALKAN</span>`;
+                    rowClasses = 'cancelled-booking'; // Kelas CSS Khas
+                    rowTextColor = 'text-gray-500';
+                } else if (endDateTime < today) {
                     statusBadge = `<span class="inline-flex items-center rounded-md bg-gray-50 px-2 py-1 text-xs font-medium text-gray-600 ring-1 ring-inset ring-gray-500/10">Sudah Lepas</span>`;
-                    rowClasses = 'bg-gray-100/50 hover:bg-gray-100'; // Latar Belakang Kelabu untuk Sudah Lepas
+                    rowClasses = 'bg-gray-100/50 hover:bg-gray-100';
                     rowTextColor = 'text-gray-500';
                 } else if (startDateTime <= today && endDateTime >= today) {
                     statusBadge = `<span class="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">Sedang Berlangsung</span>`;
@@ -440,27 +407,38 @@
                 tr.innerHTML = `
                     <td class="text-sm ${rowTextColor} p-3">
                         <div class="font-semibold">${startDate}</div>
-                        <div class="text-xs text-gray-500">${startTime} - ${endTime}</div>
+                        <div class="text-xs text-gray-500 no-strikethrough">${startTime} - ${endTime}</div>
                     </td>
 
-                    <td class="text-sm font-medium text-gray-900 p-3 ${rowTextColor}">${roomName}</td>
+                    <td class="text-sm font-medium p-3 ${rowTextColor}">${roomName}</td>
                     
                     <td class="text-sm ${rowTextColor} p-3">
-                        <div class="font-medium text-gray-900">${booking.programName || 'N/A'}</div>
-                        <div class="text-xs text-gray-500 italic">Oleh: ${booking.bookedBy_name || 'N/A'}</div>
+                        <div class="font-medium">${booking.programName || 'N/A'}</div>
+                        <div class="text-xs text-gray-500 italic no-strikethrough">Oleh: ${booking.bookedBy_name || 'N/A'}</div>
                     </td>
                     
-                    <td class="text-sm ${rowTextColor} p-3">${statusBadge}</td>
+                    <td class="text-sm p-3 no-strikethrough">${statusBadge}</td>
+                    <td class="text-sm p-3 no-strikethrough">
+                        <div class="flex gap-2">
+                             <button onclick="promptIcVerification('edit', '${booking.programKey}', '${booking.bookedBy_ic}', '${booking.id}')" class="text-blue-600 hover:text-blue-800 text-xs font-bold uppercase" title="Kemaskini">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" /></svg>
+                            </button>
+                            ${!isCancelled ? `
+                            <button onclick="promptIcVerification('cancel', '${booking.programKey}', '${booking.bookedBy_ic}', '${booking.id}')" class="text-red-600 hover:text-red-800 text-xs font-bold uppercase" title="Batal">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M13.477 14.89A6 6 0 015.11 6.524l8.367 8.368zm1.414-1.414L6.524 5.11a6 6 0 018.367 8.367zM18 10a8 8 0 11-16 0 8 8 0 0116 0z" clip-rule="evenodd" /></svg>
+                            </button>` : ''}
+                        </div>
+                    </td>
                 `;
                 tbody.appendChild(tr);
             });
         }
-        // ▲▲▲ TAMAT KEMAS KINI FUNGSI RENDER SENARAI KESELURUHAN ▲▲▲
 
-        // ▼▼▼ FUNGSI-FUNGSI LAIN (DIKEMASKINI) ▼▼▼
         function getBookingsForMonth(year, month) {
             return allBookings.filter(b => {
                 if (!b.start || typeof b.start.toDate !== 'function') return false;
+                // Hanya kira yang belum dibatalkan
+                if (b.status === 'BATAL') return false;
                 const bookingDate = b.start.toDate();
                 return bookingDate.getFullYear() === year && bookingDate.getMonth() === month;
             });
@@ -477,43 +455,33 @@
             const breakdownList = document.getElementById('room-breakdown-list');
             const roomCounts = {};
             
-            Object.keys(roomDetails).forEach(roomName => {
-                roomCounts[roomName] = 0;
-            });
+            Object.keys(roomDetails).forEach(roomName => { roomCounts[roomName] = 0; });
             roomCounts["BILIK_TIDAK_DIKETAHUI"] = 0;
 
             monthlyBookings.forEach(b => {
                 const roomName = b.room || "BILIK_TIDAK_DIKETAHUI";
-                
-                if (roomCounts.hasOwnProperty(roomName) || roomName === "BILIK_TIDAK_DIKETAHUI") {
-                    roomCounts[roomName] = (roomCounts[roomName] || 0) + 1;
-                } else {
-                    roomCounts[roomName] = (roomCounts[roomName] || 0) + 1;
-                }
+                roomCounts[roomName] = (roomCounts[roomName] || 0) + 1;
             });
 
             breakdownList.innerHTML = ''; 
             
             if (monthlyBookings.length === 0) {
-                 breakdownList.innerHTML = '<p class="text-sm text-gray-500">Tiada tempahan untuk bulan ini.</p>';
+                 breakdownList.innerHTML = '<p class="text-sm text-gray-500">Tiada tempahan aktif untuk bulan ini.</p>';
                  return;
             }
 
             Object.keys(roomCounts).forEach(roomName => {
                 const count = roomCounts[roomName];
                 if (count > 0) { 
-                    
                     let shortName, iconHtml;
-
                     if (roomName === "BILIK_TIDAK_DIKETAHUI") {
-                        shortName = "Tidak Diketahui (Data Lama)";
+                        shortName = "Tidak Diketahui";
                         iconHtml = '<span>❓</span>'; 
                     } else {
                         const details = roomDetails[roomName] || { icon: '<span>⚠️</span>', shortName: roomName };
                         shortName = details.shortName;
                         iconHtml = details.icon;
                     }
-                    
                     const html = `
                         <div class="flex items-center justify-between gap-2 p-2 bg-white rounded-lg border">
                             <div class="flex items-center gap-2">
@@ -548,11 +516,9 @@
             for (let day = 1; day <= daysInMonth; day++) {
                 const date = new Date(year, month, day);
                 const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-
-                const searchTerm = document.getElementById('search-input').value.toLowerCase(); // Ambil dari input carian
-                const selectedRoom = document.getElementById('room-select').value; // Ambil dari penapis bilik
+                const searchTerm = document.getElementById('search-input').value.toLowerCase();
+                const selectedRoom = document.getElementById('room-select').value;
                 
-                // Gunakan carian dan penapis bilik untuk kalendar
                 const bookingsOnThisDay = getBookingsForDate(date).filter(b => {
                     const roomName = b.room || ''; 
                     const isRoomMatch = !selectedRoom || roomName === selectedRoom;
@@ -561,7 +527,6 @@
                 });
                 
                 const isToday = new Date().toDateString() === date.toDateString();
-                
                 let dayClasses = 'calendar-day border rounded-md p-2 transition-colors relative';
                 let eventHtml = '';
                 let indicatorsHtml = '';
@@ -570,14 +535,21 @@
                 
                 if (bookingsOnThisDay.length > 0) {
                     dayClasses += ' has-events'; 
-                    indicatorsHtml += `<div class="absolute top-1 right-1 bg-indigo-500 text-white text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full shadow" title="Tempahan Bilik">${bookingsOnThisDay.length}</div>`;
+                    // Kira hanya yang aktif untuk indicator
+                    const activeCount = bookingsOnThisDay.filter(b => b.status !== 'BATAL').length;
+                    
+                    if (activeCount > 0) {
+                        indicatorsHtml += `<div class="absolute top-1 right-1 bg-indigo-500 text-white text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full shadow" title="Tempahan Aktif">${activeCount}</div>`;
+                    }
                     
                     eventHtml += bookingsOnThisDay.map(b => {
                         const roomName = b.room || "TIADA DATA";
                         let shortName = roomDetails[roomName]?.shortName || roomName;
                         if (shortName === "TIADA DATA") shortName = "X";
+                        // Warna lain untuk yang batal
+                        const bgClass = b.status === 'BATAL' ? 'bg-gray-200 text-gray-500 line-through' : 'bg-indigo-100 text-indigo-800';
                         
-                        return `<div class="bg-indigo-100 text-indigo-800 text-xs rounded px-1 truncate">${shortName.toUpperCase()}</div>`
+                        return `<div class="${bgClass} text-xs rounded px-1 truncate mb-0.5">${shortName.toUpperCase()}</div>`
                     }).join('');
                 }
 
@@ -617,16 +589,12 @@
 
         function getBookingsForDate(date) {
             const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-            
             return allBookings.filter(b => {
                 if (!b.start || typeof b.start.toDate !== 'function') return false;
-
                 const startDate = b.start.toDate();
                 const endDate = b.end ? b.end.toDate() : startDate;
-                
                 const bookingStartDateOnly = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
                 const bookingEndDateOnly = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
-
                 return dateOnly >= bookingStartDateOnly && dateOnly <= bookingEndDateOnly;
             });
         }
@@ -672,13 +640,26 @@
                 ` + bookings.map(b => {
                     const today = new Date();
                     const endDate = b.end ? b.end.toDate() : b.start.toDate();
-                    const isPast = endDate < today;
-                    const titleStyle = isPast ? 'text-gray-500' : 'text-indigo-600';
+                    const isCancelled = b.status === 'BATAL';
+                    const isPast = endDate < today && !isCancelled;
                     
+                    let titleStyle = 'text-indigo-600';
+                    let cardClasses = 'bg-white border-gray-200';
+                    let statusLabel = '';
+
+                    if (isCancelled) {
+                        titleStyle = 'text-gray-500 line-through';
+                        cardClasses = 'bg-gray-100 border-gray-200 opacity-75';
+                        statusLabel = `<span class="bg-red-100 text-red-800 text-xs font-bold px-2 py-0.5 rounded">DIBATALKAN</span>`;
+                    } else if (isPast) {
+                         titleStyle = 'text-gray-500';
+                    }
+
                     const roomName = b.room || "BILIK TIDAK DIKETAHUI";
                     
                     return `
-                    <div class="bg-white border border-gray-200 rounded-xl p-4 text-gray-800 transition-all hover:shadow-lg flex flex-col">
+                    <div class="${cardClasses} border rounded-xl p-4 text-gray-800 transition-all hover:shadow-lg flex flex-col relative">
+                        <div class="absolute top-4 right-4">${statusLabel}</div>
                         <div class="flex-grow">
                             <p class="font-bold text-md ${titleStyle}">${roomName.toUpperCase()}</p>
                             <p class="text-sm ${titleStyle} -mt-1 mb-2">${b.programName.toUpperCase()}</p>
@@ -694,9 +675,19 @@
                                 </p>
                             </div>
                         </div>
-                        <button onclick="promptIcVerification('${b.programKey}', '${b.bookedBy_ic}')" class="mt-4 w-full bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-300 transform hover:scale-105 disabled:transform-none" ${isPast ? 'disabled' : ''}>
-                            ${isPast ? 'TEMPAHAN LEPAS' : 'LIHAT BUTIRAN PROGRAM'}
-                        </button>
+                        <div class="grid grid-cols-2 gap-2 mt-4">
+                            <button onclick="promptIcVerification('view', '${b.programKey}', '${b.bookedBy_ic}', '${b.id}')" class="bg-gray-100 hover:bg-gray-200 text-indigo-600 font-semibold py-2 px-4 rounded-lg text-xs uppercase transition-colors">
+                                Lihat
+                            </button>
+                            <button onclick="promptIcVerification('edit', '${b.programKey}', '${b.bookedBy_ic}', '${b.id}')" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg text-xs uppercase transition-colors">
+                                Kemaskini
+                            </button>
+                            ${!isCancelled ? `
+                            <button onclick="promptIcVerification('cancel', '${b.programKey}', '${b.bookedBy_ic}', '${b.id}')" class="col-span-2 bg-white border border-red-200 hover:bg-red-50 text-red-600 font-semibold py-2 px-4 rounded-lg text-xs uppercase transition-colors">
+                                Batalkan Permohonan
+                            </button>
+                            ` : ''}
+                        </div>
                     </div>
                 `}).join('') + '</div>';
             }
@@ -714,21 +705,14 @@
         function populateYearFilter() {
             const yearSelect = document.getElementById('year-select');
             const bookingYears = allBookings.map(b => {
-                if (b.start && typeof b.start.toDate === 'function') {
-                    return b.start.toDate().getFullYear();
-                }
+                if (b.start && typeof b.start.toDate === 'function') { return b.start.toDate().getFullYear(); }
                 return null;
             }).filter(y => y !== null);
             
             const years = [...new Set(bookingYears)];
-            
             const currentYear = new Date().getFullYear();
-            if (!years.includes(currentYear)) {
-                years.push(currentYear);
-            }
-            if (years.length === 0) {
-                years.push(currentYear);
-            }
+            if (!years.includes(currentYear)) years.push(currentYear);
+            if (years.length === 0) years.push(currentYear);
             yearSelect.innerHTML = years.sort((a,b) => b-a).map(y => `<option value="${y}" ${y === currentYear ? 'selected' : ''}>${y}</option>`).join('');
         }
 
@@ -753,37 +737,89 @@
             renderCalendar(currentDate.getFullYear(), currentDate.getMonth());
         }
 
-        window.promptIcVerification = (programId, penyelarasIc) => {
+        // FUNGSI PENGESAHAN DAN TINDAKAN YANG DIKEMASKINI
+        window.promptIcVerification = (actionType, programId, penyelarasIc, docId) => {
             const modal = document.getElementById('ic-verify-modal');
+            const modalTitle = document.getElementById('modal-title');
+            const modalBtn = document.getElementById('modal-confirm-btn');
+
             modal.classList.remove('hidden');
+            
+            // Simpan data dalam input tersembunyi
             document.getElementById('verify-program-id').value = programId;
             document.getElementById('verify-penyelaras-ic').value = penyelarasIc;
+            document.getElementById('verify-doc-id').value = docId;
+            document.getElementById('verify-action-type').value = actionType;
+            
             document.getElementById('ic-input').value = '';
             document.getElementById('verify-error').classList.add('hidden');
+
+            // Ubah teks modal mengikut tindakan
+            if (actionType === 'cancel') {
+                modalTitle.textContent = "SAHKAN PEMBATALAN";
+                modalBtn.textContent = "Batal & Sahkan";
+                modalBtn.classList.remove('bg-indigo-600', 'hover:bg-indigo-700');
+                modalBtn.classList.add('bg-red-600', 'hover:bg-red-700');
+            } else if (actionType === 'edit') {
+                modalTitle.textContent = "KEMASKINI TEMPAHAN";
+                modalBtn.textContent = "Sahkan & Edit";
+                modalBtn.classList.remove('bg-red-600', 'hover:bg-red-700');
+                modalBtn.classList.add('bg-indigo-600', 'hover:bg-indigo-700');
+            } else {
+                modalTitle.textContent = "LIHAT BUTIRAN";
+                modalBtn.textContent = "Sahkan & Buka";
+                modalBtn.classList.remove('bg-red-600', 'hover:bg-red-700');
+                modalBtn.classList.add('bg-indigo-600', 'hover:bg-indigo-700');
+            }
         };
 
-        window.handleVerification = () => {
+        window.handleVerification = async () => {
             const programId = document.getElementById('verify-program-id').value;
             const correctIc = document.getElementById('verify-penyelaras-ic').value;
             const enteredIc = document.getElementById('ic-input').value.trim();
+            const actionType = document.getElementById('verify-action-type').value;
+            const docId = document.getElementById('verify-doc-id').value;
 
             if (enteredIc === correctIc) {
-                window.location.href = `program.html?kod=${programId}`;
+                // Tutup Modal
+                closeModal('ic-verify-modal');
+
+                if (actionType === 'view') {
+                    window.location.href = `program.html?kod=${programId}`;
+                } else if (actionType === 'edit') {
+                    window.location.href = `editprogram.html?kod=${programId}`;
+                } else if (actionType === 'cancel') {
+                    if (confirm("Adakah anda pasti mahu membatalkan tempahan ini? Data tidak akan dipadam tetapi ditanda sebagai 'BATAL'.")) {
+                        await cancelBookingInFirestore(docId);
+                    }
+                }
             } else {
                 document.getElementById('verify-error').classList.remove('hidden');
             }
         };
 
+        async function cancelBookingInFirestore(docId) {
+            try {
+                const bookingRef = doc(db, `artifacts/${appId}/public/data/spark_bookings`, docId);
+                await updateDoc(bookingRef, {
+                    status: "BATAL"
+                });
+                alert("Tempahan telah berjaya dibatalkan.");
+                // Paparan akan dikemaskini secara automatik melalui onSnapshot
+            } catch (error) {
+                console.error("Ralat membatalkan tempahan: ", error);
+                alert("Ralat semasa membatalkan tempahan. Sila cuba lagi.");
+            }
+        }
+
         window.closeModal = (modalId) => {
             document.getElementById(modalId).classList.add('hidden');
-            
             if (modalId === 'ic-verify-modal') {
                 document.getElementById('verify-error').classList.add('hidden');
                 document.getElementById('ic-input').value = '';
             }
         };
         
-        // Dedahkan showTab ke global scope
         Object.assign(window, { showTab });
     </script>
 
