@@ -60,7 +60,7 @@
         .cropper-container img { max-width: 100%; display: block; }
 
         /* Signature Canvas */
-        canvas#signature-pad { touch-action: none; } /* Prevent scrolling while drawing */
+        canvas#signature-pad { touch-action: none; } 
 
         /* Print Settings */
         @media print {
@@ -257,9 +257,12 @@
                     <input type="text" id="in-jawatan" oninput="updatePreview()" class="w-full text-xs border border-gray-300 rounded p-2 uppercase bg-white" placeholder="JAWATAN">
                     
                     <div class="mt-4 pt-3 border-t border-gray-200">
-                        <div class="flex items-center mb-2">
-                            <input type="checkbox" id="chk-signature" class="w-3 h-3 text-indigo-600 rounded" onchange="toggleSignature()">
-                            <span class="ml-1 text-[10px] font-bold text-gray-500 uppercase">Sertakan Tandatangan Digital</span>
+                        <div class="flex items-center justify-between mb-2">
+                            <div class="flex items-center">
+                                <input type="checkbox" id="chk-signature" class="w-3 h-3 text-indigo-600 rounded" onchange="toggleSignature()">
+                                <span class="ml-1 text-[10px] font-bold text-gray-500 uppercase">Sertakan Tandatangan</span>
+                            </div>
+                            <button id="btn-delete-default-sig" onclick="deleteDefaultSignature()" class="hidden text-[9px] text-red-500 hover:text-red-700 underline font-semibold">Padam Rekod Tetap</button>
                         </div>
                         
                         <div id="sig-input-container" class="hidden space-y-3">
@@ -284,7 +287,11 @@
 
                              <div>
                                 <input type="file" id="sig-upload" accept="image/*" class="w-full text-[10px] text-gray-500" onchange="handleSigUpload(this)">
-                                <p class="text-[8px] text-gray-400 mt-1 italic">Tandatangan akan disimpan jika anda 'Simpan & PDF'.</p>
+                             </div>
+
+                             <div class="bg-blue-50 border border-blue-100 p-2 rounded flex items-center">
+                                <input type="checkbox" id="chk-save-default-sig" class="w-3 h-3 text-blue-600 rounded">
+                                <span class="ml-2 text-[9px] font-bold text-blue-700 uppercase">Simpan sebagai Tandatangan Tetap (Rekod Seterusnya)</span>
                              </div>
                         </div>
                     </div>
@@ -485,6 +492,7 @@
         const IMGBB_API_KEY = "a7c600ac733fe14649cacd8e65619c4b"; 
 
         window.currentUserIc = "";
+        window.currentUserDocId = ""; // To store the profile doc ID
         window.allMyPrograms = [];
         window.allMyReports = [];
         window.currentFontSize = 8; 
@@ -504,6 +512,7 @@
         // SIGNATURE VARIABLES
         window.sigFile = null;
         window.sigUrl = "";
+        window.defaultSigUrl = ""; // To store retrieved default signature
         
         window.activeCropIndex = null;
         window.cropper = null;
@@ -511,7 +520,7 @@
         // CANVAS VARIABLES
         let isDrawing = false;
         let sigCanvas, sigCtx;
-        let isSignatureDrawn = false; // Flag to track if user drew something
+        let isSignatureDrawn = false; 
 
         const currentUrl = window.location.origin + window.location.pathname.replace('opr.html', 'index.html');
         document.getElementById('qr-code-img').src = `https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(currentUrl)}`;
@@ -532,7 +541,7 @@
                 await loadUserAndPrograms();
                 loadSavedReports();
                 setDefaultDates(); 
-                initSignaturePad(); // Initialize Canvas
+                initSignaturePad(); 
             } else {
                 window.location.href = 'index.html';
             }
@@ -543,7 +552,6 @@
             sigCanvas = document.getElementById('signature-pad');
             sigCtx = sigCanvas.getContext('2d');
             
-            // Set canvas size (important for drawing coordinates)
             function resizeCanvas() {
                 const rect = sigCanvas.getBoundingClientRect();
                 sigCanvas.width = rect.width;
@@ -552,13 +560,11 @@
             resizeCanvas();
             window.addEventListener('resize', resizeCanvas);
 
-            // Mouse Events
             sigCanvas.addEventListener('mousedown', startDrawing);
             sigCanvas.addEventListener('mouseup', stopDrawing);
             sigCanvas.addEventListener('mousemove', draw);
             sigCanvas.addEventListener('mouseleave', stopDrawing);
 
-            // Touch Events (Mobile)
             sigCanvas.addEventListener('touchstart', (e) => { e.preventDefault(); startDrawing(e.touches[0]); });
             sigCanvas.addEventListener('touchend', (e) => { e.preventDefault(); stopDrawing(); });
             sigCanvas.addEventListener('touchmove', (e) => { e.preventDefault(); draw(e.touches[0]); });
@@ -567,7 +573,7 @@
         function startDrawing(e) {
             isDrawing = true;
             isSignatureDrawn = true;
-            document.getElementById('sig-instruction').classList.add('hidden'); // Hide "Lukis Di Sini" text
+            document.getElementById('sig-instruction').classList.add('hidden');
             draw(e);
         }
 
@@ -579,15 +585,12 @@
 
         function draw(e) {
             if (!isDrawing) return;
-            
             const rect = sigCanvas.getBoundingClientRect();
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
-
             sigCtx.lineWidth = 2;
             sigCtx.lineCap = 'round';
             sigCtx.strokeStyle = '#000';
-
             sigCtx.lineTo(x, y);
             sigCtx.stroke();
             sigCtx.beginPath();
@@ -598,9 +601,12 @@
             sigCtx.clearRect(0, 0, sigCanvas.width, sigCanvas.height);
             isSignatureDrawn = false;
             document.getElementById('sig-instruction').classList.remove('hidden');
+            // Reset to empty, or default if we want to fallback? 
+            // Better to clear completely so user can draw new one.
             document.getElementById('out-sig-img').src = "";
             document.getElementById('out-sig-img').classList.add('hidden');
-            window.sigFile = null; // Clear any file
+            window.sigFile = null; 
+            window.sigUrl = ""; 
         }
 
         function updateSignaturePreviewFromCanvas() {
@@ -611,7 +617,6 @@
             if(document.getElementById('chk-signature').checked) {
                 prev.classList.remove('hidden');
             }
-            // If user draws, we clear any uploaded file to avoid confusion
             document.getElementById('sig-upload').value = ""; 
             window.sigFile = null; 
         }
@@ -701,7 +706,6 @@
 
             if(isChecked) {
                 container.classList.remove('hidden');
-                // Force resize canvas when visible
                 setTimeout(() => {
                     const rect = sigCanvas.getBoundingClientRect();
                     if(sigCanvas.width !== rect.width) {
@@ -722,10 +726,7 @@
         window.handleSigUpload = function(input) {
             if (input.files && input.files[0]) {
                 window.sigFile = input.files[0];
-                
-                // Clear Canvas if file uploaded
                 clearSignature();
-
                 const reader = new FileReader();
                 reader.onload = function(e) {
                     const prev = document.getElementById('out-sig-img');
@@ -735,6 +736,24 @@
                     }
                 }
                 reader.readAsDataURL(input.files[0]);
+            }
+        }
+
+        window.deleteDefaultSignature = async function() {
+            if(!confirm("Padam tandatangan simpanan tetap? Anda perlu melukis semula untuk rekod akan datang.")) return;
+            try {
+                if(window.currentUserDocId) {
+                    await updateDoc(doc(db, `artifacts/${appId}/public/data/spark_participants`, window.currentUserDocId), {
+                        defaultSignatureUrl: ""
+                    });
+                    window.defaultSigUrl = "";
+                    document.getElementById('btn-delete-default-sig').classList.add('hidden');
+                    alert("Tandatangan tetap berjaya dipadam.");
+                    // Optionally clear current view too
+                    clearSignature();
+                }
+            } catch(e) {
+                alert("Ralat memadam: " + e.message);
             }
         }
 
@@ -863,7 +882,6 @@
             generatePDF(false).then(() => { document.body.style.cursor = "default"; });
         }
 
-        // Helper to convert dataURL to Blob
         function dataURLtoBlob(dataurl) {
             var arr = dataurl.split(','), mime = arr[0].match(/:(.*?);/)[1],
                 bstr = atob(arr[1]), n = bstr.length, u8arr = new Uint8Array(n);
@@ -890,18 +908,24 @@
                 let finalLogoUrl = window.logoUrl || "";
                 if(window.logoFile) finalLogoUrl = await uploadToImgBB(window.logoFile);
 
-                // Handle Signature (Draw or File)
                 let finalSigUrl = window.sigUrl || "";
-                
-                // Priority 1: Drawn Signature
+                // Priority: Drawn > Uploaded
                 if (isSignatureDrawn) {
                     const dataUrl = sigCanvas.toDataURL("image/png");
                     const blob = dataURLtoBlob(dataUrl);
                     finalSigUrl = await uploadToImgBB(blob);
-                } 
-                // Priority 2: Uploaded File (if no drawing)
-                else if(window.sigFile) {
+                } else if(window.sigFile) {
                     finalSigUrl = await uploadToImgBB(window.sigFile);
+                }
+
+                // SAVE AS DEFAULT LOGIC
+                if (document.getElementById('chk-save-default-sig').checked && finalSigUrl && window.currentUserDocId) {
+                    await updateDoc(doc(db, `artifacts/${appId}/public/data/spark_participants`, window.currentUserDocId), {
+                        defaultSignatureUrl: finalSigUrl
+                    });
+                    // Update local var immediately
+                    window.defaultSigUrl = finalSigUrl; 
+                    document.getElementById('btn-delete-default-sig').classList.remove('hidden');
                 }
 
                 const caps = [
@@ -924,7 +948,6 @@
                     backgroundUrl: finalBgUrl, backgroundOpacity: window.bgOpacity,
                     logoUrl: finalLogoUrl,
                     
-                    // SAVE SIGNATURE DATA
                     signatureUrl: finalSigUrl,
                     showSignature: document.getElementById('chk-signature').checked,
 
@@ -967,7 +990,6 @@
             document.querySelectorAll('[id^="tab-btn-"]').forEach(btn => btn.className = "flex-1 py-2 text-xs font-bold uppercase rounded-md text-gray-500 hover:text-gray-700 transition-all");
             document.getElementById('tab-btn-' + tabName).className = "flex-1 py-2 text-xs font-bold uppercase rounded-md shadow-sm bg-white text-indigo-600 transition-all";
             
-            // Resize canvas if switching to form tab
             if(tabName === 'form' && sigCanvas) {
                 setTimeout(() => {
                     const rect = sigCanvas.getBoundingClientRect();
@@ -1005,15 +1027,35 @@
             const qUser = query(usersRef, where("ic", "==", window.currentUserIc));
             const userSnap = await getDocs(qUser);
             if (!userSnap.empty) {
-                const uData = userSnap.docs[0].data();
+                const uDoc = userSnap.docs[0];
+                window.currentUserDocId = uDoc.id; // Store Doc ID for updates
+                const uData = uDoc.data();
+                
                 document.getElementById('in-nama').value = uData.name.toUpperCase();
                 document.getElementById('in-jawatan').value = (uData.jawatan || uData.unit || "").toUpperCase();
                 window.isSparkPro = uData.isPro === true;
+                
                 const badge = document.getElementById('account-badge');
                 if (window.isSparkPro) { badge.textContent = "AKAUN PRO"; badge.className = "text-[10px] bg-yellow-100 text-yellow-800 border border-yellow-300 px-2 py-0.5 rounded font-bold uppercase tracking-wider"; }
                 else { badge.textContent = "AKAUN BIASA"; badge.className = "text-[10px] bg-gray-100 text-gray-500 border border-gray-200 px-2 py-0.5 rounded font-bold uppercase tracking-wider"; }
+                
+                // AUTO LOAD DEFAULT SIGNATURE
+                if (uData.defaultSignatureUrl) {
+                    window.defaultSigUrl = uData.defaultSignatureUrl;
+                    document.getElementById('btn-delete-default-sig').classList.remove('hidden');
+                    
+                    // Only apply if form is fresh (no report ID loaded)
+                    if (!document.getElementById('report-id').value) {
+                         window.sigUrl = window.defaultSigUrl;
+                         document.getElementById('out-sig-img').src = window.sigUrl;
+                         document.getElementById('chk-signature').checked = true;
+                         toggleSignature();
+                    }
+                }
+
                 updatePreview();
             }
+            // Load programs... (Existing logic)
             const progRef = collection(db, `artifacts/${appId}/public/data/spark_programs`);
             const q1 = query(progRef, where("createdBy", "==", window.currentUserIc));
             const q2 = query(progRef, where("penyelaras_ic", "==", window.currentUserIc));
@@ -1136,10 +1178,10 @@
             document.getElementById('in-catatan').value = report.catatan || "";
             document.getElementById('chk-catatan').checked = report.showCatatan === true;
 
-            // RESTORE SIGNATURE
-            window.sigUrl = report.signatureUrl || "";
+            // RESTORE SIGNATURE (Prefer history, else default)
+            window.sigUrl = report.signatureUrl || window.defaultSigUrl || "";
             window.sigFile = null;
-            clearSignature(); // Reset canvas
+            clearSignature(); 
             document.getElementById('chk-signature').checked = report.showSignature === true;
             if(window.sigUrl) {
                 document.getElementById('out-sig-img').src = window.sigUrl;
