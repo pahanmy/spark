@@ -3,9 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SPARK – Penjana OPR</title>
+    <title>SPARK – Penjana OPR Pro</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     
     <style>
@@ -38,6 +43,11 @@
         .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
 
+        /* Modal Cropper */
+        .modal-backdrop { background-color: rgba(0,0,0,0.7); backdrop-filter: blur(2px); }
+        .cropper-container { max-height: 60vh; background: #000; overflow: hidden; }
+        .cropper-container img { max-width: 100%; }
+
         /* Print Settings */
         @media print {
             body { background: white; margin: 0; padding: 0; }
@@ -69,14 +79,11 @@
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
                     Kembali
                 </button>
-                
                 <div class="h-6 w-px bg-gray-300 mx-1"></div>
-
                 <button onclick="downloadPDFOnly()" class="bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 text-xs font-bold py-2 px-4 rounded-lg shadow-sm flex items-center gap-2 uppercase transition-all">
                     <svg class="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                     Download Sahaja
                 </button>
-
                 <button onclick="saveAndDownload()" id="btn-save" class="bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 text-white text-xs font-bold py-2 px-5 rounded-lg shadow-md flex items-center gap-2 uppercase transition-transform hover:scale-105">
                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
                     Simpan & PDF
@@ -138,39 +145,69 @@
                 </div>
 
                 <div>
-                    <label class="text-xs font-bold text-gray-600 uppercase mb-1 flex items-center gap-1">
-                        <span class="w-1.5 h-4 bg-blue-500 rounded-full"></span> Fokus / Objektif
-                    </label>
+                    <div class="flex justify-between items-center mb-1">
+                        <label class="text-xs font-bold text-gray-600 uppercase flex items-center gap-1">
+                            <span class="w-1.5 h-4 bg-blue-500 rounded-full"></span> Fokus / Objektif
+                        </label>
+                        <label class="flex items-center cursor-pointer">
+                            <div class="relative">
+                                <input type="checkbox" id="chk-objektif" class="sr-only" onchange="updatePreview()">
+                                <div class="block bg-gray-300 w-8 h-4 rounded-full"></div>
+                                <div class="dot absolute left-1 top-1 bg-white w-2 h-2 rounded-full transition"></div>
+                            </div>
+                            <span class="ml-2 text-[9px] font-bold text-gray-500 uppercase">Mod Senarai</span>
+                        </label>
+                    </div>
                     <textarea id="in-objektif" oninput="updatePreview()" rows="3" class="w-full text-sm border-2 border-blue-100 rounded-lg p-3 focus:border-blue-500 bg-white shadow-sm transition-colors"></textarea>
                 </div>
                 
                 <div class="grid grid-cols-2 gap-3">
                     <div>
-                        <label class="text-xs font-bold text-gray-600 uppercase mb-1 flex items-center gap-1">
-                            <span class="w-1.5 h-4 bg-green-500 rounded-full"></span> Kekuatan
-                        </label>
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="text-xs font-bold text-gray-600 uppercase flex items-center gap-1">
+                                <span class="w-1.5 h-4 bg-green-500 rounded-full"></span> Kekuatan
+                            </label>
+                            <input type="checkbox" id="chk-dapatan" class="w-3 h-3 text-green-600 border-gray-300 rounded focus:ring-green-500" onchange="updatePreview()" title="Mod Senarai">
+                        </div>
                         <textarea id="in-dapatan" oninput="updatePreview()" rows="4" class="w-full text-sm border-2 border-green-100 rounded-lg p-2 focus:border-green-500 bg-green-50/20 shadow-sm"></textarea>
                     </div>
                     <div>
-                        <label class="text-xs font-bold text-gray-600 uppercase mb-1 flex items-center gap-1">
-                            <span class="w-1.5 h-4 bg-orange-500 rounded-full"></span> Isu / Tindakan
-                        </label>
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="text-xs font-bold text-gray-600 uppercase flex items-center gap-1">
+                                <span class="w-1.5 h-4 bg-orange-500 rounded-full"></span> Isu / Tindakan
+                            </label>
+                            <input type="checkbox" id="chk-isu" class="w-3 h-3 text-orange-600 border-gray-300 rounded focus:ring-orange-500" onchange="updatePreview()" title="Mod Senarai">
+                        </div>
                         <textarea id="in-isu" oninput="updatePreview()" rows="4" class="w-full text-sm border-2 border-orange-100 rounded-lg p-2 focus:border-orange-500 bg-orange-50/20 shadow-sm"></textarea>
                     </div>
                 </div>
 
                 <div>
-                    <label class="text-xs font-bold text-gray-600 uppercase mb-2 block">Laporan Gambar</label>
-                    <div class="grid grid-cols-2 gap-2">
-                        <input type="file" id="file-1" class="hidden" accept="image/*" onchange="handleImageSelect(this, 'img-1')">
-                        <input type="file" id="file-2" class="hidden" accept="image/*" onchange="handleImageSelect(this, 'img-2')">
-                        <input type="hidden" id="url-img-1"><input type="hidden" id="url-img-2">
+                    <div class="flex justify-between items-center mb-2">
+                        <label class="text-xs font-bold text-gray-600 uppercase">Laporan Gambar</label>
+                        <button onclick="toggleImageCount()" id="btn-toggle-img" class="text-[10px] bg-indigo-100 text-indigo-700 px-2 py-1 rounded hover:bg-indigo-200 transition-colors font-bold uppercase">
+                            + Tambah Gambar (4)
+                        </button>
+                    </div>
+                    
+                    <input type="file" id="temp-file-input" class="hidden" accept="image/*" onchange="openCropModal(this)">
 
-                        <div class="img-upload-box rounded-lg shadow-sm bg-white" onclick="document.getElementById('file-1').click()">
-                            <span class="text-[9px] font-bold text-gray-400 uppercase">Gambar 1</span>
+                    <div class="grid grid-cols-2 gap-2" id="input-image-grid">
+                        <div class="img-upload-box rounded-lg shadow-sm bg-white" id="box-0" onclick="triggerUpload(0)">
+                            <img id="thumb-0" src="" class="hidden w-full h-full object-cover rounded-lg">
+                            <span id="label-0" class="text-[9px] font-bold text-gray-400 uppercase">Gambar 1</span>
                         </div>
-                        <div class="img-upload-box rounded-lg shadow-sm bg-white" onclick="document.getElementById('file-2').click()">
-                            <span class="text-[9px] font-bold text-gray-400 uppercase">Gambar 2</span>
+                        <div class="img-upload-box rounded-lg shadow-sm bg-white" id="box-1" onclick="triggerUpload(1)">
+                            <img id="thumb-1" src="" class="hidden w-full h-full object-cover rounded-lg">
+                            <span id="label-1" class="text-[9px] font-bold text-gray-400 uppercase">Gambar 2</span>
+                        </div>
+                        <div class="img-upload-box rounded-lg shadow-sm bg-white hidden" id="box-2" onclick="triggerUpload(2)">
+                            <img id="thumb-2" src="" class="hidden w-full h-full object-cover rounded-lg">
+                            <span id="label-2" class="text-[9px] font-bold text-gray-400 uppercase">Gambar 3</span>
+                        </div>
+                        <div class="img-upload-box rounded-lg shadow-sm bg-white hidden" id="box-3" onclick="triggerUpload(3)">
+                            <img id="thumb-3" src="" class="hidden w-full h-full object-cover rounded-lg">
+                            <span id="label-3" class="text-[9px] font-bold text-gray-400 uppercase">Gambar 4</span>
                         </div>
                     </div>
                 </div>
@@ -184,19 +221,12 @@
 
             <div id="tab-content-history" class="hidden">
                 <div id="limit-warning" class="hidden bg-yellow-50 border-l-4 border-yellow-400 p-3 mb-4">
-                    <p class="text-xs text-yellow-700">
-                        <strong>Perhatian:</strong> Akaun Biasa hanya boleh melihat 5 laporan terkini. Sila naik taraf ke SPARK PRO untuk akses tanpa had.
-                    </p>
+                    <p class="text-xs text-yellow-700"><strong>Perhatian:</strong> Akaun Biasa terhad kepada 5 rekod terkini.</p>
                 </div>
-                
                 <div class="overflow-hidden rounded-lg border border-gray-200 shadow-sm">
                     <table class="min-w-full text-xs text-left text-gray-600">
                         <thead class="text-xs text-gray-700 uppercase bg-gray-50 border-b border-gray-200">
-                            <tr>
-                                <th class="px-3 py-3 font-bold">Tarikh</th>
-                                <th class="px-3 py-3 font-bold">Tajuk</th>
-                                <th class="px-3 py-3 font-bold text-center">Tindakan</th>
-                            </tr>
+                            <tr><th class="px-3 py-3 font-bold">Tarikh</th><th class="px-3 py-3 font-bold">Tajuk</th><th class="px-3 py-3 font-bold text-center">Tindakan</th></tr>
                         </thead>
                         <tbody id="history-table-body" class="bg-white divide-y divide-gray-100">
                             <tr><td colspan="3" class="px-3 py-4 text-center">Tiada rekod.</td></tr>
@@ -214,18 +244,14 @@
                         <button onclick="adjustFontSize(1)" class="w-8 h-8 bg-gray-100 rounded hover:bg-gray-200 font-bold">+</button>
                     </div>
                 </div>
-
                 <div class="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-                    <label class="block text-xs font-bold text-indigo-700 uppercase mb-2 flex justify-between">
-                        Saiz Tajuk Header <span class="text-[9px] bg-yellow-100 text-yellow-800 px-1 rounded">PRO</span>
-                    </label>
+                    <label class="block text-xs font-bold text-indigo-700 uppercase mb-2 flex justify-between">Saiz Tajuk Header <span class="text-[9px] bg-yellow-100 text-yellow-800 px-1 rounded">PRO</span></label>
                     <div class="flex items-center gap-4">
                         <button onclick="adjustHeaderSize(-1)" class="w-8 h-8 bg-gray-100 rounded hover:bg-gray-200 font-bold">-</button>
                         <span id="header-size-display" class="text-sm font-bold text-indigo-600">18pt</span>
                         <button onclick="adjustHeaderSize(1)" class="w-8 h-8 bg-gray-100 rounded hover:bg-gray-200 font-bold">+</button>
                     </div>
                 </div>
-
                 <div class="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
                     <label class="block text-xs font-bold text-gray-700 uppercase mb-2">Logo & Nama Organisasi</label>
                     <input type="file" id="logo-upload" accept="image/*" class="w-full text-xs mb-3 text-gray-500" onchange="changeLogo(this)">
@@ -278,15 +304,11 @@
 
                 <div class="mt-3 border border-black p-1">
                     <h3 class="text-[8pt] font-bold uppercase bg-gray-100 p-1 border-b border-black text-center mb-1">LAPORAN BERGAMBAR</h3>
-                    <div class="grid grid-cols-2 gap-2 h-[100mm]">
-                        <div class="border border-gray-300 flex items-center justify-center overflow-hidden relative bg-gray-50">
-                            <img id="img-1" src="" class="absolute inset-0 w-full h-full object-cover hidden" crossorigin="anonymous">
-                            <span class="text-gray-400 text-xs text-center p-4">Gambar 1</span>
-                        </div>
-                        <div class="border border-gray-300 flex items-center justify-center overflow-hidden relative bg-gray-50">
-                            <img id="img-2" src="" class="absolute inset-0 w-full h-full object-cover hidden" crossorigin="anonymous">
-                            <span class="text-gray-400 text-xs text-center p-4">Gambar 2</span>
-                        </div>
+                    <div id="preview-image-grid" class="grid grid-cols-2 gap-2 h-[100mm]">
+                        <div class="border border-gray-300 flex items-center justify-center overflow-hidden relative bg-gray-50"><img id="prev-img-0" src="" class="hidden w-full h-full object-cover"><span class="text-gray-400 text-xs text-center p-4">Gambar 1</span></div>
+                        <div class="border border-gray-300 flex items-center justify-center overflow-hidden relative bg-gray-50"><img id="prev-img-1" src="" class="hidden w-full h-full object-cover"><span class="text-gray-400 text-xs text-center p-4">Gambar 2</span></div>
+                        <div class="border border-gray-300 flex items-center justify-center overflow-hidden relative bg-gray-50 hidden" id="prev-box-2"><img id="prev-img-2" src="" class="hidden w-full h-full object-cover"><span class="text-gray-400 text-xs text-center p-4">Gambar 3</span></div>
+                        <div class="border border-gray-300 flex items-center justify-center overflow-hidden relative bg-gray-50 hidden" id="prev-box-3"><img id="prev-img-3" src="" class="hidden w-full h-full object-cover"><span class="text-gray-400 text-xs text-center p-4">Gambar 4</span></div>
                     </div>
                 </div>
 
@@ -298,7 +320,19 @@
                         <p id="out-jawatan" class="text-[8pt] uppercase mt-0.5">JAWATAN</p>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
 
+    <div id="crop-modal" class="fixed inset-0 z-[100] flex items-center justify-center modal-backdrop hidden">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-md p-4">
+            <h3 class="text-sm font-bold uppercase mb-2">Potong Gambar</h3>
+            <div class="cropper-container mb-3 h-64 bg-gray-900 rounded">
+                <img id="image-to-crop" src="">
+            </div>
+            <div class="flex justify-end gap-2">
+                <button onclick="closeCropModal()" class="px-4 py-2 bg-gray-200 text-xs font-bold rounded uppercase">Batal</button>
+                <button onclick="applyCrop()" class="px-4 py-2 bg-indigo-600 text-white text-xs font-bold rounded uppercase">Potong & Simpan</button>
             </div>
         </div>
     </div>
@@ -323,13 +357,19 @@
         const appId = firebaseConfig.projectId;
         const IMGBB_API_KEY = "a7c600ac733fe14649cacd8e65619c4b"; 
 
-        // GLOBAL VARIABLES
         window.currentUserIc = "";
         window.allMyPrograms = [];
         window.allMyReports = [];
         window.currentFontSize = 8; 
         window.currentHeaderSize = 18;
         window.isSparkPro = false;
+        
+        // Image & Cropper Vars
+        window.imageMode = 2;
+        window.imageFiles = [null, null, null, null];
+        window.imageUrls = ["", "", "", ""];
+        window.activeCropIndex = null;
+        window.cropper = null;
 
         const currentUrl = window.location.origin + window.location.pathname.replace('opr.html', 'index.html');
         document.getElementById('qr-code-img').src = `https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(currentUrl)}`;
@@ -345,296 +385,109 @@
             }
         });
 
-        // --- TABS & UI ---
-        window.showTab = function(tabName) {
-            document.querySelectorAll('[id^="tab-content-"]').forEach(el => el.classList.add('hidden'));
-            document.getElementById('tab-content-' + tabName).classList.remove('hidden');
-            
-            document.querySelectorAll('[id^="tab-btn-"]').forEach(btn => {
-                btn.className = "flex-1 py-2 text-xs font-bold uppercase rounded-md text-gray-500 hover:text-gray-700 transition-all";
-            });
-            document.getElementById('tab-btn-' + tabName).className = "flex-1 py-2 text-xs font-bold uppercase rounded-md shadow-sm bg-white text-indigo-600 transition-all";
+        // --- CROPPER LOGIC ---
+        window.triggerUpload = function(index) {
+            window.activeCropIndex = index;
+            document.getElementById('temp-file-input').value = "";
+            document.getElementById('temp-file-input').click();
         }
 
-        window.adjustFontSize = function(change) {
-            window.currentFontSize += change;
-            if (window.currentFontSize < 6) window.currentFontSize = 6;
-            if (window.currentFontSize > 14) window.currentFontSize = 14;
-            document.getElementById('font-size-display').textContent = window.currentFontSize + 'pt';
-            document.getElementById('main-table').style.fontSize = window.currentFontSize + 'pt';
-            document.getElementById('out-tajuk').style.fontSize = (window.currentFontSize + 4) + 'pt';
-            document.querySelectorAll('.opr-table th').forEach(th => th.style.fontSize = window.currentFontSize + 'pt');
-            document.querySelectorAll('.opr-table td').forEach(td => td.style.fontSize = window.currentFontSize + 'pt');
-        }
-
-        window.adjustHeaderSize = function(change) {
-            if(!window.isSparkPro) { alert("Ciri ini untuk akaun SPARK PRO sahaja."); return; }
-            window.currentHeaderSize += change;
-            if (window.currentHeaderSize < 10) window.currentHeaderSize = 10;
-            if (window.currentHeaderSize > 30) window.currentHeaderSize = 30;
-            document.getElementById('header-size-display').textContent = window.currentHeaderSize + 'pt';
-            document.getElementById('out-org-name').style.fontSize = window.currentHeaderSize + 'pt';
-        }
-
-        window.updateHeader = function() {
-            document.getElementById('out-org-name').textContent = document.getElementById('in-org-name').value;
-            document.getElementById('out-sub-org').textContent = document.getElementById('in-sub-org').value;
-        }
-
-        window.changeLogo = function(input) {
-            if(!window.isSparkPro) { alert("Menukar logo adalah ciri SPARK PRO."); input.value = ""; return; }
-            if (input.files && input.files[0]) {
-                const reader = new FileReader();
-                reader.onload = function(e) { document.getElementById('header-logo').src = e.target.result; }
-                reader.readAsDataURL(input.files[0]);
-            }
-        }
-
-        // --- CORE FUNCTIONS ---
-        window.downloadPDFOnly = function() {
-            const btn = document.getElementById('btn-download-only');
-            const oriText = btn.innerHTML;
-            btn.innerHTML = "Menjana...";
-            btn.disabled = true;
-            generatePDF(false).then(() => {
-                btn.innerHTML = oriText;
-                btn.disabled = false;
-            });
-        }
-
-        window.saveAndDownload = async function() {
-            const btn = document.getElementById('btn-save');
-            const oriText = btn.innerHTML;
-            btn.innerHTML = "Proses...";
-            btn.disabled = true;
-
-            try {
-                const img1Url = await uploadIfNew('file-1', 'url-img-1');
-                const img2Url = await uploadIfNew('file-2', 'url-img-2');
-
-                const dataToSave = {
-                    ic: window.currentUserIc,
-                    tajuk: document.getElementById('in-tajuk').value,
-                    tarikhMula: document.getElementById('in-tarikh-mula').value,
-                    tarikhTamat: document.getElementById('in-tarikh-tamat').value,
-                    tempat: document.getElementById('in-tempat').value,
-                    objektif: document.getElementById('in-objektif').value,
-                    dapatan: document.getElementById('in-dapatan').value,
-                    isu: document.getElementById('in-isu').value,
-                    nama: document.getElementById('in-nama').value,
-                    jawatan: document.getElementById('in-jawatan').value,
-                    img1: img1Url, img2: img2Url, updatedAt: new Date()
-                };
-
-                const reportId = document.getElementById('report-id').value;
-                if(reportId) {
-                    await updateDoc(doc(db, `artifacts/${appId}/public/data/spark_opr_records`, reportId), dataToSave);
-                } else {
-                    dataToSave.createdAt = new Date();
-                    await addDoc(collection(db, `artifacts/${appId}/public/data/spark_opr_records`), dataToSave);
-                }
-
-                await generatePDF(true);
-                loadSavedReports(); // Refresh history
-
-            } catch (error) {
-                console.error(error);
-                alert("Ralat: " + error.message);
-            } finally {
-                btn.innerHTML = oriText;
-                btn.disabled = false;
-            }
-        }
-
-        async function generatePDF(isSaved) {
-            const element = document.getElementById('print-area');
-            const tajuk = document.getElementById('in-tajuk').value.replace(/[^a-zA-Z0-9]/g, "_").substring(0, 15);
-            const fileName = `OPR_${tajuk}.pdf`;
-            const opt = { margin: 0, filename: fileName, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } };
-            await html2pdf().set(opt).from(element).save();
-            if(isSaved) alert("Berjaya disimpan dan dimuat turun!");
-        }
-
-        async function uploadIfNew(fileInputId, hiddenUrlId) {
-            const fileInput = document.getElementById(fileInputId);
-            const currentUrl = document.getElementById(hiddenUrlId).value;
-            if (!fileInput.files || fileInput.files.length === 0) return currentUrl;
-            const formData = new FormData();
-            formData.append("image", fileInput.files[0]);
-            const response = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, { method: "POST", body: formData });
-            const result = await response.json();
-            if (result.success) return result.data.url;
-            else throw new Error("Gagal upload gambar");
-        }
-
-        // --- DATA LOGIC ---
-        async function loadUserAndPrograms() {
-            const usersRef = collection(db, `artifacts/${appId}/public/data/spark_participants`);
-            const qUser = query(usersRef, where("ic", "==", window.currentUserIc));
-            const userSnap = await getDocs(qUser);
-            if (!userSnap.empty) {
-                const uData = userSnap.docs[0].data();
-                document.getElementById('in-nama').value = uData.name.toUpperCase();
-                document.getElementById('in-jawatan').value = (uData.jawatan || uData.unit || "").toUpperCase();
-                
-                // CHECK STATUS AKAUN
-                window.isSparkPro = uData.isPro === true;
-                const badge = document.getElementById('account-badge');
-                if (window.isSparkPro) {
-                    badge.textContent = "AKAUN PRO";
-                    badge.className = "text-[10px] bg-yellow-100 text-yellow-800 border border-yellow-300 px-2 py-0.5 rounded font-bold uppercase tracking-wider";
-                } else {
-                    badge.textContent = "AKAUN BIASA";
-                    badge.className = "text-[10px] bg-gray-100 text-gray-500 border border-gray-200 px-2 py-0.5 rounded font-bold uppercase tracking-wider";
-                }
-                updatePreview();
-            }
-
-            const progRef = collection(db, `artifacts/${appId}/public/data/spark_programs`);
-            const q1 = query(progRef, where("createdBy", "==", window.currentUserIc));
-            const q2 = query(progRef, where("penyelaras_ic", "==", window.currentUserIc));
-            
-            try {
-                const [snap1, snap2] = await Promise.all([getDocs(q1), getDocs(q2)]);
-                const select = document.getElementById('program-select');
-                window.allMyPrograms = []; 
-
-                const appendOption = (doc) => {
-                    const data = { id: doc.id, ...doc.data() };
-                    if(window.allMyPrograms.some(p => p.id === data.id)) return;
-                    const opt = document.createElement('option');
-                    opt.value = data.id;
-                    opt.textContent = data.name.toUpperCase();
-                    select.appendChild(opt);
-                    window.allMyPrograms.push(data);
-                };
-                snap1.forEach(appendOption);
-                snap2.forEach(appendOption);
-            } catch (err) { console.error("Error loading programs:", err); }
-        }
-
-        async function loadSavedReports() {
-            // LOAD & SORT (Latest first)
-            const reportRef = collection(db, `artifacts/${appId}/public/data/spark_opr_records`);
-            const q = query(reportRef, where("ic", "==", window.currentUserIc), orderBy("createdAt", "desc"));
-            
-            try {
-                const snaps = await getDocs(q);
-                const tbody = document.getElementById('history-table-body');
-                const select = document.getElementById('history-select');
-                const limitMsg = document.getElementById('limit-warning');
-                
-                tbody.innerHTML = '';
-                select.innerHTML = '<option value="">-- Pilih Rekod --</option>';
-                window.allMyReports = [];
-
-                if(snaps.empty) {
-                    tbody.innerHTML = '<tr><td colspan="3" class="px-3 py-4 text-center text-xs text-gray-400">Tiada rekod.</td></tr>';
-                    return;
-                }
-
-                let docs = [];
-                snaps.forEach(doc => docs.push({ id: doc.id, ...doc.data() }));
-
-                // --- LOGIC LIMIT 5 UNTUK AKAUN BIASA ---
-                if (!window.isSparkPro && docs.length > 5) {
-                    docs = docs.slice(0, 5); // Ambil 5 terkini sahaja
-                    limitMsg.classList.remove('hidden');
-                } else {
-                    limitMsg.classList.add('hidden');
-                }
-
-                docs.forEach(data => {
-                    window.allMyReports.push(data);
-                    
-                    const opt = document.createElement('option');
-                    opt.value = data.id;
-                    opt.textContent = data.tajuk.substring(0, 30);
-                    select.appendChild(opt);
-
-                    let dateStr = "-";
-                    if(data.tarikhMula) {
-                        const d = new Date(data.tarikhMula);
-                        dateStr = `${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()}`;
-                    }
-                    const tr = document.createElement('tr');
-                    tr.className = "bg-white border-b hover:bg-gray-50";
-                    tr.innerHTML = `
-                        <td class="px-3 py-2 whitespace-nowrap">${dateStr}</td>
-                        <td class="px-3 py-2 truncate max-w-[100px]">${data.tajuk}</td>
-                        <td class="px-3 py-2 text-center">
-                            <button onclick="loadHistory('${data.id}')" class="text-indigo-600 font-bold hover:underline uppercase text-[10px]">Buka</button>
-                        </td>
-                    `;
-                    tbody.appendChild(tr);
-                });
-            } catch (err) { console.error(err); }
-        }
-
-        window.loadHistory = function(id) {
-            const report = window.allMyReports.find(r => r.id === id);
-            if(!report) return;
-            document.getElementById('report-id').value = report.id;
-            document.getElementById('in-tajuk').value = report.tajuk;
-            document.getElementById('in-tarikh-mula').value = report.tarikhMula;
-            document.getElementById('in-tarikh-tamat').value = report.tarikhTamat || "";
-            document.getElementById('in-tempat').value = report.tempat;
-            document.getElementById('in-objektif').value = report.objektif;
-            document.getElementById('in-dapatan').value = report.dapatan;
-            document.getElementById('in-isu').value = report.isu;
-            document.getElementById('in-nama').value = report.nama;
-            document.getElementById('in-jawatan').value = report.jawatan;
-            if(report.img1) setImgFromUrl('img-1', report.img1, 'url-img-1', 1);
-            if(report.img2) setImgFromUrl('img-2', report.img2, 'url-img-2', 2);
-            updatePreview();
-            showTab('form');
-        }
-
-        window.handleImageSelect = function(input, imgId) {
+        window.openCropModal = function(input) {
             if (input.files && input.files[0]) {
                 const reader = new FileReader();
                 reader.onload = function(e) {
-                    const img = document.getElementById(imgId);
-                    img.src = e.target.result;
-                    img.classList.remove('hidden');
-                    img.nextElementSibling.classList.add('hidden');
-                }
+                    const imageElement = document.getElementById('image-to-crop');
+                    imageElement.src = e.target.result;
+                    document.getElementById('crop-modal').classList.remove('hidden');
+                    
+                    if (window.cropper) window.cropper.destroy();
+                    window.cropper = new Cropper(imageElement, {
+                        aspectRatio: NaN, // Free crop
+                        viewMode: 1, autoCropArea: 0.9,
+                    });
+                };
                 reader.readAsDataURL(input.files[0]);
             }
         }
 
-        function setImgFromUrl(imgId, url, hiddenInputId, index) {
-            const img = document.getElementById(imgId);
-            img.src = url;
-            img.classList.remove('hidden');
-            img.nextElementSibling.classList.add('hidden');
-            document.getElementById(hiddenInputId).value = url;
+        window.closeCropModal = function() {
+            document.getElementById('crop-modal').classList.add('hidden');
+            if (window.cropper) { window.cropper.destroy(); window.cropper = null; }
         }
 
-        window.importProgramData = function(progId) {
-            if(!progId) return;
-            const prog = window.allMyPrograms.find(p => p.id === progId);
-            if(prog) {
-                document.getElementById('report-id').value = "";
-                document.getElementById('in-tajuk').value = prog.name.toUpperCase();
-                document.getElementById('in-tempat').value = prog.location.toUpperCase();
-                if(prog.startDate) document.getElementById('in-tarikh-mula').value = prog.startDate;
-                if(prog.endDate) document.getElementById('in-tarikh-tamat').value = prog.endDate;
-                if(prog.description) document.getElementById('in-objektif').value = prog.description;
-                updatePreview();
+        window.applyCrop = function() {
+            if (!window.cropper) return;
+            window.cropper.getCroppedCanvas({ maxWidth: 800, maxHeight: 800 }).toBlob((blob) => {
+                const idx = window.activeCropIndex;
+                const file = new File([blob], "cropped.jpg", { type: "image/jpeg" });
+                
+                window.imageFiles[idx] = file;
+                window.imageUrls[idx] = URL.createObjectURL(blob);
+                
+                refreshImages();
+                closeCropModal();
+            }, 'image/jpeg', 0.85);
+        }
+
+        function refreshImages() {
+            for (let i = 0; i < 4; i++) {
+                const url = window.imageUrls[i];
+                const thumb = document.getElementById(`thumb-${i}`);
+                const label = document.getElementById(`label-${i}`);
+                const prevImg = document.getElementById(`prev-img-${i}`);
+                const prevLabel = prevImg.nextElementSibling;
+
+                if (url) {
+                    thumb.src = url; thumb.classList.remove('hidden'); label.classList.add('hidden');
+                    prevImg.src = url; prevImg.classList.remove('hidden'); 
+                    if(prevLabel) prevLabel.classList.add('hidden');
+                } else {
+                    thumb.src = ""; thumb.classList.add('hidden'); label.classList.remove('hidden');
+                    prevImg.src = ""; prevImg.classList.add('hidden');
+                    if(prevLabel) prevLabel.classList.remove('hidden');
+                }
             }
         }
 
+        window.toggleImageCount = function() {
+            window.imageMode = (window.imageMode === 2) ? 4 : 2;
+            const btn = document.getElementById('btn-toggle-img');
+            const gridPreview = document.getElementById('preview-image-grid');
+            
+            if (window.imageMode === 4) {
+                btn.textContent = "- Kurang Gambar (2)";
+                document.getElementById('box-2').classList.remove('hidden');
+                document.getElementById('box-3').classList.remove('hidden');
+                document.getElementById('prev-box-2').classList.remove('hidden');
+                document.getElementById('prev-box-3').classList.remove('hidden');
+                gridPreview.classList.remove('grid-cols-2');
+                gridPreview.classList.add('grid-cols-2', 'grid-rows-2');
+                gridPreview.style.height = "140mm"; 
+            } else {
+                btn.textContent = "+ Tambah Gambar (4)";
+                document.getElementById('box-2').classList.add('hidden');
+                document.getElementById('box-3').classList.add('hidden');
+                document.getElementById('prev-box-2').classList.add('hidden');
+                document.getElementById('prev-box-3').classList.add('hidden');
+                gridPreview.classList.remove('grid-rows-2');
+                gridPreview.style.height = "100mm";
+            }
+        }
+
+        // --- BULLET / UI ---
         window.updatePreview = function() {
-            const mappings = {
-                'in-tajuk': 'out-tajuk', 'in-tempat': 'out-tempat', 'in-objektif': 'out-objektif',
-                'in-dapatan': 'out-dapatan', 'in-isu': 'out-isu', 'in-nama': 'out-nama', 'in-jawatan': 'out-jawatan'
-            };
-            for (const [inputId, outputId] of Object.entries(mappings)) {
-                document.getElementById(outputId).textContent = document.getElementById(inputId).value;
-            }
-            document.getElementById('out-tajuk').style.fontSize = (window.currentFontSize + 4) + 'pt';
+            const fields = [
+                {id: 'in-tajuk', out: 'out-tajuk'}, {id: 'in-tempat', out: 'out-tempat'},
+                {id: 'in-nama', out: 'out-nama'}, {id: 'in-jawatan', out: 'out-jawatan'}
+            ];
+            fields.forEach(f => document.getElementById(f.out).textContent = document.getElementById(f.id).value);
 
+            // Handle Bullet Points
+            updateTextField('in-objektif', 'out-objektif', 'chk-objektif');
+            updateTextField('in-dapatan', 'out-dapatan', 'chk-dapatan');
+            updateTextField('in-isu', 'out-isu', 'chk-isu');
+
+            // Date
             const dateStart = document.getElementById('in-tarikh-mula').value;
             const dateEnd = document.getElementById('in-tarikh-tamat').value;
             let dateDisplay = "";
@@ -654,8 +507,234 @@
                 } else { dateDisplay = `${day1} ${month1} ${year1}`; }
             }
             document.getElementById('out-tarikh').textContent = dateDisplay;
+            
+            // Header Size
+            document.getElementById('out-tajuk').style.fontSize = (window.currentFontSize + 4) + 'pt';
         }
 
+        function updateTextField(inputId, outputId, checkId) {
+            const text = document.getElementById(inputId).value;
+            const isBullet = document.getElementById(checkId) ? document.getElementById(checkId).checked : false;
+            const output = document.getElementById(outputId);
+            
+            if(isBullet && text.trim()) {
+                const items = text.split('\n').filter(t => t.trim() !== "");
+                output.innerHTML = `<ul class="list-disc pl-5 m-0 space-y-0.5">${items.map(i => `<li>${i}</li>`).join('')}</ul>`;
+            } else {
+                output.textContent = text;
+            }
+        }
+
+        // --- CORE FUNCTIONS (SAVE/PDF) ---
+        window.downloadPDFOnly = function() {
+            const btn = document.getElementById('btn-download-only');
+            btn.innerHTML = "Menjana..."; btn.disabled = true;
+            generatePDF(false).then(() => { btn.innerHTML = "Download Sahaja"; btn.disabled = false; });
+        }
+
+        window.saveAndDownload = async function() {
+            const btn = document.getElementById('btn-save');
+            btn.innerHTML = "Proses..."; btn.disabled = true;
+            try {
+                const uploadedUrls = [];
+                for(let i=0; i<4; i++) {
+                    let finalUrl = window.imageUrls[i] || "";
+                    if(window.imageFiles[i]) finalUrl = await uploadToImgBB(window.imageFiles[i]);
+                    uploadedUrls.push(finalUrl);
+                }
+
+                const dataToSave = {
+                    ic: window.currentUserIc,
+                    tajuk: document.getElementById('in-tajuk').value,
+                    tarikhMula: document.getElementById('in-tarikh-mula').value,
+                    tarikhTamat: document.getElementById('in-tarikh-tamat').value,
+                    tempat: document.getElementById('in-tempat').value,
+                    objektif: document.getElementById('in-objektif').value,
+                    dapatan: document.getElementById('in-dapatan').value,
+                    isu: document.getElementById('in-isu').value,
+                    nama: document.getElementById('in-nama').value,
+                    jawatan: document.getElementById('in-jawatan').value,
+                    img1: uploadedUrls[0], img2: uploadedUrls[1], img3: uploadedUrls[2], img4: uploadedUrls[3],
+                    imageMode: window.imageMode,
+                    updatedAt: new Date()
+                };
+
+                const reportId = document.getElementById('report-id').value;
+                if(reportId) await updateDoc(doc(db, `artifacts/${appId}/public/data/spark_opr_records`, reportId), dataToSave);
+                else {
+                    dataToSave.createdAt = new Date();
+                    await addDoc(collection(db, `artifacts/${appId}/public/data/spark_opr_records`), dataToSave);
+                }
+
+                await generatePDF(true);
+                loadSavedReports();
+            } catch (error) {
+                console.error(error); alert("Ralat: " + error.message);
+            } finally {
+                btn.innerHTML = "Simpan & PDF"; btn.disabled = false;
+            }
+        }
+
+        async function generatePDF(isSaved) {
+            const element = document.getElementById('print-area');
+            const tajuk = document.getElementById('in-tajuk').value.replace(/[^a-zA-Z0-9]/g, "_").substring(0, 15);
+            const fileName = `OPR_${tajuk}.pdf`;
+            const opt = { margin: 0, filename: fileName, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } };
+            await html2pdf().set(opt).from(element).save();
+            if(isSaved) alert("Berjaya disimpan dan dimuat turun!");
+        }
+
+        async function uploadToImgBB(file) {
+            const formData = new FormData(); formData.append("image", file);
+            const response = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, { method: "POST", body: formData });
+            const result = await response.json();
+            if (result.success) return result.data.url; else throw new Error("Gagal upload gambar");
+        }
+
+        // --- LOADERS ---
+        async function loadUserAndPrograms() {
+            const usersRef = collection(db, `artifacts/${appId}/public/data/spark_participants`);
+            const qUser = query(usersRef, where("ic", "==", window.currentUserIc));
+            const userSnap = await getDocs(qUser);
+            if (!userSnap.empty) {
+                const uData = userSnap.docs[0].data();
+                document.getElementById('in-nama').value = uData.name.toUpperCase();
+                document.getElementById('in-jawatan').value = (uData.jawatan || uData.unit || "").toUpperCase();
+                window.isSparkPro = uData.isPro === true;
+                const badge = document.getElementById('account-badge');
+                if (window.isSparkPro) {
+                    badge.textContent = "AKAUN PRO"; badge.className = "text-[10px] bg-yellow-100 text-yellow-800 border border-yellow-300 px-2 py-0.5 rounded font-bold uppercase tracking-wider";
+                } else {
+                    badge.textContent = "AKAUN BIASA"; badge.className = "text-[10px] bg-gray-100 text-gray-500 border border-gray-200 px-2 py-0.5 rounded font-bold uppercase tracking-wider";
+                }
+                updatePreview();
+            }
+            // Load Programs
+            const progRef = collection(db, `artifacts/${appId}/public/data/spark_programs`);
+            const q1 = query(progRef, where("createdBy", "==", window.currentUserIc));
+            const q2 = query(progRef, where("penyelaras_ic", "==", window.currentUserIc));
+            try {
+                const [snap1, snap2] = await Promise.all([getDocs(q1), getDocs(q2)]);
+                const select = document.getElementById('program-select');
+                window.allMyPrograms = []; 
+                const appendOption = (doc) => {
+                    const data = { id: doc.id, ...doc.data() };
+                    if(window.allMyPrograms.some(p => p.id === data.id)) return;
+                    const opt = document.createElement('option');
+                    opt.value = data.id; opt.textContent = data.name.toUpperCase();
+                    select.appendChild(opt);
+                    window.allMyPrograms.push(data);
+                };
+                snap1.forEach(appendOption); snap2.forEach(appendOption);
+            } catch (err) { console.error(err); }
+        }
+
+        async function loadSavedReports() {
+            const reportRef = collection(db, `artifacts/${appId}/public/data/spark_opr_records`);
+            const q = query(reportRef, where("ic", "==", window.currentUserIc), orderBy("createdAt", "desc"));
+            try {
+                const snaps = await getDocs(q);
+                const tbody = document.getElementById('history-table-body');
+                const select = document.getElementById('history-select');
+                const limitMsg = document.getElementById('limit-warning');
+                
+                tbody.innerHTML = ''; select.innerHTML = '<option value="">-- Pilih Rekod --</option>';
+                window.allMyReports = [];
+                let docs = [];
+                snaps.forEach(doc => docs.push({ id: doc.id, ...doc.data() }));
+
+                if (!window.isSparkPro && docs.length > 5) {
+                    docs = docs.slice(0, 5); limitMsg.classList.remove('hidden');
+                } else { limitMsg.classList.add('hidden'); }
+
+                docs.forEach(data => {
+                    window.allMyReports.push(data);
+                    const opt = document.createElement('option');
+                    opt.value = data.id; opt.textContent = data.tajuk.substring(0, 30);
+                    select.appendChild(opt);
+                    const tr = document.createElement('tr');
+                    let dateStr = data.tarikhMula ? new Date(data.tarikhMula).toLocaleDateString('ms-MY') : "-";
+                    tr.innerHTML = `<td class="px-3 py-2 whitespace-nowrap">${dateStr}</td><td class="px-3 py-2 truncate max-w-[100px]">${data.tajuk}</td><td class="px-3 py-2 text-center"><button onclick="loadHistory('${data.id}')" class="text-indigo-600 font-bold hover:underline uppercase text-[10px]">Tindakan</button></td>`;
+                    tbody.appendChild(tr);
+                });
+            } catch (err) { console.error(err); }
+        }
+
+        window.loadHistory = function(id) {
+            const report = window.allMyReports.find(r => r.id === id);
+            if(!report) return;
+            document.getElementById('report-id').value = report.id;
+            document.getElementById('in-tajuk').value = report.tajuk;
+            document.getElementById('in-tarikh-mula').value = report.tarikhMula;
+            document.getElementById('in-tarikh-tamat').value = report.tarikhTamat || "";
+            document.getElementById('in-tempat').value = report.tempat;
+            document.getElementById('in-objektif').value = report.objektif;
+            document.getElementById('in-dapatan').value = report.dapatan;
+            document.getElementById('in-isu').value = report.isu;
+            document.getElementById('in-nama').value = report.nama;
+            document.getElementById('in-jawatan').value = report.jawatan;
+            window.imageUrls = [report.img1||"", report.img2||"", report.img3||"", report.img4||""];
+            window.imageFiles = [null, null, null, null];
+            if(report.imageMode === 4 && window.imageMode === 2) toggleImageCount();
+            if((!report.imageMode || report.imageMode === 2) && window.imageMode === 4) toggleImageCount();
+            refreshImages(); updatePreview(); showTab('form');
+        }
+
+        window.importProgramData = function(progId) {
+            const prog = window.allMyPrograms.find(p => p.id === progId);
+            if(prog) {
+                document.getElementById('report-id').value = "";
+                document.getElementById('in-tajuk').value = prog.name.toUpperCase();
+                document.getElementById('in-tempat').value = prog.location.toUpperCase();
+                if(prog.startDate) document.getElementById('in-tarikh-mula').value = prog.startDate;
+                if(prog.endDate) document.getElementById('in-tarikh-tamat').value = prog.endDate;
+                if(prog.description) document.getElementById('in-objektif').value = prog.description;
+                updatePreview();
+            }
+        }
+
+        // --- UI TOGGLES ---
+        window.showTab = function(tabName) {
+            document.querySelectorAll('[id^="tab-content-"]').forEach(el => el.classList.add('hidden'));
+            document.getElementById('tab-content-' + tabName).classList.remove('hidden');
+            document.querySelectorAll('[id^="tab-btn-"]').forEach(btn => btn.className = "flex-1 py-2 text-xs font-bold uppercase rounded-md text-gray-500 hover:text-gray-700 transition-all");
+            document.getElementById('tab-btn-' + tabName).className = "flex-1 py-2 text-xs font-bold uppercase rounded-md shadow-sm bg-white text-indigo-600 transition-all";
+        }
+
+        window.adjustFontSize = function(change) {
+            window.currentFontSize += change;
+            if (window.currentFontSize < 6) window.currentFontSize = 6;
+            if (window.currentFontSize > 14) window.currentFontSize = 14;
+            document.getElementById('font-size-display').textContent = window.currentFontSize + 'pt';
+            document.getElementById('main-table').style.fontSize = window.currentFontSize + 'pt';
+            document.getElementById('out-tajuk').style.fontSize = (window.currentFontSize + 4) + 'pt';
+            document.querySelectorAll('.opr-table th').forEach(th => th.style.fontSize = window.currentFontSize + 'pt');
+            document.querySelectorAll('.opr-table td').forEach(td => td.style.fontSize = window.currentFontSize + 'pt');
+        }
+
+        window.adjustHeaderSize = function(change) {
+            if(!window.isSparkPro) { alert("Ciri ini untuk akaun SPARK PRO sahaja."); return; }
+            window.currentHeaderSize += change;
+            if (window.currentHeaderSize < 10) window.currentHeaderSize = 10;
+            document.getElementById('header-size-display').textContent = window.currentHeaderSize + 'pt';
+            document.getElementById('out-org-name').style.fontSize = window.currentHeaderSize + 'pt';
+        }
+
+        window.updateHeader = function() {
+            document.getElementById('out-org-name').textContent = document.getElementById('in-org-name').value;
+            document.getElementById('out-sub-org').textContent = document.getElementById('in-sub-org').value;
+        }
+
+        window.changeLogo = function(input) {
+            if(!window.isSparkPro) { alert("Menukar logo adalah ciri SPARK PRO."); input.value = ""; return; }
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) { document.getElementById('header-logo').src = e.target.result; }
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+
+        // Initialize
         updatePreview();
     </script>
 </body>
