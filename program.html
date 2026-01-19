@@ -604,33 +604,38 @@
                     document.getElementById('dashboard-time').textContent = formatTimeRange(currentLoadedProgram.startTime, currentLoadedProgram.endTime).toUpperCase();
                     
                     // PAPARKAN NAMA PENYELARAS (Format yang lebih formal dalam kad berasingan)
+                    // PAPARKAN NAMA PENYELARAS (Dengan Badge PRO)
                     const penyelarasDiv = document.getElementById('dashboard-penyelaras');
                     if (penyelarasDiv) {
-                        
                         const penyelarasName = currentLoadedProgram.penyelaras_name || 'N/A';
                         
-                        // Cuba ambil Stesen Kerja, kemudian kemas kini UI
+                        // Dapatkan butiran penyelaras (termasuk status Pro & Stesen)
                         fetchPenyelarasDetails(currentLoadedProgram.penyelaras_ic).then(details => {
                             let stationText = 'Tiada Stesen Direkod';
-                            if (details && details.station) {
-                                stationText = details.station.toUpperCase();
+                            let isPro = false;
+
+                            if (details) {
+                                if (details.station) stationText = details.station.toUpperCase();
+                                // Semak status Pro (termasuk Admin Utama)
+                                isPro = (details.isPro === true) || (details.ic === "890522135381");
                             } else if (currentLoadedProgram.location) {
-                                // Guna lokasi program sebagai fallback jika tiada dalam rekod peserta
                                 stationText = currentLoadedProgram.location.toUpperCase();
                             }
                             
-                            // MENGUBAH ICON H-5 W-5 KEPADA H-4 W-4 DAN MENGGUNAKAN FORMAT | DENGAN TEXT-XS
                             const compactIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-indigo-500 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd" /></svg>`;
+                            
+                            // Tambah lencana PRO jika layak
+                            const proBadgeHtml = isPro ? `<span class="bg-red-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full ml-1 align-middle uppercase tracking-wider shadow-sm">PRO</span>` : '';
 
-                            // >>> KOD DIUBAH UNTUK TAMPILAN KECIL DAN ALIGN KANAN <<<
                             penyelarasDiv.innerHTML = `
                                 <span class="text-[10px] font-medium text-gray-700">${stationText}</span> 
                                 <span class="text-[10px] text-gray-500">|</span> 
-                                <span class="text-[10px] font-semibold text-gray-800">${penyelarasName}</span> 
+                                <span class="text-[10px] font-semibold text-gray-800 flex items-center">
+                                    ${penyelarasName} ${proBadgeHtml}
+                                </span> 
                                 ${compactIcon}
                             `;
                             
-                            // Tambah/Kemas kini kelas visual jika perlu
                             penyelarasDiv.classList.remove('coordinator-name-detail');
                             penyelarasDiv.classList.add('flex', 'items-center', 'gap-2');
                         });
@@ -1137,18 +1142,26 @@
         }
         
         // ## FUNGSI generateAvatar DIKEMASKINI ##
+      // ## FUNGSI generateAvatar DIKEMASKINI (PRO + GAMBAR) ##
         function generateAvatar(participant) {
             if (!participant || !participant.name) return '';
 
-            // 1. Semak jika Pro dan ada URL Gambar
-            if (participant.isPro === true && participant.profileImageUrl) {
-                 return `<img src="${participant.profileImageUrl}" alt="Profil ${participant.name}" class="flex-shrink-0 h-10 w-10 rounded-full object-cover border-2 border-indigo-300">`;
+            // Semak status Pro (termasuk Admin Utama sebagai fallback jika perlu, tapi data kehadiran biasanya simpan snapshot)
+            // Nota: Dalam rekod kehadiran 'attendance', kita simpan isPro dan profileImageUrl semasa check-in.
+            // Namun, untuk pastikan data terkini, lebih baik jika kita boleh semak live, tapi untuk performa, kita guna data snapshot kehadiran dulu.
+            
+            const isPro = participant.isPro === true;
+            const hasImage = participant.profileImageUrl && participant.profileImageUrl.trim() !== "";
+
+            // 1. Jika Pro DAN ada Gambar -> Guna Gambar
+            if (isPro && hasImage) {
+                 return `<img src="${participant.profileImageUrl}" alt="${participant.name}" class="flex-shrink-0 h-10 w-10 rounded-full object-cover border-2 border-indigo-500 shadow-sm">`;
             }
-            // 2. Semak jika Pro tetapi TIADA URL Gambar
-            else if (participant.isPro === true) {
-                 return `<div class="flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center text-xs font-bold pro-avatar-text border-2 border-indigo-300">PRO</div>`;
+            // 2. Jika Pro tapi TIADA Gambar -> Guna Avatar "PRO"
+            else if (isPro) {
+                 return `<div class="flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center text-xs font-bold bg-indigo-600 text-white border-2 border-indigo-400 shadow-sm tracking-tighter">PRO</div>`;
             }
-            // 3. Jika bukan Pro, guna inisial
+            // 3. Pengguna Biasa -> Guna Inisial Berwarna
             else {
                 const name = participant.name;
                 const initials = name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
@@ -1160,7 +1173,7 @@
                 let charCodeSum = 0;
                 for (let i = 0; i < name.length; i++) { charCodeSum += name.charCodeAt(i); }
                 const color = colors[charCodeSum % colors.length];
-                return `<div class="flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center text-sm font-bold ${color}">${initials}</div>`;
+                return `<div class="flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center text-sm font-bold ${color} border border-gray-200">${initials}</div>`;
             }
         }
         
