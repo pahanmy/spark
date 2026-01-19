@@ -59,6 +59,9 @@
         .cropper-container { max-height: 60vh; background: #000; overflow: hidden; }
         .cropper-container img { max-width: 100%; display: block; }
 
+        /* Signature Canvas */
+        canvas#signature-pad { touch-action: none; } /* Prevent scrolling while drawing */
+
         /* Print Settings */
         @media print {
             body { background: white; margin: 0; padding: 0; }
@@ -259,13 +262,30 @@
                             <span class="ml-1 text-[10px] font-bold text-gray-500 uppercase">Sertakan Tandatangan Digital</span>
                         </div>
                         
-                        <div id="sig-input-container" class="hidden">
-                             <input type="file" id="sig-upload" accept="image/*" class="w-full text-[10px] mb-2 text-gray-500" onchange="handleSigUpload(this)">
-                             <div class="border border-dashed border-gray-300 bg-white p-2 text-center rounded">
-                                 <img id="sig-thumb" src="" class="h-10 mx-auto hidden object-contain">
-                                 <span id="sig-placeholder" class="text-[9px] text-gray-400">Tiada tandatangan dipilih</span>
+                        <div id="sig-input-container" class="hidden space-y-3">
+                             <div class="border border-gray-300 rounded-lg bg-white overflow-hidden">
+                                <div class="bg-gray-100 px-3 py-1 border-b border-gray-200 flex justify-between items-center">
+                                    <span class="text-[10px] font-bold text-gray-500 uppercase">Lukis Tandatangan</span>
+                                    <button onclick="clearSignature()" class="text-[9px] text-red-600 hover:text-red-800 font-bold uppercase">Padam</button>
+                                </div>
+                                <div class="relative w-full h-32 bg-white cursor-crosshair">
+                                    <canvas id="signature-pad" class="w-full h-full block"></canvas>
+                                    <div id="sig-instruction" class="absolute inset-0 flex items-center justify-center pointer-events-none text-gray-300 text-[10px] font-bold uppercase">
+                                        Lukis di sini
+                                    </div>
+                                </div>
                              </div>
-                             <p class="text-[8px] text-gray-400 mt-1 italic">Tandatangan akan disimpan jika anda 'Simpan & PDF'.</p>
+
+                             <div class="relative flex py-1 items-center">
+                                <div class="flex-grow border-t border-gray-300"></div>
+                                <span class="flex-shrink-0 mx-2 text-[9px] text-gray-400 uppercase">Atau Muat Naik</span>
+                                <div class="flex-grow border-t border-gray-300"></div>
+                            </div>
+
+                             <div>
+                                <input type="file" id="sig-upload" accept="image/*" class="w-full text-[10px] text-gray-500" onchange="handleSigUpload(this)">
+                                <p class="text-[8px] text-gray-400 mt-1 italic">Tandatangan akan disimpan jika anda 'Simpan & PDF'.</p>
+                             </div>
                         </div>
                     </div>
                 </div>
@@ -488,6 +508,11 @@
         window.activeCropIndex = null;
         window.cropper = null;
 
+        // CANVAS VARIABLES
+        let isDrawing = false;
+        let sigCanvas, sigCtx;
+        let isSignatureDrawn = false; // Flag to track if user drew something
+
         const currentUrl = window.location.origin + window.location.pathname.replace('opr.html', 'index.html');
         document.getElementById('qr-code-img').src = `https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(currentUrl)}`;
 
@@ -507,10 +532,89 @@
                 await loadUserAndPrograms();
                 loadSavedReports();
                 setDefaultDates(); 
+                initSignaturePad(); // Initialize Canvas
             } else {
                 window.location.href = 'index.html';
             }
         });
+
+        // --- CANVAS SIGNATURE LOGIC ---
+        function initSignaturePad() {
+            sigCanvas = document.getElementById('signature-pad');
+            sigCtx = sigCanvas.getContext('2d');
+            
+            // Set canvas size (important for drawing coordinates)
+            function resizeCanvas() {
+                const rect = sigCanvas.getBoundingClientRect();
+                sigCanvas.width = rect.width;
+                sigCanvas.height = rect.height;
+            }
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+
+            // Mouse Events
+            sigCanvas.addEventListener('mousedown', startDrawing);
+            sigCanvas.addEventListener('mouseup', stopDrawing);
+            sigCanvas.addEventListener('mousemove', draw);
+            sigCanvas.addEventListener('mouseleave', stopDrawing);
+
+            // Touch Events (Mobile)
+            sigCanvas.addEventListener('touchstart', (e) => { e.preventDefault(); startDrawing(e.touches[0]); });
+            sigCanvas.addEventListener('touchend', (e) => { e.preventDefault(); stopDrawing(); });
+            sigCanvas.addEventListener('touchmove', (e) => { e.preventDefault(); draw(e.touches[0]); });
+        }
+
+        function startDrawing(e) {
+            isDrawing = true;
+            isSignatureDrawn = true;
+            document.getElementById('sig-instruction').classList.add('hidden'); // Hide "Lukis Di Sini" text
+            draw(e);
+        }
+
+        function stopDrawing() {
+            isDrawing = false;
+            sigCtx.beginPath();
+            updateSignaturePreviewFromCanvas();
+        }
+
+        function draw(e) {
+            if (!isDrawing) return;
+            
+            const rect = sigCanvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            sigCtx.lineWidth = 2;
+            sigCtx.lineCap = 'round';
+            sigCtx.strokeStyle = '#000';
+
+            sigCtx.lineTo(x, y);
+            sigCtx.stroke();
+            sigCtx.beginPath();
+            sigCtx.moveTo(x, y);
+        }
+
+        window.clearSignature = function() {
+            sigCtx.clearRect(0, 0, sigCanvas.width, sigCanvas.height);
+            isSignatureDrawn = false;
+            document.getElementById('sig-instruction').classList.remove('hidden');
+            document.getElementById('out-sig-img').src = "";
+            document.getElementById('out-sig-img').classList.add('hidden');
+            window.sigFile = null; // Clear any file
+        }
+
+        function updateSignaturePreviewFromCanvas() {
+            if(!isSignatureDrawn) return;
+            const dataUrl = sigCanvas.toDataURL("image/png");
+            const prev = document.getElementById('out-sig-img');
+            prev.src = dataUrl;
+            if(document.getElementById('chk-signature').checked) {
+                prev.classList.remove('hidden');
+            }
+            // If user draws, we clear any uploaded file to avoid confusion
+            document.getElementById('sig-upload').value = ""; 
+            window.sigFile = null; 
+        }
 
         // --- CROPPER LOGIC ---
         window.triggerUpload = function(index) {
@@ -590,20 +694,24 @@
             }
         }
 
-        // --- NEW: SIGNATURE LOGIC ---
         window.toggleSignature = function() {
             const isChecked = document.getElementById('chk-signature').checked;
             const container = document.getElementById('sig-input-container');
             const outSigImg = document.getElementById('out-sig-img');
-            const spacer = document.getElementById('sig-spacer'); // spacer if just want space
 
             if(isChecked) {
                 container.classList.remove('hidden');
-                if(window.sigUrl || window.sigFile) {
+                // Force resize canvas when visible
+                setTimeout(() => {
+                    const rect = sigCanvas.getBoundingClientRect();
+                    if(sigCanvas.width !== rect.width) {
+                         sigCanvas.width = rect.width; 
+                         sigCanvas.height = rect.height;
+                    }
+                }, 100);
+
+                if(window.sigUrl || window.sigFile || isSignatureDrawn) {
                     outSigImg.classList.remove('hidden');
-                } else {
-                    // Show spacer if checked but no image yet? Or just hide img
-                    outSigImg.classList.add('hidden');
                 }
             } else {
                 container.classList.add('hidden');
@@ -614,15 +722,12 @@
         window.handleSigUpload = function(input) {
             if (input.files && input.files[0]) {
                 window.sigFile = input.files[0];
+                
+                // Clear Canvas if file uploaded
+                clearSignature();
+
                 const reader = new FileReader();
                 reader.onload = function(e) {
-                    // Update Thumb in Form
-                    const thumb = document.getElementById('sig-thumb');
-                    thumb.src = e.target.result;
-                    thumb.classList.remove('hidden');
-                    document.getElementById('sig-placeholder').classList.add('hidden');
-
-                    // Update Preview
                     const prev = document.getElementById('out-sig-img');
                     prev.src = e.target.result;
                     if(document.getElementById('chk-signature').checked) {
@@ -758,6 +863,16 @@
             generatePDF(false).then(() => { document.body.style.cursor = "default"; });
         }
 
+        // Helper to convert dataURL to Blob
+        function dataURLtoBlob(dataurl) {
+            var arr = dataurl.split(','), mime = arr[0].match(/:(.*?);/)[1],
+                bstr = atob(arr[1]), n = bstr.length, u8arr = new Uint8Array(n);
+            while(n--){
+                u8arr[n] = bstr.charCodeAt(n);
+            }
+            return new Blob([u8arr], {type:mime});
+        }
+
         window.saveAndDownload = async function() {
             const btn = document.getElementById('btn-save');
             btn.innerHTML = "Proses..."; btn.disabled = true;
@@ -775,9 +890,19 @@
                 let finalLogoUrl = window.logoUrl || "";
                 if(window.logoFile) finalLogoUrl = await uploadToImgBB(window.logoFile);
 
-                // Upload Signature (If exists and new)
+                // Handle Signature (Draw or File)
                 let finalSigUrl = window.sigUrl || "";
-                if(window.sigFile) finalSigUrl = await uploadToImgBB(window.sigFile);
+                
+                // Priority 1: Drawn Signature
+                if (isSignatureDrawn) {
+                    const dataUrl = sigCanvas.toDataURL("image/png");
+                    const blob = dataURLtoBlob(dataUrl);
+                    finalSigUrl = await uploadToImgBB(blob);
+                } 
+                // Priority 2: Uploaded File (if no drawing)
+                else if(window.sigFile) {
+                    finalSigUrl = await uploadToImgBB(window.sigFile);
+                }
 
                 const caps = [
                     document.getElementById('in-cap-0').value,
@@ -841,6 +966,15 @@
             document.getElementById('tab-content-' + tabName).classList.remove('hidden');
             document.querySelectorAll('[id^="tab-btn-"]').forEach(btn => btn.className = "flex-1 py-2 text-xs font-bold uppercase rounded-md text-gray-500 hover:text-gray-700 transition-all");
             document.getElementById('tab-btn-' + tabName).className = "flex-1 py-2 text-xs font-bold uppercase rounded-md shadow-sm bg-white text-indigo-600 transition-all";
+            
+            // Resize canvas if switching to form tab
+            if(tabName === 'form' && sigCanvas) {
+                setTimeout(() => {
+                    const rect = sigCanvas.getBoundingClientRect();
+                    sigCanvas.width = rect.width;
+                    sigCanvas.height = rect.height;
+                }, 200);
+            }
         }
 
         window.adjustFontSize = function(change) {
@@ -1005,17 +1139,12 @@
             // RESTORE SIGNATURE
             window.sigUrl = report.signatureUrl || "";
             window.sigFile = null;
+            clearSignature(); // Reset canvas
             document.getElementById('chk-signature').checked = report.showSignature === true;
             if(window.sigUrl) {
-                document.getElementById('sig-thumb').src = window.sigUrl;
                 document.getElementById('out-sig-img').src = window.sigUrl;
-                document.getElementById('sig-thumb').classList.remove('hidden');
-                document.getElementById('sig-placeholder').classList.add('hidden');
             } else {
-                document.getElementById('sig-thumb').src = "";
                 document.getElementById('out-sig-img').src = "";
-                document.getElementById('sig-thumb').classList.add('hidden');
-                document.getElementById('sig-placeholder').classList.remove('hidden');
             }
             toggleSignature();
 
