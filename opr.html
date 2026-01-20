@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SPARK – Penjana OPR Pro (AI Edition)</title>
+    <title>SPARK – Penjana OPR Pro (AI Edition + Lampiran)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     
@@ -17,11 +17,17 @@
     <style>
         body { font-family: 'Poppins', sans-serif; background-color: #f8fafc; }
         
-        /* A4 Paper Settings */
-        .a4-paper {
-            width: 210mm; min-height: 297mm; 
-            padding-left: 15mm; padding-right: 15mm; padding-bottom: 10mm; padding-top: 10mm;
+        /* WRAPPER BARU UNTUK PDF (Supaya boleh print banyak page) */
+        #pdf-wrapper {
+            width: 210mm;
             margin: 0 auto;
+        }
+
+        /* A4 Paper Settings - Modified to be classes instead of single ID */
+        .a4-paper {
+            width: 210mm; min-height: 297mm; height: 297mm; 
+            padding-left: 15mm; padding-right: 15mm; padding-bottom: 10mm; padding-top: 10mm;
+            margin: 0 auto; margin-bottom: 20px;
             background: white; box-shadow: 0 0 25px rgba(0,0,0,0.1);
             font-family: Arial, Helvetica, sans-serif; color: black; position: relative;
             overflow: hidden; display: flex; flex-direction: column;
@@ -40,6 +46,11 @@
         .opr-table td, .opr-table th { border: 1px solid black; padding: 4px 6px; vertical-align: top; }
         .opr-header { background-color: rgba(240, 253, 244, 0.95); font-weight: bold; text-transform: uppercase; width: 25%; }
         
+        /* Attendance Table Styles (NEW) */
+        .att-table { width: 100%; border-collapse: collapse; font-size: 9pt; }
+        .att-table th { background-color: #f1f5f9; border: 1px solid #94a3b8; padding: 4px; text-transform: uppercase; }
+        .att-table td { border: 1px solid #cbd5e1; padding: 3px 5px; }
+
         /* Upload Box */
         .img-upload-box {
             background-color: #f8fafc; border: 2px dashed #cbd5e1; display: flex; flex-direction: column;
@@ -50,6 +61,17 @@
         .img-upload-box:active { cursor: grabbing; }
         .img-upload-box.dragging { opacity: 0.5; border-color: #f59e0b; }
         .img-upload-box.drag-over { background-color: #fef3c7; border-color: #d97706; transform: scale(1.02); }
+
+        /* FIX GAMBAR PDF: Pastikan object-fit cover supaya tak penyek */
+        .report-img-container {
+            width: 100%; height: 100%;
+            display: flex; justify-content: center; align-items: center;
+            overflow: hidden; position: relative; background-color: #f3f4f6;
+        }
+        .report-img-container img {
+            width: 100%; height: 100%;
+            object-fit: cover; /* Ini kuncinya: memenuhkan kotak tanpa mengubah ratio */
+        }
 
         /* Scrollbar */
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }
@@ -68,7 +90,8 @@
         @media print {
             body { background: white; margin: 0; padding: 0; }
             .no-print { display: none !important; }
-            .a4-paper { box-shadow: none; margin: 0; width: 100%; page-break-after: always; padding-top: 10mm !important; }
+            #pdf-wrapper { width: 100%; margin: 0; }
+            .a4-paper { box-shadow: none; margin: 0; width: 100%; height: 297mm; page-break-after: always; padding-top: 10mm !important; }
             * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         }
     </style>
@@ -221,6 +244,19 @@
                         </label>
                     </div>
                     <textarea id="in-catatan" oninput="updatePreview()" rows="2" class="hidden w-full text-sm border-2 border-gray-300 rounded-lg p-2 focus:border-gray-500 bg-gray-50 shadow-sm mb-3" placeholder="Tulis catatan tambahan di sini..."></textarea>
+                </div>
+
+                <div class="bg-indigo-50 p-2 rounded border border-indigo-200">
+                    <div class="flex justify-between items-center">
+                         <label class="text-xs font-bold text-indigo-700 uppercase flex items-center gap-1">
+                            <span class="w-1.5 h-4 bg-indigo-500 rounded-full"></span> Lampiran Kehadiran
+                        </label>
+                        <label class="flex items-center cursor-pointer">
+                            <input type="checkbox" id="chk-attendance" class="w-3 h-3 text-indigo-600 rounded" onchange="updatePreview()">
+                            <span class="ml-1 text-[9px] font-bold text-gray-500 uppercase">Sertakan Senarai</span>
+                        </label>
+                    </div>
+                    <p id="att-count-label" class="text-[9px] text-indigo-500 mt-1 italic">0 peserta dikesan.</p>
                 </div>
 
                 <div>
@@ -403,114 +439,150 @@
         </div>
 
         <div class="w-full lg:w-2/3 bg-gray-100 overflow-auto flex justify-center p-8">
-            <div class="a4-paper transform scale-100 origin-top" id="print-area">
+            <div id="pdf-wrapper">
                 
-                <div id="paper-bg" class="paper-background"></div>
+                <div class="a4-paper transform scale-100 origin-top" id="main-report">
+                    <div id="paper-bg" class="paper-background"></div>
 
-                <div class="paper-content">
-                    
-                    <div class="flex items-center justify-between border-b-2 border-black pb-3 mb-3">
-                        <div class="flex items-center gap-4">
-                            <img id="header-logo" src="https://upload.wikimedia.org/wikipedia/commons/thumb/2/26/Coat_of_arms_of_Malaysia.svg/1200px-Coat_of_arms_of_Malaysia.svg.png" class="h-20 w-auto object-contain" alt="Logo">
-                            <div>
-                                <h2 id="out-org-name" class="font-bold uppercase leading-tight" style="font-size: 14pt;">KEMENTERIAN PENDIDIKAN MALAYSIA</h2>
-                                <p id="out-sub-org" class="text-sm uppercase mt-1">PEJABAT PENDIDIKAN DAERAH MIRI</p>
+                    <div class="paper-content">
+                        
+                        <div class="flex items-center justify-between border-b-2 border-black pb-3 mb-3">
+                            <div class="flex items-center gap-4">
+                                <img id="header-logo" src="https://upload.wikimedia.org/wikipedia/commons/thumb/2/26/Coat_of_arms_of_Malaysia.svg/1200px-Coat_of_arms_of_Malaysia.svg.png" class="h-20 w-auto object-contain" alt="Logo">
+                                <div>
+                                    <h2 id="out-org-name" class="font-bold uppercase leading-tight" style="font-size: 14pt;">KEMENTERIAN PENDIDIKAN MALAYSIA</h2>
+                                    <p id="out-sub-org" class="text-sm uppercase mt-1">PEJABAT PENDIDIKAN DAERAH MIRI</p>
+                                </div>
+                            </div>
+
+                            <div class="flex flex-col items-end pl-4">
+                                 <svg id="barcode"></svg>
                             </div>
                         </div>
 
-                        <div class="flex flex-col items-end pl-4">
-                             <svg id="barcode"></svg>
-                        </div>
-                    </div>
-
-                    <div class="text-center mb-3">
-                        <h1 id="out-tajuk" class="font-bold uppercase inline-block bg-white/90" style="font-size: 12pt;">LAPORAN PROGRAM</h1>
-                    </div>
-
-                    <table class="opr-table" id="main-table" style="font-size: 8pt;">
-                        <tr>
-                            <th class="opr-header"><div class="flex items-center gap-1"><svg class="w-3 h-3 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg> TARIKH</div></th>
-                            <td id="out-tarikh" class="w-1/4 uppercase"></td>
-                            <th class="opr-header"><div class="flex items-center gap-1"><svg class="w-3 h-3 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg> LOKASI</div></th>
-                            <td id="out-tempat" class="uppercase"></td>
-                        </tr>
-                        <tr>
-                            <th class="opr-header align-top"><div class="flex items-center gap-1"><svg class="w-3 h-3 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg> FOKUS</div></th>
-                            <td colspan="3" class="align-top"><div id="out-objektif" class="whitespace-pre-wrap"></div></td>
-                        </tr>
-                        <tr>
-                            <th class="opr-header align-top"><div class="flex items-center gap-1"><svg class="w-3 h-3 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> KEKUATAN</div></th>
-                            <td colspan="3" class="align-top bg-green-50/50"><div id="out-dapatan" class="whitespace-pre-wrap"></div></td>
-                        </tr>
-                        <tr>
-                            <th class="opr-header align-top"><div class="flex items-center gap-1"><svg class="w-3 h-3 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg> ISU/TINDAKAN</div></th>
-                            <td colspan="3" class="align-top bg-red-50/50"><div id="out-isu" class="whitespace-pre-wrap text-red-900"></div></td>
-                        </tr>
-                    </table>
-
-                    <div id="row-catatan" class="hidden mb-3 border border-black p-2 bg-white/80 relative">
-                         <h3 class="text-[8pt] font-bold uppercase border-b border-gray-300 mb-1 inline-block pr-4">Catatan</h3>
-                         <div id="out-catatan" class="text-[8pt] whitespace-pre-wrap"></div>
-                    </div>
-
-                    <div class="mt-3 border border-black p-1 bg-white/80">
-                        <h3 class="text-[8pt] font-bold uppercase bg-gray-100 p-1 border-b border-black text-center mb-1">LAPORAN BERGAMBAR</h3>
-                        <div id="preview-image-grid" class="grid grid-cols-2 gap-2 h-[90mm]"> <div class="border border-gray-300 flex items-center justify-center overflow-hidden relative bg-gray-50">
-                                <img id="prev-img-0" src="" class="hidden w-full h-full object-cover">
-                                <span id="prev-cap-0" class="absolute bottom-0 w-full bg-white/90 text-black font-bold border-t border-gray-200 text-[8pt] text-center py-1 hidden">Gambar 1</span>
-                            </div>
-                            <div class="border border-gray-300 flex items-center justify-center overflow-hidden relative bg-gray-50">
-                                <img id="prev-img-1" src="" class="hidden w-full h-full object-cover">
-                                <span id="prev-cap-1" class="absolute bottom-0 w-full bg-white/90 text-black font-bold border-t border-gray-200 text-[8pt] text-center py-1 hidden">Gambar 2</span>
-                            </div>
-                            <div class="border border-gray-300 flex items-center justify-center overflow-hidden relative bg-gray-50 hidden" id="prev-box-2">
-                                <img id="prev-img-2" src="" class="hidden w-full h-full object-cover">
-                                <span id="prev-cap-2" class="absolute bottom-0 w-full bg-white/90 text-black font-bold border-t border-gray-200 text-[8pt] text-center py-1 hidden">Gambar 3</span>
-                            </div>
-                            <div class="border border-gray-300 flex items-center justify-center overflow-hidden relative bg-gray-50 hidden" id="prev-box-3">
-                                <img id="prev-img-3" src="" class="hidden w-full h-full object-cover">
-                                <span id="prev-cap-3" class="absolute bottom-0 w-full bg-white/90 text-black font-bold border-t border-gray-200 text-[8pt] text-center py-1 hidden">Gambar 4</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="flex justify-between items-end mt-auto mb-2"> <div id="out-link-container" class="hidden flex flex-col items-start pl-2">
-                             <div class="flex items-center gap-1 text-[8pt] font-bold text-gray-600 uppercase mb-1">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" /></svg>
-                                Dokumentasi Program : rujuk sini
-                             </div>
-                             <img id="out-qr-dokumen" src="" class="w-16 h-16 border border-gray-300 p-1 bg-white">
+                        <div class="text-center mb-3">
+                            <h1 id="out-tajuk" class="font-bold uppercase inline-block bg-white/90" style="font-size: 12pt;">LAPORAN PROGRAM</h1>
                         </div>
 
-                        <div class="text-center w-1/3 flex flex-col items-center ml-auto">
-                            <p class="text-[8pt] italic mb-1 self-start w-full text-left">Disediakan Oleh:</p>
-                            
-                            <div class="h-16 w-full flex items-end justify-center mb-1">
-                                 <img id="out-sig-img" class="h-full w-auto object-contain hidden" src="">
+                        <table class="opr-table" id="main-table" style="font-size: 8pt;">
+                            <tr>
+                                <th class="opr-header"><div class="flex items-center gap-1"><svg class="w-3 h-3 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg> TARIKH</div></th>
+                                <td id="out-tarikh" class="w-1/4 uppercase"></td>
+                                <th class="opr-header"><div class="flex items-center gap-1"><svg class="w-3 h-3 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg> LOKASI</div></th>
+                                <td id="out-tempat" class="uppercase"></td>
+                            </tr>
+                            <tr>
+                                <th class="opr-header align-top"><div class="flex items-center gap-1"><svg class="w-3 h-3 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg> FOKUS</div></th>
+                                <td colspan="3" class="align-top"><div id="out-objektif" class="whitespace-pre-wrap"></div></td>
+                            </tr>
+                            <tr>
+                                <th class="opr-header align-top"><div class="flex items-center gap-1"><svg class="w-3 h-3 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> KEKUATAN</div></th>
+                                <td colspan="3" class="align-top bg-green-50/50"><div id="out-dapatan" class="whitespace-pre-wrap"></div></td>
+                            </tr>
+                            <tr>
+                                <th class="opr-header align-top"><div class="flex items-center gap-1"><svg class="w-3 h-3 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg> ISU/TINDAKAN</div></th>
+                                <td colspan="3" class="align-top bg-red-50/50"><div id="out-isu" class="whitespace-pre-wrap text-red-900"></div></td>
+                            </tr>
+                        </table>
+
+                        <div id="row-catatan" class="hidden mb-3 border border-black p-2 bg-white/80 relative">
+                             <h3 class="text-[8pt] font-bold uppercase border-b border-gray-300 mb-1 inline-block pr-4">Catatan</h3>
+                             <div id="out-catatan" class="text-[8pt] whitespace-pre-wrap"></div>
+                        </div>
+
+                        <div class="mt-3 border border-black p-1 bg-white/80">
+                            <h3 class="text-[8pt] font-bold uppercase bg-gray-100 p-1 border-b border-black text-center mb-1">LAPORAN BERGAMBAR</h3>
+                            <div id="preview-image-grid" class="grid grid-cols-2 gap-2 h-[90mm]"> 
+                                <div class="border border-gray-300 report-img-container" id="prev-box-0">
+                                    <img id="prev-img-0" src="" class="hidden">
+                                    <span id="prev-cap-0" class="absolute bottom-0 w-full bg-white/90 text-black font-bold border-t border-gray-200 text-[8pt] text-center py-1 hidden">Gambar 1</span>
+                                </div>
+                                <div class="border border-gray-300 report-img-container" id="prev-box-1">
+                                    <img id="prev-img-1" src="" class="hidden">
+                                    <span id="prev-cap-1" class="absolute bottom-0 w-full bg-white/90 text-black font-bold border-t border-gray-200 text-[8pt] text-center py-1 hidden">Gambar 2</span>
+                                </div>
+                                <div class="border border-gray-300 report-img-container hidden" id="prev-box-2">
+                                    <img id="prev-img-2" src="" class="hidden">
+                                    <span id="prev-cap-2" class="absolute bottom-0 w-full bg-white/90 text-black font-bold border-t border-gray-200 text-[8pt] text-center py-1 hidden">Gambar 3</span>
+                                </div>
+                                <div class="border border-gray-300 report-img-container hidden" id="prev-box-3">
+                                    <img id="prev-img-3" src="" class="hidden">
+                                    <span id="prev-cap-3" class="absolute bottom-0 w-full bg-white/90 text-black font-bold border-t border-gray-200 text-[8pt] text-center py-1 hidden">Gambar 4</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex justify-between items-end mt-auto mb-2"> <div id="out-link-container" class="hidden flex flex-col items-start pl-2">
+                                 <div class="flex items-center gap-1 text-[8pt] font-bold text-gray-600 uppercase mb-1">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" /></svg>
+                                    Dokumentasi Program : rujuk sini
+                                 </div>
+                                 <img id="out-qr-dokumen" src="" class="w-16 h-16 border border-gray-300 p-1 bg-white">
                             </div>
 
-                            <div class="border-b border-black w-full mb-1"></div>
-                            <p id="out-nama" class="font-bold uppercase leading-tight text-[9pt]">NAMA PEGAWAI</p>
-                            <p id="out-jawatan" class="text-[8pt] uppercase mt-0.5">JAWATAN</p>
+                            <div class="text-center w-1/3 flex flex-col items-center ml-auto">
+                                <p class="text-[8pt] italic mb-1 self-start w-full text-left">Disediakan Oleh:</p>
+                                
+                                <div class="h-16 w-full flex items-end justify-center mb-1">
+                                     <img id="out-sig-img" class="h-full w-auto object-contain hidden" src="">
+                                </div>
+
+                                <div class="border-b border-black w-full mb-1"></div>
+                                <p id="out-nama" class="font-bold uppercase leading-tight text-[9pt]">NAMA PEGAWAI</p>
+                                <p id="out-jawatan" class="text-[8pt] uppercase mt-0.5">JAWATAN</p>
+                            </div>
+                        </div>
+
+                        <div class="border-t border-gray-300 pt-1 flex justify-between items-center text-[7px] text-gray-400 uppercase tracking-wider">
+                            <span class="flex items-center gap-1">
+                                <svg class="w-3 h-3 text-indigo-400" viewBox="0 0 24 24" fill="currentColor"><path d="M4 4H8V8H4V4Z"></path><path d="M4 16H8V20H4V16Z"></path><path d="M16 4H20V8H16V4Z"></path><path d="M10 4H14V6H10V4Z"></path><path d="M10 8H12V10H10V8Z"></path><path d="M12 12H14V14H12V12Z"></path></svg>
+                                Dijana oleh SPARK
+                            </span>
+                            <span>Tarikh Cetakan: <span id="print-date"></span></span>
                         </div>
                     </div>
-
-                    <div class="border-t border-gray-300 pt-1 flex justify-between items-center text-[7px] text-gray-400 uppercase tracking-wider">
-                        <span class="flex items-center gap-1">
-                            <svg class="w-3 h-3 text-indigo-400" viewBox="0 0 24 24" fill="currentColor"><path d="M4 4H8V8H4V4Z"></path><path d="M4 16H8V20H4V16Z"></path><path d="M16 4H20V8H16V4Z"></path><path d="M10 4H14V6H10V4Z"></path><path d="M10 8H12V10H10V8Z"></path><path d="M12 12H14V14H12V12Z"></path></svg>
-                            Dijana oleh SPARK
-                        </span>
-                        <span>Tarikh Cetakan: <span id="print-date"></span></span>
-                    </div>
-
                 </div>
+
+                <div class="a4-paper transform scale-100 origin-top hidden" id="attendance-page">
+                    <div class="paper-content">
+                        <div class="flex items-center justify-between border-b border-gray-300 pb-2 mb-4">
+                            <div>
+                                <h2 class="font-bold uppercase text-lg text-gray-700">Lampiran Kehadiran</h2>
+                                <p class="text-xs text-gray-500 uppercase" id="att-subtitle">Program: </p>
+                            </div>
+                            <div class="text-right">
+                                <span class="bg-indigo-100 text-indigo-800 text-xs font-bold px-2 py-1 rounded">SPARK ATTENDANCE</span>
+                            </div>
+                        </div>
+                        
+                        <div class="overflow-hidden border border-gray-300 rounded">
+                            <table class="att-table">
+                                <thead>
+                                    <tr>
+                                        <th class="w-10 text-center">No.</th>
+                                        <th>Nama Peserta</th>
+                                        <th class="w-32 text-center">No. KP (Akhir)</th>
+                                        <th class="w-40 text-center">Waktu Daftar</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="attendance-tbody" class="bg-white">
+                                    </tbody>
+                            </table>
+                        </div>
+                        
+                        <div class="mt-auto pt-4 border-t border-gray-200 text-[8pt] text-gray-400 text-center uppercase">
+                            Disahkan Secara Elektronik oleh Sistem SPARK
+                        </div>
+                    </div>
+                </div>
+
             </div>
         </div>
     </div>
 
     <div id="crop-modal" class="fixed inset-0 z-[100] flex items-center justify-center modal-backdrop hidden">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-md p-4">
-            <h3 class="text-sm font-bold uppercase mb-2">Potong Gambar</h3>
+            <h3 class="text-sm font-bold uppercase mb-2">Potong Gambar (16:9)</h3>
             <div class="cropper-container mb-3 h-64 bg-gray-900 rounded">
                 <img id="image-to-crop" src="">
             </div>
@@ -545,6 +617,7 @@
         window.currentUserDocId = ""; 
         window.allMyPrograms = [];
         window.allMyReports = [];
+        window.attendanceData = []; // NEW: Store attendance
         window.currentFontSize = 8; 
         window.currentHeaderSize = 14; 
         window.isSparkPro = false;
@@ -811,7 +884,7 @@
             window.sigFile = null; 
         }
 
-        // --- CROPPER LOGIC ---
+        // --- CROPPER LOGIC (MODIFIED FOR HIGH QUALITY) ---
         window.triggerUpload = function(index) {
             window.activeCropIndex = index;
             document.getElementById('temp-file-input').value = "";
@@ -845,15 +918,15 @@
 
         window.applyCrop = function() {
             if (!window.cropper) return;
-            // --- RESIZE TO 640x360 (16:9) ---
-            window.cropper.getCroppedCanvas({ width: 640, height: 360 }).toBlob((blob) => {
+            // --- RESIZE TO 1280x720 (HD) --- (DULU 640x360)
+            window.cropper.getCroppedCanvas({ width: 1280, height: 720 }).toBlob((blob) => {
                 const idx = window.activeCropIndex;
                 const file = new File([blob], "cropped.jpg", { type: "image/jpeg" });
                 window.imageFiles[idx] = file;
                 window.imageUrls[idx] = URL.createObjectURL(blob);
                 refreshImages();
                 closeCropModal();
-            }, 'image/jpeg', 0.85);
+            }, 'image/jpeg', 0.90); // Quality 90%
         }
 
         window.refreshImages = function() {
@@ -862,13 +935,16 @@
                 const thumb = document.getElementById(`thumb-${i}`);
                 const label = document.getElementById(`label-${i}`);
                 const prevImg = document.getElementById(`prev-img-${i}`);
+                const prevBox = document.getElementById(`prev-box-${i}`); // Get container
 
                 if (url) {
                     thumb.src = url; thumb.classList.remove('hidden'); label.classList.add('hidden');
                     prevImg.src = url; prevImg.classList.remove('hidden'); 
+                    // prevBox.classList.remove('hidden'); // Removed: handled by toggleImageCount
                 } else {
                     thumb.src = ""; thumb.classList.add('hidden'); label.classList.remove('hidden');
                     prevImg.src = ""; prevImg.classList.add('hidden');
+                    // prevBox.classList.add('hidden'); // Removed: handled by toggleImageCount
                 }
             }
             updatePreview();
@@ -880,7 +956,7 @@
                 window.bgFile = input.files[0]; 
                 const reader = new FileReader();
                 reader.onload = function(e) {
-                    document.getElementById('paper-bg').style.backgroundImage = `url('${e.target.result}')`;
+                    document.querySelectorAll('.paper-background').forEach(bg => bg.style.backgroundImage = `url('${e.target.result}')`);
                 }
                 reader.readAsDataURL(input.files[0]);
             }
@@ -955,7 +1031,7 @@
 
         window.adjustBgOpacity = function(val) {
             window.bgOpacity = val;
-            document.getElementById('paper-bg').style.opacity = val;
+            document.querySelectorAll('.paper-background').forEach(bg => bg.style.opacity = val);
         }
 
         // --- UI & DRAG DROP ---
@@ -1019,6 +1095,16 @@
                 catatanInput.classList.add('hidden');
                 catatanRow.classList.add('hidden');
                 catatanOut.innerText = "";
+            }
+
+            // Attendance check
+            const showAtt = document.getElementById('chk-attendance').checked;
+            const attPage = document.getElementById('attendance-page');
+            if(showAtt) {
+                attPage.classList.remove('hidden');
+                document.getElementById('att-subtitle').textContent = "PROGRAM: " + document.getElementById('in-tajuk').value;
+            } else {
+                attPage.classList.add('hidden');
             }
 
             const dateStart = document.getElementById('in-tarikh-mula').value;
@@ -1193,11 +1279,26 @@
         }
 
         async function generatePDF(isSaved) {
-            const element = document.getElementById('print-area');
+            // UPDATED FOR MULTI-PAGE
+            const element = document.getElementById('pdf-wrapper');
             const tajuk = document.getElementById('in-tajuk').value.replace(/[^a-zA-Z0-9]/g, "_").substring(0, 15);
             const fileName = `OPR_${tajuk}.pdf`;
-            const opt = { margin: 0, filename: fileName, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } };
+            
+            // Check visibility for page 2
+            const attPage = document.getElementById('attendance-page');
+            const showAtt = document.getElementById('chk-attendance').checked;
+            if(!showAtt) attPage.classList.add('hidden'); // Ensure hidden
+            
+            const opt = { 
+                margin: 0, 
+                filename: fileName, 
+                image: { type: 'jpeg', quality: 0.98 }, 
+                html2canvas: { scale: 2, useCORS: true }, 
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } 
+            };
             await html2pdf().set(opt).from(element).save();
+            
+            // Revert state if needed (though existing preview logic handles this)
             if(isSaved) alert("Berjaya disimpan dan dimuat turun!");
         }
 
@@ -1381,8 +1482,8 @@
             // Restore Settings
             window.bgUrl = report.backgroundUrl || "";
             window.bgOpacity = report.backgroundOpacity || 0.1;
-            if(window.bgUrl) document.getElementById('paper-bg').style.backgroundImage = `url('${window.bgUrl}')`;
-            document.getElementById('paper-bg').style.opacity = window.bgOpacity;
+            if(window.bgUrl) document.querySelectorAll('.paper-background').forEach(bg => bg.style.backgroundImage = `url('${window.bgUrl}')`);
+            document.querySelectorAll('.paper-background').forEach(bg => bg.style.opacity = window.bgOpacity);
             document.getElementById('bg-opacity').value = window.bgOpacity;
 
             window.logoUrl = report.logoUrl || "";
@@ -1458,7 +1559,8 @@
             }, 1000); 
         }
 
-        window.importProgramData = function(progId) {
+        // --- NEW: FETCH ATTENDANCE ---
+        window.importProgramData = async function(progId) {
             const prog = window.allMyPrograms.find(p => p.id === progId);
             if(prog) {
                 document.getElementById('report-id').value = "";
@@ -1470,8 +1572,68 @@
                 if(prog.startDate) document.getElementById('in-tarikh-mula').value = prog.startDate;
                 if(prog.endDate) document.getElementById('in-tarikh-tamat').value = prog.endDate;
                 if(prog.description) document.getElementById('in-objektif').value = prog.description;
+                
+                // --- FETCH ATTENDANCE LOGIC ---
+                const label = document.getElementById('att-count-label');
+                label.textContent = "Sedang mencari data kehadiran...";
+                window.attendanceData = [];
+
+                try {
+                    // Try standard collection name 'spark_attendance'
+                    const attRef = collection(db, `artifacts/${appId}/public/data/spark_attendance`);
+                    const qAtt = query(attRef, where("programId", "==", progId));
+                    const snapAtt = await getDocs(qAtt);
+
+                    if (!snapAtt.empty) {
+                        snapAtt.forEach(d => window.attendanceData.push(d.data()));
+                        label.textContent = `${window.attendanceData.length} peserta dikesan.`;
+                        document.getElementById('chk-attendance').checked = true;
+                    } else {
+                        label.textContent = "Tiada kehadiran dikesan.";
+                        document.getElementById('chk-attendance').checked = false;
+                    }
+                    renderAttendanceTable();
+
+                } catch (e) {
+                    console.error("Error fetching attendance:", e);
+                    label.textContent = "Gagal memuatkan data kehadiran.";
+                }
+
                 updatePreview();
             }
+        }
+
+        function renderAttendanceTable() {
+            const tbody = document.getElementById('attendance-tbody');
+            tbody.innerHTML = "";
+            
+            if (window.attendanceData.length === 0) {
+                tbody.innerHTML = "<tr><td colspan='4' class='text-center italic text-gray-500 text-xs py-4'>Tiada Data</td></tr>";
+                return;
+            }
+
+            // Sort by name if possible
+            window.attendanceData.sort((a,b) => (a.name || "").localeCompare(b.name || ""));
+
+            window.attendanceData.forEach((p, index) => {
+                const tr = document.createElement('tr');
+                const last4IC = p.ic ? p.ic.slice(-4) : "XXXX";
+                // Handle timestamp: check if it's Firestore timestamp or Date string
+                let timeStr = "-";
+                if(p.timestamp && p.timestamp.seconds) {
+                    timeStr = new Date(p.timestamp.seconds * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                } else if (p.timestamp) {
+                    timeStr = new Date(p.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                }
+                
+                tr.innerHTML = `
+                    <td class="text-center border border-gray-300 p-1">${index + 1}</td>
+                    <td class="uppercase font-semibold border border-gray-300 p-1">${p.name || "Peserta"}</td>
+                    <td class="text-center font-mono text-gray-600 border border-gray-300 p-1">......${last4IC}</td>
+                    <td class="text-center text-xs text-gray-500 border border-gray-300 p-1">${timeStr}</td>
+                `;
+                tbody.appendChild(tr);
+            });
         }
 
         // Initialize
