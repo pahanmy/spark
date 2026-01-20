@@ -23,7 +23,7 @@
             margin: 0 auto;
         }
 
-        /* A4 Paper Settings - Modified to be classes instead of single ID */
+        /* A4 Paper Settings */
         .a4-paper {
             width: 210mm; min-height: 297mm; height: 297mm; 
             padding-left: 15mm; padding-right: 15mm; padding-bottom: 10mm; padding-top: 10mm;
@@ -41,15 +41,37 @@
         }
         .paper-content { position: relative; z-index: 10; flex-grow: 1; display: flex; flex-direction: column; }
         
-        /* Table Styles */
+        /* Table Styles (Laporan Utama) */
         .opr-table { width: 100%; border-collapse: collapse; margin-bottom: 0.8rem; background: rgba(255,255,255,0.85); }
         .opr-table td, .opr-table th { border: 1px solid black; padding: 4px 6px; vertical-align: top; }
         .opr-header { background-color: rgba(240, 253, 244, 0.95); font-weight: bold; text-transform: uppercase; width: 25%; }
         
-        /* Attendance Table Styles (NEW) */
-        .att-table { width: 100%; border-collapse: collapse; font-size: 9pt; }
-        .att-table th { background-color: #f1f5f9; border: 1px solid #94a3b8; padding: 4px; text-transform: uppercase; }
-        .att-table td { border: 1px solid #cbd5e1; padding: 3px 5px; }
+        /* --- STYLE JADUAL KEHADIRAN PROFESIONAL --- */
+        .att-table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            font-size: 9pt; 
+            font-family: Arial, sans-serif;
+            margin-bottom: 10px;
+        }
+        .att-table th { 
+            background-color: #f3f4f6; 
+            border: 1px solid #000; 
+            padding: 6px 8px; 
+            text-transform: uppercase; 
+            font-weight: bold;
+            color: #000;
+        }
+        .att-table td { 
+            border: 1px solid #000; 
+            padding: 5px 8px; 
+            vertical-align: middle;
+            color: #000;
+        }
+        /* Selang seli baris untuk mudah baca */
+        .att-table tr:nth-child(even) {
+            background-color: #fafafa;
+        }
 
         /* Upload Box */
         .img-upload-box {
@@ -109,7 +131,7 @@
                         SPARK OPR
                         <span id="account-badge" class="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded border border-gray-200 font-bold uppercase tracking-wider">Memuatkan...</span>
                     </h1>
-                    <p class="text-xs text-gray-500">Penjana Laporan Satu Halaman (AI Powered)</p>
+                    <p class="text-xs text-gray-500">Penjana Laporan & Kehadiran (AI Powered)</p>
                 </div>
             </div>
             
@@ -545,24 +567,23 @@
 
                 <div class="a4-paper transform scale-100 origin-top hidden" id="attendance-page">
                     <div class="paper-content">
-                        <div class="flex items-center justify-between border-b border-gray-300 pb-2 mb-4">
-                            <div>
-                                <h2 class="font-bold uppercase text-lg text-gray-700">Lampiran Kehadiran</h2>
-                                <p class="text-xs text-gray-500 uppercase" id="att-subtitle">Program: </p>
-                            </div>
-                            <div class="text-right">
-                                <span class="bg-indigo-100 text-indigo-800 text-xs font-bold px-2 py-1 rounded">SPARK ATTENDANCE</span>
+                        <div class="border-b-2 border-black pb-2 mb-4">
+                            <h2 class="font-bold uppercase text-lg text-black">LAMPIRAN: SENARAI KEHADIRAN</h2>
+                            <div class="flex justify-between items-end">
+                                <p class="text-sm uppercase text-gray-700 w-3/4" id="att-subtitle">PROGRAM: </p>
+                                <p class="text-xs text-gray-500 italic text-right">Dijana pada: <span id="att-print-date"></span></p>
                             </div>
                         </div>
                         
-                        <div class="overflow-hidden border border-gray-300 rounded">
+                        <div class="overflow-hidden">
                             <table class="att-table">
                                 <thead>
                                     <tr>
-                                        <th class="w-10 text-center">No.</th>
-                                        <th>Nama Peserta</th>
-                                        <th class="w-32 text-center">No. KP (Akhir)</th>
-                                        <th class="w-40 text-center">Waktu Daftar</th>
+                                        <th class="w-10 text-center">BIL.</th>
+                                        <th>NAMA PESERTA</th>
+                                        <th class="w-1/5">JAWATAN</th>
+                                        <th class="w-1/4">STESEN / SEKOLAH</th>
+                                        <th class="w-24 text-center">STATUS</th>
                                     </tr>
                                 </thead>
                                 <tbody id="attendance-tbody" class="bg-white">
@@ -570,8 +591,15 @@
                             </table>
                         </div>
                         
-                        <div class="mt-auto pt-4 border-t border-gray-200 text-[8pt] text-gray-400 text-center uppercase">
-                            Disahkan Secara Elektronik oleh Sistem SPARK
+                        <div class="mt-4 flex justify-end">
+                            <div class="border border-black p-2 px-4 bg-gray-50 text-right">
+                                <span class="text-xs font-bold uppercase mr-2">Jumlah Kehadiran:</span>
+                                <span id="att-total-count" class="text-sm font-bold text-black">0</span>
+                            </div>
+                        </div>
+
+                        <div class="mt-auto pt-4 border-t border-gray-300 text-[8pt] text-gray-400 text-center uppercase italic">
+                            Dokumen ini dijana secara komputer. Tandatangan tidak diperlukan.
                         </div>
                     </div>
                 </div>
@@ -617,7 +645,7 @@
         window.currentUserDocId = ""; 
         window.allMyPrograms = [];
         window.allMyReports = [];
-        window.attendanceData = []; // NEW: Store attendance
+        window.attendanceData = []; // Store attendance data
         window.currentFontSize = 8; 
         window.currentHeaderSize = 14; 
         window.isSparkPro = false;
@@ -663,8 +691,6 @@
         window.askAI = async function(type) {
             const btn = event.currentTarget;
             const originalText = btn.innerHTML;
-            
-            // 🔴 PENTING: MASUKKAN API KEY GROQ ANDA DI SINI
             const GROQ_API_KEY = "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"; 
 
             btn.innerHTML = `⏳...`;
@@ -688,7 +714,6 @@
                 return;
             }
 
-            // Prompt Sistem untuk Bahasa Melayu Rasmi
             let systemPrompt = "Anda adalah pembantu admin sekolah yang pakar membuat laporan rasmi Kementerian Pendidikan Malaysia (KPM). Jawab dalam Bahasa Melayu baku dan profesional. Terus kepada poin tanpa pendahuluan atau penutup. Jangan gunakan markdown bold (**).";
             
             let userPrompt = "";
@@ -709,8 +734,6 @@
                 userPrompt = `Senaraikan 2 isu berbangkit biasa (contoh: teknikal/masa) dan cadangan penambahbaikan untuk program "${title}". Format: "Isu - Cadangan".`;
             }
 
-            console.log("Menghantar ke Groq (Llama 3.3)..."); 
-
             try {
                 const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
                     method: "POST",
@@ -723,7 +746,6 @@
                             { role: "system", content: systemPrompt },
                             { role: "user", content: userPrompt }
                         ],
-                        // *** PERUBAHAN DI SINI: Model ditukar ke versi terkini ***
                         model: "llama-3.3-70b-versatile", 
                         temperature: 0.6,
                         max_tokens: 300
@@ -732,7 +754,6 @@
 
                 if (!response.ok) {
                     const errData = await response.json();
-                    console.error("Groq Error:", errData);
                     throw new Error(errData.error?.message || "Ralat sambungan Groq.");
                 }
 
@@ -740,26 +761,16 @@
                 
                 if (data.choices && data.choices[0]) {
                     let text = data.choices[0].message.content;
+                    text = text.replace(/\*\*/g, '').replace(/^[\*•] /gm, '- ').replace(/^Here are/i, '').trim(); 
                     
-                    // Bersihkan teks (buang bold, buang bullet pelik)
-                    text = text.replace(/\*\*/g, '') 
-                               .replace(/^[\*•] /gm, '- ') 
-                               .replace(/^Here are/i, '')
-                               .trim(); 
-                    
-                    // Masukkan ke dalam kotak input
                     const inputField = document.getElementById(targetId);
                     if(inputField) {
                         inputField.value = text;
-                        
-                        // Auto-tick bullet point jika perlu
                         if(isList) {
                             if(type === 'objektif') document.getElementById('chk-objektif').checked = true;
                             if(type === 'kekuatan') document.getElementById('chk-dapatan').checked = true;
                             if(type === 'isu') document.getElementById('chk-isu').checked = true;
                         }
-
-                        // KEMASKINI PREVIEW (PENTING)
                         updatePreview(); 
                     }
                 } else {
@@ -782,7 +793,6 @@
             if(!startIn.value) startIn.value = today;
             if(!endIn.value) endIn.value = today;
             
-            // Set Print Date
             const now = new Date();
             document.getElementById('print-date').textContent = now.toLocaleDateString('ms-MY', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute:'2-digit' });
             
@@ -884,7 +894,7 @@
             window.sigFile = null; 
         }
 
-        // --- CROPPER LOGIC (MODIFIED FOR HIGH QUALITY) ---
+        // --- CROPPER LOGIC (HIGH QUALITY) ---
         window.triggerUpload = function(index) {
             window.activeCropIndex = index;
             document.getElementById('temp-file-input').value = "";
@@ -918,7 +928,7 @@
 
         window.applyCrop = function() {
             if (!window.cropper) return;
-            // --- RESIZE TO 1280x720 (HD) --- (DULU 640x360)
+            // --- RESIZE TO 1280x720 (HD) ---
             window.cropper.getCroppedCanvas({ width: 1280, height: 720 }).toBlob((blob) => {
                 const idx = window.activeCropIndex;
                 const file = new File([blob], "cropped.jpg", { type: "image/jpeg" });
@@ -926,7 +936,7 @@
                 window.imageUrls[idx] = URL.createObjectURL(blob);
                 refreshImages();
                 closeCropModal();
-            }, 'image/jpeg', 0.90); // Quality 90%
+            }, 'image/jpeg', 0.90); // 90% Quality
         }
 
         window.refreshImages = function() {
@@ -935,16 +945,13 @@
                 const thumb = document.getElementById(`thumb-${i}`);
                 const label = document.getElementById(`label-${i}`);
                 const prevImg = document.getElementById(`prev-img-${i}`);
-                const prevBox = document.getElementById(`prev-box-${i}`); // Get container
 
                 if (url) {
                     thumb.src = url; thumb.classList.remove('hidden'); label.classList.add('hidden');
                     prevImg.src = url; prevImg.classList.remove('hidden'); 
-                    // prevBox.classList.remove('hidden'); // Removed: handled by toggleImageCount
                 } else {
                     thumb.src = ""; thumb.classList.add('hidden'); label.classList.remove('hidden');
                     prevImg.src = ""; prevImg.classList.add('hidden');
-                    // prevBox.classList.add('hidden'); // Removed: handled by toggleImageCount
                 }
             }
             updatePreview();
@@ -1257,6 +1264,7 @@
                     linkDokumen: document.getElementById('in-link-dokumen').value,
                     showLinkDokumen: document.getElementById('chk-link-dokumen').checked,
                     serialNumber: currentSerial,
+                    attendanceList: window.attendanceData || [], // SIMPAN DATA KEHADIRAN
 
                     backgroundUrl: finalBgUrl, backgroundOpacity: window.bgOpacity,
                     logoUrl: finalLogoUrl,
@@ -1279,7 +1287,6 @@
         }
 
         async function generatePDF(isSaved) {
-            // UPDATED FOR MULTI-PAGE
             const element = document.getElementById('pdf-wrapper');
             const tajuk = document.getElementById('in-tajuk').value.replace(/[^a-zA-Z0-9]/g, "_").substring(0, 15);
             const fileName = `OPR_${tajuk}.pdf`;
@@ -1298,7 +1305,6 @@
             };
             await html2pdf().set(opt).from(element).save();
             
-            // Revert state if needed (though existing preview logic handles this)
             if(isSaved) alert("Berjaya disimpan dan dimuat turun!");
         }
 
@@ -1479,6 +1485,18 @@
             window.imageUrls = [report.img1||"", report.img2||"", report.img3||"", report.img4||""];
             window.imageFiles = [null, null, null, null];
             
+            // Load Attendance Data if available
+            if(report.attendanceList && Array.isArray(report.attendanceList)) {
+                window.attendanceData = report.attendanceList;
+                document.getElementById('att-count-label').textContent = `${window.attendanceData.length} peserta direkod.`;
+                document.getElementById('chk-attendance').checked = true;
+            } else {
+                window.attendanceData = [];
+                document.getElementById('att-count-label').textContent = "Tiada data kehadiran tersimpan.";
+                document.getElementById('chk-attendance').checked = false;
+            }
+            renderAttendanceTable();
+
             // Restore Settings
             window.bgUrl = report.backgroundUrl || "";
             window.bgOpacity = report.backgroundOpacity || 0.1;
@@ -1559,84 +1577,101 @@
             }, 1000); 
         }
 
-        // --- NEW: FETCH ATTENDANCE ---
+        // --- FETCH ATTENDANCE DIRECTLY FROM PROGRAM OBJECT ---
         window.importProgramData = function(progId) {
-    const prog = window.allMyPrograms.find(p => p.id === progId);
-    
-    if(prog) {
-        // 1. Isi Maklumat Asas
-        document.getElementById('report-id').value = "";
-        document.getElementById('opr-serial-hidden').value = ""; 
-        renderBarcode("SPARK-OPR"); 
-        
-        document.getElementById('in-tajuk').value = prog.name ? prog.name.toUpperCase() : "PROGRAM TANPA NAMA";
-        document.getElementById('in-tempat').value = prog.location ? prog.location.toUpperCase() : "";
-        if(prog.startDate) document.getElementById('in-tarikh-mula').value = prog.startDate;
-        if(prog.endDate) document.getElementById('in-tarikh-tamat').value = prog.endDate;
-        if(prog.description) document.getElementById('in-objektif').value = prog.description;
-        
-        // 2. AMBIL DATA KEHADIRAN DARI ARRAY PROGRAM (FIX UTAMA)
-        const label = document.getElementById('att-count-label');
-        
-        // Semak jika array 'attendance' wujud dalam program
-        if (prog.attendance && Array.isArray(prog.attendance) && prog.attendance.length > 0) {
-            window.attendanceData = prog.attendance;
-            label.textContent = `${window.attendanceData.length} peserta dikesan.`;
-            document.getElementById('chk-attendance').checked = true;
-        } else {
-            window.attendanceData = [];
-            label.textContent = "Tiada kehadiran dikesan dalam program ini.";
-            document.getElementById('chk-attendance').checked = false;
+            const prog = window.allMyPrograms.find(p => p.id === progId);
+            if(prog) {
+                // 1. Isi Maklumat Asas
+                document.getElementById('report-id').value = "";
+                document.getElementById('opr-serial-hidden').value = ""; 
+                renderBarcode("SPARK-OPR"); 
+                
+                document.getElementById('in-tajuk').value = prog.name ? prog.name.toUpperCase() : "PROGRAM TANPA NAMA";
+                document.getElementById('in-tempat').value = prog.location ? prog.location.toUpperCase() : "";
+                if(prog.startDate) document.getElementById('in-tarikh-mula').value = prog.startDate;
+                if(prog.endDate) document.getElementById('in-tarikh-tamat').value = prog.endDate;
+                if(prog.description) document.getElementById('in-objektif').value = prog.description;
+                
+                // Set tajuk di lampiran
+                document.getElementById('att-subtitle').textContent = "PROGRAM: " + (prog.name ? prog.name.toUpperCase() : "");
+
+                // 2. AMBIL DATA KEHADIRAN DARI ARRAY PROGRAM
+                const label = document.getElementById('att-count-label');
+                
+                if (prog.attendance && Array.isArray(prog.attendance) && prog.attendance.length > 0) {
+                    window.attendanceData = prog.attendance;
+                    label.textContent = `${window.attendanceData.length} peserta dikesan.`;
+                    document.getElementById('chk-attendance').checked = true;
+                } else {
+                    window.attendanceData = [];
+                    label.textContent = "Tiada kehadiran dikesan dalam program ini.";
+                    document.getElementById('chk-attendance').checked = false;
+                }
+
+                // 3. Render Jadual & Preview
+                renderAttendanceTable();
+                updatePreview();
+            }
         }
 
-        // 3. Render Jadual & Preview
-        renderAttendanceTable();
-        updatePreview();
-    }
-}
+        function renderAttendanceTable() {
+            const tbody = document.getElementById('attendance-tbody');
+            const totalCountEl = document.getElementById('att-total-count');
+            const printDateEl = document.getElementById('att-print-date');
+            
+            // Set Tarikh Cetakan
+            const now = new Date();
+            printDateEl.textContent = now.toLocaleDateString('ms-MY', {day: '2-digit', month: '2-digit', year: 'numeric'});
 
-      function renderAttendanceTable() {
-    const tbody = document.getElementById('attendance-tbody');
-    tbody.innerHTML = "";
-    
-    if (!window.attendanceData || window.attendanceData.length === 0) {
-        tbody.innerHTML = "<tr><td colspan='4' class='text-center italic text-gray-500 text-xs py-4'>Tiada Data Kehadiran</td></tr>";
-        return;
-    }
+            tbody.innerHTML = "";
+            
+            if (!window.attendanceData || window.attendanceData.length === 0) {
+                tbody.innerHTML = "<tr><td colspan='5' class='text-center italic text-gray-500 py-4'>Tiada Data Kehadiran</td></tr>";
+                totalCountEl.textContent = "0";
+                return;
+            }
 
-    // Susun ikut masa (terkini di atas)
-    const sortedData = [...window.attendanceData].sort((a,b) => new Date(b.time) - new Date(a.time));
+            // --- LOGIK SUSUNAN (SORTING) ---
+            const sortedData = [...window.attendanceData].sort((a, b) => {
+                const stationA = (a.station || "").toUpperCase();
+                const stationB = (b.station || "").toUpperCase();
+                const nameA = (a.name || "").toUpperCase();
+                const nameB = (b.name || "").toUpperCase();
 
-    sortedData.forEach((p, index) => {
-        const tr = document.createElement('tr');
-        
-        // Handle Nama
-        const name = p.name ? p.name.toUpperCase() : "PESERTA";
-        
-        // Handle IC (Tutup 8 digit depan)
-        const icRaw = p.ic || "000000000000";
-        const last4IC = icRaw.length > 4 ? icRaw.slice(-4) : icRaw;
+                // Kata kunci untuk PPD Miri
+                const keyword = "PEJABAT PENDIDIKAN DAERAH MIRI";
+                const keywordShort = "PPD MIRI";
 
-        // Handle Masa
-        let timeStr = "-";
-        if (p.time) {
-            // Tukar masa ke format Malaysia yang mudah dibaca
-            timeStr = new Date(p.time).toLocaleTimeString('ms-MY', {
-                hour: '2-digit', 
-                minute:'2-digit', 
-                hour12: true
+                const isPpdA = stationA.includes(keyword) || stationA.includes(keywordShort);
+                const isPpdB = stationB.includes(keyword) || stationB.includes(keywordShort);
+
+                if (isPpdA && !isPpdB) return -1; // A naik
+                if (!isPpdA && isPpdB) return 1;  // B naik
+                return nameA.localeCompare(nameB); // Susun ikut nama
             });
+
+            // Render Rows
+            sortedData.forEach((p, index) => {
+                const tr = document.createElement('tr');
+                
+                const name = p.name ? p.name.toUpperCase() : "PESERTA";
+                const jawatan = p.position ? p.position.toUpperCase() : "-";
+                const stesen = p.station ? p.station.toUpperCase() : "-";
+                const status = p.status ? p.status.toUpperCase() : "HADIR"; 
+
+                tr.innerHTML = `
+                    <td class="text-center font-bold">${index + 1}</td>
+                    <td class="font-semibold">${name}</td>
+                    <td class="text-[8pt]">${jawatan}</td>
+                    <td class="text-[8pt]">${stesen}</td>
+                    <td class="text-center text-[8pt] font-bold">${status}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            // Kemaskini Jumlah
+            totalCountEl.textContent = sortedData.length;
         }
-        
-        tr.innerHTML = `
-            <td class="text-center border border-gray-300 p-1">${index + 1}</td>
-            <td class="uppercase font-semibold border border-gray-300 p-1 text-[9px]">${name}</td>
-            <td class="text-center font-mono text-gray-600 border border-gray-300 p-1 text-[9px]">......${last4IC}</td>
-            <td class="text-center text-xs text-gray-500 border border-gray-300 p-1 text-[9px]">${timeStr}</td>
-        `;
-        tbody.appendChild(tr);
-    });
-}
 
         // Initialize
         updatePreview();
