@@ -538,7 +538,6 @@
         const auth = getAuth(app);
         const appId = firebaseConfig.projectId;
         const IMGBB_API_KEY = "a7c600ac733fe14649cacd8e65619c4b"; 
-        const GEMINI_API_KEY = "AIzaSyDxpFHHnK3g7eKI5RzEmkmaGBoAP_-kqn4";
 
         window.currentUserIc = "";
         window.currentUserDocId = ""; 
@@ -585,100 +584,95 @@
         }
         renderBarcode("SPARK-OPR"); // Initial
 
-// --- AI FUNCTION (DIKEMASKINI: GEMINI 1.5) ---
+        // --- AI FUNCTION (DIKEMASKINI: GROQ / LLAMA 3) ---
         window.askAI = async function(type) {
             const btn = event.currentTarget;
             const originalText = btn.innerHTML;
-            btn.innerHTML = `⏳ Memproses...`;
+            
+            // 🔴 PENTING: MASUKKAN API KEY GROQ ANDA DI SINI
+            const GROQ_API_KEY = "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"; 
+
+            if (GROQ_API_KEY.startsWith("gsk_XX") || !GROQ_API_KEY) {
+                alert("Sila masukkan API Key Groq anda dalam kod (Baris ~660).");
+                return;
+            }
+
+            btn.innerHTML = `⏳ Menjana...`;
             btn.disabled = true;
 
             const title = document.getElementById('in-tajuk').value;
             const place = document.getElementById('in-tempat').value;
             
-            // Semakan tajuk kosong
             if(!title || title === "LAPORAN PROGRAM") {
-                alert("Sila masukkan Tajuk Program yang spesifik dahulu.");
+                alert("Sila masukkan Tajuk Program dahulu.");
                 btn.innerHTML = originalText;
                 btn.disabled = false;
                 return;
             }
 
-            let prompt = "";
+            let systemPrompt = "Anda adalah pembantu admin sekolah yang pakar membuat laporan rasmi dalam Bahasa Melayu. Jawab terus kepada poin tanpa pendahuluan.";
+            let userPrompt = "";
             let targetId = "";
             let isList = false;
 
-            // Bina Prompt
             if (type === 'objektif') {
                 targetId = 'in-objektif';
                 isList = true;
-                prompt = `Senaraikan 3 objektif ringkas dan profesional (dalam Bahasa Melayu) untuk program sekolah/pendidikan bertajuk "${title}" yang diadakan di "${place}". Format: Terus kepada poin tanpa pendahuluan.`;
+                userPrompt = `Senaraikan 3 objektif ringkas dan profesional untuk program sekolah "${title}" di "${place}". Gunakan format bullet point standard (-).`;
             } else if (type === 'kekuatan') {
                 targetId = 'in-dapatan';
                 isList = true;
-                prompt = `Senaraikan 3 kekuatan (dalam Bahasa Melayu) bagi program pendidikan bertajuk "${title}". Berikan poin positif yang umum tetapi profesional. Format: Terus kepada poin.`;
+                userPrompt = `Senaraikan 3 kekuatan kejayaan bagi program "${title}". Gunakan format bullet point standard (-).`;
             } else if (type === 'isu') {
                 targetId = 'in-isu';
                 isList = true;
-                prompt = `Senaraikan 2 isu berbangkit yang biasa (cth: masa, teknikal) dan cadangan penambahbaikan untuk program "${title}". Format: "Isu - Cadangan".`;
+                userPrompt = `Senaraikan 2 isu berbangkit biasa dan cadangan penambahbaikan untuk program "${title}". Format: "Isu - Cadangan".`;
             }
 
             try {
-                // MODEL 1: Gemini 1.5 Flash (Model Terkini & Laju)
-                let model = "gemini-1.5-flash"; 
-                let url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY.trim()}`;
-
-                let response = await fetch(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+                const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+                    method: "POST",
+                    headers: {
+                        "Authorization": `Bearer ${GROQ_API_KEY}`,
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        messages: [
+                            { role: "system", content: systemPrompt },
+                            { role: "user", content: userPrompt }
+                        ],
+                        model: "llama3-8b-8192", // Model Open Source Llama 3 (Laju & Ringan)
+                        temperature: 0.7,
+                        max_tokens: 250
+                    })
                 });
 
-                // FALLBACK: Jika 1.5 Flash gagal, cuba 1.5 Pro
-                if (response.status === 404) {
-                    console.warn("Flash model 404, switching to Gemini 1.5 Pro...");
-                    model = "gemini-1.5-pro";
-                    url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY.trim()}`;
-                    
-                    response = await fetch(url, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-                    });
-                }
-
-                // BACA ERROR
                 if (!response.ok) {
-                    const errorData = await response.json();
-                    console.error("AI Error Details:", errorData);
-                    throw new Error(errorData.error?.message || `Ralat API (${response.status})`);
+                    const errData = await response.json();
+                    throw new Error(errData.error?.message || "Ralat sambungan Groq.");
                 }
 
                 const data = await response.json();
                 
-                if (data.candidates && data.candidates[0].content) {
-                    let text = data.candidates[0].content.parts[0].text;
-                    // Bersihkan format (buang bold ** dan bullet *)
-                    text = text.replace(/\*\*/g, '').replace(/^\* /gm, '- '); 
+                if (data.choices && data.choices[0]) {
+                    let text = data.choices[0].message.content;
+                    // Bersihkan tanda markdown jika ada
+                    text = text.replace(/\*\*/g, '').replace(/^[\*•] /gm, '- '); 
                     
-                    const textArea = document.getElementById(targetId);
-                    textArea.value = text.trim();
-                    
+                    document.getElementById(targetId).value = text.trim();
                     updatePreview();
                     
-                    // Auto-check bullet point
                     if(isList) {
                         if(type === 'objektif') document.getElementById('chk-objektif').checked = true;
                         if(type === 'kekuatan') document.getElementById('chk-dapatan').checked = true;
                         if(type === 'isu') document.getElementById('chk-isu').checked = true;
                         updatePreview();
                     }
-                } else {
-                    throw new Error("Tiada cadangan dijana.");
                 }
 
             } catch (error) {
-                console.error("AI System Error:", error);
-                alert(`Gagal menjana AI:\n${error.message}\n\nSila pastikan API Key sah.`);
+                console.error("AI Error:", error);
+                alert(`Gagal: ${error.message}\nPastikan Key Groq anda sah.`);
             } finally {
                 btn.innerHTML = originalText;
                 btn.disabled = false;
