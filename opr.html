@@ -584,7 +584,7 @@
         }
         renderBarcode("SPARK-OPR"); // Initial
 
-// --- AI FUNCTION (DEBUG MODE & FIXED) ---
+// --- AI FUNCTION (FIXED MODEL: LLAMA 3.3) ---
         window.askAI = async function(type) {
             const btn = event.currentTarget;
             const originalText = btn.innerHTML;
@@ -605,7 +605,9 @@
                 return;
             }
 
-            let systemPrompt = "Anda adalah pembantu admin sekolah yang pakar membuat laporan rasmi dalam Bahasa Melayu. Jawab terus kepada poin tanpa pendahuluan atau penutup. Jangan guna markdown bold (**).";
+            // Prompt Sistem untuk Bahasa Melayu Rasmi
+            let systemPrompt = "Anda adalah pembantu admin sekolah yang pakar membuat laporan rasmi Kementerian Pendidikan Malaysia (KPM). Jawab dalam Bahasa Melayu baku dan profesional. Terus kepada poin tanpa pendahuluan atau penutup. Jangan gunakan markdown bold (**).";
+            
             let userPrompt = "";
             let targetId = "";
             let isList = false;
@@ -613,18 +615,18 @@
             if (type === 'objektif') {
                 targetId = 'in-objektif';
                 isList = true;
-                userPrompt = `Senaraikan 3 objektif ringkas dan profesional untuk program sekolah "${title}" di "${place}". Gunakan format bullet point standard (-).`;
+                userPrompt = `Senaraikan 3 objektif ringkas dan profesional untuk program: "${title}" bertempat di "${place}". Format: Bullet point standard (-).`;
             } else if (type === 'kekuatan') {
                 targetId = 'in-dapatan';
                 isList = true;
-                userPrompt = `Senaraikan 3 kekuatan kejayaan bagi program "${title}". Gunakan format bullet point standard (-).`;
+                userPrompt = `Senaraikan 3 kekuatan kejayaan bagi program "${title}". Fokus kepada kelancaran dan kerjasama. Format: Bullet point standard (-).`;
             } else if (type === 'isu') {
                 targetId = 'in-isu';
                 isList = true;
-                userPrompt = `Senaraikan 2 isu berbangkit biasa dan cadangan penambahbaikan untuk program "${title}". Format: "Isu - Cadangan".`;
+                userPrompt = `Senaraikan 2 isu berbangkit biasa (contoh: teknikal/masa) dan cadangan penambahbaikan untuk program "${title}". Format: "Isu - Cadangan".`;
             }
 
-            console.log("Menghantar permintaan ke Groq...", userPrompt); // Debug 1
+            console.log("Menghantar ke Groq (Llama 3.3)..."); 
 
             try {
                 const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -638,33 +640,30 @@
                             { role: "system", content: systemPrompt },
                             { role: "user", content: userPrompt }
                         ],
-                        model: "llama3-8b-8192", 
-                        temperature: 0.7,
+                        // *** PERUBAHAN DI SINI: Model ditukar ke versi terkini ***
+                        model: "llama-3.3-70b-versatile", 
+                        temperature: 0.6,
                         max_tokens: 300
                     })
                 });
 
                 if (!response.ok) {
                     const errData = await response.json();
-                    console.error("Groq Error:", errData); // Debug 2
+                    console.error("Groq Error:", errData);
                     throw new Error(errData.error?.message || "Ralat sambungan Groq.");
                 }
 
                 const data = await response.json();
-                console.log("Terima Data:", data); // Debug 3
                 
                 if (data.choices && data.choices[0]) {
                     let text = data.choices[0].message.content;
                     
-                    // Bersihkan teks
-                    text = text.replace(/\*\*/g, '') // Buang bold
-                               .replace(/^[\*•] /gm, '- ') // Tukar bullet pelik ke dash standard
-                               .replace(/^Here are/i, '') // Buang ayat intro bahasa inggeris jika ada
-                               .replace(/^Berikut adalah/i, '') // Buang intro
+                    // Bersihkan teks (buang bold, buang bullet pelik)
+                    text = text.replace(/\*\*/g, '') 
+                               .replace(/^[\*•] /gm, '- ') 
+                               .replace(/^Here are/i, '')
                                .trim(); 
                     
-                    console.log("Teks diproses:", text); // Debug 4
-
                     // Masukkan ke dalam kotak input
                     const inputField = document.getElementById(targetId);
                     if(inputField) {
@@ -679,8 +678,6 @@
 
                         // KEMASKINI PREVIEW (PENTING)
                         updatePreview(); 
-                    } else {
-                        console.error("ID Input tidak dijumpai:", targetId);
                     }
                 } else {
                     alert("AI tidak memberikan jawapan. Sila cuba lagi.");
