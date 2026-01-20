@@ -82,18 +82,24 @@
                     </div>
                     
                     <div class="text-right hidden md:block">
-                        <p class="text-[10px] text-gray-400 uppercase font-bold tracking-widest">Tahun Semasa</p>
-                        <p class="text-3xl font-extrabold text-indigo-600" id="current-year-display">2026</p>
+                        <p class="text-[10px] text-gray-400 uppercase font-bold tracking-widest">Paparan Rekod</p>
+                        <p class="text-3xl font-extrabold text-indigo-600" id="current-year-display">...</p>
                     </div>
                 </div>
             </div>
 
             <div class="card overflow-hidden shadow-lg border border-gray-100">
-                <div class="p-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
+                <div class="p-4 border-b border-gray-100 bg-gray-50 flex flex-col sm:flex-row justify-between items-center gap-4">
                     <h3 class="text-sm font-bold text-gray-700 uppercase flex items-center gap-2">
                         <svg class="w-5 h-5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138z" /></svg>
-                        Senarai Sijil Penyertaan
+                        Senarai Sijil
                     </h3>
+                    
+                    <div class="flex items-center gap-2 w-full sm:w-auto">
+                        <label for="year-filter" class="text-[10px] font-bold text-gray-500 uppercase whitespace-nowrap">Tahun:</label>
+                        <select id="year-filter" onchange="applyYearFilter()" class="block w-full sm:w-32 px-2 py-1.5 text-xs font-bold text-gray-700 bg-white border border-gray-300 rounded focus:border-indigo-500 focus:outline-none uppercase shadow-sm">
+                            </select>
+                    </div>
                 </div>
                 
                 <div class="overflow-x-auto">
@@ -101,7 +107,7 @@
                         <thead class="bg-white">
                             <tr>
                                 <th scope="col" class="px-6 py-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider w-10">Bil</th>
-                                <th scope="col" class="px-6 py-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider">Program / Tahun</th>
+                                <th scope="col" class="px-6 py-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider">Program / Tarikh</th>
                                 <th scope="col" class="px-6 py-3 text-center text-[10px] font-bold text-gray-400 uppercase tracking-wider w-32">Status</th>
                                 <th scope="col" class="px-6 py-3 text-center text-[10px] font-bold text-gray-400 uppercase tracking-wider w-40">Tindakan</th>
                             </tr>
@@ -115,12 +121,12 @@
                     <div class="bg-gray-50 rounded-full p-4 inline-block mb-3">
                         <svg class="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                     </div>
-                    <p class="text-sm text-gray-500 font-medium">Tiada sijil yang tersedia buat masa ini.</p>
+                    <p class="text-sm text-gray-500 font-medium">Tiada rekod sijil dijumpai untuk tahun ini.</p>
                 </div>
             </div>
 
             <p class="text-xs text-gray-400 text-center italic mt-4">
-                SPARK e-Sijil v3.3. Sijil dijana secara digital.
+                SPARK e-Sijil v3.4. Sijil dijana secara digital.
             </p>
         </div>
     </main>
@@ -141,6 +147,7 @@
         const auth = firebase.auth();
         const appId = firebaseConfig.projectId;
 
+        // TAHUN SEMASA SYSTEM
         const currentYear = new Date().getFullYear();
         document.getElementById('current-year-display').textContent = currentYear;
 
@@ -148,6 +155,12 @@
         const container = document.getElementById('content-container');
         const tableBody = document.getElementById('certificates-table-body');
         const noResults = document.getElementById('no-results-message');
+        const yearSelect = document.getElementById('year-filter');
+
+        // Global Data Storage
+        let allCertificates = [];
+        let globalUserName = "";
+        let globalIsPro = false;
 
         auth.onAuthStateChanged(async (user) => {
             if (user) {
@@ -167,12 +180,16 @@
         async function initPage(icRaw) {
             const icNumber = icRaw.trim().replace(/[^0-9]/g, '');
             try {
-                const isSparkPro = await checkUserProStatus(icNumber);
-                if(isSparkPro) {
+                // 1. Cek Status PRO
+                globalIsPro = await checkUserProStatus(icNumber);
+                if(globalIsPro) {
                     document.getElementById('pro-badge').classList.remove('hidden');
                     document.getElementById('normal-badge').classList.add('hidden');
                 }
-                await findCertificatesByIc(icNumber, isSparkPro);
+                
+                // 2. Fetch Semua Data
+                await fetchAllCertificates(icNumber);
+
             } catch (error) {
                 console.error("Ralat init:", error);
                 alert("Gagal memuatkan data.");
@@ -193,14 +210,12 @@
             } catch (e) { return false; }
         }
 
-        async function findCertificatesByIc(ic, isProUser) {
+        async function fetchAllCertificates(ic) {
             const programsRef = db.collection(`artifacts/${appId}/public/data/spark_programs`);
             const snapshot = await programsRef.get();
 
-            let actionableCertificates = [];
-            let totalAvailable = 0;
-            let totalLocked = 0;
-            let userName = "";
+            allCertificates = [];
+            globalUserName = "";
 
             snapshot.docs.forEach(doc => {
                 const prog = doc.data();
@@ -208,49 +223,118 @@
                 const participant = attendance.find(p => p.ic === ic);
 
                 if (participant) {
-                    if (!userName) userName = participant.name;
-                    const status = getCertificateStatus(prog, participant, isProUser);
-                    if (status.isRelevant) {
-                        if (status.isLocked) totalLocked++;
-                        else if (status.type === 'DOWNLOAD') totalAvailable++;
-                        actionableCertificates.push({ program: prog, participant: participant, status: status });
-                    }
+                    if (!globalUserName) globalUserName = participant.name;
+                    
+                    // Kita simpan RAW data dulu, filter kemudian
+                    allCertificates.push({
+                        program: prog,
+                        participant: participant
+                    });
                 }
             });
 
-            updateSummaryCard(userName, totalAvailable, totalLocked);
+            // Populate Dropdown Tahun
+            populateYearDropdown();
+            
+            // Set Default Filter kepada Tahun Semasa & Render
+            yearSelect.value = currentYear;
+            applyYearFilter();
+            
             loader.classList.add('hidden');
             container.classList.remove('hidden');
+        }
 
-            if (actionableCertificates.length > 0) {
-                actionableCertificates.sort((a, b) => new Date(b.program.startDate) - new Date(a.program.startDate));
-                renderTable(actionableCertificates);
+        function populateYearDropdown() {
+            // Dapatkan tahun unik dari data
+            const years = new Set();
+            years.add(currentYear); // Pastikan tahun semasa sentiasa ada
+            
+            allCertificates.forEach(item => {
+                const y = new Date(item.program.startDate).getFullYear();
+                years.add(y);
+            });
+
+            // Sort Menurun (Terbaru di atas)
+            const sortedYears = Array.from(years).sort((a, b) => b - a);
+
+            yearSelect.innerHTML = "";
+            sortedYears.forEach(year => {
+                const opt = document.createElement('option');
+                opt.value = year;
+                opt.textContent = `TAHUN ${year}`;
+                yearSelect.appendChild(opt);
+            });
+        }
+
+        window.applyYearFilter = function() {
+            const selectedYear = parseInt(yearSelect.value);
+            document.getElementById('current-year-display').textContent = selectedYear;
+
+            // Filter data ikut tahun dipilih
+            const filteredData = allCertificates.filter(item => {
+                const itemYear = new Date(item.program.startDate).getFullYear();
+                return itemYear === selectedYear;
+            });
+
+            // Proses Status untuk data yang dah filter
+            const processedList = [];
+            let totalAvailable = 0;
+            let totalLocked = 0;
+
+            filteredData.forEach(item => {
+                const status = getCertificateStatus(item.program, item.participant, globalIsPro);
+                if (status.isRelevant) {
+                    if (status.isLocked) totalLocked++;
+                    else if (status.type === 'DOWNLOAD') totalAvailable++;
+                    
+                    processedList.push({
+                        ...item,
+                        status: status
+                    });
+                }
+            });
+
+            // Update Summary Card khas untuk tahun tersebut
+            updateSummaryCard(globalUserName, totalAvailable, totalLocked, selectedYear);
+
+            // Render Table
+            if (processedList.length > 0) {
+                // Sort ikut tarikh
+                processedList.sort((a, b) => new Date(b.program.startDate) - new Date(a.program.startDate));
+                renderTable(processedList);
+                noResults.classList.add('hidden');
+                document.querySelector('table').classList.remove('hidden');
             } else {
+                renderTable([]); // Clear table
                 noResults.classList.remove('hidden');
+                document.querySelector('table').classList.add('hidden');
             }
         }
 
-        function updateSummaryCard(name, available, locked) {
+        function updateSummaryCard(name, available, locked, year) {
             const titleEl = document.getElementById('welcome-title');
             const summaryEl = document.getElementById('summary-text');
             const fullName = name ? name.toUpperCase() : "PENGGUNA";
+            
             titleEl.textContent = `TAHNIAH, ${fullName}!`;
 
             if (available > 0) {
-                summaryEl.innerHTML = `Anda mempunyai <span class="font-bold text-indigo-600">${available} sijil</span> untuk dimuat turun.`;
+                summaryEl.innerHTML = `Pada tahun <span class="font-bold">${year}</span>, anda mempunyai <span class="font-bold text-indigo-600">${available} sijil</span> untuk dimuat turun.`;
             } else {
-                summaryEl.textContent = "Tiada sijil baharu buat masa ini.";
+                summaryEl.textContent = `Tiada sijil yang tersedia untuk tahun ${year}.`;
             }
 
             if (locked > 0) {
-                 summaryEl.innerHTML += ` <br><span class="text-xs text-gray-500 mt-2 inline-block bg-gray-100 px-3 py-1.5 rounded-lg border border-gray-200">
-                    Terdapat <b>${locked} sijil arkib</b> tahun lalu. <a href="sponsor.html" class="text-indigo-600 hover:text-indigo-800 underline font-bold ml-1">Bantu kami selenggara sistem untuk akses?</a>
+                 summaryEl.innerHTML += ` <br><span class="text-xs text-gray-500 mt-2 inline-block bg-gray-100 px-3 py-1.5 rounded-lg border border-gray-200 leading-snug">
+                    Terdapat <b>${locked} sijil arkib</b> pada tahun ${year}. Akses arkib dikhaskan untuk akaun <b>Spark Pro</b>.
+                    <a href="sponsor.html" class="text-indigo-600 hover:text-indigo-800 underline font-bold ml-1">Ketahui Lanjut</a>
                  </span>`;
             }
         }
 
         function getCertificateStatus(prog, part, isPro) {
             let result = { isRelevant: false, isLocked: false, html: '', btn: '', type: 'NONE' };
+            
             if (prog.eCertificateNeeded === true) {
                 const progDate = new Date(prog.startDate);
                 const progYear = progDate.getFullYear();
@@ -260,9 +344,9 @@
                     result.isRelevant = true;
                     result.isLocked = true;
                     result.html = `<span class="px-2 py-1 rounded text-[10px] font-bold bg-gray-100 text-gray-500 border border-gray-200 uppercase tracking-wide">ARKIB ${progYear}</span>`;
-                    result.btn = `<button onclick="window.location.href='sponsor.html'" class="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-white hover:bg-indigo-50 text-indigo-600 border border-indigo-200 text-[10px] font-bold rounded shadow-sm uppercase transition-all group" title="Bantu kami menyelenggara sistem ini untuk akses">
+                    result.btn = `<button onclick="window.location.href='sponsor.html'" class="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-white hover:bg-indigo-50 text-indigo-600 border border-indigo-200 text-[10px] font-bold rounded shadow-sm uppercase transition-all group" title="Ciri Eksklusif Akaun Pro">
                         <svg class="w-3 h-3 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
-                        Buka Akses (Bantu Sistem)
+                        Info Akses Pro
                     </button>`;
                     return result; 
                 }
@@ -299,13 +383,16 @@
 
         function renderTable(list) {
             tableBody.innerHTML = "";
+            // Simpan data TERPILIH sahaja ke global untuk fungsi print
             window.certificateData = list;
+            
             list.forEach((item, idx) => {
                 const dateObj = new Date(item.program.startDate);
                 const dateStr = dateObj.toLocaleDateString('ms-MY', { day: 'numeric', month: 'short' });
                 const yearStr = dateObj.getFullYear();
                 const isCurrent = yearStr === currentYear;
                 const yearBadgeClass = isCurrent ? "bg-indigo-100 text-indigo-700 border-indigo-200" : "bg-gray-100 text-gray-500 border-gray-200";
+                
                 const row = `
                     <tr class="hover:bg-gray-50 border-b border-gray-100 last:border-0 transition-colors">
                         <td class="px-6 py-4 whitespace-nowrap text-xs text-gray-500 font-medium">${idx + 1}.</td>
@@ -353,7 +440,7 @@
             const serialNumber = `SPK/${program.key || 'GEN'}/${participantIC.slice(-4)}`;
             const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(window.location.origin + window.location.pathname)}`;
             
-            // --- NEW: Generate Timestamp for the footer ---
+            // Timestamp
             const now = new Date();
             const genDate = now.toLocaleDateString('ms-MY', { day: '2-digit', month: '2-digit', year: 'numeric' });
             const genTime = now.toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit', hour12: true });
