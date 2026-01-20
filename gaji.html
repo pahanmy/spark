@@ -14,31 +14,50 @@
         <div class="flex justify-between items-center mb-6">
             <div>
                 <h1 class="text-2xl font-bold text-gray-800">Pengurusan Tarikh Gaji</h1>
-                <p class="text-sm text-gray-500">Tambah atau padam tarikh gaji untuk paparan umum.</p>
+                <p class="text-sm text-gray-500">Tetapkan tarikh pembayaran gaji bulanan.</p>
             </div>
             <a href="jadual.html" class="text-indigo-600 hover:underline text-sm font-medium">Kembali ke Jadual</a>
         </div>
 
-        <div class="bg-white p-6 rounded-xl shadow-md mb-8">
+        <div class="bg-white p-6 rounded-xl shadow-md mb-8 border-t-4 border-green-500">
             <h2 class="text-lg font-semibold mb-4 text-green-700 flex items-center gap-2">
-                <span>💰</span> Tambah Tarikh Baru
+                <span>💰</span> Kemaskini Tarikh
             </h2>
             <form id="salary-form" class="space-y-4">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700">Tajuk / Bulan</label>
-                        <input type="text" id="salary-title" placeholder="Cth: Gaji Januari 2026" required 
-                            class="mt-1 w-full p-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500">
+                        <label class="block text-sm font-medium text-gray-700">Pilih Bulan</label>
+                        <select id="salary-month" class="mt-1 w-full p-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500 bg-white">
+                            <option value="Januari">Januari</option>
+                            <option value="Februari">Februari</option>
+                            <option value="Mac">Mac</option>
+                            <option value="April">April</option>
+                            <option value="Mei">Mei</option>
+                            <option value="Jun">Jun</option>
+                            <option value="Julai">Julai</option>
+                            <option value="Ogos">Ogos</option>
+                            <option value="September">September</option>
+                            <option value="Oktober">Oktober</option>
+                            <option value="November">November</option>
+                            <option value="Disember">Disember</option>
+                        </select>
                     </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Tahun</label>
+                        <input type="number" id="salary-year" value="2026" class="mt-1 w-full p-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500 text-center">
+                    </div>
+
                     <div>
                         <label class="block text-sm font-medium text-gray-700">Tarikh Pembayaran</label>
-                        <input type="date" id="salary-date" required 
-                            class="mt-1 w-full p-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500">
+                        <input type="date" id="salary-date" required class="mt-1 w-full p-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500 cursor-pointer">
                     </div>
                 </div>
-                <div class="flex justify-end">
-                    <button type="submit" id="submit-btn" class="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition shadow">
-                        Simpan Tarikh
+
+                <div class="flex justify-end pt-2">
+                    <button type="submit" id="submit-btn" class="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition shadow flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+                        Simpan Jadual
                     </button>
                 </div>
             </form>
@@ -50,13 +69,13 @@
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
                         <tr>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tarikh</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Keterangan</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bulan & Tahun</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tarikh Bayar</th>
                             <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Tindakan</th>
                         </tr>
                     </thead>
                     <tbody id="salary-list" class="bg-white divide-y divide-gray-200">
-                        <tr><td colspan="3" class="px-4 py-4 text-center text-gray-500 text-sm">Memuatkan data...</td></tr>
+                        <tr><td colspan="3" class="px-4 py-4 text-center text-gray-500 text-sm">Sedang memuatkan data...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -74,60 +93,69 @@
         const db = getFirestore(app);
         const auth = getAuth(app);
         const appId = firebaseConfig.projectId;
-        const salaryRef = collection(db, `artifacts/${appId}/public/data/spark_salary`); // Collection Baru
+        const salaryRef = collection(db, `artifacts/${appId}/public/data/spark_salary`);
 
         onAuthStateChanged(auth, async (user) => {
             if (!user) { try { await signInAnonymously(auth); } catch (e) { console.error(e); } }
             loadSalaries();
         });
 
-        // Tambah Data
+        // TAMBAH DATA (AUTO GENERATE TITLE)
         document.getElementById('salary-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const btn = document.getElementById('submit-btn');
             btn.disabled = true; btn.textContent = "Menyimpan...";
 
-            const title = document.getElementById('salary-title').value;
+            const month = document.getElementById('salary-month').value;
+            const year = document.getElementById('salary-year').value;
             const date = document.getElementById('salary-date').value;
+
+            // Gabungkan Bulan + Tahun untuk jadi Tajuk (Cth: Gaji Januari 2026)
+            const autoTitle = `Gaji ${month} ${year}`;
 
             try {
                 await addDoc(salaryRef, {
-                    title: title.toUpperCase(),
-                    date: date, // YYYY-MM-DD
+                    title: autoTitle.toUpperCase(),
+                    date: date, // YYYY-MM-DD (Penting untuk susunan)
                     createdAt: serverTimestamp()
                 });
-                document.getElementById('salary-form').reset();
-                alert("Berjaya disimpan!");
+                alert("Jadual gaji berjaya ditambah!");
+                // Reset date sahaja, bulan/tahun biar user mudah nak key-in seterusnya
+                document.getElementById('salary-date').value = "";
             } catch (err) {
                 console.error(err);
                 alert("Gagal menyimpan.");
             } finally {
-                btn.disabled = false; btn.textContent = "Simpan Tarikh";
+                btn.disabled = false; 
+                btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg> Simpan Jadual`;
             }
         });
 
-        // Papar Data
         function loadSalaries() {
             const q = query(salaryRef, orderBy("date", "asc"));
             const list = document.getElementById('salary-list');
 
             onSnapshot(q, (snapshot) => {
                 if(snapshot.empty) {
-                    list.innerHTML = '<tr><td colspan="3" class="px-4 py-4 text-center text-gray-500 text-sm">Tiada rekod gaji. Sila tambah baru.</td></tr>';
+                    list.innerHTML = '<tr><td colspan="3" class="px-4 py-8 text-center text-gray-400 text-sm italic">Belum ada tarikh gaji dimasukkan.</td></tr>';
                     return;
                 }
 
                 list.innerHTML = '';
                 snapshot.docs.forEach(d => {
                     const data = d.data();
+                    // Format Tarikh Cantik (25 Januari 2026)
                     const formattedDate = new Date(data.date).toLocaleDateString('ms-MY', { day: '2-digit', month: 'long', year: 'numeric' });
                     
                     const row = document.createElement('tr');
+                    row.className = "hover:bg-gray-50 transition-colors";
                     row.innerHTML = `
+                        <td class="px-4 py-3 text-sm text-indigo-700 font-bold uppercase">${data.title}</td>
                         <td class="px-4 py-3 text-sm text-gray-900 font-medium">${formattedDate}</td>
-                        <td class="px-4 py-3 text-sm text-gray-600">${data.title}</td>
                         <td class="px-4 py-3 text-right">
-                            <button onclick="window.deleteItem('${d.id}')" class="text-red-600 hover:text-red-900 text-xs font-bold uppercase bg-red-50 px-2 py-1 rounded border border-red-200">Padam</button>
+                            <button onclick="window.deleteItem('${d.id}')" class="text-red-500 hover:text-white border border-red-500 hover:bg-red-600 focus:ring-4 focus:outline-none focus:ring-red-300 font-medium rounded text-xs px-3 py-1.5 text-center transition-all">
+                                PADAM
+                            </button>
                         </td>
                     `;
                     list.appendChild(row);
@@ -135,9 +163,8 @@
             });
         }
 
-        // Padam Data (Global Scope)
         window.deleteItem = async (id) => {
-            if(confirm("Adakah anda pasti mahu memadam tarikh ini?")) {
+            if(confirm("Adakah anda pasti mahu memadam rekod ini?")) {
                 await deleteDoc(doc(db, `artifacts/${appId}/public/data/spark_salary`, id));
             }
         };
