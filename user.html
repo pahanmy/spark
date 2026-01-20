@@ -874,15 +874,22 @@ async function loadUserData(ic) {
 
                 const cleanUserIc = normalizeIc(ic);
                 
-                const usersRef = collection(db, `artifacts/${appId}/public/data/spark_participants`);
+              const usersRef = collection(db, `artifacts/${appId}/public/data/spark_participants`);
                 const qUser = query(usersRef, where("ic", "==", cleanUserIc));
                 const userSnap = await getDocs(qUser);
                 
                 let profileImageUrl = null;
+                
+                // --- TAMBAH BARIS INI (Definisikan variable di luar) ---
+                let userData = null; 
 
                 if (!userSnap.empty) {
-                    const userData = userSnap.docs[0].data();
+                    // --- UBAH BARIS INI (Buang 'const') ---
+                    userData = userSnap.docs[0].data(); 
+                    
                     participantDocId = userSnap.docs[0].id;
+                  
+                    
                     currentUserSector = userData.sector || "";
                     currentUserUnit = userData.unit || ""; 
                     profileImageUrl = userData.profileImageUrl || null;
@@ -1003,17 +1010,25 @@ async function loadUserData(ic) {
                      }
                 });
 
-                if (participantData) {
-                    document.getElementById('user-name').textContent = participantData.name.toUpperCase();
-                    document.getElementById('user-ic').textContent = formatIc(participantData.ic);
-                    document.getElementById('user-org').textContent = (participantData.station || participantData.org || "-").toUpperCase();
-                    checkPhoneNumber(participantData);
+                // --- KOD BARU: Utamakan userData (Profil Terkini) ---
+                
+                // Tentukan data mana nak guna: userData (Terkini) atau participantData (Rekod Lama)
+                const finalName = userData ? userData.name : (participantData ? participantData.name : "TIADA REKOD");
+                const finalOrg = userData ? (userData.station || userData.org) : (participantData ? (participantData.station || participantData.org) : "-");
+
+                document.getElementById('user-name').textContent = finalName.toUpperCase();
+                document.getElementById('user-ic').textContent = formatIc(ic);
+                document.getElementById('user-org').textContent = (finalOrg || "-").toUpperCase();
+
+                if (userData || participantData) {
+                    // Semak nombor telefon (jika ada data)
+                    checkPhoneNumber(userData || participantData);
                 } else {
-                    document.getElementById('user-name').textContent = "TIADA REKOD";
-                    document.getElementById('user-ic').textContent = formatIc(ic);
-                    document.getElementById('user-org').textContent = "-";
+                     // Jika tiada langsung data
                     checkPhoneNumber({ ic: ic }); 
                 }
+                
+                // --- TAMAT KOD BARU ---
                 
                 const totalPrograms = attendanceList.length + createdList.length + taskList.length;
                 updateInfographics(totalPrograms); // Kemaskini Badge
