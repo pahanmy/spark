@@ -27,7 +27,6 @@
         .calendar-day.has-birthdays { background-color: #fff1f2; cursor: pointer; }
         .calendar-day.has-birthdays:hover { background-color: #ffe4e6; }
 
-        /* Salary Style */
         .calendar-day.has-salary { background-color: #f0fdf4; border-color: #86efac; cursor: pointer; } 
         .calendar-day.has-salary:hover { background-color: #dcfce7; }
 
@@ -76,10 +75,29 @@
                         </div>
                     </div>
 
-                    <div class="flex justify-between items-center mb-4">
-                        <button id="prev-month-btn" class="p-2 rounded-full hover:bg-gray-100">&lt;</button>
-                        <h2 id="calendar-header" class="text-xl font-bold text-gray-800 uppercase"></h2>
-                        <button id="next-month-btn" class="p-2 rounded-full hover:bg-gray-100">&gt;</button>
+                    <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+                        <div class="flex items-center gap-4">
+                            <button id="prev-month-btn" class="p-2 rounded-full hover:bg-gray-100 bg-white border shadow-sm">&lt;</button>
+                            <h2 id="calendar-header" class="text-xl font-bold text-gray-800 uppercase tracking-wide"></h2>
+                            <button id="next-month-btn" class="p-2 rounded-full hover:bg-gray-100 bg-white border shadow-sm">&gt;</button>
+                        </div>
+                        
+                        <div class="flex gap-3">
+                            <div class="flex items-center gap-2 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100">
+                                <span class="text-lg">📅</span>
+                                <div>
+                                    <p id="summary-programs" class="text-sm font-bold text-indigo-700">0</p>
+                                    <p class="text-[10px] uppercase text-indigo-500 font-semibold">Program</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2 bg-pink-50 px-3 py-1.5 rounded-lg border border-pink-100">
+                                <span class="text-lg">🎂</span>
+                                <div>
+                                    <p id="summary-birthdays" class="text-sm font-bold text-pink-700">0</p>
+                                    <p class="text-[10px] uppercase text-pink-500 font-semibold">Birthday</p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <div id="calendar-weekdays" class="grid grid-cols-7 gap-2 text-center font-semibold text-sm text-gray-600 mb-2 uppercase">
@@ -103,7 +121,7 @@
     
     <footer class="text-center py-4 mt-8 border-t border-gray-200">
         <p class="text-sm text-gray-600">Projek Inovasi oleh <a href="#" class="font-semibold text-indigo-500">Pahan</a></p>
-        <p id="version-info" class="text-xs text-gray-500">Versi 2.4 (2025)</p>
+        <p id="version-info" class="text-xs text-gray-500">Versi 2.5 (2025)</p>
     </footer>
 
     <div id="ic-verify-modal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop hidden">
@@ -144,19 +162,14 @@
                 </div>
                 <h3 class="text-xl font-bold text-white uppercase tracking-wide">Info Gaji</h3>
             </div>
-            
             <div class="p-6 text-center">
                 <h4 id="salary-modal-title" class="text-lg font-bold text-gray-800 mb-1">Gaji Bulan Ini</h4>
                 <p id="salary-modal-date" class="text-sm text-gray-500 mb-6 border-b border-gray-100 pb-4">00 Bulan 0000</p>
-                
                 <div class="bg-gray-50 rounded-lg p-4 border border-gray-100">
                     <p class="text-xs text-gray-400 uppercase font-semibold mb-1">Status Pembayaran</p>
                     <p id="salary-modal-countdown" class="text-xl font-bold text-green-600">5 Hari Lagi</p>
                 </div>
-                
-                <button onclick="closeModal('salary-modal')" class="mt-6 w-full btn bg-gray-800 text-white font-semibold py-3 px-4 rounded-lg hover:bg-gray-900 transition-colors">
-                    Tutup
-                </button>
+                <button onclick="closeModal('salary-modal')" class="mt-6 w-full btn bg-gray-800 text-white font-semibold py-3 px-4 rounded-lg hover:bg-gray-900 transition-colors">Tutup</button>
             </div>
         </div>
     </div>
@@ -261,6 +274,10 @@
             const firstDay = new Date(year, month, 1).getDay();
             const daysInMonth = new Date(year, month + 1, 0).getDate();
 
+            // --- KIRA STATISTIK BULANAN ---
+            let monthlyPrograms = 0;
+            let monthlyBirthdays = 0;
+
             for (let i = 0; i < firstDay; i++) calendarGrid.insertAdjacentHTML('beforeend', '<div class="border rounded-md bg-gray-50"></div>');
 
             for (let day = 1; day <= daysInMonth; day++) {
@@ -271,6 +288,9 @@
                 const birthdays = getBirthdaysForDate(date);
                 const salary = getSalaryForDate(date);
                 
+                if (programs.length > 0) monthlyPrograms += programs.length;
+                if (birthdays.length > 0) monthlyBirthdays += birthdays.length;
+
                 let dayClasses = 'calendar-day border rounded-md p-2 transition-colors relative';
                 let eventHtml = '';
                 let indicatorsHtml = '';
@@ -304,6 +324,10 @@
                 `);
             }
             
+            // UPDATE STATISTIK DI HEADER
+            document.getElementById('summary-programs').textContent = monthlyPrograms;
+            document.getElementById('summary-birthdays').textContent = monthlyBirthdays;
+
             calendarGrid.querySelectorAll('.has-events, .has-birthdays, .has-salary').forEach(el => {
                 el.addEventListener('click', (e) => displayProgramsForDate(parseDateString(e.currentTarget.dataset.date), e.currentTarget));
             });
@@ -330,41 +354,20 @@
             } else { initializeRightPanel(); }
         }
 
-        // --- FUNGSI UTAMA UNTUK MODAL GAJI ---
         window.openSalaryModal = (title, dateStr) => {
             const modal = document.getElementById('salary-modal');
-            const modalTitle = document.getElementById('salary-modal-title');
-            const modalDate = document.getElementById('salary-modal-date');
-            const modalCountdown = document.getElementById('salary-modal-countdown');
-
-            // Set Data
-            modalTitle.textContent = title;
-            
-            // Format Tarikh
+            document.getElementById('salary-modal-title').textContent = title;
             const payDate = new Date(dateStr);
-            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-            modalDate.textContent = payDate.toLocaleDateString('ms-MY', options);
-
-            // Kiraan Hari
-            const today = new Date();
-            today.setHours(0,0,0,0);
-            const target = new Date(dateStr);
-            target.setHours(0,0,0,0);
+            document.getElementById('salary-modal-date').textContent = payDate.toLocaleDateString('ms-MY', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
             
-            const diffTime = target - today;
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            const today = new Date(); today.setHours(0,0,0,0);
+            const target = new Date(dateStr); target.setHours(0,0,0,0);
+            const diffDays = Math.ceil((target - today) / (1000 * 60 * 60 * 24));
             
-            if (diffDays > 0) {
-                modalCountdown.textContent = `${diffDays} Hari Lagi ⏳`;
-                modalCountdown.className = "text-xl font-bold text-green-600";
-            } else if (diffDays === 0) {
-                modalCountdown.textContent = "HARI INI! 🤑";
-                modalCountdown.className = "text-xl font-bold text-blue-600 animate-pulse";
-            } else {
-                modalCountdown.textContent = `Telah Dibayar (${Math.abs(diffDays)} hari lepas) ✅`;
-                modalCountdown.className = "text-xl font-bold text-gray-500";
-            }
-
+            const countEl = document.getElementById('salary-modal-countdown');
+            if (diffDays > 0) { countEl.textContent = `${diffDays} Hari Lagi ⏳`; countEl.className = "text-xl font-bold text-green-600"; } 
+            else if (diffDays === 0) { countEl.textContent = "HARI INI! 🤑"; countEl.className = "text-xl font-bold text-blue-600 animate-pulse"; } 
+            else { countEl.textContent = `Telah Dibayar (${Math.abs(diffDays)} hari lepas) ✅`; countEl.className = "text-xl font-bold text-gray-500"; }
             modal.classList.remove('hidden');
         }
 
@@ -377,22 +380,15 @@
             const term = document.getElementById('search-input').value.toLowerCase();
             let html = '';
 
-            // --- BAHAGIAN GAJI (DIKEMASKINI) ---
             const salary = getSalaryForDate(date);
             if (salary) {
-                // Sekarang ada onclick untuk buka modal
                 html += `
                     <div onclick="openSalaryModal('${salary.title}', '${salary.date}')" class="bg-green-50 border border-green-200 rounded-xl p-4 text-gray-800 mb-4 shadow-sm flex items-center justify-between cursor-pointer hover:bg-green-100 transition-colors">
                         <div class="flex items-center gap-3">
                             <div class="bg-green-100 p-2 rounded-full text-2xl">💰</div>
-                            <div>
-                                <p class="font-bold text-md text-green-800 uppercase">${salary.title}</p>
-                                <p class="text-xs text-green-600">Klik untuk info lanjut</p>
-                            </div>
+                            <div><p class="font-bold text-md text-green-800 uppercase">${salary.title}</p><p class="text-xs text-green-600">Klik info lanjut</p></div>
                         </div>
-                        <div>
-                           <svg class="w-5 h-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                        </div>
+                        <div><svg class="w-5 h-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></div>
                     </div>`;
             }
 
@@ -401,13 +397,37 @@
                 html += `<h4 class="text-sm font-bold text-pink-600 uppercase mb-2">Hari Jadi</h4><div class="space-y-3 mb-4">` + 
                 birthdays.map(b => {
                     const encodedDob = btoa(b.dob);
-                    // --- BUTTON SENTIASA AKTIF ---
+                    
+                    // --- LOGIK BUTTON HARI JADI (DIKEMASKINI) ---
+                    const today = new Date(); today.setHours(0,0,0,0);
+                    const bDate = parseDateString(b.dob);
+                    const thisYearBday = new Date(today.getFullYear(), bDate.getMonth(), bDate.getDate());
+                    
+                    let ucapBtnState = "", kongsiBtnState = "", btnTitle = "";
+                    let isEnable = false;
+
+                    // Logik: Kalau hari ini ATAU dah lepas = Enable. Kalau belum sampai = Disable.
+                    if (today >= thisYearBday) {
+                        isEnable = true;
+                    } else {
+                        isEnable = false; // Belum sampai
+                        btnTitle = "Akan Datang";
+                    }
+
+                    if(isEnable) {
+                        ucapBtnState = `<a href="birthday.html?name=${encodeURIComponent(b.name)}&dob=${encodedDob}" target="_blank" class="btn bg-pink-500 hover:bg-pink-600 text-white font-semibold py-2 px-3 rounded-lg text-xs uppercase text-center">Ucap</a>`;
+                        kongsiBtnState = `<button onclick="openShareModal('${b.name}', '${encodedDob}')" class="btn bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-3 rounded-lg text-xs uppercase">Kongsi</button>`;
+                    } else {
+                        ucapBtnState = `<button disabled class="btn bg-gray-300 text-white font-semibold py-2 px-3 rounded-lg text-xs uppercase cursor-not-allowed">Ucap (${btnTitle})</button>`;
+                        kongsiBtnState = `<button disabled class="btn bg-gray-300 text-white font-semibold py-2 px-3 rounded-lg text-xs uppercase cursor-not-allowed">Kongsi (${btnTitle})</button>`;
+                    }
+
                     return `
                     <div class="bg-pink-50 border border-pink-200 rounded-xl p-4 text-gray-800 flex flex-col">
                         <div class="flex items-center gap-3 mb-2"><span class="text-2xl">🎂</span><div><p class="font-bold text-md text-pink-700">${b.name.toUpperCase()}</p></div></div>
                         <div class="grid grid-cols-3 gap-2">
-                            <a href="birthday.html?name=${encodeURIComponent(b.name)}&dob=${encodedDob}" target="_blank" class="btn bg-pink-500 text-white py-2 rounded text-xs text-center uppercase font-bold hover:bg-pink-600">Ucap</a>
-                            <button onclick="openShareModal('${b.name}', '${encodedDob}')" class="btn bg-green-500 text-white py-2 rounded text-xs uppercase font-bold hover:bg-green-600">Kongsi</button>
+                            ${ucapBtnState}
+                            ${kongsiBtnState}
                             <a href="birthdaynote.html?name=${encodeURIComponent(b.name)}&dob=${encodedDob}" target="_blank" class="btn bg-blue-500 text-white py-2 rounded text-xs text-center uppercase font-bold hover:bg-blue-600">Baca</a>
                         </div>
                     </div>`;
