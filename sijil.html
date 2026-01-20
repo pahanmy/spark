@@ -67,13 +67,20 @@
             <div class="card p-6 border-l-4 border-amber-400 bg-gradient-to-r from-white to-amber-50/50">
                 <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <div>
-                        <div class="flex items-center gap-2 mb-1">
-                            <span class="text-xs font-bold text-amber-600 bg-amber-100 px-2 py-0.5 rounded uppercase tracking-wider">Pencapaian Anda</span>
-                            <span id="pro-badge" class="hidden text-[10px] font-bold text-white bg-black px-2 py-0.5 rounded uppercase">PRO USER</span>
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Status Akaun:</span>
+                            
+                            <span id="pro-badge" class="hidden flex items-center gap-1 font-bold text-gray-800 text-xs uppercase">
+                                🏆 SPARK <span class="bg-red-600 text-white px-1.5 py-0.5 rounded text-[10px]">PRO</span>
+                            </span>
+
+                            <span id="normal-badge" class="text-xs font-bold text-gray-400 uppercase">BIASA</span>
                         </div>
-                        <h2 class="text-2xl font-bold text-gray-800 uppercase" id="welcome-title">Tahniah!</h2>
-                        <p class="text-sm text-gray-600 mt-1" id="summary-text">Mengira sijil...</p>
+
+                        <h2 class="text-2xl md:text-3xl font-extrabold text-gray-900 uppercase tracking-tight leading-none" id="welcome-title">Tahniah!</h2>
+                        <p class="text-sm text-gray-600 mt-2 leading-relaxed" id="summary-text">Mengira sijil...</p>
                     </div>
+                    
                     <div class="text-right hidden md:block">
                         <p class="text-[10px] text-gray-400 uppercase font-bold tracking-widest">Tahun Semasa</p>
                         <p class="text-3xl font-extrabold text-indigo-600" id="current-year-display">2026</p>
@@ -113,7 +120,7 @@
             </div>
 
             <p class="text-xs text-gray-400 text-center italic mt-4">
-                SPARK e-Sijil v3.2. Sijil dijana secara digital.
+                SPARK e-Sijil v3.3. Sijil dijana secara digital.
             </p>
         </div>
     </main>
@@ -134,22 +141,18 @@
         const auth = firebase.auth();
         const appId = firebaseConfig.projectId;
 
-        // TAHUN SEMASA (Boleh tukar untuk testing, cth: 2026)
         const currentYear = new Date().getFullYear();
         document.getElementById('current-year-display').textContent = currentYear;
 
-        // UI Elements
         const loader = document.getElementById('initial-loader');
         const container = document.getElementById('content-container');
         const tableBody = document.getElementById('certificates-table-body');
         const noResults = document.getElementById('no-results-message');
 
-        // Main Logic
         auth.onAuthStateChanged(async (user) => {
             if (user) {
                 const urlParams = new URLSearchParams(window.location.search);
                 const urlIc = urlParams.get('ic');
-
                 if (urlIc) {
                     await initPage(urlIc);
                 } else {
@@ -164,13 +167,12 @@
         async function initPage(icRaw) {
             const icNumber = icRaw.trim().replace(/[^0-9]/g, '');
             try {
-                // 1. Cek Status PRO User (Atau Admin)
                 const isSparkPro = await checkUserProStatus(icNumber);
-                if(isSparkPro) document.getElementById('pro-badge').classList.remove('hidden');
-
-                // 2. Cari Sijil
+                if(isSparkPro) {
+                    document.getElementById('pro-badge').classList.remove('hidden');
+                    document.getElementById('normal-badge').classList.add('hidden');
+                }
                 await findCertificatesByIc(icNumber, isSparkPro);
-
             } catch (error) {
                 console.error("Ralat init:", error);
                 alert("Gagal memuatkan data.");
@@ -179,7 +181,7 @@
 
         async function checkUserProStatus(ic) {
             try {
-                if(ic === "890522135381") return true; // Admin Bypass
+                if(ic === "890522135381") return true; 
                 const usersRef = db.collection(`artifacts/${appId}/public/data/spark_participants`);
                 const q = usersRef.where("ic", "==", ic);
                 const snapshot = await q.get();
@@ -188,9 +190,7 @@
                     return data.isPro === true;
                 }
                 return false;
-            } catch (e) {
-                return false;
-            }
+            } catch (e) { return false; }
         }
 
         async function findCertificatesByIc(ic, isProUser) {
@@ -210,22 +210,15 @@
                 if (participant) {
                     if (!userName) userName = participant.name;
                     const status = getCertificateStatus(prog, participant, isProUser);
-                    
                     if (status.isRelevant) {
                         if (status.isLocked) totalLocked++;
                         else if (status.type === 'DOWNLOAD') totalAvailable++;
-                        
-                        actionableCertificates.push({
-                            program: prog,
-                            participant: participant,
-                            status: status
-                        });
+                        actionableCertificates.push({ program: prog, participant: participant, status: status });
                     }
                 }
             });
 
             updateSummaryCard(userName, totalAvailable, totalLocked);
-
             loader.classList.add('hidden');
             container.classList.remove('hidden');
 
@@ -240,9 +233,8 @@
         function updateSummaryCard(name, available, locked) {
             const titleEl = document.getElementById('welcome-title');
             const summaryEl = document.getElementById('summary-text');
-            
-            const shortName = name ? name.split(' ')[0].toUpperCase() : "PENGGUNA";
-            titleEl.textContent = `TAHNIAH, ${shortName}!`;
+            const fullName = name ? name.toUpperCase() : "PENGGUNA";
+            titleEl.textContent = `TAHNIAH, ${fullName}!`;
 
             if (available > 0) {
                 summaryEl.innerHTML = `Anda mempunyai <span class="font-bold text-indigo-600">${available} sijil</span> untuk dimuat turun.`;
@@ -251,39 +243,30 @@
             }
 
             if (locked > 0) {
-                 // AYAT LEMBUT DI SINI
-                 summaryEl.innerHTML += ` <br><span class="text-xs text-gray-500 mt-1 inline-block bg-gray-100 px-2 py-1 rounded border border-gray-200">
-                    Terdapat <b>${locked} sijil arkib</b>. <a href="sponsor.html" class="text-indigo-500 hover:text-indigo-700 underline font-semibold ml-1">Bantu kami selenggara sistem untuk akses?</a>
+                 summaryEl.innerHTML += ` <br><span class="text-xs text-gray-500 mt-2 inline-block bg-gray-100 px-3 py-1.5 rounded-lg border border-gray-200">
+                    Terdapat <b>${locked} sijil arkib</b> tahun lalu. <a href="sponsor.html" class="text-indigo-600 hover:text-indigo-800 underline font-bold ml-1">Bantu kami selenggara sistem untuk akses?</a>
                  </span>`;
             }
         }
 
         function getCertificateStatus(prog, part, isPro) {
             let result = { isRelevant: false, isLocked: false, html: '', btn: '', type: 'NONE' };
-            
             if (prog.eCertificateNeeded === true) {
-                // Tentukan Tahun
                 const progDate = new Date(prog.startDate);
                 const progYear = progDate.getFullYear();
                 const isPastYear = progYear < currentYear;
 
-                // --- LOGIK ARKIB / SPARK PRO ---
                 if (isPastYear && !isPro) {
                     result.isRelevant = true;
                     result.isLocked = true;
-                    
                     result.html = `<span class="px-2 py-1 rounded text-[10px] font-bold bg-gray-100 text-gray-500 border border-gray-200 uppercase tracking-wide">ARKIB ${progYear}</span>`;
-                    
-                    // BUTANG DIUBAH MENJADI LINK KE SPONSOR.HTML (Soft Approach)
                     result.btn = `<button onclick="window.location.href='sponsor.html'" class="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-white hover:bg-indigo-50 text-indigo-600 border border-indigo-200 text-[10px] font-bold rounded shadow-sm uppercase transition-all group" title="Bantu kami menyelenggara sistem ini untuk akses">
                         <svg class="w-3 h-3 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
                         Buka Akses (Bantu Sistem)
                     </button>`;
-                    
                     return result; 
                 }
 
-                // --- LOGIK TAHUN SEMASA / PRO USER ---
                 const evals = prog.evaluations || [];
                 const hasEvaluated = evals.some(e => e.ic === part.ic);
 
@@ -297,7 +280,6 @@
                 } else if (prog.endDate) {
                     const today = new Date(); today.setHours(0,0,0,0);
                     const endDate = new Date(prog.endDate + 'T00:00:00');
-
                     if (today > endDate || (prog.evaluationNeeded && hasEvaluated)) {
                         result.isRelevant = true;
                         result.type = 'DOWNLOAD';
@@ -317,17 +299,13 @@
 
         function renderTable(list) {
             tableBody.innerHTML = "";
-            window.certificateData = list; // Global data for print function
-
+            window.certificateData = list;
             list.forEach((item, idx) => {
                 const dateObj = new Date(item.program.startDate);
                 const dateStr = dateObj.toLocaleDateString('ms-MY', { day: 'numeric', month: 'short' });
                 const yearStr = dateObj.getFullYear();
-                
-                // Highlight jika tahun semasa
                 const isCurrent = yearStr === currentYear;
                 const yearBadgeClass = isCurrent ? "bg-indigo-100 text-indigo-700 border-indigo-200" : "bg-gray-100 text-gray-500 border-gray-200";
-
                 const row = `
                     <tr class="hover:bg-gray-50 border-b border-gray-100 last:border-0 transition-colors">
                         <td class="px-6 py-4 whitespace-nowrap text-xs text-gray-500 font-medium">${idx + 1}.</td>
@@ -358,7 +336,6 @@
             if(!dataItem) return alert("Ralat data.");
 
             const { program, participant } = dataItem;
-            
             const participantName = participant.name.toUpperCase();
             const participantIC = participant.ic;
             const courseName = program.name.toUpperCase();
@@ -375,57 +352,91 @@
 
             const serialNumber = `SPK/${program.key || 'GEN'}/${participantIC.slice(-4)}`;
             const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(window.location.origin + window.location.pathname)}`;
+            
+            // --- NEW: Generate Timestamp for the footer ---
+            const now = new Date();
+            const genDate = now.toLocaleDateString('ms-MY', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            const genTime = now.toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit', hour12: true });
 
             const printWindow = window.open('', '_blank');
             printWindow.document.write(`
                 <!DOCTYPE html>
-                <html>
+                <html lang="ms">
                 <head>
-                    <title>Sijil - ${participantName}</title>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>Sijil Penyertaan - ${participantName}</title>
                     <style>
                         @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;700&family=Playfair+Display:wght@700&display=swap');
-                        body { font-family: 'Montserrat', sans-serif; margin: 0; padding: 0; background: #fff; display: flex; justify-content: center; }
-                        .certificate-container { width: 210mm; height: 297mm; padding: 10mm; box-sizing: border-box; text-align: center; position: relative; }
-                        .content { border: 5px double #daa520; height: 100%; padding: 10mm; display: flex; flex-direction: column; }
-                        h1 { font-family: 'Playfair Display', serif; font-size: 36pt; color: #1a237e; margin: 20px 0; text-transform: uppercase; }
-                        .name { font-family: 'Playfair Display', serif; font-size: 24pt; font-weight: bold; color: #b8860b; margin: 10px 0; border-bottom: 1px solid #ddd; display: inline-block; padding-bottom: 5px;}
-                        .details { font-size: 14pt; margin: 10px 0; color: #333; }
-                        .title { font-size: 18pt; font-weight: bold; margin: 10px 0; }
-                        .footer { margin-top: auto; display: flex; justify-content: space-between; align-items: flex-end; text-align: left; }
-                        .signature { text-align: center; }
-                        .signature p { margin: 2px 0; font-size: 11pt; }
-                        .qr { width: 80px; height: 80px; }
-                        @media print { @page { size: A4 portrait; margin: 0; } body { margin: 0; } }
+                        body { font-family: 'Montserrat', sans-serif; font-weight: 400; margin: 0; padding: 0; background-color: #f0f2f5; display: flex; justify-content: center; align-items: center; min-height: 100vh; color: #333; }
+                        .certificate-container { width: 210mm; height: 297mm; background-color: white; padding: 12mm; box-sizing: border-box; position: relative; display: flex; flex-direction: column; text-align: center; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15); overflow: hidden; }
+                        .certificate-container::before, .certificate-container::after { content: ''; position: absolute; width: 170px; height: 170px; background-color: #4B40FF; opacity: 0.9; z-index: 1; }
+                        .certificate-container::before { top: -85px; left: -85px; transform: rotate(45deg); }
+                        .certificate-container::after { bottom: -85px; right: -85px; transform: rotate(45deg); }
+                        .certificate-content { border: 6px solid; border-image-slice: 1; border-image-source: linear-gradient(to right top, #d4af37, #4B40FF, #d4af37); height: 100%; padding: 10mm; box-sizing: border-box; position: relative; z-index: 2; display: flex; flex-direction: column; background: #ffffff; }
+                        .header-section { display: flex; justify-content: space-between; align-items: flex-start; width: 100%; height: 75px; }
+                        .qr-code { width: 65px; height: 65px; }
+                        .serial-number { font-family: 'Courier New', Courier, monospace; font-size: 14px; color: #555; margin: 0; }
+                        .logo { width: 150px; height: auto; margin: 0 auto 15px auto; }
+                        h1 { font-family: 'Playfair Display', serif; font-size: 42px; font-weight: 700; margin: 15px 0; letter-spacing: 1.5px; text-transform: uppercase; background: linear-gradient(45deg, #4B40FF, #a8871a, #4B40FF); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; text-fill-color: transparent; }
+                        .intro-text { font-size: 16px; margin-top: 25px; margin-bottom: 20px; color: #555; }
+                        .recipient-name { font-family: 'Playfair Display', serif; font-size: 30px; font-weight: 700; margin: 10px 0; color: #c59d1e; }
+                        .recipient-ic { font-size: 16px; font-weight: 500; margin-bottom: 30px; color: #444; }
+                        .event-title-label { font-size: 16px; color: #555; }
+                        .event-title { font-size: 22px; font-weight: 700; font-style: italic; margin: 10px 0; color: #111; }
+                        .event-date { font-size: 16px; font-weight: 500; margin-top: 10px; margin-bottom: 40px; color: #444; }
+                        .divider { width: 100px; height: 2px; background: linear-gradient(90deg, #d4af37, #4B40FF); margin: 0 auto 20px auto; border: none; }
+                        .signature-section { margin-top: auto; }
+                        .signatory-name { font-weight: 700; font-size: 16px; letter-spacing: 1px; text-transform: uppercase; background: linear-gradient(90deg, #4B40FF, #3a32cc); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; text-fill-color: transparent; }
+                        .signatory-title { font-size: 14px; font-weight: 500; line-height: 1.5; color: #333; }
+                        .footer-note { font-size: 10px; font-style: italic; margin-top: 25px; color: #999; }
+                        .spark-section { margin-top: 15px; }
+                        .spark-title { font-weight: 700; font-size: 14px; letter-spacing: 2px; background: linear-gradient(90deg, #4B40FF, #3a32cc); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; text-fill-color: transparent; }
+                        .spark-subtitle { font-size: 10px; color: #555; margin: 4px 0 0 0; font-style: italic; }
+                        .gen-timestamp { position: absolute; bottom: 5px; right: 10px; font-size: 9px; color: #aaa; font-family: sans-serif; }
+                        @media print {
+                            body { background-color: white; }
+                            .certificate-container { box-shadow: none; margin: 0; }
+                            @page { size: A4 portrait; margin: 0; }
+                        }
                     </style>
                 </head>
                 <body>
                     <div class="certificate-container">
-                        <div class="content">
-                            <div style="text-align: right; font-size: 10pt; font-family: monospace;">NO. SIRI: ${serialNumber}</div>
-                            <div style="margin: 0 auto;"><img src="https://i.imgur.com/FQpwGDo.png" style="width: 120px;"></div>
-                            <h1>Sijil Penyertaan</h1>
-                            <p class="details">Dengan ini disahkan bahawa</p>
-                            <div class="name">${participantName}</div>
-                            <p class="details">${participantIC}</p>
-                            <p class="details">telah menjayakan</p>
-                            <div class="title">${courseName}</div>
-                            <p class="details">${dateString}</p>
-                            <div class="footer">
-                                <div class="qr"><img src="${qrCodeUrl}" style="width:100%"></div>
-                                <div class="signature">
-                                    <p style="font-weight:bold; color:#1a237e;">MARIAM HAJI MONEK</p>
-                                    <p>PEGAWAI PENDIDIKAN DAERAH</p>
-                                    <p>PEJABAT PENDIDIKAN DAERAH MIRI</p>
-                                </div>
+                        <div class="certificate-content">
+                            <div class="header-section">
+                                <img src="${qrCodeUrl}" alt="QR Code" class="qr-code">
+                                <p class="serial-number">NO. SIRI: ${serialNumber}</p>
                             </div>
-                            <div style="font-size: 9pt; color: #888; margin-top: 20px;">Sijil ini adalah cetakan komputer. Tandatangan tidak diperlukan.</div>
+                            <img src="https://i.imgur.com/FQpwGDo.png" alt="Logo Pejabat Pendidikan Daerah Miri" class="logo">
+                            <h1>Sijil Penyertaan</h1>
+                            <p class="intro-text">Dengan ini disahkan bahawa</p>
+                            <p class="recipient-name">${participantName}</p>
+                            <p class="recipient-ic">${participantIC}</p>
+                            <p class="event-title-label">telah mengikuti</p>
+                            <p class="event-title">${courseName}</p>
+                            <p class="event-date">${dateString}</p>
+                            <hr class="divider">
+                            <div class="signature-section">
+                                <p class="signatory-name">MARIAM HAJI MONEK</p>
+                                <p class="signatory-title">PEGAWAI PENDIDIKAN DAERAH,<br>PEJABAT PENDIDIKAN DAERAH MIRI.</p>
+                            </div>
+                            <p class="footer-note">Sijil ini adalah cetakan komputer, tandatangan tidak diperlukan.</p>
+                            <div class="spark-section">
+                                <p class="spark-title">SPARK</p>
+                                <p class="spark-subtitle">Percikan Inovasi Kehadiran Digital</p>
+                            </div>
+                            <div class="gen-timestamp">Dijana: ${genDate}, ${genTime}</div>
                         </div>
                     </div>
                 </body>
                 </html>
             `);
             printWindow.document.close();
-            printWindow.onload = function() { printWindow.focus(); printWindow.print(); };
+            printWindow.onload = function() { 
+                printWindow.focus(); 
+                printWindow.print();
+            };
         }
     </script>
 </body>
