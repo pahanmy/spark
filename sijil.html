@@ -112,15 +112,15 @@
                 </div>
             </div>
 
-            <p class="text-xs text-gray-400 text-center italic">
-                Nota: Sijil tahun-tahun terdahulu hanya boleh diakses oleh akaun <span class="font-bold text-gray-600">Spark PRO</span>.
+            <p class="text-xs text-gray-400 text-center italic mt-4">
+                SPARK e-Sijil v3.2. Sijil dijana secara digital.
             </p>
         </div>
     </main>
 
     <footer class="text-center py-6 mt-auto border-t border-gray-200 bg-white">
         <p class="text-sm text-gray-600">Projek Inovasi oleh <a href="#" class="font-semibold text-indigo-500 hover:underline">Pahan</a></p>
-        <p class="text-xs text-gray-400 mt-1">Versi 3.1 (e-Sijil)</p>
+        <p class="text-xs text-gray-400 mt-1">Hak Cipta Terpelihara</p>
     </footer>
 
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
@@ -134,6 +134,7 @@
         const auth = firebase.auth();
         const appId = firebaseConfig.projectId;
 
+        // TAHUN SEMASA (Boleh tukar untuk testing, cth: 2026)
         const currentYear = new Date().getFullYear();
         document.getElementById('current-year-display').textContent = currentYear;
 
@@ -152,7 +153,7 @@
                 if (urlIc) {
                     await initPage(urlIc);
                 } else {
-                    alert("Akses tidak sah. Sila log masuk semula.");
+                    alert("Akses tidak sah. Sila log masuk semula dari Papan Pemuka.");
                     window.location.href = 'user.html';
                 }
             } else {
@@ -162,12 +163,9 @@
 
         async function initPage(icRaw) {
             const icNumber = icRaw.trim().replace(/[^0-9]/g, '');
-            
             try {
                 // 1. Cek Status PRO User (Atau Admin)
                 const isSparkPro = await checkUserProStatus(icNumber);
-                
-                // Update Badge jika Pro
                 if(isSparkPro) document.getElementById('pro-badge').classList.remove('hidden');
 
                 // 2. Cari Sijil
@@ -175,27 +173,22 @@
 
             } catch (error) {
                 console.error("Ralat init:", error);
-                alert("Gagal memuatkan data. Sila cuba lagi.");
+                alert("Gagal memuatkan data.");
             }
         }
 
         async function checkUserProStatus(ic) {
             try {
-                // Logic: Admin IC sentiasa Pro
-                if(ic === "890522135381") return true;
-
+                if(ic === "890522135381") return true; // Admin Bypass
                 const usersRef = db.collection(`artifacts/${appId}/public/data/spark_participants`);
                 const q = usersRef.where("ic", "==", ic);
                 const snapshot = await q.get();
-
                 if (!snapshot.empty) {
                     const data = snapshot.docs[0].data();
-                    // Kembalikan true jika flag isPro wujud dan true
                     return data.isPro === true;
                 }
                 return false;
             } catch (e) {
-                console.warn("Gagal cek status user, anggap biasa.", e);
                 return false;
             }
         }
@@ -215,15 +208,13 @@
                 const participant = attendance.find(p => p.ic === ic);
 
                 if (participant) {
-                    if (!userName) userName = participant.name; // Ambil nama dari rekod pertama
-                    
+                    if (!userName) userName = participant.name;
                     const status = getCertificateStatus(prog, participant, isProUser);
                     
-                    // Kita simpan program jika ia ada kaitan sijil (available atau locked)
                     if (status.isRelevant) {
                         if (status.isLocked) totalLocked++;
                         else if (status.type === 'DOWNLOAD') totalAvailable++;
-
+                        
                         actionableCertificates.push({
                             program: prog,
                             participant: participant,
@@ -233,18 +224,13 @@
                 }
             });
 
-            // Kemaskini Tajuk & Ringkasan
             updateSummaryCard(userName, totalAvailable, totalLocked);
 
-            // Render Table
             loader.classList.add('hidden');
             container.classList.remove('hidden');
 
             if (actionableCertificates.length > 0) {
-                // Sort: Tahun terkini di atas, kemudian ikut tarikh
-                actionableCertificates.sort((a, b) => {
-                    return new Date(b.program.startDate) - new Date(a.program.startDate);
-                });
+                actionableCertificates.sort((a, b) => new Date(b.program.startDate) - new Date(a.program.startDate));
                 renderTable(actionableCertificates);
             } else {
                 noResults.classList.remove('hidden');
@@ -259,68 +245,70 @@
             titleEl.textContent = `TAHNIAH, ${shortName}!`;
 
             if (available > 0) {
-                summaryEl.innerHTML = `Anda boleh memuat turun <span class="font-bold text-indigo-600 bg-indigo-50 px-1 rounded">${available} sijil</span> pada masa ini.`;
+                summaryEl.innerHTML = `Anda mempunyai <span class="font-bold text-indigo-600">${available} sijil</span> untuk dimuat turun.`;
             } else {
-                summaryEl.textContent = "Tiada sijil baharu untuk dimuat turun.";
+                summaryEl.textContent = "Tiada sijil baharu buat masa ini.";
             }
 
             if (locked > 0) {
-                 summaryEl.innerHTML += ` <br><span class="text-xs text-gray-400 italic mt-1 inline-block">(${locked} sijil tahun lepas dikunci/diarkibkan)</span>`;
+                 // AYAT LEMBUT DI SINI
+                 summaryEl.innerHTML += ` <br><span class="text-xs text-gray-500 mt-1 inline-block bg-gray-100 px-2 py-1 rounded border border-gray-200">
+                    Terdapat <b>${locked} sijil arkib</b>. <a href="sponsor.html" class="text-indigo-500 hover:text-indigo-700 underline font-semibold ml-1">Bantu kami selenggara sistem untuk akses?</a>
+                 </span>`;
             }
         }
 
         function getCertificateStatus(prog, part, isPro) {
             let result = { isRelevant: false, isLocked: false, html: '', btn: '', type: 'NONE' };
             
-            // Cek logik Sijil
             if (prog.eCertificateNeeded === true) {
-                
-                // Logic Tahun
-                const progYear = new Date(prog.startDate).getFullYear();
+                // Tentukan Tahun
+                const progDate = new Date(prog.startDate);
+                const progYear = progDate.getFullYear();
                 const isPastYear = progYear < currentYear;
 
-                // Jika tahun lepas DAN bukan pro -> KUNCI
+                // --- LOGIK ARKIB / SPARK PRO ---
                 if (isPastYear && !isPro) {
                     result.isRelevant = true;
                     result.isLocked = true;
-                    result.html = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-gray-100 text-gray-500 border border-gray-200 uppercase">DIARKIBKAN</span>`;
-                    result.btn = `<button disabled class="w-full flex items-center justify-center gap-1 px-3 py-2 bg-gray-100 text-gray-400 text-[10px] font-bold rounded cursor-not-allowed uppercase border border-gray-200">
-                        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
-                        Tahun ${progYear} (PRO)
+                    
+                    result.html = `<span class="px-2 py-1 rounded text-[10px] font-bold bg-gray-100 text-gray-500 border border-gray-200 uppercase tracking-wide">ARKIB ${progYear}</span>`;
+                    
+                    // BUTANG DIUBAH MENJADI LINK KE SPONSOR.HTML (Soft Approach)
+                    result.btn = `<button onclick="window.location.href='sponsor.html'" class="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-white hover:bg-indigo-50 text-indigo-600 border border-indigo-200 text-[10px] font-bold rounded shadow-sm uppercase transition-all group" title="Bantu kami menyelenggara sistem ini untuk akses">
+                        <svg class="w-3 h-3 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                        Buka Akses (Bantu Sistem)
                     </button>`;
+                    
                     return result; 
                 }
 
-                // Logic Biasa (Tahun Semasa ATAU Pro User)
+                // --- LOGIK TAHUN SEMASA / PRO USER ---
                 const evals = prog.evaluations || [];
                 const hasEvaluated = evals.some(e => e.ic === part.ic);
 
                 if (prog.evaluationNeeded === true && !hasEvaluated) {
-                    // Perlu Penilaian
                     result.isRelevant = true;
                     result.type = 'EVAL';
-                    result.html = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700 border border-blue-200 uppercase">Perlu Penilaian</span>`;
+                    result.html = `<span class="px-2 py-1 rounded text-[10px] font-bold bg-blue-100 text-blue-700 border border-blue-200 uppercase tracking-wide">PERLU PENILAIAN</span>`;
                     result.btn = `<a href="penilaianprogram.html?kod=${prog.evaluationKey}" class="w-full flex items-center justify-center gap-1 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold rounded shadow-sm uppercase transition-all">
                         <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg> Isi Borang
                     </a>`;
                 } else if (prog.endDate) {
-                    // Cek Tarikh Tamat
                     const today = new Date(); today.setHours(0,0,0,0);
                     const endDate = new Date(prog.endDate + 'T00:00:00');
 
                     if (today > endDate || (prog.evaluationNeeded && hasEvaluated)) {
-                        // Sijil Ready
                         result.isRelevant = true;
                         result.type = 'DOWNLOAD';
-                        result.html = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-green-100 text-green-700 border border-green-200 uppercase">Tersedia</span>`;
+                        result.html = `<span class="px-2 py-1 rounded text-[10px] font-bold bg-green-100 text-green-700 border border-green-200 uppercase tracking-wide">TERSEDIA</span>`;
                         result.btn = `<button onclick="printCertificate('${prog.key}')" class="w-full flex items-center justify-center gap-1 px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-bold rounded shadow-sm uppercase transition-all">
                             <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg> Muat Turun
                         </button>`;
                     } else {
-                        // Belum Tamat
                         result.isRelevant = true;
-                        result.html = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-yellow-100 text-yellow-700 border border-yellow-200 uppercase">Belum Tamat</span>`;
-                        result.btn = `<span class="text-[10px] text-gray-400 italic">Tunggu tamat</span>`;
+                        result.html = `<span class="px-2 py-1 rounded text-[10px] font-bold bg-yellow-100 text-yellow-700 border border-yellow-200 uppercase tracking-wide">BELUM TAMAT</span>`;
+                        result.btn = `<span class="text-[10px] text-gray-400 italic">Tunggu program tamat</span>`;
                     }
                 }
             }
@@ -329,29 +317,34 @@
 
         function renderTable(list) {
             tableBody.innerHTML = "";
-            
-            // Simpan data global untuk print
-            window.certificateData = list;
+            window.certificateData = list; // Global data for print function
 
             list.forEach((item, idx) => {
                 const dateObj = new Date(item.program.startDate);
                 const dateStr = dateObj.toLocaleDateString('ms-MY', { day: 'numeric', month: 'short' });
                 const yearStr = dateObj.getFullYear();
                 
+                // Highlight jika tahun semasa
+                const isCurrent = yearStr === currentYear;
+                const yearBadgeClass = isCurrent ? "bg-indigo-100 text-indigo-700 border-indigo-200" : "bg-gray-100 text-gray-500 border-gray-200";
+
                 const row = `
                     <tr class="hover:bg-gray-50 border-b border-gray-100 last:border-0 transition-colors">
                         <td class="px-6 py-4 whitespace-nowrap text-xs text-gray-500 font-medium">${idx + 1}.</td>
                         <td class="px-6 py-4">
-                            <div class="text-sm font-bold text-gray-800 uppercase leading-tight mb-0.5">${item.program.name}</div>
-                            <div class="flex items-center gap-2 text-[10px] text-gray-400 uppercase font-bold">
-                                <span class="bg-gray-100 px-1.5 rounded text-gray-500">${yearStr}</span>
-                                <span>${dateStr}</span>
+                            <div class="text-sm font-bold text-gray-800 uppercase leading-tight mb-1">${item.program.name}</div>
+                            <div class="flex items-center gap-2 text-[10px] font-bold uppercase">
+                                <span class="${yearBadgeClass} px-1.5 py-0.5 rounded border">${yearStr}</span>
+                                <span class="text-gray-400 flex items-center gap-1">
+                                    <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                    ${dateStr}
+                                </span>
                             </div>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-center align-middle">
                             ${item.status.html}
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-center align-middle w-40">
+                        <td class="px-6 py-4 whitespace-nowrap text-center align-middle w-48">
                             ${item.status.btn}
                         </td>
                     </tr>
@@ -360,14 +353,12 @@
             });
         }
 
-        // Fungsi Cetak (Kekal sama, cuma ambil dari window.certificateData)
         window.printCertificate = function(key) {
             const dataItem = window.certificateData.find(d => d.program.key === key);
             if(!dataItem) return alert("Ralat data.");
 
             const { program, participant } = dataItem;
             
-            // --- GENERATE HTML SIJIL (Sama macam kod sebelum ini) ---
             const participantName = participant.name.toUpperCase();
             const participantIC = participant.ic;
             const courseName = program.name.toUpperCase();
@@ -419,7 +410,6 @@
                             <p class="details">telah menjayakan</p>
                             <div class="title">${courseName}</div>
                             <p class="details">${dateString}</p>
-                            
                             <div class="footer">
                                 <div class="qr"><img src="${qrCodeUrl}" style="width:100%"></div>
                                 <div class="signature">
