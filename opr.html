@@ -1614,6 +1614,7 @@
             }
         }
 
+        // --- FUNGSI SUSUNAN KEKANANAN & RENDER JADUAL ---
         function renderAttendanceTable() {
             const tbody = document.getElementById('attendance-tbody');
             const totalCountEl = document.getElementById('att-total-count');
@@ -1631,23 +1632,59 @@
                 return;
             }
 
+            // HELPER: DAPATKAN SKOR KEKANANAN (Semakin tinggi nilai, semakin atas)
+            function getRankWeight(jawatan) {
+                jawatan = (jawatan || "").toUpperCase();
+                
+                // TIER 1: PENGURUSAN TERTINGGI (PPD / NEGERI)
+                if (jawatan.includes("PENGARAH") || jawatan.includes("PEGAWAI PENDIDIKAN DAERAH")) return 10;
+                if (jawatan.includes("TIMBALAN")) return 9;
+                
+                // TIER 2: PENTADBIR SEKOLAH (PENGETUA / GURU BESAR)
+                if (jawatan.includes("PENGETUA") || jawatan.includes("GURU BESAR")) return 8;
+
+                // TIER 3: PENOLONG KANAN
+                if (jawatan.includes("PENOLONG KANAN") || jawatan.includes("PK PENTADBIRAN") || jawatan.includes("PK HEM") || jawatan.includes("PK KO")) return 7;
+
+                // TIER 4: PEGAWAI UNIT / KETUA BIDANG
+                if (jawatan.includes("SIP") || jawatan.includes("SISC") || jawatan.includes("KETUA PENOLONG")) return 6;
+                if (jawatan.includes("KETUA BIDANG") || jawatan.includes("GURU KANAN")) return 5;
+
+                // TIER 5: GURU & LAIN-LAIN
+                if (jawatan.includes("KAUNSELOR")) return 4;
+                if (jawatan.includes("GURU")) return 3;
+                if (jawatan.includes("AKP") || jawatan.includes("PEMBANTU")) return 2;
+                
+                return 1; // Default
+            }
+
             // --- LOGIK SUSUNAN (SORTING) ---
             const sortedData = [...window.attendanceData].sort((a, b) => {
                 const stationA = (a.station || "").toUpperCase();
                 const stationB = (b.station || "").toUpperCase();
+                const jawatanA = (a.position || "").toUpperCase();
+                const jawatanB = (b.position || "").toUpperCase();
                 const nameA = (a.name || "").toUpperCase();
                 const nameB = (b.name || "").toUpperCase();
 
-                // Kata kunci untuk PPD Miri
-                const keyword = "PEJABAT PENDIDIKAN DAERAH MIRI";
-                const keywordShort = "PPD MIRI";
+                // 1. FILTER UTAMA: ORGANISASI PPD MIRI (Tuan Rumah/Atasan)
+                // Keyword: "PPD MIRI" atau "PEJABAT PENDIDIKAN DAERAH MIRI"
+                const isPpdA = (stationA.includes("PPD MIRI") || stationA.includes("PEJABAT PENDIDIKAN DAERAH MIRI"));
+                const isPpdB = (stationB.includes("PPD MIRI") || stationB.includes("PEJABAT PENDIDIKAN DAERAH MIRI"));
 
-                const isPpdA = stationA.includes(keyword) || stationA.includes(keywordShort);
-                const isPpdB = stationB.includes(keyword) || stationB.includes(keywordShort);
+                if (isPpdA && !isPpdB) return -1; // A naik atas
+                if (!isPpdA && isPpdB) return 1;  // B naik atas
 
-                if (isPpdA && !isPpdB) return -1; // A naik
-                if (!isPpdA && isPpdB) return 1;  // B naik
-                return nameA.localeCompare(nameB); // Susun ikut nama
+                // 2. FILTER KEDUA: KEKANANAN JAWATAN (Dalam kumpulan yg sama)
+                const rankA = getRankWeight(jawatanA);
+                const rankB = getRankWeight(jawatanB);
+
+                if (rankA !== rankB) {
+                    return rankB - rankA; // Susun menurun (Score tinggi di atas)
+                }
+
+                // 3. FILTER KETIGA: ABJAD NAMA
+                return nameA.localeCompare(nameB);
             });
 
             // Render Rows
@@ -1659,11 +1696,16 @@
                 const stesen = p.station ? p.station.toUpperCase() : "-";
                 const status = p.status ? p.status.toUpperCase() : "HADIR"; 
 
+                // Highlight jika PPD atau Pengetua/GB untuk mudah semak visual
+                let rowClass = "";
+                const rank = getRankWeight(jawatan);
+                if (rank >= 8) rowClass = "font-bold bg-indigo-50/50"; // Bold untuk Pengetua ke atas
+
                 tr.innerHTML = `
-                    <td class="text-center font-bold">${index + 1}</td>
-                    <td class="font-semibold">${name}</td>
-                    <td class="text-[8pt]">${jawatan}</td>
-                    <td class="text-[8pt]">${stesen}</td>
+                    <td class="text-center font-bold ${rowClass}">${index + 1}</td>
+                    <td class="font-semibold ${rowClass}">${name}</td>
+                    <td class="text-[8pt] ${rowClass}">${jawatan}</td>
+                    <td class="text-[8pt] ${rowClass}">${stesen}</td>
                     <td class="text-center text-[8pt] font-bold">${status}</td>
                 `;
                 tbody.appendChild(tr);
