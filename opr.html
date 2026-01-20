@@ -1560,81 +1560,83 @@
         }
 
         // --- NEW: FETCH ATTENDANCE ---
-        window.importProgramData = async function(progId) {
-            const prog = window.allMyPrograms.find(p => p.id === progId);
-            if(prog) {
-                document.getElementById('report-id').value = "";
-                document.getElementById('opr-serial-hidden').value = ""; // Reset Serial
-                renderBarcode("SPARK-OPR"); // Reset Barcode
-                
-                document.getElementById('in-tajuk').value = prog.name.toUpperCase();
-                document.getElementById('in-tempat').value = prog.location.toUpperCase();
-                if(prog.startDate) document.getElementById('in-tarikh-mula').value = prog.startDate;
-                if(prog.endDate) document.getElementById('in-tarikh-tamat').value = prog.endDate;
-                if(prog.description) document.getElementById('in-objektif').value = prog.description;
-                
-                // --- FETCH ATTENDANCE LOGIC ---
-                const label = document.getElementById('att-count-label');
-                label.textContent = "Sedang mencari data kehadiran...";
-                window.attendanceData = [];
-
-                try {
-                    // Try standard collection name 'spark_attendance'
-                    const attRef = collection(db, `artifacts/${appId}/public/data/spark_attendance`);
-                    const qAtt = query(attRef, where("programId", "==", progId));
-                    const snapAtt = await getDocs(qAtt);
-
-                    if (!snapAtt.empty) {
-                        snapAtt.forEach(d => window.attendanceData.push(d.data()));
-                        label.textContent = `${window.attendanceData.length} peserta dikesan.`;
-                        document.getElementById('chk-attendance').checked = true;
-                    } else {
-                        label.textContent = "Tiada kehadiran dikesan.";
-                        document.getElementById('chk-attendance').checked = false;
-                    }
-                    renderAttendanceTable();
-
-                } catch (e) {
-                    console.error("Error fetching attendance:", e);
-                    label.textContent = "Gagal memuatkan data kehadiran.";
-                }
-
-                updatePreview();
-            }
+        window.importProgramData = function(progId) {
+    const prog = window.allMyPrograms.find(p => p.id === progId);
+    
+    if(prog) {
+        // 1. Isi Maklumat Asas
+        document.getElementById('report-id').value = "";
+        document.getElementById('opr-serial-hidden').value = ""; 
+        renderBarcode("SPARK-OPR"); 
+        
+        document.getElementById('in-tajuk').value = prog.name ? prog.name.toUpperCase() : "PROGRAM TANPA NAMA";
+        document.getElementById('in-tempat').value = prog.location ? prog.location.toUpperCase() : "";
+        if(prog.startDate) document.getElementById('in-tarikh-mula').value = prog.startDate;
+        if(prog.endDate) document.getElementById('in-tarikh-tamat').value = prog.endDate;
+        if(prog.description) document.getElementById('in-objektif').value = prog.description;
+        
+        // 2. AMBIL DATA KEHADIRAN DARI ARRAY PROGRAM (FIX UTAMA)
+        const label = document.getElementById('att-count-label');
+        
+        // Semak jika array 'attendance' wujud dalam program
+        if (prog.attendance && Array.isArray(prog.attendance) && prog.attendance.length > 0) {
+            window.attendanceData = prog.attendance;
+            label.textContent = `${window.attendanceData.length} peserta dikesan.`;
+            document.getElementById('chk-attendance').checked = true;
+        } else {
+            window.attendanceData = [];
+            label.textContent = "Tiada kehadiran dikesan dalam program ini.";
+            document.getElementById('chk-attendance').checked = false;
         }
 
-        function renderAttendanceTable() {
-            const tbody = document.getElementById('attendance-tbody');
-            tbody.innerHTML = "";
-            
-            if (window.attendanceData.length === 0) {
-                tbody.innerHTML = "<tr><td colspan='4' class='text-center italic text-gray-500 text-xs py-4'>Tiada Data</td></tr>";
-                return;
-            }
+        // 3. Render Jadual & Preview
+        renderAttendanceTable();
+        updatePreview();
+    }
+}
 
-            // Sort by name if possible
-            window.attendanceData.sort((a,b) => (a.name || "").localeCompare(b.name || ""));
+      function renderAttendanceTable() {
+    const tbody = document.getElementById('attendance-tbody');
+    tbody.innerHTML = "";
+    
+    if (!window.attendanceData || window.attendanceData.length === 0) {
+        tbody.innerHTML = "<tr><td colspan='4' class='text-center italic text-gray-500 text-xs py-4'>Tiada Data Kehadiran</td></tr>";
+        return;
+    }
 
-            window.attendanceData.forEach((p, index) => {
-                const tr = document.createElement('tr');
-                const last4IC = p.ic ? p.ic.slice(-4) : "XXXX";
-                // Handle timestamp: check if it's Firestore timestamp or Date string
-                let timeStr = "-";
-                if(p.timestamp && p.timestamp.seconds) {
-                    timeStr = new Date(p.timestamp.seconds * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-                } else if (p.timestamp) {
-                    timeStr = new Date(p.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-                }
-                
-                tr.innerHTML = `
-                    <td class="text-center border border-gray-300 p-1">${index + 1}</td>
-                    <td class="uppercase font-semibold border border-gray-300 p-1">${p.name || "Peserta"}</td>
-                    <td class="text-center font-mono text-gray-600 border border-gray-300 p-1">......${last4IC}</td>
-                    <td class="text-center text-xs text-gray-500 border border-gray-300 p-1">${timeStr}</td>
-                `;
-                tbody.appendChild(tr);
+    // Susun ikut masa (terkini di atas)
+    const sortedData = [...window.attendanceData].sort((a,b) => new Date(b.time) - new Date(a.time));
+
+    sortedData.forEach((p, index) => {
+        const tr = document.createElement('tr');
+        
+        // Handle Nama
+        const name = p.name ? p.name.toUpperCase() : "PESERTA";
+        
+        // Handle IC (Tutup 8 digit depan)
+        const icRaw = p.ic || "000000000000";
+        const last4IC = icRaw.length > 4 ? icRaw.slice(-4) : icRaw;
+
+        // Handle Masa
+        let timeStr = "-";
+        if (p.time) {
+            // Tukar masa ke format Malaysia yang mudah dibaca
+            timeStr = new Date(p.time).toLocaleTimeString('ms-MY', {
+                hour: '2-digit', 
+                minute:'2-digit', 
+                hour12: true
             });
         }
+        
+        tr.innerHTML = `
+            <td class="text-center border border-gray-300 p-1">${index + 1}</td>
+            <td class="uppercase font-semibold border border-gray-300 p-1 text-[9px]">${name}</td>
+            <td class="text-center font-mono text-gray-600 border border-gray-300 p-1 text-[9px]">......${last4IC}</td>
+            <td class="text-center text-xs text-gray-500 border border-gray-300 p-1 text-[9px]">${timeStr}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
 
         // Initialize
         updatePreview();
