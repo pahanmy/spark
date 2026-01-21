@@ -24,15 +24,17 @@
         }
 
        /* A4 Paper Settings - DIKEMASKINI */
+/* A4 Paper Settings - DIKEMASKINI */
+/* Pastikan height 297mm dan overflow hidden supaya sistem kita yang kawal page break */
 .a4-paper {
     width: 210mm; 
-    min-height: 297mm; 
-    height: auto; /* UBAH SINI: Supaya kertas boleh memanjang ke bawah */
-    padding-left: 15mm; padding-right: 15mm; padding-bottom: 10mm; padding-top: 10mm;
+    height: 297mm; /* KEKALKAN FIX A4 */
+    min-height: 297mm;
+    padding: 15mm; /* Standard padding */
     margin: 0 auto; margin-bottom: 20px;
     background: white; box-shadow: 0 0 25px rgba(0,0,0,0.1);
     font-family: Arial, Helvetica, sans-serif; color: black; position: relative;
-    overflow: visible; /* UBAH SINI: Supaya nama tak kena potong */
+    overflow: hidden; /* Sembunyikan limpahan, kita akan buat page baru */
     display: flex; flex-direction: column;
 }
 
@@ -1299,7 +1301,7 @@
             const showAtt = document.getElementById('chk-attendance').checked;
             if(!showAtt) attPage.classList.add('hidden'); // Ensure hidden
             
-          const opt = { 
+       const opt = { 
     margin: [10, 0, 10, 0], /* Tambah sedikit margin atas/bawah */
     filename: fileName, 
     image: { type: 'jpeg', quality: 0.98 }, 
@@ -1499,7 +1501,124 @@
                 document.getElementById('att-count-label').textContent = "Tiada data kehadiran tersimpan.";
                 document.getElementById('chk-attendance').checked = false;
             }
-            renderAttendanceTable();
+           // --- FUNGSI SUSUNAN & RENDER JADUAL (AUTO PAGINATION) ---
+function renderAttendanceTable() {
+    // 1. Bersihkan page tambahan lama jika ada
+    document.querySelectorAll('.generated-att-page').forEach(el => el.remove());
+    
+    // Ambil template page original
+    const templatePage = document.getElementById('attendance-page');
+    const pdfWrapper = document.getElementById('pdf-wrapper');
+    
+    // Jika tiada data, papar page kosong
+    if (!window.attendanceData || window.attendanceData.length === 0) {
+        templatePage.classList.remove('hidden');
+        document.getElementById('attendance-tbody').innerHTML = "<tr><td colspan='5' class='text-center italic text-gray-500 py-4'>Tiada Data Kehadiran</td></tr>";
+        document.getElementById('att-total-count').textContent = "0";
+        return;
+    }
+
+    // Sembunyikan template asal (kita akan guna clone sahaja supaya clean)
+    templatePage.classList.add('hidden');
+
+    // --- LOGIK SUSUNAN (SORTING) ---
+    // (Kod sorting sama seperti sebelum ini)
+    const sortedData = [...window.attendanceData].sort((a, b) => {
+        const stationA = (a.station || "").toUpperCase();
+        const stationB = (b.station || "").toUpperCase();
+        const jawatanA = (a.position || "").toUpperCase();
+        const jawatanB = (b.position || "").toUpperCase();
+        const nameA = (a.name || "").toUpperCase();
+        const nameB = (b.name || "").toUpperCase();
+
+        function getRankWeight(jawatan) {
+            if (jawatan.includes("PENGARAH") || jawatan.includes("PEGAWAI PENDIDIKAN DAERAH")) return 10;
+            if (jawatan.includes("TIMBALAN")) return 9;
+            if (jawatan.includes("PENGETUA") || jawatan.includes("GURU BESAR")) return 8;
+            if (jawatan.includes("PENOLONG KANAN") || jawatan.includes("PK")) return 7;
+            if (jawatan.includes("SIP") || jawatan.includes("SISC") || jawatan.includes("KETUA PENOLONG")) return 6;
+            if (jawatan.includes("KB") || jawatan.includes("GK") || jawatan.includes("BIDANG")) return 5;
+            if (jawatan.includes("KAUNSELOR")) return 4;
+            if (jawatan.includes("GURU")) return 3;
+            if (jawatan.includes("AKP") || jawatan.includes("PEMBANTU")) return 2;
+            return 1;
+        }
+
+        const isPpdA = (stationA.includes("PPD MIRI") || stationA.includes("PEJABAT PENDIDIKAN DAERAH MIRI"));
+        const isPpdB = (stationB.includes("PPD MIRI") || stationB.includes("PEJABAT PENDIDIKAN DAERAH MIRI"));
+
+        if (isPpdA && !isPpdB) return -1;
+        if (!isPpdA && isPpdB) return 1;
+
+        const rankA = getRankWeight(jawatanA);
+        const rankB = getRankWeight(jawatanB);
+
+        if (rankA !== rankB) return rankB - rankA;
+        return nameA.localeCompare(nameB);
+    });
+
+    // --- LOGIK PAGINATION (PECAHKAN PAGE) ---
+    const rowsPerPage = 23; // Tetapkan had baris per page (23-25 sesuai untuk A4)
+    
+    // Loop mengikut pecahan (chunk)
+    for (let i = 0; i < sortedData.length; i += rowsPerPage) {
+        const chunk = sortedData.slice(i, i + rowsPerPage);
+        
+        // Clone template page
+        const newPage = templatePage.cloneNode(true);
+        newPage.id = ""; // Buang ID supaya tak duplicate
+        newPage.classList.add('generated-att-page'); // Tambah class untuk rujukan
+        newPage.classList.remove('hidden'); // Tunjukkan page ini
+        
+        // Update maklumat dalam page baru ini
+        const tbody = newPage.querySelector('tbody');
+        tbody.id = ""; // Buang ID tbody
+        tbody.innerHTML = ""; // Kosongkan content lama
+        
+        // Update Tajuk & Tarikh pada setiap page
+        newPage.querySelector('#att-subtitle').textContent = document.getElementById('att-subtitle').textContent;
+        const printDateEl = newPage.querySelector('#att-print-date');
+        const now = new Date();
+        printDateEl.textContent = now.toLocaleDateString('ms-MY', {day: '2-digit', month: '2-digit', year: 'numeric'});
+
+        // Render baris untuk page ini sahaja
+        chunk.forEach((p, index) => {
+            const globalIndex = i + index + 1; // Nombor running (1, 2, ... 62)
+            const tr = document.createElement('tr');
+            
+            const name = p.name ? p.name.toUpperCase() : "PESERTA";
+            const jawatan = p.position ? p.position.toUpperCase() : "-";
+            const stesen = p.station ? p.station.toUpperCase() : "-";
+            const status = p.status ? p.status.toUpperCase() : "HADIR"; 
+
+            let rowClass = "";
+            // Helper function rank perlu ada dalam scope atau global, 
+            // tapi untuk mudah kita check simple string match je sini
+            if (jawatan.includes("PENGETUA") || jawatan.includes("GURU BESAR") || jawatan.includes("PENGARAH") || jawatan.includes("PEGAWAI PENDIDIKAN")) {
+                 rowClass = "font-bold bg-indigo-50/50";
+            }
+
+            tr.innerHTML = `
+                <td class="text-center font-bold ${rowClass}">${globalIndex}</td>
+                <td class="font-semibold ${rowClass}">${name}</td>
+                <td class="text-[8pt] ${rowClass}">${jawatan}</td>
+                <td class="text-[8pt] ${rowClass}">${stesen}</td>
+                <td class="text-center text-[8pt] font-bold">${status}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        // Update Jumlah Besar (Hanya perlu tunjuk di page terakhir atau setiap page pun boleh)
+        const countEl = newPage.querySelector('#att-total-count');
+        countEl.textContent = sortedData.length; // Jumlah keseluruhan
+        
+        // Jika bukan page terakhir, mungkin nak hide bahagian 'Jumlah Kehadiran' di bawah?
+        // (Optional: biarkan sahaja ia berulang)
+
+        // Masukkan page baru ke dalam wrapper
+        pdfWrapper.appendChild(newPage);
+    }
+}
 
             // Restore Settings
             window.bgUrl = report.backgroundUrl || "";
