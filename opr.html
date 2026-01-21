@@ -804,18 +804,21 @@
             updatePreview();
         }
 
-        onAuthStateChanged(auth, async (user) => {
-            const urlParams = new URLSearchParams(window.location.search);
-            window.currentUserIc = urlParams.get('ic') || localStorage.getItem('user_ic');
-            if (window.currentUserIc) {
-                await loadUserAndPrograms();
-                loadSavedReports();
-                setDefaultDates(); 
-                initSignaturePad(); 
-            } else {
-                window.location.href = 'index.html';
-            }
-        });
+       onAuthStateChanged(auth, async (user) => {
+    const urlParams = new URLSearchParams(window.location.search);
+    window.currentUserIc = urlParams.get('ic') || localStorage.getItem('user_ic');
+    if (window.currentUserIc) {
+        // PEMBETULAN: Panggil ini DAHULU supaya canvas sedia sebelum data masuk
+        initSignaturePad(); 
+        
+        await loadUserAndPrograms();
+        loadSavedReports();
+        setDefaultDates(); 
+        // initSignaturePad(); <--- (PADAM YANG LAMA DI BAWAH INI)
+    } else {
+        window.location.href = 'index.html';
+    }
+});
 
         // --- BARCODE SERIAL GENERATOR ---
         function generateSerial() {
@@ -984,29 +987,33 @@
             }
         }
 
-        window.toggleSignature = function() {
-            const isChecked = document.getElementById('chk-signature').checked;
-            const container = document.getElementById('sig-input-container');
-            const outSigImg = document.getElementById('out-sig-img');
+       window.toggleSignature = function() {
+    const isChecked = document.getElementById('chk-signature').checked;
+    const container = document.getElementById('sig-input-container');
+    const outSigImg = document.getElementById('out-sig-img');
 
-            if(isChecked) {
-                container.classList.remove('hidden');
-                setTimeout(() => {
-                    const rect = sigCanvas.getBoundingClientRect();
-                    if(sigCanvas.width !== rect.width) {
-                         sigCanvas.width = rect.width; 
-                         sigCanvas.height = rect.height;
-                    }
-                }, 100);
-
-                if(window.sigUrl || window.sigFile || isSignatureDrawn) {
-                    outSigImg.classList.remove('hidden');
+    if(isChecked) {
+        container.classList.remove('hidden');
+        
+        // Safety Check: Pastikan sigCanvas wujud sebelum baca saiz
+        setTimeout(() => {
+            if (typeof sigCanvas !== 'undefined' && sigCanvas !== null) {
+                const rect = sigCanvas.getBoundingClientRect();
+                if(sigCanvas.width !== rect.width) {
+                        sigCanvas.width = rect.width; 
+                        sigCanvas.height = rect.height;
                 }
-            } else {
-                container.classList.add('hidden');
-                outSigImg.classList.add('hidden');
             }
+        }, 100);
+
+        if(window.sigUrl || window.sigFile || isSignatureDrawn) {
+            outSigImg.classList.remove('hidden');
         }
+    } else {
+        container.classList.add('hidden');
+        outSigImg.classList.add('hidden');
+    }
+}
 
         window.handleSigUpload = function(input) {
             if (input.files && input.files[0]) {
