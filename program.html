@@ -183,6 +183,30 @@
                                 </div>
                         </div>
                         </div>
+
+
+<div class="lg:col-span-2 space-y-6">
+    <div class="card p-6">...</div>
+
+    <div id="early-bird-card" class="card p-6 hidden bg-gradient-to-r from-indigo-50 to-white border border-indigo-100">
+        <div class="flex items-center gap-2 mb-4 border-b border-indigo-100 pb-2">
+            <div class="bg-yellow-100 p-1.5 rounded-full">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-yellow-600" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1.323l3.954 1.582 1.699-3.181a1 1 0 011.827 1.035l-1.74 3.258 2.372.95a1 1 0 01-.73 1.868l-2.371-.948.834 5.922a1 1 0 01-1.92.518l-.834-5.923-2.922-1.168a1 1 0 01-1.12-1.572l1.699-3.181L11 4.323V3a1 1 0 01-1-1zm-5 6a1 1 0 011-1h.03a3.502 3.502 0 012.33 1.33L7.7 9.42a2.5 2.5 0 00-1.67-.39H6a1 1 0 01-1-1z" clip-rule="evenodd" />
+                </svg>
+            </div>
+            <div>
+                <h3 class="text-lg font-bold text-gray-800">Top 3 Terawal</h3>
+                <p class="text-xs text-gray-500">Penghargaan peserta paling pantas mendaftar.</p>
+            </div>
+        </div>
+        <div id="early-bird-list" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            </div>
+    </div>
+
+    <div id="manual-checkin-card" class="card p-6 hidden">...</div>
+
+                    
                     <div id="manual-checkin-card" class="card p-6 hidden">
                         <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-indigo-500" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd" /></svg>Daftar Masuk Manual</h3>
                         <div class="flex">
@@ -639,7 +663,8 @@ function initializeDashboard(programKey) {
                     renderInfographic(); 
                     renderSchoolInfographic(); 
                     switchInfographic('keseluruhan'); 
-
+// TAMBAH BARIS INI:
+renderEarlyBirds(); // <--- PANGGIL FUNGSI DI SINI
                     document.getElementById('loading-dashboard').classList.add('hidden');
                     document.getElementById('full-dashboard-content').classList.remove('hidden');
                     
@@ -1518,6 +1543,58 @@ function generateAvatar(participant) {
                     parent.insertBefore(card.nextElementSibling, card);
                 }
             }
+        }
+
+
+
+        // FUNGSI RENDER TOP 3 (ANUGERAH)
+        function renderEarlyBirds() {
+            if (!currentLoadedProgram || !currentLoadedProgram.attendance || currentLoadedProgram.attendance.length === 0) {
+                document.getElementById('early-bird-card').classList.add('hidden');
+                return;
+            }
+
+            // 1. Susun ikut masa (Awal ke Lewat)
+            const sorted = [...currentLoadedProgram.attendance].sort((a, b) => new Date(a.time) - new Date(b.time));
+            const top3 = sorted.slice(0, 3); // Ambil 3 orang pertama
+
+            const container = document.getElementById('early-bird-list');
+            const card = document.getElementById('early-bird-card');
+            container.innerHTML = '';
+            
+            // Konfigurasi visual untuk 1, 2, 3
+            const medals = [
+                { color: 'bg-yellow-50 border-yellow-200', text: 'text-yellow-800', icon: '🥇', label: 'JUARA PANTAS' },
+                { color: 'bg-gray-50 border-gray-200', text: 'text-gray-700', icon: '🥈', label: 'NAIB JUARA' },
+                { color: 'bg-orange-50 border-orange-200', text: 'text-orange-800', icon: '🥉', label: 'KETIGA' }
+            ];
+
+            top3.forEach((p, index) => {
+                const style = medals[index];
+                const timeStr = new Date(p.time).toLocaleTimeString('ms-MY', {hour: '2-digit', minute:'2-digit', second:'2-digit'});
+                
+                // Gunakan fungsi avatar sedia ada
+                const avatarHtml = generateAvatar(p); 
+
+                const html = `
+                    <div class="${style.color} border rounded-xl p-4 flex flex-col items-center text-center relative shadow-sm transition-transform hover:scale-105">
+                        <div class="absolute -top-3 bg-white px-2 py-0.5 rounded-full text-xl shadow-sm border border-gray-100">${style.icon}</div>
+                        <div class="mt-2 mb-2 scale-110">
+                            ${avatarHtml}
+                        </div>
+                        <h4 class="font-bold text-sm ${style.text} line-clamp-1 w-full" title="${p.name}">${p.name.toUpperCase()}</h4>
+                        <p class="text-[10px] text-gray-500 uppercase font-semibold mt-0.5 line-clamp-1 w-full">${p.position || '-'}</p>
+                        <p class="text-[10px] text-gray-400 uppercase line-clamp-1 w-full mb-2">${p.station || '-'}</p>
+                        <span class="bg-white/80 px-2 py-1 rounded text-[10px] font-mono font-bold text-gray-600 border border-gray-200">
+                            ${timeStr}
+                        </span>
+                    </div>
+                `;
+                container.innerHTML += html;
+            });
+
+            // Tunjuk kad jika ada data
+            card.classList.remove('hidden');
         }
 
         // EXPOSE FUNGSI KE WINDOW (Supaya HTML onclick boleh baca)
