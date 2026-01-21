@@ -569,47 +569,95 @@
             document.querySelector('.a4-paper').style.fontSize = window.currentFontSize + 'pt';
         }
 
-        window.updatePreview = function() {
-            document.getElementById('out-kepada').innerText = document.getElementById('in-kepada').value; // InnerText respects newlines
-            document.getElementById('out-daripada').textContent = document.getElementById('in-daripada').value;
-            
-            // Logic Salinan Kepada
-            const salinan = document.getElementById('in-salinan').value;
-            if(salinan) {
-                document.getElementById('out-salinan').textContent = salinan;
-                document.getElementById('row-salinan').classList.remove('hidden');
-            } else {
-                document.getElementById('row-salinan').classList.add('hidden');
-            }
+       window.updatePreview = function() {
+    // SENARAI ID YANG PERLU DISEMAK
+    const map = ['in-kepada', 'in-daripada', 'in-salinan', 'in-rujukan', 'in-perkara', 'in-nama', 'in-kandungan'];
+    
+    map.forEach(id => {
+        const target = id.replace('in-', 'out-'); // Tukar ID in- kepda out-
+        const el = document.getElementById(target); // Elemen Preview (Surat)
+        const input = document.getElementById(id);  // Elemen Input (Borang)
 
-            document.getElementById('out-rujukan').textContent = document.getElementById('in-rujukan').value;
-            document.getElementById('out-perkara').textContent = document.getElementById('in-perkara').value;
-            document.getElementById('out-nama').textContent = document.getElementById('in-nama').value;
-            document.getElementById('out-kandungan').innerText = document.getElementById('in-kandungan').value;
-
-            const phone = document.getElementById('in-phone').value;
-            const email = document.getElementById('in-email').value;
-            if(phone) { document.getElementById('out-phone').textContent = phone; document.getElementById('row-phone').classList.remove('hidden'); } else { document.getElementById('row-phone').classList.add('hidden'); }
-            if(email) { document.getElementById('out-email').textContent = email; document.getElementById('row-email').classList.remove('hidden'); } else { document.getElementById('row-email').classList.add('hidden'); }
-
-            const dVal = document.getElementById('in-tarikh').value;
-            if(dVal) {
-                const d = new Date(dVal);
-                const monthNames = ["Januari", "Februari", "Mac", "April", "Mei", "Jun", "Julai", "Ogos", "September", "Oktober", "November", "Disember"];
-                document.getElementById('out-tarikh').textContent = `${d.getDate()} ${monthNames[d.getMonth()]} ${d.getFullYear()}`;
-            }
-
-            const showQr = document.getElementById('chk-show-qr').checked;
-            const qrBox = document.getElementById('out-qr-box');
-            if(showQr) {
-                qrBox.classList.remove('hidden');
-                document.getElementById('out-qr-label').textContent = document.getElementById('in-qr-label').value;
-                const qrMode = document.querySelector('input[name="qr-mode"]:checked').value;
-                let qrData = (qrMode === 'spark' && window.selectedProgram) ? `https://myqrhadir.web.app/attendance?id=${window.selectedProgram.id}` : (document.getElementById('in-qr-link').value || "https://google.com");
-                document.getElementById('out-qr-img').src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(qrData)}`;
-            } else { qrBox.classList.add('hidden'); }
+        // PEMBAIKAN: Pastikan KEDUA-DUA elemen wujud sebelum ambil .value
+        if(el && input) {
+            el.innerText = input.value;
         }
+    });
 
+    // --- LOGIK PAPARAN SALINAN KEPADA ---
+    const salinanInput = document.getElementById('in-salinan');
+    const salinanRow = document.getElementById('row-salinan');
+    if(salinanInput && salinanRow) {
+        if(salinanInput.value) {
+            document.getElementById('out-salinan').textContent = salinanInput.value;
+            salinanRow.classList.remove('hidden');
+        } else {
+            salinanRow.classList.add('hidden');
+        }
+    }
+
+    // --- LOGIK KONTAK (TEL & EMAIL) ---
+    const phoneInput = document.getElementById('in-phone');
+    const emailInput = document.getElementById('in-email');
+    const rowPhone = document.getElementById('row-phone');
+    const rowEmail = document.getElementById('row-email');
+
+    // Semak kewujudan elemen sebelum guna
+    if(phoneInput && rowPhone) {
+        if(phoneInput.value) { 
+            document.getElementById('out-phone').textContent = phoneInput.value; 
+            rowPhone.classList.remove('hidden'); 
+        } else { 
+            rowPhone.classList.add('hidden'); 
+        }
+    }
+
+    if(emailInput && rowEmail) {
+        if(emailInput.value) { 
+            document.getElementById('out-email').textContent = emailInput.value; 
+            rowEmail.classList.remove('hidden'); 
+        } else { 
+            rowEmail.classList.add('hidden'); 
+        }
+    }
+
+    // --- LOGIK TARIKH ---
+    const dateInput = document.getElementById('in-tarikh');
+    if(dateInput && dateInput.value) {
+        const d = new Date(dateInput.value);
+        const monthNames = ["Januari", "Februari", "Mac", "April", "Mei", "Jun", "Julai", "Ogos", "September", "Oktober", "November", "Disember"];
+        document.getElementById('out-tarikh').textContent = `${d.getDate()} ${monthNames[d.getMonth()]} ${d.getFullYear()}`;
+    }
+
+    // --- LOGIK QR CODE ---
+    const chkQr = document.getElementById('chk-show-qr');
+    const qrBox = document.getElementById('out-qr-box');
+    
+    if(chkQr && qrBox) {
+        if(chkQr.checked) {
+            qrBox.classList.remove('hidden');
+            const qrLabelInput = document.getElementById('in-qr-label');
+            if(qrLabelInput) document.getElementById('out-qr-label').textContent = qrLabelInput.value;
+            
+            // Dapatkan mod QR
+            let qrData = "https://google.com"; // Default
+            const qrModeEl = document.querySelector('input[name="qr-mode"]:checked');
+            
+            if(qrModeEl) {
+                if(qrModeEl.value === 'spark' && window.selectedProgram) {
+                    qrData = `https://myqrhadir.web.app/attendance?id=${window.selectedProgram.id}`;
+                } else {
+                    const linkInput = document.getElementById('in-qr-link');
+                    if(linkInput) qrData = linkInput.value || "https://google.com";
+                }
+            }
+            
+            document.getElementById('out-qr-img').src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(qrData)}`;
+        } else { 
+            qrBox.classList.add('hidden'); 
+        }
+    }
+}
         window.updateHeader = function() {
             document.getElementById('out-org-name').textContent = document.getElementById('in-org-name').value;
             document.getElementById('out-address-1').textContent = document.getElementById('in-address-1').value;
