@@ -89,7 +89,6 @@
         }
         .memo-detail-label { font-weight: normal; }
         .memo-detail-sep { text-align: center; }
-        /* UBAH DI SINI: font-weight normal (tak bold) */
         .memo-detail-val { font-weight: normal; } 
         
         /* QR Code Box */
@@ -213,11 +212,19 @@
                     <div class="grid grid-cols-2 gap-3">
                         <div>
                             <label class="text-[10px] font-bold text-gray-500 uppercase">Daripada</label>
-                            <input type="text" id="in-daripada" oninput="updatePreview()" class="w-full text-xs border border-gray-300 rounded p-2 focus:ring-pink-500" placeholder="Contoh: Pegawai PPD">
+                            <input type="text" id="in-daripada" oninput="updatePreview()" class="w-full text-xs border border-gray-300 rounded p-2 focus:ring-pink-500" placeholder="Auto-Fill dari Profil">
                         </div>
                         <div>
                             <label class="text-[10px] font-bold text-gray-500 uppercase">Tarikh</label>
                             <input type="date" id="in-tarikh" oninput="updatePreview()" class="w-full text-xs border border-gray-300 rounded p-2 focus:ring-pink-500">
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-2 bg-white p-2 rounded border border-gray-100">
+                        <input type="checkbox" id="chk-salinan" class="w-4 h-4 text-pink-600 rounded" onchange="toggleSalinan()" checked>
+                        <div class="flex-grow">
+                             <label class="text-[10px] font-bold text-gray-500 uppercase block">Salinan Kepada</label>
+                             <input type="text" id="in-salinan" oninput="updatePreview()" class="w-full text-xs border-0 border-b border-gray-300 focus:ring-0 px-0 py-0.5 bg-transparent" value="Pegawai Pendidikan Daerah Miri">
                         </div>
                     </div>
                 </div>
@@ -308,7 +315,7 @@
                         </div>
                         <input type="text" id="in-qr-link" oninput="updatePreview()" class="hidden w-full text-xs border border-green-300 rounded p-2 bg-white" placeholder="Tampal Pautan (URL) di sini...">
                         <p id="spark-qr-hint" class="text-[9px] text-green-600 italic">Link kehadiran program SPARK yang dipilih.</p>
-                        <input type="text" id="in-qr-label" oninput="updatePreview()" class="w-full text-xs border border-gray-300 rounded p-2 bg-white mt-1 uppercase" value="IMBAS UNTUK PENGESAHAN KEHADIRAN">
+                        <input type="text" id="in-qr-label" oninput="updatePreview()" class="w-full text-xs border border-gray-300 rounded p-2 bg-white mt-1 uppercase" value="IMBAS UNTUK KEHADIRAN">
                     </div>
                 </div>
             </div>
@@ -362,10 +369,6 @@
                 <div class="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
                     <label class="block text-xs font-bold text-gray-700 uppercase mb-2">Pilihan Tambahan</label>
                     <div class="space-y-2">
-                        <div class="flex flex-col">
-                            <label class="text-[10px] font-bold text-gray-500 uppercase">Salinan Kepada</label>
-                            <input type="text" id="in-salinan" oninput="updatePreview()" class="w-full text-xs border border-gray-300 rounded p-2 focus:ring-pink-500" placeholder="Contoh: Penyelaras EKSA">
-                        </div>
                          <div class="flex flex-col">
                            <label class="text-[10px] font-bold text-gray-500 uppercase">No. Rujukan</label>
                            <input type="text" id="in-rujukan" oninput="updatePreview()" class="w-full text-xs border border-gray-300 rounded p-2 focus:ring-pink-500" value="PPDM.100-7/6/1 (     )">
@@ -497,6 +500,18 @@
                 badge.textContent = uData.isPro ? "AKAUN PRO" : "AKAUN BIASA";
                 if(uData.isPro) badge.className += " bg-yellow-100 text-yellow-800 border-yellow-300";
                 if (uData.defaultSignatureUrl) { window.defaultSigUrl = uData.defaultSignatureUrl; document.getElementById('btn-restore-sig').classList.remove('hidden'); }
+                
+                // --- KEMASKINI AUTO-FILL DARIPADA ---
+                const jawatan = uData.position || uData.jawatan || "Pegawai";
+                const unit = uData.unit ? uData.unit.replace("UNIT ", "") : "";
+                
+                // Format: "Pegawai, Sektor Perancangan" atau "Pegawai PPD"
+                let daripadaText = jawatan;
+                if(unit) daripadaText += `, ${unit}`;
+                else if(uData.sector) daripadaText += `, ${uData.sector}`;
+                
+                document.getElementById('in-daripada').value = daripadaText.toUpperCase();
+                // ------------------------------------
             }
             const progRef = collection(db, `artifacts/${appId}/public/data/spark_programs`);
             const q1 = query(progRef, where("createdBy", "==", window.currentUserIc));
@@ -516,6 +531,11 @@
         window.importProgramData = function(progId) { const prog = window.allMyPrograms.find(p => p.id === progId); window.selectedProgram = prog; if(prog) { document.getElementById('in-perkara').value = prog.name ? prog.name.toUpperCase() : ""; let points = ""; if(prog.startDate) points += `- Tarikh: ${prog.startDate}\n`; if(prog.location) points += `- Tempat: ${prog.location}\n`; document.getElementById('in-ai-points').value = points; document.getElementById('in-memo-type').value = "jemputan"; document.getElementById('chk-show-qr').checked = true; const radios = document.getElementsByName('qr-mode'); for(let r of radios) { if(r.value === 'spark') r.checked = true; } toggleQrMode(); } updatePreview(); }
         window.toggleQrMode = function() { const mode = document.querySelector('input[name="qr-mode"]:checked').value; const inputLink = document.getElementById('in-qr-link'); const hint = document.getElementById('spark-qr-hint'); if (mode === 'spark') { inputLink.classList.add('hidden'); hint.classList.remove('hidden'); } else { inputLink.classList.remove('hidden'); hint.classList.add('hidden'); } updatePreview(); }
         
+        // --- TOGGLE SALINAN KEPADA ---
+        window.toggleSalinan = function() {
+             updatePreview();
+        }
+
         // --- AI LIMIT 5x & STRICT PPD FORMAT + SMART INDENT ---
         window.askAIMemo = async function() { 
             const btn = event.currentTarget; 
@@ -620,12 +640,14 @@
 
             const metaDiv = document.createElement('div');
             const salinanVal = document.getElementById('in-salinan').value;
+            const chkSalinan = document.getElementById('chk-salinan').checked;
             const dateInput = document.getElementById('in-tarikh');
+            
             metaDiv.innerHTML = `
                 <table class="memo-meta-table">
                     <tr><td class="meta-label">Kepada</td><td class="meta-sep">:</td><td class="meta-val font-bold">${document.getElementById('in-kepada').value}</td></tr>
                     <tr><td class="meta-label">Daripada</td><td class="meta-sep">:</td><td class="meta-val">${document.getElementById('in-daripada').value}</td></tr>
-                    ${salinanVal ? `<tr><td class="meta-label">Salinan Kepada</td><td class="meta-sep">:</td><td class="meta-val">${salinanVal}</td></tr>` : ''}
+                    ${chkSalinan && salinanVal ? `<tr><td class="meta-label">Salinan Kepada</td><td class="meta-sep">:</td><td class="meta-val">${salinanVal}</td></tr>` : ''}
                     <tr><td class="meta-label">No. Rujukan</td><td class="meta-sep">:</td><td class="meta-val">${document.getElementById('in-rujukan').value}</td></tr>
                     <tr><td class="meta-label">Tarikh</td><td class="meta-sep">:</td><td class="meta-val">${dateInput && dateInput.value ? formatDate(dateInput.value) : ''}</td></tr>
                     <tr><td class="meta-label">Perkara</td><td class="meta-sep">:</td><td class="meta-val font-bold uppercase" style="text-align:justify;">${document.getElementById('in-perkara').value}</td></tr>
