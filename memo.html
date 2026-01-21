@@ -89,7 +89,8 @@
         }
         .memo-detail-label { font-weight: normal; }
         .memo-detail-sep { text-align: center; }
-        .memo-detail-val { font-weight: bold; } /* Boleh boldkan nilai jika mahu */
+        /* UBAH DI SINI: font-weight normal (tak bold) */
+        .memo-detail-val { font-weight: normal; } 
         
         /* QR Code Box */
         .qr-floating-box {
@@ -307,7 +308,7 @@
                         </div>
                         <input type="text" id="in-qr-link" oninput="updatePreview()" class="hidden w-full text-xs border border-green-300 rounded p-2 bg-white" placeholder="Tampal Pautan (URL) di sini...">
                         <p id="spark-qr-hint" class="text-[9px] text-green-600 italic">Link kehadiran program SPARK yang dipilih.</p>
-                        <input type="text" id="in-qr-label" oninput="updatePreview()" class="w-full text-xs border border-gray-300 rounded p-2 bg-white mt-1 uppercase" value="IMBAS UNTUK KEHADIRAN">
+                        <input type="text" id="in-qr-label" oninput="updatePreview()" class="w-full text-xs border border-gray-300 rounded p-2 bg-white mt-1 uppercase" value="IMBAS UNTUK PENGESAHAN KEHADIRAN">
                     </div>
                 </div>
             </div>
@@ -550,17 +551,30 @@
             else if (type === 'arahan') toneContext = "Ini adalah ARAHAN PENTADBIRAN PPD."; 
             else toneContext = "Ini adalah MEMO MAKLUMAN DALAMAN PPD."; 
             
-            const systemPrompt = `Anda adalah pegawai tadbir di Pejabat Pendidikan Daerah Miri. ${toneContext} Gunakan Bahasa Melayu Baku. 
-            ARAHAN FORMAT PENTING:
-            1. ARAHAN PANJANG: ${lengthInstruction}
-            2. JANGAN tulis 'Tuan,'. Mula terus dengan '2.' (kerana Tuan sudah ada).
-            3. Jika ada butiran seperti Tarikh, Masa, Tempat: Tulis dalam baris baru. Format: "Tarikh : 20 Mei 2024". JANGAN guna bullet point, guna format senarai ini.
-            4. Akhiri dengan 'Sekian, terima kasih.'`; 
+            const systemPrompt = `Anda adalah pegawai tadbir di Pejabat Pendidikan Daerah Miri. Fokus penulisan adalah untuk memo dalaman sesama warga PPD Miri. ${toneContext} Gunakan Bahasa Melayu Baku, formal. 
             
-            const userPrompt = `Tulis isi memo bertajuk "${tajuk}". Poin: ${points}. Mula dari perenggan 2.`; 
+            ARAHAN PENTING:
+            1. ARAHAN PANJANG TEKS: ${lengthInstruction}
+            2. JANGAN tulis 'Tuan,' atau 'Dengan segala hormatnya...'. Ia sudah ada dalam borang.
+            3. MULA TERUS dengan nombor '2.' dan isi kandungan utama.
+            4. Jarakkan setiap perenggan dengan satu baris kosong.
+            5. JIKA ADA BUTIRAN PROGRAM (Tarikh, Masa, Tempat), WAJIB indent/jarakkan ke dalam sedikit supaya nampak seperti senarai yang kemas. Gunakan jarak tab atau space.
+            6. Akhiri dengan 'Sekian, terima kasih.'`; 
+            
+            const userPrompt = `Tulis isi memo kepada "${kepada}" bertajuk "${tajuk}". Poin Penting: ${points}.
+            Mula terus dari perenggan kedua (2.). Pastikan butiran program di-inden.`; 
             
             try { 
-                const response = await fetch("https://api.groq.com/openai/v1/chat/completions", { method: "POST", headers: { "Authorization": `Bearer ${GROQ_API_KEY}`, "Content-Type": "application/json" }, body: JSON.stringify({ messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }], model: "llama-3.3-70b-versatile", temperature: 0.6, max_tokens: maxTokens }) }); 
+                const response = await fetch("https://api.groq.com/openai/v1/chat/completions", { 
+                    method: "POST", 
+                    headers: { "Authorization": `Bearer ${GROQ_API_KEY}`, "Content-Type": "application/json" }, 
+                    body: JSON.stringify({ 
+                        messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }], 
+                        model: "llama-3.3-70b-versatile", 
+                        temperature: 0.6, 
+                        max_tokens: maxTokens 
+                    }) 
+                }); 
                 const data = await response.json(); 
                 if (data.choices && data.choices[0]) { 
                     const aiOutput = data.choices[0].message.content.trim();
@@ -671,7 +685,7 @@
             sigDiv.className = 'signature-section';
             sigDiv.innerHTML = `
                 <div class="mt-8 mb-4">
-                    <p class="mb-6 font-bold">Sekian, terima kasih.</p>
+                    <p class="mb-6 font-normal">Sekian, terima kasih.</p>
                     <div class="h-16 mb-1 flex items-end">
                          <img src="${window.sigUrl || ''}" class="h-full w-auto object-contain ${window.sigUrl ? '' : 'hidden'}">
                     </div>
@@ -759,6 +773,7 @@
                      if(json.success) finalSigUrl = json.data.url;
                 }
 
+                // Get Current Margins
                 const mTop = document.getElementById('margin-top').value;
                 const mBot = document.getElementById('margin-bottom').value;
                 const mLeft = document.getElementById('margin-left').value;
@@ -807,6 +822,7 @@
             await html2pdf().set(opt).from(element).save();
         }
 
+        // --- LOAD HISTORY TABLE (SEJARAH) ---
         async function loadSavedMemos() {
             const ref = collection(db, `artifacts/${appId}/public/data/spark_memo_records`);
             const q = query(ref, where("ic", "==", window.currentUserIc), orderBy("createdAt", "desc"), limit(20));
