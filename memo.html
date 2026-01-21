@@ -3,11 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SPARK – Penjana Memo Dalaman (AI Edition)</title>
+    <title>SPARK – Penjana Memo Dalaman (PPD Format)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.0/dist/JsBarcode.all.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     
     <style>
         body { font-family: 'Poppins', sans-serif; background-color: #f8fafc; }
@@ -17,40 +18,46 @@
         /* A4 Paper Settings - Specific for Memo */
         .a4-paper {
             width: 210mm; min-height: 297mm; height: 297mm; 
-            padding: 20mm 20mm 20mm 20mm; /* Standard margin for letters */
+            padding: 25.4mm 25.4mm 25.4mm 25.4mm; /* Margin 1 inch standard */
             margin: 0 auto; margin-bottom: 20px;
             background: white; box-shadow: 0 0 25px rgba(0,0,0,0.1);
             font-family: 'Arial', sans-serif; color: black; position: relative;
             overflow: hidden; display: flex; flex-direction: column;
         }
 
-        /* Memo Header Grid */
-        .memo-header-grid {
-            display: grid;
-            grid-template-columns: 100px 1fr 100px 1fr;
-            gap: 10px;
-            border-bottom: 2px solid #000;
-            padding-bottom: 15px;
+        /* Memo Header Table Style */
+        .memo-meta-table {
+            width: 100%;
+            border-collapse: collapse;
             margin-bottom: 20px;
-            align-items: start;
+            font-family: 'Arial', sans-serif;
+            font-size: 11pt;
         }
-        
-        .memo-label { font-weight: bold; text-transform: uppercase; font-size: 10pt; }
-        .memo-val { font-size: 11pt; }
+        .memo-meta-table td {
+            vertical-align: top;
+            padding-bottom: 5px;
+        }
+        .meta-label { width: 140px; font-weight: bold; }
+        .meta-sep { width: 20px; text-align: center; }
+        .meta-val { font-weight: normal; text-transform: uppercase; }
 
         /* Content Styles */
         .memo-content {
             font-size: 11pt;
             line-height: 1.5;
             text-align: justify;
+            font-family: 'Arial', sans-serif;
         }
         
         .memo-content p { margin-bottom: 1rem; }
-        .memo-content ul, .memo-content ol { margin-left: 2rem; margin-bottom: 1rem; }
+        /* List formatting for numbered paragraphs like "2. Sukacita..." */
+        .memo-content ol { list-style: none; padding: 0; margin: 0; }
+        .memo-content li { display: flex; margin-bottom: 1rem; }
+        .memo-content li span.num { min-width: 30px; }
 
         /* Loading Spinner */
         .loading-spinner {
-            border: 2px solid #f3f3f3; border-top: 2px solid #4f46e5; border-radius: 50%;
+            border: 2px solid #f3f3f3; border-top: 2px solid #be185d; border-radius: 50%;
             width: 12px; height: 12px; animation: spin 1s linear infinite; display: inline-block;
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
@@ -62,7 +69,7 @@
             body { background: white; margin: 0; padding: 0; }
             .no-print { display: none !important; }
             #pdf-wrapper { width: 100%; margin: 0; }
-            .a4-paper { box-shadow: none; margin: 0; width: 100%; height: 297mm; padding-top: 20mm !important; }
+            .a4-paper { box-shadow: none; margin: 0; width: 100%; height: 297mm; padding-top: 25mm !important; }
         }
     </style>
 </head>
@@ -81,14 +88,14 @@
                         SPARK MEMO
                         <span id="account-badge" class="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded border border-gray-200 font-bold uppercase tracking-wider">Memuatkan...</span>
                     </h1>
-                    <p class="text-xs text-gray-500">Penjana Memo Dalaman (AI Powered)</p>
+                    <p class="text-xs text-gray-500">Penjana Memo Rasmi (Format PPD)</p>
                 </div>
             </div>
             
             <div class="flex items-center gap-2">
                 <button onclick="window.location.href='opr.html'" class="text-gray-500 hover:text-pink-600 text-sm font-semibold px-3 flex items-center gap-1 transition-colors">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
-                    Ke OPR
+                    Ke Laporan OPR
                 </button>
                 <div class="h-6 w-px bg-gray-300 mx-1"></div>
                 <button onclick="downloadPDFOnly()" class="bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 text-xs font-bold py-2 px-4 rounded-lg shadow-sm flex items-center gap-2 uppercase transition-all">
@@ -116,7 +123,7 @@
 
             <div class="flex p-1 bg-gray-100 rounded-lg mb-5 border border-gray-200">
                 <button onclick="showTab('form')" id="tab-btn-form" class="flex-1 py-2 text-xs font-bold uppercase rounded-md shadow-sm bg-white text-pink-600 transition-all">Isi Memo</button>
-                <button onclick="showTab('settings')" id="tab-btn-settings" class="flex-1 py-2 text-xs font-bold uppercase rounded-md text-gray-500 hover:text-gray-700 transition-all">Tetapan</button>
+                <button onclick="showTab('settings')" id="tab-btn-settings" class="flex-1 py-2 text-xs font-bold uppercase rounded-md text-gray-500 hover:text-gray-700 transition-all">Tetapan Header</button>
             </div>
 
             <div id="tab-content-form" class="block space-y-4">
@@ -125,57 +132,63 @@
                 
                 <div class="bg-gray-50 p-3 rounded border border-gray-200 space-y-3">
                     <div class="flex justify-between items-center border-b border-gray-200 pb-2">
-                        <h3 class="text-xs font-bold text-gray-700 uppercase">Maklumat Asas</h3>
+                        <h3 class="text-xs font-bold text-gray-700 uppercase">Maklumat Penerima</h3>
                     </div>
                     
-                    <div class="grid grid-cols-2 gap-3">
-                         <div>
-                            <label class="text-[10px] font-bold text-gray-500 uppercase">Kepada</label>
-                            <input type="text" id="in-kepada" oninput="updatePreview()" class="w-full text-xs border border-gray-300 rounded p-2 focus:ring-pink-500 focus:border-pink-500" placeholder="Contoh: Semua Guru">
-                        </div>
-                        <div>
-                            <label class="text-[10px] font-bold text-gray-500 uppercase">Daripada</label>
-                            <input type="text" id="in-daripada" oninput="updatePreview()" class="w-full text-xs border border-gray-300 rounded p-2 focus:ring-pink-500 focus:border-pink-500" placeholder="Contoh: Pengetua">
-                        </div>
+                    <div>
+                        <label class="text-[10px] font-bold text-gray-500 uppercase">Kepada</label>
+                        <input type="text" id="in-kepada" oninput="updatePreview()" class="w-full text-xs border border-gray-300 rounded p-2 focus:ring-pink-500 focus:border-pink-500 font-semibold" placeholder="Contoh: Yusof Bin Bujang">
                     </div>
 
                     <div class="grid grid-cols-2 gap-3">
                         <div>
-                           <label class="text-[10px] font-bold text-gray-500 uppercase">No. Rujukan</label>
-                           <input type="text" id="in-rujukan" oninput="updatePreview()" class="w-full text-xs border border-gray-300 rounded p-2 focus:ring-pink-500 focus:border-pink-500" value="JEA4036/600-1/1 ( )">
-                       </div>
-                       <div>
-                           <label class="text-[10px] font-bold text-gray-500 uppercase">Tarikh</label>
-                           <input type="date" id="in-tarikh" oninput="updatePreview()" class="w-full text-xs border border-gray-300 rounded p-2 focus:ring-pink-500 focus:border-pink-500">
-                       </div>
+                            <label class="text-[10px] font-bold text-gray-500 uppercase">Daripada</label>
+                            <input type="text" id="in-daripada" oninput="updatePreview()" class="w-full text-xs border border-gray-300 rounded p-2 focus:ring-pink-500 focus:border-pink-500" placeholder="Contoh: Ketua Zon West Lutong">
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-bold text-gray-500 uppercase">Tarikh</label>
+                            <input type="date" id="in-tarikh" oninput="updatePreview()" class="w-full text-xs border border-gray-300 rounded p-2 focus:ring-pink-500 focus:border-pink-500">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="text-[10px] font-bold text-gray-500 uppercase">Salinan Kepada</label>
+                        <input type="text" id="in-salinan" oninput="updatePreview()" class="w-full text-xs border border-gray-300 rounded p-2 focus:ring-pink-500 focus:border-pink-500" placeholder="Contoh: Penyelaras EKSA">
+                    </div>
+
+                    <div>
+                       <label class="text-[10px] font-bold text-gray-500 uppercase">No. Rujukan</label>
+                       <input type="text" id="in-rujukan" oninput="updatePreview()" class="w-full text-xs border border-gray-300 rounded p-2 focus:ring-pink-500 focus:border-pink-500" value="PPDM.100-7/6/1 (     )">
                    </div>
                 </div>
 
                 <div>
                     <label class="text-xs font-bold text-gray-700 uppercase mb-1 block">Perkara / Tajuk Memo</label>
-                    <textarea id="in-perkara" oninput="updatePreview()" rows="2" class="w-full text-sm font-bold border-2 border-pink-100 rounded-lg p-2.5 uppercase focus:border-pink-500 focus:ring-0 transition-colors shadow-sm" placeholder="TAJUK MEMO (CONTOH: MESYUARAT GURU KALI PERTAMA)"></textarea>
+                    <textarea id="in-perkara" oninput="updatePreview()" rows="3" class="w-full text-sm font-bold border-2 border-pink-100 rounded-lg p-2.5 uppercase focus:border-pink-500 focus:ring-0 transition-colors shadow-sm" placeholder="TAJUK MEMO (CONTOH: PELANTIKAN SEBAGAI...)"></textarea>
                 </div>
 
                 <div class="relative">
                     <div class="flex justify-between items-center mb-1">
                         <label class="text-xs font-bold text-gray-700 uppercase flex items-center gap-1">
-                            <span class="w-1.5 h-4 bg-purple-500 rounded-full"></span> Kandungan
+                            <span class="w-1.5 h-4 bg-pink-500 rounded-full"></span> Kandungan
                         </label>
-                        <button type="button" onclick="askAIMemo()" class="text-[10px] bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-3 py-1 rounded shadow-md hover:shadow-lg transform hover:-translate-y-0.5 transition-all font-bold flex items-center gap-1">
+                        <button type="button" onclick="askAIMemo()" class="text-[10px] bg-gradient-to-r from-pink-600 to-purple-600 text-white px-3 py-1 rounded shadow-md hover:shadow-lg transform hover:-translate-y-0.5 transition-all font-bold flex items-center gap-1">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" /><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
-                            AI: Karang Memo
+                            AI: Karang Ayat
                         </button>
                     </div>
-                    <textarea id="in-kandungan" oninput="updatePreview()" rows="12" class="w-full text-sm border-2 border-gray-200 rounded-lg p-3 focus:border-purple-500 bg-white shadow-sm leading-relaxed" placeholder="Tulis isi memo di sini atau guna AI..."></textarea>
-                    <p class="text-[9px] text-gray-400 mt-1 italic text-right">*Gunakan 'Enter' untuk perenggan baru.</p>
+                    <textarea id="in-kandungan" oninput="updatePreview()" rows="12" class="w-full text-sm border-2 border-gray-200 rounded-lg p-3 focus:border-pink-500 bg-white shadow-sm leading-relaxed" placeholder="Contoh: &#10;Tuan,&#10;&#10;Dengan hormatnya perkara di atas adalah dirujuk.&#10;&#10;2. Sukacita dimaklumkan..."></textarea>
                 </div>
 
                 <div class="bg-purple-50 p-3 rounded-lg border border-purple-100">
-                    <label class="text-xs font-bold text-purple-800 uppercase mb-2 block">Pengesahan / Tandatangan</label>
-                    <input type="text" id="in-slogan" oninput="updatePreview()" class="w-full text-xs border border-gray-300 rounded p-2 mb-2 bg-white italic" value='"BERKHIDMAT UNTUK NEGARA"'>
+                    <label class="text-xs font-bold text-purple-800 uppercase mb-2 block">Pengesahan & Kontak</label>
                     
-                    <input type="text" id="in-nama" oninput="updatePreview()" class="w-full text-sm font-bold border border-gray-300 rounded p-2 uppercase mb-2 bg-white" placeholder="NAMA PEGAWAI">
-                    <input type="text" id="in-jawatan" oninput="updatePreview()" class="w-full text-xs border border-gray-300 rounded p-2 uppercase bg-white" placeholder="JAWATAN">
+                    <input type="text" id="in-nama" oninput="updatePreview()" class="w-full text-sm font-bold border border-gray-300 rounded p-2 uppercase mb-2 bg-white" placeholder="NAMA PEGAWAI (DALAM KURUNGAN)">
+                    
+                    <div class="grid grid-cols-2 gap-2 mb-2">
+                        <input type="text" id="in-phone" oninput="updatePreview()" class="w-full text-xs border border-gray-300 rounded p-2 bg-white" placeholder="No Tel (Cth: 013-...)">
+                        <input type="text" id="in-email" oninput="updatePreview()" class="w-full text-xs border border-gray-300 rounded p-2 bg-white" placeholder="Email">
+                    </div>
 
                     <div class="mt-3 pt-2 border-t border-purple-200">
                         <div class="flex items-center gap-2 mb-2">
@@ -196,10 +209,10 @@
 
             <div id="tab-content-settings" class="hidden space-y-4">
                 <div class="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-                    <label class="block text-xs font-bold text-gray-700 uppercase mb-2">Logo & Organisasi</label>
-                    <input type="text" id="in-org-name" oninput="updateHeader()" class="w-full text-sm border-2 border-gray-100 rounded p-2 uppercase mb-2" value="KEMENTERIAN PENDIDIKAN MALAYSIA">
-                    <input type="text" id="in-sub-org" oninput="updateHeader()" class="w-full text-xs border-2 border-gray-100 rounded p-2 uppercase" value="SMK MERBAU, MIRI">
-                    <input type="text" id="in-address" oninput="updateHeader()" class="w-full text-xs border-2 border-gray-100 rounded p-2 mt-2" value="Jalan Miri-Bintulu, 98000 Miri, Sarawak">
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-2">Header Organisasi</label>
+                    <input type="text" id="in-org-name" oninput="updateHeader()" class="w-full text-sm border-2 border-gray-100 rounded p-2 uppercase mb-2 font-bold" value="PEJABAT PENDIDIKAN DAERAH MIRI">
+                    <input type="text" id="in-address-1" oninput="updateHeader()" class="w-full text-xs border-2 border-gray-100 rounded p-2 uppercase mb-1" value="ARAS 2, BLOK 1, WISMA PERSEKUTUAN FASA 1,">
+                    <input type="text" id="in-address-2" oninput="updateHeader()" class="w-full text-xs border-2 border-gray-100 rounded p-2 uppercase" value="JALAN KIPAS, 98000 MIRI">
                 </div>
             </div>
 
@@ -210,61 +223,73 @@
                 
                 <div class="a4-paper" id="main-report">
                     
-                    <div class="flex items-center gap-4 mb-6">
-                        <img id="header-logo" src="https://upload.wikimedia.org/wikipedia/commons/thumb/2/26/Coat_of_arms_of_Malaysia.svg/1200px-Coat_of_arms_of_Malaysia.svg.png" class="h-24 w-auto object-contain">
-                        <div class="flex-grow">
-                            <h2 id="out-org-name" class="font-bold uppercase text-lg leading-tight tracking-wide">KEMENTERIAN PENDIDIKAN MALAYSIA</h2>
-                            <p id="out-sub-org" class="font-bold text-sm uppercase">SMK MERBAU, MIRI</p>
-                            <p id="out-address" class="text-xs text-gray-600 mt-1">Jalan Miri-Bintulu, 98000 Miri, Sarawak</p>
-                        </div>
-                        <div class="flex flex-col items-end">
-                            <svg id="barcode"></svg>
-                        </div>
+                    <div class="mb-4">
+                        <h2 id="out-org-name" class="font-bold text-[14pt] leading-tight text-black">PEJABAT PENDIDIKAN DAERAH MIRI</h2>
+                        <p id="out-address-1" class="text-[11pt] text-black uppercase">ARAS 2, BLOK 1, WISMA PERSEKUTUAN FASA 1,</p>
+                        <p id="out-address-2" class="text-[11pt] text-black uppercase">JALAN KIPAS, 98000 MIRI</p>
                     </div>
 
-                    <div class="w-full h-px bg-black mb-1"></div>
-                    <div class="w-full h-px bg-black mb-6"></div>
-
-                    <h1 class="text-center font-bold text-2xl uppercase tracking-widest underline mb-8">MEMO DALAMAN</h1>
-
-                    <div class="memo-header-grid">
-                        <div class="memo-label">Kepada</div>
-                        <div class="memo-val">: <span id="out-kepada" class="uppercase font-bold"></span></div>
-                        
-                        <div class="memo-label">Daripada</div>
-                        <div class="memo-val">: <span id="out-daripada" class="uppercase"></span></div>
-
-                        <div class="memo-label">Rujukan</div>
-                        <div class="memo-val">: <span id="out-rujukan"></span></div>
-
-                        <div class="memo-label">Tarikh</div>
-                        <div class="memo-val">: <span id="out-tarikh"></span></div>
+                    <div class="text-center mb-6">
+                        <span class="font-bold text-[16pt] border-b-2 border-black tracking-wide">MEMO</span>
                     </div>
 
-                    <div class="flex gap-2 mb-6 align-top">
-                        <div class="memo-label w-[100px] shrink-0">Perkara</div>
-                        <div class="memo-val font-bold uppercase underline leading-tight flex-grow">: <span id="out-perkara"></span></div>
-                    </div>
+                    <table class="memo-meta-table">
+                        <tr>
+                            <td class="meta-label">Kepada</td>
+                            <td class="meta-sep">:</td>
+                            <td class="meta-val" id="out-kepada"></td>
+                        </tr>
+                        <tr>
+                            <td class="meta-label">Daripada</td>
+                            <td class="meta-sep">:</td>
+                            <td class="meta-val" id="out-daripada"></td>
+                        </tr>
+                        <tr>
+                            <td class="meta-label">Salinan Kepada</td>
+                            <td class="meta-sep">:</td>
+                            <td class="meta-val" id="out-salinan"></td>
+                        </tr>
+                        <tr>
+                            <td class="meta-label">No. Rujukan</td>
+                            <td class="meta-sep">:</td>
+                            <td class="meta-val" id="out-rujukan"></td>
+                        </tr>
+                        <tr>
+                            <td class="meta-label">Tarikh</td>
+                            <td class="meta-sep">:</td>
+                            <td class="meta-val" id="out-tarikh"></td>
+                        </tr>
+                        <tr>
+                            <td class="meta-label">Perkara</td>
+                            <td class="meta-sep">:</td>
+                            <td class="meta-val font-bold" id="out-perkara" style="text-align: justify;"></td>
+                        </tr>
+                    </table>
 
-                    <div class="memo-content mb-10 flex-grow">
+                    <div class="memo-content mb-8 flex-grow">
                         <div id="out-kandungan" class="whitespace-pre-wrap"></div>
                     </div>
 
-                    <div class="mt-auto">
-                        <p class="mb-6 font-bold italic" id="out-slogan">"BERKHIDMAT UNTUK NEGARA"</p>
-                        <p class="mb-4">Saya yang menjalankan amanah,</p>
+                    <div class="mt-auto mb-10">
+                        <p class="mb-6 font-bold" id="out-slogan">Sekian, terima kasih</p>
                         
-                        <div class="h-20 mb-1 flex items-end">
+                        <div class="h-16 mb-1 flex items-end">
                              <img id="out-sig-img" class="h-full w-auto object-contain hidden" src="">
                         </div>
 
-                        <p class="font-bold uppercase" id="out-nama">( NAMA PEGAWAI )</p>
-                        <p class="uppercase text-sm" id="out-jawatan">JAWATAN</p>
+                        <p class="font-bold uppercase" id="out-nama"></p>
+                        
+                        <div class="text-[10pt] mt-1 space-y-0.5">
+                             <p id="row-phone" class="hidden">No Tel : <span id="out-phone"></span></p>
+                             <p id="row-email" class="hidden">Email : <span id="out-email"></span></p>
+                        </div>
                     </div>
 
-                    <div class="mt-8 border-t border-gray-300 pt-1 flex justify-between items-center text-[7px] text-gray-400 uppercase tracking-wider">
+                    <div class="mt-4 border-t border-gray-300 pt-1 flex justify-between items-center text-[8pt] text-gray-400 uppercase tracking-wider">
                         <span>Dijana oleh SPARK MEMO</span>
-                        <span>Tarikh Cetakan: <span id="print-date"></span></span>
+                        <div class="flex items-center gap-2">
+                             <svg id="barcode"></svg>
+                        </div>
                     </div>
 
                 </div>
@@ -277,7 +302,7 @@
         import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // --- KONFIGURASI SAMA SEPERTI OPR.HTML ---
+        // CONFIG
         const firebaseConfig = {
             apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM",
             authDomain: "myqrhadir.firebaseapp.com",
@@ -294,7 +319,6 @@
         const IMGBB_API_KEY = "a7c600ac733fe14649cacd8e65619c4b"; 
 
         window.currentUserIc = "";
-        window.currentUserDocId = "";
         window.allMyMemos = [];
         window.sigFile = null;
         window.sigUrl = "";
@@ -302,7 +326,7 @@
         let isDrawing = false;
         let sigCanvas, sigCtx;
 
-        // --- 1. SETUP & AUTH ---
+        // AUTH & LOAD USER
         onAuthStateChanged(auth, async (user) => {
             const urlParams = new URLSearchParams(window.location.search);
             window.currentUserIc = urlParams.get('ic') || localStorage.getItem('user_ic');
@@ -323,19 +347,15 @@
             const userSnap = await getDocs(qUser);
             if (!userSnap.empty) {
                 const uDoc = userSnap.docs[0];
-                window.currentUserDocId = uDoc.id;
                 const uData = uDoc.data();
                 
-                // Auto fill name/jawatan
-                document.getElementById('in-nama').value = uData.name.toUpperCase();
-                document.getElementById('in-jawatan').value = (uData.jawatan || "").toUpperCase();
+                // Auto fill name
+                document.getElementById('in-nama').value = `(${uData.name.toUpperCase()})`;
                 
-                // Set Badge
                 const badge = document.getElementById('account-badge');
                 badge.textContent = uData.isPro ? "AKAUN PRO" : "AKAUN BIASA";
                 if(uData.isPro) badge.className += " bg-yellow-100 text-yellow-800 border-yellow-300";
 
-                // Default Signature
                 if (uData.defaultSignatureUrl) {
                     window.defaultSigUrl = uData.defaultSignatureUrl;
                     document.getElementById('btn-restore-sig').classList.remove('hidden');
@@ -346,45 +366,40 @@
 
         function setDefaultDate() {
             const today = new Date();
-            const dateStr = today.toISOString().split('T')[0];
-            document.getElementById('in-tarikh').value = dateStr;
-            document.getElementById('print-date').textContent = today.toLocaleDateString('ms-MY', { day: '2-digit', month: '2-digit', year: 'numeric', hour:'2-digit', minute:'2-digit' });
-            
-            // Initial Serial Barcode
-            const serial = "MEMO-" + Math.floor(10000 + Math.random() * 90000);
+            document.getElementById('in-tarikh').value = today.toISOString().split('T')[0];
+            const serial = "M-" + Math.floor(1000 + Math.random() * 9000);
             document.getElementById('memo-serial-hidden').value = serial;
             renderBarcode(serial);
             updatePreview();
         }
 
         function renderBarcode(text) {
-            JsBarcode("#barcode", text, {
-                format: "CODE128", width: 1, height: 15, displayValue: false, margin: 0
-            });
+            JsBarcode("#barcode", text, { format: "CODE128", width: 1, height: 12, displayValue: false, margin: 0 });
         }
 
-        // --- 2. AI WRITER FUNCTION ---
+        // --- AI WRITER FOR MEMO ---
         window.askAIMemo = async function() {
             const btn = event.currentTarget;
             const originalText = btn.innerHTML;
-            const GROQ_API_KEY = "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"; // Key from OPR
+            const GROQ_API_KEY = "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"; 
 
             const tajuk = document.getElementById('in-perkara').value;
             const kepada = document.getElementById('in-kepada').value;
-            const daripada = document.getElementById('in-daripada').value;
 
-            if(!tajuk) { alert("Sila isi 'Perkara / Tajuk' dahulu untuk AI menjana kandungan."); return; }
+            if(!tajuk) { alert("Sila isi 'Perkara / Tajuk' dahulu."); return; }
 
             btn.innerHTML = `<span class="loading-spinner"></span> Menulis...`;
             btn.disabled = true;
 
-            const systemPrompt = "Anda adalah setiausaha kerajaan Malaysia yang pakar menulis memo rasmi, ringkas, dan padat. Gunakan Bahasa Melayu formal (Baku).";
-            const userPrompt = `Tulis isi kandungan memo rasmi (tanpa header/tarikh) daripada "${daripada}" kepada "${kepada}" bertajuk "${tajuk}". 
-            Format:
-            1. Mulakan dengan "Dengan segala hormatnya, perkara di atas adalah dirujuk."
-            2. Isi kandungan (2-3 perenggan ringkas).
-            3. Penutup (biasanya "Kerjasama tuan/puan amat dihargai.")
-            Jangan letak 'Kepada/Daripada' lagi, hanya isi kandungan badan memo sahaja.`;
+            const systemPrompt = "Anda adalah pegawai tadbir di Pejabat Pendidikan Daerah Miri. Tugas anda menulis memo rasmi kerajaan Malaysia. Gaya bahasa: Formal, Baku, Sopan, Padat. Gunakan frasa standard seperti 'Dengan hormatnya...', 'Sukacita dimaklumkan...', 'Kerjasama tuan...'. Format jawapan mesti ada salutation 'Tuan,' diikuti isi kandungan bernombor (mula no 2 jika perlu), dan penutup.";
+            
+            const userPrompt = `Tulis isi kandungan memo kepada "${kepada}" bertajuk "${tajuk}".
+            Struktur:
+            1. Salutation (Tuan,)
+            2. Opening standard (Dengan hormatnya perkara di atas adalah dirujuk.)
+            3. Isi penting (Gunakan perenggan bernombor 2, 3...)
+            4. Penutup standard (Kerjasama... didahului ucapan terima kasih.)
+            JANGAN masukkan header (Kepada/Daripada) atau tandatangan. Hanya isi badan surat.`;
 
             try {
                 const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -396,18 +411,15 @@
                             { role: "user", content: userPrompt }
                         ],
                         model: "llama-3.3-70b-versatile",
-                        temperature: 0.5,
-                        max_tokens: 400
+                        temperature: 0.6,
+                        max_tokens: 500
                     })
                 });
 
                 const data = await response.json();
                 if (data.choices && data.choices[0]) {
-                    const text = data.choices[0].message.content.replace(/^"|"$/g, '').trim(); 
-                    document.getElementById('in-kandungan').value = text;
+                    document.getElementById('in-kandungan').value = data.choices[0].message.content.trim();
                     updatePreview();
-                } else {
-                    alert("AI tidak memberi respon.");
                 }
             } catch (e) {
                 alert("Ralat AI: " + e.message);
@@ -417,50 +429,62 @@
             }
         }
 
-        // --- 3. UI & PREVIEW ---
+        // --- PREVIEW UPDATE ---
         window.updatePreview = function() {
             // Mappings
             document.getElementById('out-kepada').textContent = document.getElementById('in-kepada').value;
             document.getElementById('out-daripada').textContent = document.getElementById('in-daripada').value;
+            document.getElementById('out-salinan').textContent = document.getElementById('in-salinan').value;
             document.getElementById('out-rujukan').textContent = document.getElementById('in-rujukan').value;
             document.getElementById('out-perkara').textContent = document.getElementById('in-perkara').value;
-            document.getElementById('out-nama').textContent = `( ${document.getElementById('in-nama').value} )`;
-            document.getElementById('out-jawatan').textContent = document.getElementById('in-jawatan').value;
-            document.getElementById('out-slogan').textContent = document.getElementById('in-slogan').value;
+            
+            document.getElementById('out-nama').textContent = document.getElementById('in-nama').value;
+            
+            // Phone/Email visibility
+            const phone = document.getElementById('in-phone').value;
+            const email = document.getElementById('in-email').value;
+            
+            document.getElementById('out-phone').textContent = phone;
+            document.getElementById('row-phone').className = phone ? "block" : "hidden";
+            
+            document.getElementById('out-email').textContent = email;
+            document.getElementById('row-email').className = email ? "block" : "hidden";
 
             // Date Format
             const dVal = document.getElementById('in-tarikh').value;
             if(dVal) {
                 const d = new Date(dVal);
-                document.getElementById('out-tarikh').textContent = d.toLocaleDateString('ms-MY', { day: '2-digit', month: 'long', year: 'numeric' }).toUpperCase();
+                // Format: 24 Mei 2025 (Standard BM)
+                const monthNames = ["Januari", "Februari", "Mac", "April", "Mei", "Jun", "Julai", "Ogos", "September", "Oktober", "November", "Disember"];
+                const dateStr = `${d.getDate()} ${monthNames[d.getMonth()]} ${d.getFullYear()}`;
+                document.getElementById('out-tarikh').textContent = dateStr;
             }
 
-            // Content Format (preserve newlines)
+            // Content Format
             document.getElementById('out-kandungan').innerText = document.getElementById('in-kandungan').value;
         }
 
         window.updateHeader = function() {
             document.getElementById('out-org-name').textContent = document.getElementById('in-org-name').value;
-            document.getElementById('out-sub-org').textContent = document.getElementById('in-sub-org').value;
-            document.getElementById('out-address').textContent = document.getElementById('in-address').value;
+            document.getElementById('out-address-1').textContent = document.getElementById('in-address-1').value;
+            document.getElementById('out-address-2').textContent = document.getElementById('in-address-2').value;
         }
 
         window.showTab = function(tab) {
-            if(tab === 'form') {
-                document.getElementById('tab-content-form').classList.remove('hidden');
-                document.getElementById('tab-content-settings').classList.add('hidden');
-                document.getElementById('tab-btn-form').className = "flex-1 py-2 text-xs font-bold uppercase rounded-md shadow-sm bg-white text-pink-600 transition-all";
-                document.getElementById('tab-btn-settings').className = "flex-1 py-2 text-xs font-bold uppercase rounded-md text-gray-500 hover:text-gray-700 transition-all";
-                resizeCanvas();
-            } else {
-                document.getElementById('tab-content-form').classList.add('hidden');
-                document.getElementById('tab-content-settings').classList.remove('hidden');
-                document.getElementById('tab-btn-settings').className = "flex-1 py-2 text-xs font-bold uppercase rounded-md shadow-sm bg-white text-pink-600 transition-all";
-                document.getElementById('tab-btn-form').className = "flex-1 py-2 text-xs font-bold uppercase rounded-md text-gray-500 hover:text-gray-700 transition-all";
-            }
+            document.getElementById('tab-content-form').classList.toggle('hidden', tab !== 'form');
+            document.getElementById('tab-content-settings').classList.toggle('hidden', tab !== 'settings');
+            
+            // Update button styles
+            const activeClass = "flex-1 py-2 text-xs font-bold uppercase rounded-md shadow-sm bg-white text-pink-600 transition-all";
+            const inactiveClass = "flex-1 py-2 text-xs font-bold uppercase rounded-md text-gray-500 hover:text-gray-700 transition-all";
+            
+            document.getElementById('tab-btn-form').className = tab === 'form' ? activeClass : inactiveClass;
+            document.getElementById('tab-btn-settings').className = tab === 'settings' ? activeClass : inactiveClass;
+            
+            if(tab === 'form') resizeCanvas();
         }
 
-        // --- 4. SIGNATURE ---
+        // --- SIGNATURE LOGIC ---
         function initSignaturePad() {
             sigCanvas = document.getElementById('signature-pad');
             sigCtx = sigCanvas.getContext('2d');
@@ -513,17 +537,14 @@
 
         window.toggleSignature = function() {
             const chk = document.getElementById('chk-signature').checked;
-            const container = document.getElementById('sig-container');
-            const outImg = document.getElementById('out-sig-img');
-            
-            if(chk) {
-                container.classList.remove('hidden');
-                resizeCanvas();
-                if(window.sigUrl || window.defaultSigUrl) outImg.classList.remove('hidden');
-            } else {
-                container.classList.add('hidden');
-                outImg.classList.add('hidden');
-            }
+            document.getElementById('sig-container').classList.toggle('hidden', !chk);
+            document.getElementById('out-sig-img').classList.toggle('hidden', !chk || (!window.sigUrl && !isSignatureDrawn()));
+            if(chk) resizeCanvas();
+        }
+        
+        function isSignatureDrawn() {
+             // Simple check if canvas is not empty (implementation omitted for brevity, relying on user action)
+             return document.getElementById('out-sig-img').src !== "";
         }
 
         window.restoreDefaultSig = function() {
@@ -531,28 +552,17 @@
                 window.sigUrl = window.defaultSigUrl;
                 document.getElementById('out-sig-img').src = window.sigUrl;
                 document.getElementById('out-sig-img').classList.remove('hidden');
-                // Could draw it to canvas too if needed, but img src is easier
             }
         }
 
-        // --- 5. SAVE & PDF ---
+        // --- SAVE & DOWNLOAD ---
         window.saveAndDownload = async function() {
             const btn = document.getElementById('btn-save');
             btn.innerHTML = "Proses..."; btn.disabled = true;
 
             try {
-                // Generate Serial if new
-                let serial = document.getElementById('memo-serial-hidden').value;
-                if(!serial) {
-                     serial = "MEMO-" + Date.now();
-                     document.getElementById('memo-serial-hidden').value = serial;
-                }
-
-                // Upload Signature if drawn new
                 let finalSigUrl = window.sigUrl;
-                // Check if canvas has content manually or just rely on global var logic
-                // Simple implementation:
-                if(document.getElementById('chk-signature').checked && !window.sigUrl) {
+                if(document.getElementById('chk-signature').checked && !window.sigUrl && document.getElementById('out-sig-img').src.startsWith('data:')) {
                      // Upload canvas
                      const dataUrl = sigCanvas.toDataURL("image/png");
                      const blob = await (await fetch(dataUrl)).blob();
@@ -566,18 +576,19 @@
                     ic: window.currentUserIc,
                     kepada: document.getElementById('in-kepada').value,
                     daripada: document.getElementById('in-daripada').value,
+                    salinan: document.getElementById('in-salinan').value,
                     rujukan: document.getElementById('in-rujukan').value,
                     tarikh: document.getElementById('in-tarikh').value,
                     perkara: document.getElementById('in-perkara').value,
                     kandungan: document.getElementById('in-kandungan').value,
                     nama: document.getElementById('in-nama').value,
-                    jawatan: document.getElementById('in-jawatan').value,
-                    slogan: document.getElementById('in-slogan').value,
+                    phone: document.getElementById('in-phone').value,
+                    email: document.getElementById('in-email').value,
                     orgName: document.getElementById('in-org-name').value,
-                    subOrgName: document.getElementById('in-sub-org').value,
-                    address: document.getElementById('in-address').value,
+                    address1: document.getElementById('in-address-1').value,
+                    address2: document.getElementById('in-address-2').value,
                     signatureUrl: finalSigUrl || "",
-                    serial: serial,
+                    serial: document.getElementById('memo-serial-hidden').value,
                     updatedAt: new Date()
                 };
 
@@ -590,11 +601,11 @@
                 }
 
                 await generatePDF();
-                loadSavedMemos(); // Refresh list
+                loadSavedMemos(); 
 
             } catch (e) {
                 console.error(e);
-                alert("Ralat menyimpan: " + e.message);
+                alert("Ralat: " + e.message);
             } finally {
                 btn.innerHTML = "Simpan & PDF"; btn.disabled = false;
             }
@@ -613,11 +624,9 @@
             await html2pdf().set(opt).from(element).save();
         }
 
-        window.downloadPDFOnly = function() {
-            generatePDF();
-        }
+        window.downloadPDFOnly = function() { generatePDF(); }
 
-        // --- 6. HISTORY ---
+        // --- HISTORY ---
         async function loadSavedMemos() {
             const ref = collection(db, `artifacts/${appId}/public/data/spark_memo_records`);
             const q = query(ref, where("ic", "==", window.currentUserIc), orderBy("createdAt", "desc"));
@@ -632,7 +641,7 @@
                 window.allMyMemos.push(data);
                 const opt = document.createElement('option');
                 opt.value = data.id;
-                opt.textContent = (data.tarikh || "Tiada Tarikh") + " - " + data.perkara.substring(0, 20) + "...";
+                opt.textContent = data.perkara.substring(0, 30) + "...";
                 select.appendChild(opt);
             });
         }
@@ -642,23 +651,17 @@
             if(!data) return;
 
             document.getElementById('memo-id').value = data.id;
-            document.getElementById('memo-serial-hidden').value = data.serial || "";
-            renderBarcode(data.serial || "MEMO-REF");
-
             document.getElementById('in-kepada').value = data.kepada;
             document.getElementById('in-daripada').value = data.daripada;
+            document.getElementById('in-salinan').value = data.salinan || "";
             document.getElementById('in-rujukan').value = data.rujukan;
             document.getElementById('in-tarikh').value = data.tarikh;
             document.getElementById('in-perkara').value = data.perkara;
             document.getElementById('in-kandungan').value = data.kandungan;
             
             document.getElementById('in-nama').value = data.nama;
-            document.getElementById('in-jawatan').value = data.jawatan;
-            document.getElementById('in-slogan').value = data.slogan || '"BERKHIDMAT UNTUK NEGARA"';
-            
-            document.getElementById('in-org-name').value = data.orgName || "KEMENTERIAN PENDIDIKAN MALAYSIA";
-            document.getElementById('in-sub-org').value = data.subOrgName || "SMK MERBAU";
-            document.getElementById('in-address').value = data.address || "";
+            document.getElementById('in-phone').value = data.phone || "";
+            document.getElementById('in-email').value = data.email || "";
 
             if(data.signatureUrl) {
                 window.sigUrl = data.signatureUrl;
