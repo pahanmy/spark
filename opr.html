@@ -113,7 +113,10 @@
             body { background: white; margin: 0; padding: 0; }
             .no-print { display: none !important; }
             #pdf-wrapper { width: 100%; margin: 0; }
+            /* IMPORTANT: Ensure explicit break */
             .a4-paper { box-shadow: none; margin: 0; width: 100%; height: 297mm; page-break-after: always; padding-top: 10mm !important; }
+            /* Force break before pages that have the class */
+            .force-break { page-break-before: always; }
             * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         }
     </style>
@@ -1308,14 +1311,14 @@
             const tajuk = document.getElementById('in-tajuk').value.replace(/[^a-zA-Z0-9]/g, "_").substring(0, 15);
             const fileName = `OPR_${tajuk}.pdf`;
             
-            // Fix visibility for generation logic is handled in updatePreview/renderAttendance
-            
             const opt = { 
                 margin: 0, 
                 filename: fileName, 
                 image: { type: 'jpeg', quality: 0.98 }, 
                 html2canvas: { scale: 2, useCORS: true }, 
-                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } 
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+                // FIX: Paksa pematuhan CSS break
+                pagebreak: { mode: ['css', 'legacy'] } 
             };
             await html2pdf().set(opt).from(element).save();
             
@@ -1640,7 +1643,7 @@
         // --- FUNGSI SUSUNAN KEKANANAN & RENDER JADUAL (PAGINATION FIXED) ---
         function renderAttendanceTable() {
             // CONSTANTS - DIUBAH KE 17 ORANG SEPERTI PERMINTAAN
-            const ROWS_PER_PAGE = 15; 
+            const ROWS_PER_PAGE = 17; 
             
             const wrapper = document.getElementById('pdf-wrapper');
             
@@ -1711,7 +1714,13 @@
                     pageEl = templatePage.cloneNode(true);
                     pageEl.id = `attendance-page-${i}`; // Unique ID
                     pageEl.classList.add('generated-att-page'); // Mark for cleanup
+                    pageEl.classList.add('force-break'); // Add page-break class
                     pageEl.classList.remove('hidden'); // Ensure visible
+                    
+                    // IMPORTANT: Force CSS Page Break for PDF
+                    pageEl.style.pageBreakBefore = "always"; 
+                    pageEl.style.breakBefore = "page";
+
                     wrapper.appendChild(pageEl);
                     tbody = pageEl.querySelector('tbody');
                     tbody.innerHTML = ""; // Empty clone body
