@@ -17,7 +17,7 @@
     <style>
         body { font-family: 'Poppins', sans-serif; background-color: #f8fafc; }
         
-        /* WRAPPER BARU UNTUK PDF (Supaya boleh print banyak page) */
+        /* WRAPPER BARU UNTUK PDF */
         #pdf-wrapper {
             width: 210mm;
             margin: 0 auto;
@@ -84,7 +84,7 @@
         .img-upload-box.dragging { opacity: 0.5; border-color: #f59e0b; }
         .img-upload-box.drag-over { background-color: #fef3c7; border-color: #d97706; transform: scale(1.02); }
 
-        /* FIX GAMBAR PDF: Pastikan object-fit cover supaya tak penyek */
+        /* FIX GAMBAR PDF */
         .report-img-container {
             width: 100%; height: 100%;
             display: flex; justify-content: center; align-items: center;
@@ -92,7 +92,7 @@
         }
         .report-img-container img {
             width: 100%; height: 100%;
-            object-fit: cover; /* Ini kuncinya: memenuhkan kotak tanpa mengubah ratio */
+            object-fit: cover;
         }
 
         /* Scrollbar */
@@ -570,12 +570,12 @@
                         <div class="border-b-2 border-black pb-2 mb-4">
                             <h2 class="font-bold uppercase text-lg text-black">LAMPIRAN: SENARAI KEHADIRAN</h2>
                             <div class="flex justify-between items-end">
-                                <p class="text-sm uppercase text-gray-700 w-3/4" id="att-subtitle">PROGRAM: </p>
-                                <p class="text-xs text-gray-500 italic text-right">Dijana pada: <span id="att-print-date"></span></p>
+                                <p class="text-sm uppercase text-gray-700 w-3/4 att-subtitle-el">PROGRAM: </p>
+                                <p class="text-xs text-gray-500 italic text-right">Dijana pada: <span class="att-print-date-el"></span></p>
                             </div>
                         </div>
                         
-                        <div class="overflow-hidden">
+                        <div class="overflow-hidden flex-grow">
                             <table class="att-table">
                                 <thead>
                                     <tr>
@@ -586,15 +586,15 @@
                                         <th class="w-24 text-center">STATUS</th>
                                     </tr>
                                 </thead>
-                                <tbody id="attendance-tbody" class="bg-white">
+                                <tbody>
                                     </tbody>
                             </table>
                         </div>
                         
-                        <div class="mt-4 flex justify-end">
+                        <div class="mt-4 flex justify-end att-footer-count" style="visibility: hidden;">
                             <div class="border border-black p-2 px-4 bg-gray-50 text-right">
                                 <span class="text-xs font-bold uppercase mr-2">Jumlah Kehadiran:</span>
-                                <span id="att-total-count" class="text-sm font-bold text-black">0</span>
+                                <span class="att-total-count-el text-sm font-bold text-black">0</span>
                             </div>
                         </div>
 
@@ -1106,12 +1106,15 @@
 
             // Attendance check
             const showAtt = document.getElementById('chk-attendance').checked;
-            const attPage = document.getElementById('attendance-page');
-            if(showAtt) {
-                attPage.classList.remove('hidden');
-                document.getElementById('att-subtitle').textContent = "PROGRAM: " + document.getElementById('in-tajuk').value;
+            // Handle visibility for generated pages
+            if (showAtt) {
+                document.getElementById('attendance-page').classList.remove('hidden');
+                document.querySelectorAll('.generated-att-page').forEach(el => el.classList.remove('hidden'));
+                const tajuk = "PROGRAM: " + document.getElementById('in-tajuk').value;
+                document.querySelectorAll('.att-subtitle-el').forEach(el => el.textContent = tajuk);
             } else {
-                attPage.classList.add('hidden');
+                document.getElementById('attendance-page').classList.add('hidden');
+                document.querySelectorAll('.generated-att-page').forEach(el => el.classList.add('hidden'));
             }
 
             const dateStart = document.getElementById('in-tarikh-mula').value;
@@ -1291,10 +1294,7 @@
             const tajuk = document.getElementById('in-tajuk').value.replace(/[^a-zA-Z0-9]/g, "_").substring(0, 15);
             const fileName = `OPR_${tajuk}.pdf`;
             
-            // Check visibility for page 2
-            const attPage = document.getElementById('attendance-page');
-            const showAtt = document.getElementById('chk-attendance').checked;
-            if(!showAtt) attPage.classList.add('hidden'); // Ensure hidden
+            // Fix visibility for generation logic is handled in updatePreview/renderAttendance
             
             const opt = { 
                 margin: 0, 
@@ -1446,8 +1446,10 @@
                     const tr = document.createElement('tr');
                     tr.className = "hover:bg-gray-50 transition-colors group";
                     
-                    let dateStr = data.tarikhMula ? new Date(data.tarikhMula).toLocaleDateString('ms-MY', { day: '2-digit', month: '2-digit', year: '2-digit'}) : "-";
-                    
+                    let dateStr = data.tarikhMula ? new Date(datetarikhMula).toLocaleDateString('ms-MY', { day: '2-digit', month: '2-digit', year: '2-digit'}) : "-";
+                    // Fix slight type error in variable above if present
+                    if(data.tarikhMula) dateStr = new Date(data.tarikhMula).toLocaleDateString('ms-MY', { day: '2-digit', month: '2-digit', year: '2-digit'});
+
                     tr.innerHTML = `
                         <td class="px-3 py-3 whitespace-nowrap font-medium text-gray-900">${dateStr}</td>
                         <td class="px-3 py-3 truncate max-w-[140px]" title="${data.tajuk}">${data.tajuk}</td>
@@ -1592,9 +1594,6 @@
                 if(prog.endDate) document.getElementById('in-tarikh-tamat').value = prog.endDate;
                 if(prog.description) document.getElementById('in-objektif').value = prog.description;
                 
-                // Set tajuk di lampiran
-                document.getElementById('att-subtitle').textContent = "PROGRAM: " + (prog.name ? prog.name.toUpperCase() : "");
-
                 // 2. AMBIL DATA KEHADIRAN DARI ARRAY PROGRAM
                 const label = document.getElementById('att-count-label');
                 
@@ -1614,51 +1613,41 @@
             }
         }
 
-        // --- FUNGSI SUSUNAN KEKANANAN & RENDER JADUAL ---
+        // --- FUNGSI SUSUNAN KEKANANAN & RENDER JADUAL (PAGINATION FIXED) ---
         function renderAttendanceTable() {
-            const tbody = document.getElementById('attendance-tbody');
-            const totalCountEl = document.getElementById('att-total-count');
-            const printDateEl = document.getElementById('att-print-date');
+            // CONSTANTS
+            const ROWS_PER_PAGE = 22; // Selamat untuk A4 dengan header
+            const wrapper = document.getElementById('pdf-wrapper');
             
-            // Set Tarikh Cetakan
-            const now = new Date();
-            printDateEl.textContent = now.toLocaleDateString('ms-MY', {day: '2-digit', month: '2-digit', year: 'numeric'});
+            // Remove old generated pages first
+            document.querySelectorAll('.generated-att-page').forEach(el => el.remove());
 
-            tbody.innerHTML = "";
-            
+            // Get base elements (template)
+            const templatePage = document.getElementById('attendance-page');
+            const tbodyTemplate = templatePage.querySelector('tbody');
+            tbodyTemplate.innerHTML = ""; // Clear template
+
             if (!window.attendanceData || window.attendanceData.length === 0) {
-                tbody.innerHTML = "<tr><td colspan='5' class='text-center italic text-gray-500 py-4'>Tiada Data Kehadiran</td></tr>";
-                totalCountEl.textContent = "0";
+                tbodyTemplate.innerHTML = "<tr><td colspan='5' class='text-center italic text-gray-500 py-4'>Tiada Data Kehadiran</td></tr>";
+                templatePage.querySelector('.att-total-count-el').textContent = "0";
                 return;
             }
 
-            // HELPER: DAPATKAN SKOR KEKANANAN (Semakin tinggi nilai, semakin atas)
+            // --- SORTING LOGIC ---
             function getRankWeight(jawatan) {
                 jawatan = (jawatan || "").toUpperCase();
-                
-                // TIER 1: PENGURUSAN TERTINGGI (PPD / NEGERI)
                 if (jawatan.includes("PENGARAH") || jawatan.includes("PEGAWAI PENDIDIKAN DAERAH")) return 10;
                 if (jawatan.includes("TIMBALAN")) return 9;
-                
-                // TIER 2: PENTADBIR SEKOLAH (PENGETUA / GURU BESAR)
                 if (jawatan.includes("PENGETUA") || jawatan.includes("GURU BESAR")) return 8;
-
-                // TIER 3: PENOLONG KANAN
                 if (jawatan.includes("PENOLONG KANAN") || jawatan.includes("PK PENTADBIRAN") || jawatan.includes("PK HEM") || jawatan.includes("PK KO")) return 7;
-
-                // TIER 4: PEGAWAI UNIT / KETUA BIDANG
                 if (jawatan.includes("SIP") || jawatan.includes("SISC") || jawatan.includes("KETUA PENOLONG")) return 6;
                 if (jawatan.includes("KETUA BIDANG") || jawatan.includes("GURU KANAN")) return 5;
-
-                // TIER 5: GURU & LAIN-LAIN
                 if (jawatan.includes("KAUNSELOR")) return 4;
                 if (jawatan.includes("GURU")) return 3;
                 if (jawatan.includes("AKP") || jawatan.includes("PEMBANTU")) return 2;
-                
-                return 1; // Default
+                return 1;
             }
 
-            // --- LOGIK SUSUNAN (SORTING) ---
             const sortedData = [...window.attendanceData].sort((a, b) => {
                 const stationA = (a.station || "").toUpperCase();
                 const stationB = (b.station || "").toUpperCase();
@@ -1667,52 +1656,83 @@
                 const nameA = (a.name || "").toUpperCase();
                 const nameB = (b.name || "").toUpperCase();
 
-                // 1. FILTER UTAMA: ORGANISASI PPD MIRI (Tuan Rumah/Atasan)
-                // Keyword: "PPD MIRI" atau "PEJABAT PENDIDIKAN DAERAH MIRI"
                 const isPpdA = (stationA.includes("PPD MIRI") || stationA.includes("PEJABAT PENDIDIKAN DAERAH MIRI"));
                 const isPpdB = (stationB.includes("PPD MIRI") || stationB.includes("PEJABAT PENDIDIKAN DAERAH MIRI"));
 
-                if (isPpdA && !isPpdB) return -1; // A naik atas
-                if (!isPpdA && isPpdB) return 1;  // B naik atas
+                if (isPpdA && !isPpdB) return -1;
+                if (!isPpdA && isPpdB) return 1;
 
-                // 2. FILTER KEDUA: KEKANANAN JAWATAN (Dalam kumpulan yg sama)
                 const rankA = getRankWeight(jawatanA);
                 const rankB = getRankWeight(jawatanB);
 
-                if (rankA !== rankB) {
-                    return rankB - rankA; // Susun menurun (Score tinggi di atas)
-                }
-
-                // 3. FILTER KETIGA: ABJAD NAMA
+                if (rankA !== rankB) return rankB - rankA;
                 return nameA.localeCompare(nameB);
             });
 
-            // Render Rows
-            sortedData.forEach((p, index) => {
-                const tr = document.createElement('tr');
-                
-                const name = p.name ? p.name.toUpperCase() : "PESERTA";
-                const jawatan = p.position ? p.position.toUpperCase() : "-";
-                const stesen = p.station ? p.station.toUpperCase() : "-";
-                const status = p.status ? p.status.toUpperCase() : "HADIR"; 
+            // --- PAGINATION LOOP ---
+            const totalPages = Math.ceil(sortedData.length / ROWS_PER_PAGE);
+            const nowStr = new Date().toLocaleDateString('ms-MY', {day: '2-digit', month: '2-digit', year: 'numeric'});
 
-                // Highlight jika PPD atau Pengetua/GB untuk mudah semak visual
-                let rowClass = "";
-                const rank = getRankWeight(jawatan);
-                if (rank >= 8) rowClass = "font-bold bg-indigo-50/50"; // Bold untuk Pengetua ke atas
+            for (let i = 0; i < totalPages; i++) {
+                let pageEl;
+                let tbody;
 
-                tr.innerHTML = `
-                    <td class="text-center font-bold ${rowClass}">${index + 1}</td>
-                    <td class="font-semibold ${rowClass}">${name}</td>
-                    <td class="text-[8pt] ${rowClass}">${jawatan}</td>
-                    <td class="text-[8pt] ${rowClass}">${stesen}</td>
-                    <td class="text-center text-[8pt] font-bold">${status}</td>
-                `;
-                tbody.appendChild(tr);
-            });
+                if (i === 0) {
+                    // Page 1: Use the existing template element
+                    pageEl = templatePage;
+                    tbody = tbodyTemplate;
+                } else {
+                    // Page 2+: Clone the template
+                    pageEl = templatePage.cloneNode(true);
+                    pageEl.id = `attendance-page-${i}`; // Unique ID
+                    pageEl.classList.add('generated-att-page'); // Mark for cleanup
+                    pageEl.classList.remove('hidden'); // Ensure visible
+                    wrapper.appendChild(pageEl);
+                    tbody = pageEl.querySelector('tbody');
+                    tbody.innerHTML = ""; // Empty clone body
+                }
 
-            // Kemaskini Jumlah
-            totalCountEl.textContent = sortedData.length;
+                // Set Metadata (Subtitle & Date) on every page
+                const tajuk = "PROGRAM: " + document.getElementById('in-tajuk').value;
+                pageEl.querySelectorAll('.att-subtitle-el').forEach(el => el.textContent = tajuk);
+                pageEl.querySelectorAll('.att-print-date-el').forEach(el => el.textContent = nowStr);
+
+                // Populate Rows for this chunk
+                const startIdx = i * ROWS_PER_PAGE;
+                const endIdx = startIdx + ROWS_PER_PAGE;
+                const chunk = sortedData.slice(startIdx, endIdx);
+
+                chunk.forEach((p, idx) => {
+                    const tr = document.createElement('tr');
+                    const globalIdx = startIdx + idx + 1;
+                    const name = p.name ? p.name.toUpperCase() : "PESERTA";
+                    const jawatan = p.position ? p.position.toUpperCase() : "-";
+                    const stesen = p.station ? p.station.toUpperCase() : "-";
+                    const status = p.status ? p.status.toUpperCase() : "HADIR"; 
+                    
+                    const rank = getRankWeight(jawatan);
+                    let rowClass = "";
+                    if (rank >= 8) rowClass = "font-bold bg-indigo-50/50"; 
+
+                    tr.innerHTML = `
+                        <td class="text-center font-bold ${rowClass}">${globalIdx}</td>
+                        <td class="font-semibold ${rowClass}">${name}</td>
+                        <td class="text-[8pt] ${rowClass}">${jawatan}</td>
+                        <td class="text-[8pt] ${rowClass}">${stesen}</td>
+                        <td class="text-center text-[8pt] font-bold">${status}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+
+                // Show Total Count ONLY on the last page
+                const footerDiv = pageEl.querySelector('.att-footer-count');
+                if (i === totalPages - 1) {
+                    footerDiv.style.visibility = 'visible';
+                    pageEl.querySelector('.att-total-count-el').textContent = sortedData.length;
+                } else {
+                    footerDiv.style.visibility = 'hidden';
+                }
+            }
         }
 
         // Initialize
