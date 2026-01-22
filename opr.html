@@ -41,6 +41,24 @@
             #pdf-wrapper .a4-paper { margin-bottom: 20px; }
         }
 
+        /* --- TAMBAH INI DI DALAM <style> --- */
+
+/* Style untuk butang naik/turun */
+.sort-btn {
+    background: #f3f4f6;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 10px;
+    cursor: pointer;
+    margin: 0 2px;
+}
+.sort-btn:hover { background: #e5e7eb; color: #4f46e5; }
+
+/* Pastikan kolom butang HILANG bila print/PDF */
+@media print {
+    .no-print-col { display: none !important; }
+}
         /* Background Overlay */
         .paper-background {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
@@ -266,6 +284,13 @@
                 </div>
 
                 <div class="bg-indigo-50 p-2 rounded border border-indigo-200">
+                    <div class="mt-2 flex items-center justify-between bg-white p-2 rounded border border-gray-200 shadow-sm">
+    <span class="text-[10px] font-bold text-gray-500 uppercase">Mod Susunan:</span>
+    <label class="flex items-center cursor-pointer">
+        <input type="checkbox" id="chk-manual-sort" class="w-3 h-3 text-orange-500 rounded" onchange="renderAttendanceTable()">
+        <span class="ml-1 text-[9px] font-bold text-orange-600 uppercase">Susun Manual (Ada Butang)</span>
+    </label>
+</div>
                     <div class="flex justify-between items-center">
                          <label class="text-xs font-bold text-indigo-700 uppercase flex items-center gap-1">
                             <span class="w-1.5 h-4 bg-indigo-500 rounded-full"></span> Lampiran Kehadiran
@@ -1496,6 +1521,25 @@
             if (window.currentAttFontSize > 12) window.currentAttFontSize = 12;
             
             document.getElementById('att-font-size-display').textContent = window.currentAttFontSize + 'pt';
+
+
+// --- FUNGSI BARU: GERAKKAN NAMA (MANUAL) ---
+window.moveItem = function(index, direction) {
+    const list = window.attendanceData;
+    const newIndex = index + direction;
+
+    // Elak error jika dah paling atas/bawah
+    if (newIndex < 0 || newIndex >= list.length) return;
+
+    // Tukar kedudukan (Swap)
+    const temp = list[index];
+    list[index] = list[newIndex];
+    list[newIndex] = temp;
+
+    // Render semula
+    renderAttendanceTable();
+}
+            
             renderAttendanceTable(); // Re-render to apply changes
         }
 
@@ -1794,64 +1838,87 @@
         }
 
         // --- FUNGSI SUSUNAN KEKANANAN & RENDER JADUAL (PAGINATION FIXED) ---
+
+
+// --- FUNGSI RENDER DENGAN MOD MANUAL ---
         function renderAttendanceTable() {
-            // UPDATED: USE DYNAMIC ROWS PER PAGE
             const ROWS_PER_PAGE = window.currentRowsPerPage || 15; 
-            
             const wrapper = document.getElementById('pdf-wrapper');
-            
-            // Remove old generated pages first
+            // Cek jika mod manual aktif
+            const isManualMode = document.getElementById('chk-manual-sort') ? document.getElementById('chk-manual-sort').checked : false;
+
+            // Bersihkan page lama
             document.querySelectorAll('.generated-att-page').forEach(el => el.remove());
 
-            // Get base elements (template)
             const templatePage = document.getElementById('attendance-page');
             const tbodyTemplate = templatePage.querySelector('tbody');
-            tbodyTemplate.innerHTML = ""; // Clear template
+            
+            // --- LOGIK HEADER TAMBAHAN ---
+            const headerRow = templatePage.querySelector('thead tr');
+            const actionHeaderId = 'th-action-col';
+            let actionTh = document.getElementById(actionHeaderId);
+
+            // Tambah kolum "UBAH" jika manual, buang jika auto
+            if (isManualMode) {
+                if (!actionTh) {
+                    actionTh = document.createElement('th');
+                    actionTh.id = actionHeaderId;
+                    actionTh.className = "w-16 text-center no-print-col bg-orange-50 text-orange-600 border border-orange-200";
+                    actionTh.innerText = "UBAH";
+                    headerRow.appendChild(actionTh);
+                }
+            } else {
+                if (actionTh) actionTh.remove();
+            }
+
+            tbodyTemplate.innerHTML = ""; 
 
             if (!window.attendanceData || window.attendanceData.length === 0) {
-                tbodyTemplate.innerHTML = "<tr><td colspan='5' class='text-center italic text-gray-500 py-4'>Tiada Data Kehadiran</td></tr>";
+                tbodyTemplate.innerHTML = "<tr><td colspan='6' class='text-center italic text-gray-500 py-4'>Tiada Data Kehadiran</td></tr>";
                 templatePage.querySelector('.att-total-count-el').textContent = "0";
                 return;
             }
 
-            // --- SORTING LOGIC ---
-            function getRankWeight(jawatan) {
-                jawatan = (jawatan || "").toUpperCase();
-                if (jawatan.includes("PENGARAH") || jawatan.includes("PEGAWAI PENDIDIKAN DAERAH")) return 10;
-                if (jawatan.includes("TIMBALAN")) return 9;
-                if (jawatan.includes("PENGETUA") || jawatan.includes("GURU BESAR")) return 8;
-                if (jawatan.includes("PENOLONG KANAN") || jawatan.includes("PK PENTADBIRAN") || jawatan.includes("PK HEM") || jawatan.includes("PK KO")) return 7;
-                if (jawatan.includes("SIP") || jawatan.includes("SISC") || jawatan.includes("KETUA PENOLONG")) return 6;
-                if (jawatan.includes("KETUA BIDANG") || jawatan.includes("GURU KANAN")) return 5;
-                if (jawatan.includes("KAUNSELOR")) return 4;
-                if (jawatan.includes("GURU")) return 3;
-                if (jawatan.includes("AKP") || jawatan.includes("PEMBANTU")) return 2;
-                return 1;
+            // --- LOGIK SORTING ---
+            // Hanya sort automatik jika BUKAN mod manual
+            if (!isManualMode) {
+                function getRankWeight(jawatan) {
+                    const t = (jawatan || "").toUpperCase().trim();
+                    if (t.includes("PEGAWAI PENDIDIKAN DAERAH") || (t.includes("PENGARAH") && !t.includes("TIMBALAN"))) return 100;
+                    if (t.includes("TIMBALAN")) return 90;
+                    if (t.includes("PENGETUA") || t.includes("GURU BESAR")) return 85;
+                    if (t.includes("SISC") || t.includes("SIP") || t.includes("PEGAWAI KHAS") || t.includes("PENOLONG PPD")) return 80;
+                    if (t.includes("PENTADBIRAN") || t.includes("PK 1") || t.includes("AKADEMIK") || t.includes("KANAN 1")) return 75;
+                    if (t.includes("HEM") || t.includes("HAL EHWAL")) return 74;
+                    if (t.includes("KOKURIKULUM") || t.includes("KO-Q") || t.includes("PK KO")) return 73;
+                    if (t.includes("PETANG") || t.includes("PK PKI") || t.includes("PENDIDIKAN KHAS")) return 72;
+                    if (t.includes("PENOLONG KANAN") || t.includes("PK")) return 70;
+                    if (t.includes("GURU KANAN") || t.includes("KETUA BIDANG") || t.includes("GKMP")) return 60;
+                    if (t.includes("KAUNSELOR") || t.includes("BIMBINGAN")) return 50;
+                    if (t.includes("KETUA PANITIA") || t.includes("SU ") || t.includes("SETIAUSAHA")) return 40;
+                    if (t.includes("GURU") || t.includes("DG")) return 30;
+                    if (t.includes("PEMBANTU") || t.includes("ANGGOTA") || t.includes("AKP") || t.includes("KERANI")) return 20;
+                    return 10;
+                }
+
+                window.attendanceData.sort((a, b) => {
+                    const stationA = (a.station || "").toUpperCase();
+                    const stationB = (b.station || "").toUpperCase();
+                    const rankA = getRankWeight(a.position);
+                    const rankB = getRankWeight(b.position);
+                    
+                    const isPpdA = (stationA.includes("PPD") || stationA.includes("PEJABAT"));
+                    const isPpdB = (stationB.includes("PPD") || stationB.includes("PEJABAT"));
+
+                    if (isPpdA && !isPpdB) return -1;
+                    if (!isPpdA && isPpdB) return 1;
+                    if (rankA !== rankB) return rankB - rankA;
+                    return (a.name || "").localeCompare(b.name || "");
+                });
             }
 
-            const sortedData = [...window.attendanceData].sort((a, b) => {
-                const stationA = (a.station || "").toUpperCase();
-                const stationB = (b.station || "").toUpperCase();
-                const jawatanA = (a.position || "").toUpperCase();
-                const jawatanB = (b.position || "").toUpperCase();
-                const nameA = (a.name || "").toUpperCase();
-                const nameB = (b.name || "").toUpperCase();
-
-                const isPpdA = (stationA.includes("PPD MIRI") || stationA.includes("PEJABAT PENDIDIKAN DAERAH MIRI"));
-                const isPpdB = (stationB.includes("PPD MIRI") || stationB.includes("PEJABAT PENDIDIKAN DAERAH MIRI"));
-
-                if (isPpdA && !isPpdB) return -1;
-                if (!isPpdA && isPpdB) return 1;
-
-                const rankA = getRankWeight(jawatanA);
-                const rankB = getRankWeight(jawatanB);
-
-                if (rankA !== rankB) return rankB - rankA;
-                return nameA.localeCompare(nameB);
-            });
-
-            // --- PAGINATION LOOP ---
-            const totalPages = Math.ceil(sortedData.length / ROWS_PER_PAGE);
+            // --- RENDER HALAMAN ---
+            const totalPages = Math.ceil(window.attendanceData.length / ROWS_PER_PAGE);
             const nowStr = new Date().toLocaleDateString('ms-MY', {day: '2-digit', month: '2-digit', year: 'numeric'});
 
             for (let i = 0; i < totalPages; i++) {
@@ -1859,76 +1926,82 @@
                 let tbody;
 
                 if (i === 0) {
-                    // Page 1: Use the existing template element
                     pageEl = templatePage;
                     tbody = tbodyTemplate;
-                    
-                    // FIXED: Ensure first page NEVER has a break before
                     pageEl.style.pageBreakBefore = "auto";
                     pageEl.classList.remove('force-break');
                 } else {
-                    // Page 2+: Clone the template
                     pageEl = templatePage.cloneNode(true);
-                    pageEl.id = `attendance-page-${i}`; // Unique ID
-                    pageEl.classList.add('generated-att-page'); // Mark for cleanup
-                    pageEl.classList.add('force-break'); // Add page-break class
-                    pageEl.classList.remove('hidden'); // Ensure visible
-                    
-                    // IMPORTANT: Force CSS Page Break for PDF
+                    pageEl.id = `attendance-page-${i}`;
+                    pageEl.classList.add('generated-att-page');
+                    pageEl.classList.add('force-break'); 
+                    pageEl.classList.remove('hidden');
                     pageEl.style.pageBreakBefore = "always"; 
                     pageEl.style.breakBefore = "page";
-
                     wrapper.appendChild(pageEl);
                     tbody = pageEl.querySelector('tbody');
-                    tbody.innerHTML = ""; // Empty clone body
+                    tbody.innerHTML = ""; 
                 }
                 
-                // --- APPLY DYNAMIC FONT SIZE ---
                 const tableEl = pageEl.querySelector('.att-table');
                 tableEl.style.fontSize = window.currentAttFontSize + 'pt';
 
-                // Set Metadata (Subtitle & Date) on every page
                 const tajuk = "PROGRAM: " + document.getElementById('in-tajuk').value;
                 pageEl.querySelectorAll('.att-subtitle-el').forEach(el => el.textContent = tajuk);
                 pageEl.querySelectorAll('.att-print-date-el').forEach(el => el.textContent = nowStr);
 
-                // Populate Rows for this chunk
                 const startIdx = i * ROWS_PER_PAGE;
                 const endIdx = startIdx + ROWS_PER_PAGE;
-                const chunk = sortedData.slice(startIdx, endIdx);
+                const chunk = window.attendanceData.slice(startIdx, endIdx);
 
                 chunk.forEach((p, idx) => {
                     const tr = document.createElement('tr');
-                    const globalIdx = startIdx + idx + 1;
+                    const globalIdx = startIdx + idx; 
+                    const displayNum = globalIdx + 1;
+                    
                     const name = p.name ? p.name.toUpperCase() : "PESERTA";
                     const jawatan = p.position ? p.position.toUpperCase() : "-";
                     const stesen = p.station ? p.station.toUpperCase() : "-";
                     const status = p.status ? p.status.toUpperCase() : "HADIR"; 
                     
-                    const rank = getRankWeight(jawatan);
                     let rowClass = "";
-                    if (rank >= 8) rowClass = "font-bold bg-indigo-50/50"; 
+                    // Auto Bold VIP jika bukan manual mode
+                    if (!isManualMode) {
+                         if(jawatan.includes("PENGETUA") || jawatan.includes("GURU BESAR") || jawatan.includes("PEGAWAI")) rowClass = "font-bold bg-gray-100";
+                    }
+
+                    // Tambah butang jika Manual Mode
+                    let actionBtns = "";
+                    if (isManualMode) {
+                        actionBtns = `
+                            <td class="text-center no-print-col bg-orange-50 border border-orange-200">
+                                <button onclick="moveItem(${globalIdx}, -1)" class="sort-btn" title="Naik">⬆️</button>
+                                <button onclick="moveItem(${globalIdx}, 1)" class="sort-btn" title="Turun">⬇️</button>
+                            </td>
+                        `;
+                    }
 
                     tr.innerHTML = `
-                        <td class="text-center font-bold ${rowClass}">${globalIdx}</td>
+                        <td class="text-center font-bold ${rowClass}">${displayNum}</td>
                         <td class="font-semibold ${rowClass}">${name}</td>
                         <td class="text-[inherit] ${rowClass}">${jawatan}</td>
                         <td class="text-[inherit] ${rowClass}">${stesen}</td>
                         <td class="text-center text-[inherit] font-bold">${status}</td>
+                        ${actionBtns}
                     `;
                     tbody.appendChild(tr);
                 });
 
-                // Show Total Count ONLY on the last page
                 const footerDiv = pageEl.querySelector('.att-footer-count');
                 if (i === totalPages - 1) {
                     footerDiv.style.visibility = 'visible';
-                    pageEl.querySelector('.att-total-count-el').textContent = sortedData.length;
+                    pageEl.querySelector('.att-total-count-el').textContent = window.attendanceData.length;
                 } else {
                     footerDiv.style.visibility = 'hidden';
                 }
             }
         }
+        
 
         // Initialize
         updatePreview();
