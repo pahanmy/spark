@@ -1530,15 +1530,27 @@
         }
 
         async function loadSavedReports() {
+            // 1. Pastikan pengguna wujud
+            if (!window.currentUserIc) return;
+
             const reportRef = collection(db, `artifacts/${appId}/public/data/spark_opr_records`);
             const q = query(reportRef, where("ic", "==", window.currentUserIc), orderBy("createdAt", "desc"));
             
             try {
                 const snaps = await getDocs(q);
+                
+                // 2. Cari elemen HTML
                 const tbody = document.getElementById('history-table-body');
                 const select = document.getElementById('history-select');
                 const limitMsg = document.getElementById('limit-warning');
                 const countDisplay = document.getElementById('history-count'); 
+
+                // 3. FIX PENTING: Jika elemen tiada, BERHENTI (Jangan buat apa-apa)
+                // Ini akan menghalang error "Cannot set properties of null"
+                if (!tbody || !select) {
+                    console.warn("Elemen jadual sejarah belum bersedia.");
+                    return; 
+                }
 
                 tbody.innerHTML = ''; 
                 select.innerHTML = '<option value="">-- Pilih Rekod --</option>';
@@ -1547,12 +1559,13 @@
                 let docs = [];
                 snaps.forEach(doc => docs.push({ id: doc.id, ...doc.data() }));
 
-                countDisplay.textContent = docs.length;
+                // Update jumlah jika elemen wujud
+                if(countDisplay) countDisplay.textContent = docs.length;
 
-                if (!window.isSparkPro && docs.length > 5) { 
+                if (!window.isSparkPro && docs.length > 5 && limitMsg) { 
                     docs = docs.slice(0, 5); 
                     limitMsg.classList.remove('hidden'); 
-                } else { 
+                } else if (limitMsg) { 
                     limitMsg.classList.add('hidden'); 
                 }
 
@@ -1566,14 +1579,13 @@
                     
                     const opt = document.createElement('option'); 
                     opt.value = data.id; 
-                    opt.textContent = data.tajuk.substring(0, 30);
+                    opt.textContent = data.tajuk ? data.tajuk.substring(0, 30) : "Tiada Tajuk";
                     select.appendChild(opt);
 
                     const tr = document.createElement('tr');
                     tr.className = "hover:bg-gray-50 transition-colors group";
                     
-                    let dateStr = data.tarikhMula ? new Date(datetarikhMula).toLocaleDateString('ms-MY', { day: '2-digit', month: '2-digit', year: '2-digit'}) : "-";
-                    // Fix slight type error in variable above if present
+                    let dateStr = "-";
                     if(data.tarikhMula) dateStr = new Date(data.tarikhMula).toLocaleDateString('ms-MY', { day: '2-digit', month: '2-digit', year: '2-digit'});
 
                     tr.innerHTML = `
@@ -1594,7 +1606,7 @@
                         </td>`;
                     tbody.appendChild(tr);
                 });
-            } catch (err) { console.error(err); }
+            } catch (err) { console.error("Ralat loadSavedReports:", err); }
         }
 
         window.loadHistory = function(id) {
