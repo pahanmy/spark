@@ -35,15 +35,15 @@
 
     <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-xl z-10 relative">
         
-        <div class="absolute top-4 right-4">
-            <button id="share-card-btn" class="bg-green-100 text-green-700 p-2 rounded-full hover:bg-green-200 transition-colors shadow-sm" title="Kongsi Kad ke WhatsApp">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <div class="absolute top-4 right-4 z-50">
+            <button id="share-card-btn" type="button" class="bg-green-100 text-green-700 p-2 rounded-full hover:bg-green-200 transition-colors shadow-sm flex items-center justify-center" title="Kongsi Kad / Download">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
                 </svg>
             </button>
         </div>
 
-        <div id="capture-area" class="bg-white rounded-lg p-2">
+        <div id="capture-area" class="bg-white rounded-lg p-4 relative">
             
             <div class="text-center mb-4">
                 <div class="mb-3">
@@ -221,7 +221,7 @@
             { text: "Selamat Hari Jadi! Semoga panjang umur dan murah rezeki.", quote: "\"Umur hanyalah angka, tetapi semangat adalah segalanya.\"" }
         ];
 
-        // --- FUNGSI SHARE SCREENSHOT (FIXED CORS) ---
+        // --- FUNGSI SHARE SCREENSHOT (FIXED CORS & DOWNLOAD FOR PC) ---
         async function shareBirthdayCard() {
             const captureArea = document.getElementById('capture-area');
             const name = document.getElementById('recipient-name-display').innerText;
@@ -232,44 +232,57 @@
             if (!captureArea) return alert("Ralat: Kawasan tidak dijumpai.");
             
             const originalText = btn.innerHTML;
-            btn.innerHTML = '⏳'; btn.disabled = true;
+            btn.innerHTML = '⏳'; 
+            btn.disabled = true;
 
             const shareText = `🎉 *SANAH HELWAH / HAPPY BIRTHDAY!* 🎉\n\nRaikan hari istimewa sahabat kita: *${name}*\n📅 ${date}\n\nMarilah sama-sama mendoakan kesejahteraan beliau. Klik pautan untuk hantar ucapan & hadiah maya:\n🔗 ${currentUrl}`;
 
             try {
-                // Konfigurasi html2canvas dengan CORS
+                // Gunakan konfigurasi selamat untuk PC & Mobile
                 const canvas = await html2canvas(captureArea, { 
-                    useCORS: true, // PENTING
-                    allowTaint: true,
+                    useCORS: true, // Pastikan ini true
+                    allowTaint: false, // JANGAN set true, ia akan rosakkan download
                     scale: 2, 
                     backgroundColor: '#ffffff' 
                 });
 
+                // Convert to Blob
                 canvas.toBlob(async (blob) => {
                     btn.innerHTML = originalText; btn.disabled = false;
                     
-                    if (!blob) return alert("Gagal menjana gambar.");
+                    if (!blob) {
+                        alert("Gagal menjana gambar. Sila cuba lagi.");
+                        return;
+                    }
 
+                    // 1. Cuba Share API (Mobile)
                     if (navigator.share && navigator.canShare && navigator.canShare({ files: [new File([blob], 'birthday.png', { type: 'image/png' })] })) {
                         const file = new File([blob], `Birthday_${name}.png`, { type: 'image/png' });
                         try {
                             await navigator.share({ text: shareText, files: [file] });
                         } catch (err) { console.log("Share dibatalkan"); }
-                    } else {
+                    } 
+                    // 2. Fallback: Auto Download (Laptop/PC)
+                    else {
                         const link = document.createElement('a');
                         link.download = `Birthday_${name}.png`;
-                        link.href = canvas.toDataURL();
+                        link.href = canvas.toDataURL("image/png");
+                        document.body.appendChild(link);
                         link.click();
+                        document.body.removeChild(link);
+                        
                         try {
                             await navigator.clipboard.writeText(shareText);
-                            alert("Gambar dimuat turun & Ayat telah disalin! Boleh paste di WhatsApp.");
-                        } catch (err) { alert("Gambar dimuat turun."); }
+                            alert("Gambar telah dimuat turun! Ayat ucapan juga telah disalin (Copy). Boleh paste di WhatsApp.");
+                        } catch (err) {
+                            alert("Gambar telah dimuat turun ke komputer anda.");
+                        }
                     }
                 }, 'image/png');
 
             } catch (error) {
                 console.error("Screenshot error:", error);
-                alert("Gagal mengambil screenshot. Cuba muat semula page.");
+                alert("Ralat sistem: " + error.message);
                 btn.innerHTML = originalText; btn.disabled = false;
             }
         }
@@ -331,7 +344,9 @@
 
             if (dbReady) loadWishes(recipientNameFromUrl, recipientDobFromUrl);
 
-            document.getElementById('share-card-btn').addEventListener('click', shareBirthdayCard); // EVENT LISTENER DI SINI
+            // EVENT LISTENER UNTUK BUTANG SHARE
+            document.getElementById('share-card-btn').addEventListener('click', shareBirthdayCard); 
+            
             document.getElementById('check-ic-btn').addEventListener('click', checkUserIc);
             document.getElementById('wish-form').addEventListener('submit', handleFormSubmit);
             document.getElementById('trigger-upload-btn').addEventListener('click', () => document.getElementById('photo-upload-input').click());
