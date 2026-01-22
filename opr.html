@@ -2,7 +2,7 @@
 <html lang="ms">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SPARK – Penjana OPR Pro (AI Edition + Lampiran)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
@@ -17,28 +17,21 @@
     <style>
         body { font-family: 'Poppins', sans-serif; background-color: #f8fafc; }
         
-        /* WRAPPER BARU UNTUK PDF */
+        /* WRAPPER BARU UNTUK PDF (Supaya boleh print banyak page) */
         #pdf-wrapper {
             width: 210mm;
             margin: 0 auto;
         }
 
-       /* A4 Paper Settings - DIKEMASKINI UNTUK PDF FLOW */
+        /* A4 Paper Settings */
         .a4-paper {
-            width: 210mm; 
-            min-height: 297mm; 
-            height: auto; 
+            width: 210mm; min-height: 297mm; height: 297mm; 
             padding-left: 15mm; padding-right: 15mm; padding-bottom: 10mm; padding-top: 10mm;
-            margin: 0 auto; margin-bottom: 0px; /* Kurangkan margin bawah */
+            margin: 0 auto; margin-bottom: 20px;
             background: white; box-shadow: 0 0 25px rgba(0,0,0,0.1);
             font-family: Arial, Helvetica, sans-serif; color: black; position: relative;
-            overflow: visible; 
-            display: flex; flex-direction: column;
-            page-break-inside: avoid; /* Elak pecah di tengah element */
+            overflow: hidden; display: flex; flex-direction: column;
         }
-
-        /* Helper untuk page break jika perlu */
-        .break-before { page-break-before: always; }
 
         /* Background Overlay */
         .paper-background {
@@ -49,8 +42,7 @@
         .paper-content { position: relative; z-index: 10; flex-grow: 1; display: flex; flex-direction: column; }
         
         /* Table Styles (Laporan Utama) */
-        .opr-table { width: 100%; border-collapse: collapse; margin-bottom: 0.8rem; background: rgba(255,255,255,0.85); page-break-inside: auto; }
-        .opr-table tr { page-break-inside: avoid; page-break-after: auto; }
+        .opr-table { width: 100%; border-collapse: collapse; margin-bottom: 0.8rem; background: rgba(255,255,255,0.85); }
         .opr-table td, .opr-table th { border: 1px solid black; padding: 4px 6px; vertical-align: top; }
         .opr-header { background-color: rgba(240, 253, 244, 0.95); font-weight: bold; text-transform: uppercase; width: 25%; }
         
@@ -76,7 +68,10 @@
             vertical-align: middle;
             color: #000;
         }
-        .att-table tr:nth-child(even) { background-color: #fafafa; }
+        /* Selang seli baris untuk mudah baca */
+        .att-table tr:nth-child(even) {
+            background-color: #fafafa;
+        }
 
         /* Upload Box */
         .img-upload-box {
@@ -89,7 +84,7 @@
         .img-upload-box.dragging { opacity: 0.5; border-color: #f59e0b; }
         .img-upload-box.drag-over { background-color: #fef3c7; border-color: #d97706; transform: scale(1.02); }
 
-        /* FIX GAMBAR PDF */
+        /* FIX GAMBAR PDF: Pastikan object-fit cover supaya tak penyek */
         .report-img-container {
             width: 100%; height: 100%;
             display: flex; justify-content: center; align-items: center;
@@ -97,7 +92,7 @@
         }
         .report-img-container img {
             width: 100%; height: 100%;
-            object-fit: cover; 
+            object-fit: cover; /* Ini kuncinya: memenuhkan kotak tanpa mengubah ratio */
         }
 
         /* Scrollbar */
@@ -118,7 +113,7 @@
             body { background: white; margin: 0; padding: 0; }
             .no-print { display: none !important; }
             #pdf-wrapper { width: 100%; margin: 0; }
-            .a4-paper { box-shadow: none; margin: 0; width: 100%; height: auto; page-break-after: always; padding-top: 10mm !important; }
+            .a4-paper { box-shadow: none; margin: 0; width: 100%; height: 297mm; page-break-after: always; padding-top: 10mm !important; }
             * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         }
     </style>
@@ -539,7 +534,7 @@
                             </div>
                         </div>
 
-                        <div class="flex justify-between items-end mt-4 mb-2"> <div id="out-link-container" class="hidden flex flex-col items-start pl-2">
+                        <div class="flex justify-between items-end mt-auto mb-2"> <div id="out-link-container" class="hidden flex flex-col items-start pl-2">
                                  <div class="flex items-center gap-1 text-[8pt] font-bold text-gray-600 uppercase mb-1">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" /></svg>
                                     Dokumentasi Program : rujuk sini
@@ -644,7 +639,6 @@
         const db = getFirestore(app);
         const auth = getAuth(app);
         const appId = firebaseConfig.projectId;
-        // AMARAN: Sila pastikan anda set Referrer Restriction di dashboard ImgBB & Groq
         const IMGBB_API_KEY = "a7c600ac733fe14649cacd8e65619c4b"; 
 
         window.currentUserIc = "";
@@ -657,8 +651,8 @@
         window.isSparkPro = false;
         
         window.imageMode = 2;
-        window.imageFiles = [null, null, null, null]; // Store File objects
-        window.imageUrls = ["", "", "", ""]; // Store URLs
+        window.imageFiles = [null, null, null, null];
+        window.imageUrls = ["", "", "", ""];
         window.bgFile = null;
         window.bgUrl = "";
         window.bgOpacity = 0.1;
@@ -693,7 +687,7 @@
         }
         renderBarcode("SPARK-OPR"); // Initial
 
-        // --- AI FUNCTION (OPTIMIZED TEXT CLEANUP) ---
+        // --- AI FUNCTION (DIKEMASKINI: GROQ / LLAMA 3) ---
         window.askAI = async function(type) {
             const btn = event.currentTarget;
             const originalText = btn.innerHTML;
@@ -712,6 +706,7 @@
                 return;
             }
 
+            // CHECK PRO STATUS FOR RESTRICTED FEATURES
             if ((type === 'kekuatan' || type === 'isu') && !window.isSparkPro) {
                 alert("Maaf, fungsi AI untuk Kekuatan dan Isu/Tindakan adalah eksklusif untuk pengguna SPARK PRO.\n\nSila langgan akaun Pro untuk akses penuh.");
                 btn.innerHTML = originalText;
@@ -719,7 +714,7 @@
                 return;
             }
 
-            let systemPrompt = "Anda adalah pembantu admin sekolah yang pakar membuat laporan rasmi Kementerian Pendidikan Malaysia (KPM). Jawab dalam Bahasa Melayu baku dan profesional. Terus kepada poin tanpa pendahuluan.";
+            let systemPrompt = "Anda adalah pembantu admin sekolah yang pakar membuat laporan rasmi Kementerian Pendidikan Malaysia (KPM). Jawab dalam Bahasa Melayu baku dan profesional. Terus kepada poin tanpa pendahuluan atau penutup. Jangan gunakan markdown bold (**).";
             
             let userPrompt = "";
             let targetId = "";
@@ -766,13 +761,7 @@
                 
                 if (data.choices && data.choices[0]) {
                     let text = data.choices[0].message.content;
-                    // --- CLEANUP AGRES IF ---
-                    text = text.replace(/Here are.*?:/ik, '')
-                               .replace(/Sure,.*?:/ik, '')
-                               .replace(/Berikut adalah.*?:/ik, '')
-                               .replace(/\*\*/g, '')
-                               .replace(/^[\*•] /gm, '- ')
-                               .trim(); 
+                    text = text.replace(/\*\*/g, '').replace(/^[\*•] /gm, '- ').replace(/^Here are/i, '').trim(); 
                     
                     const inputField = document.getElementById(targetId);
                     if(inputField) {
@@ -833,7 +822,7 @@
             return `OPR-${dateStr}-${random}`;
         }
 
-        // --- CANVAS SIGNATURE LOGIC (MOBILE FIX) ---
+        // --- CANVAS SIGNATURE LOGIC ---
         function initSignaturePad() {
             sigCanvas = document.getElementById('signature-pad');
             sigCtx = sigCanvas.getContext('2d');
@@ -845,28 +834,15 @@
             }
             resizeCanvas();
             window.addEventListener('resize', resizeCanvas);
-            
-            // Mouse Events
+
             sigCanvas.addEventListener('mousedown', startDrawing);
             sigCanvas.addEventListener('mouseup', stopDrawing);
             sigCanvas.addEventListener('mousemove', draw);
             sigCanvas.addEventListener('mouseleave', stopDrawing);
 
-            // Touch Events (Prevent Scroll)
-            sigCanvas.addEventListener('touchstart', (e) => { 
-                if(e.target === sigCanvas) e.preventDefault();
-                startDrawing(e.touches[0]); 
-            }, { passive: false });
-            
-            sigCanvas.addEventListener('touchend', (e) => { 
-                if(e.target === sigCanvas) e.preventDefault();
-                stopDrawing(); 
-            }, { passive: false });
-            
-            sigCanvas.addEventListener('touchmove', (e) => { 
-                if(e.target === sigCanvas) e.preventDefault();
-                draw(e.touches[0]); 
-            }, { passive: false });
+            sigCanvas.addEventListener('touchstart', (e) => { e.preventDefault(); startDrawing(e.touches[0]); });
+            sigCanvas.addEventListener('touchend', (e) => { e.preventDefault(); stopDrawing(); });
+            sigCanvas.addEventListener('touchmove', (e) => { e.preventDefault(); draw(e.touches[0]); });
         }
 
         function startDrawing(e) {
@@ -1141,22 +1117,10 @@
             const dateStart = document.getElementById('in-tarikh-mula').value;
             const dateEnd = document.getElementById('in-tarikh-tamat').value;
             let dateDisplay = "";
-            
-            // TIMEZONE FIX: manual split
             if(dateStart) {
-                const parts1 = dateStart.split('-'); // YYYY, MM, DD
-                const d1 = new Date(parts1[0], parts1[1]-1, parts1[2]);
-                const day1 = d1.getDate(); 
-                const month1 = d1.toLocaleDateString('ms-MY', { month: 'short' }).toUpperCase(); 
-                const year1 = d1.getFullYear();
-                
+                const d1 = new Date(dateStart); const day1 = d1.getDate(); const month1 = d1.toLocaleDateString('ms-MY', { month: 'short' }).toUpperCase(); const year1 = d1.getFullYear();
                 if(dateEnd && dateEnd !== dateStart) {
-                    const parts2 = dateEnd.split('-');
-                    const d2 = new Date(parts2[0], parts2[1]-1, parts2[2]);
-                    const day2 = d2.getDate(); 
-                    const month2 = d2.toLocaleDateString('ms-MY', { month: 'short' }).toUpperCase(); 
-                    const year2 = d2.getFullYear();
-                    
+                    const d2 = new Date(dateEnd); const day2 = d2.getDate(); const month2 = d2.toLocaleDateString('ms-MY', { month: 'short' }).toUpperCase(); const year2 = d2.getFullYear();
                     if(year1 === year2 && month1 === month2) dateDisplay = `${day1} - ${day2} ${month1} ${year1}`;
                     else if (year1 === year2) dateDisplay = `${day1} ${month1} - ${day2} ${month2} ${year1}`;
                     else dateDisplay = `${day1} ${month1} ${year1} - ${day2} ${month2} ${year2}`;
@@ -1236,12 +1200,9 @@
             return new Blob([u8arr], {type:mime});
         }
 
-        // --- OPTIMIZED SAVE FUNCTION (NO RE-UPLOAD) ---
         window.saveAndDownload = async function() {
             const btn = document.getElementById('btn-save');
-            btn.innerHTML = `<svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Memproses...`; 
-            btn.disabled = true;
-
+            btn.innerHTML = "Proses..."; btn.disabled = true;
             try {
                 // GENERATE SERIAL IF EMPTY
                 let currentSerial = document.getElementById('opr-serial-hidden').value;
@@ -1251,46 +1212,26 @@
                     renderBarcode(currentSerial);
                 }
 
-                // UPLOAD MAIN IMAGES ONLY IF NEW FILE SELECTED
                 const uploadedUrls = [];
                 for(let i=0; i<4; i++) {
                     let finalUrl = window.imageUrls[i] || "";
-                    if(window.imageFiles[i] instanceof File) {
-                        finalUrl = await uploadToImgBB(window.imageFiles[i]);
-                        window.imageFiles[i] = null; // Clear memory flag so next save doesn't re-upload
-                        window.imageUrls[i] = finalUrl;
-                    }
+                    if(window.imageFiles[i]) finalUrl = await uploadToImgBB(window.imageFiles[i]);
                     uploadedUrls.push(finalUrl);
                 }
 
-                // BG UPLOAD
                 let finalBgUrl = window.bgUrl || "";
-                if(window.bgFile instanceof File) {
-                    finalBgUrl = await uploadToImgBB(window.bgFile);
-                    window.bgFile = null;
-                    window.bgUrl = finalBgUrl;
-                }
+                if(window.bgFile) finalBgUrl = await uploadToImgBB(window.bgFile);
 
-                // LOGO UPLOAD
                 let finalLogoUrl = window.logoUrl || "";
-                if(window.logoFile instanceof File) {
-                    finalLogoUrl = await uploadToImgBB(window.logoFile);
-                    window.logoFile = null;
-                    window.logoUrl = finalLogoUrl;
-                }
+                if(window.logoFile) finalLogoUrl = await uploadToImgBB(window.logoFile);
 
-                // SIGNATURE UPLOAD
                 let finalSigUrl = window.sigUrl || "";
                 if (isSignatureDrawn) {
                     const dataUrl = sigCanvas.toDataURL("image/png");
                     const blob = dataURLtoBlob(dataUrl);
                     finalSigUrl = await uploadToImgBB(blob);
-                    window.sigUrl = finalSigUrl;
-                    isSignatureDrawn = false;
-                } else if(window.sigFile instanceof File) {
+                } else if(window.sigFile) {
                     finalSigUrl = await uploadToImgBB(window.sigFile);
-                    window.sigFile = null;
-                    window.sigUrl = finalSigUrl;
                 }
 
                 if (document.getElementById('chk-save-default-sig').checked && finalSigUrl && window.currentUserDocId) {
@@ -1323,7 +1264,7 @@
                     linkDokumen: document.getElementById('in-link-dokumen').value,
                     showLinkDokumen: document.getElementById('chk-link-dokumen').checked,
                     serialNumber: currentSerial,
-                    attendanceList: window.attendanceData || [], 
+                    attendanceList: window.attendanceData || [], // SIMPAN DATA KEHADIRAN
 
                     backgroundUrl: finalBgUrl, backgroundOpacity: window.bgOpacity,
                     logoUrl: finalLogoUrl,
@@ -1350,17 +1291,17 @@
             const tajuk = document.getElementById('in-tajuk').value.replace(/[^a-zA-Z0-9]/g, "_").substring(0, 15);
             const fileName = `OPR_${tajuk}.pdf`;
             
+            // Check visibility for page 2
+            const attPage = document.getElementById('attendance-page');
             const showAtt = document.getElementById('chk-attendance').checked;
-            if(!showAtt) document.getElementById('attendance-page').classList.add('hidden');
+            if(!showAtt) attPage.classList.add('hidden'); // Ensure hidden
             
-            // OPTIMIZED PDF SETTINGS
             const opt = { 
-                margin: [5, 0, 5, 0], 
+                margin: 0, 
                 filename: fileName, 
                 image: { type: 'jpeg', quality: 0.98 }, 
-                html2canvas: { scale: 2, useCORS: true, scrollY: 0 }, 
-                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-                pagebreak: { mode: ['css', 'legacy'] } 
+                html2canvas: { scale: 2, useCORS: true }, 
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } 
             };
             await html2pdf().set(opt).from(element).save();
             
@@ -1505,12 +1446,7 @@
                     const tr = document.createElement('tr');
                     tr.className = "hover:bg-gray-50 transition-colors group";
                     
-                    // DATE FIX: Use split instead of Date object to avoid timezone issues
-                    let dateStr = "-";
-                    if(data.tarikhMula) {
-                        const parts = data.tarikhMula.split('-');
-                        dateStr = `${parts[2]}/${parts[1]}/${parts[0].slice(2)}`;
-                    }
+                    let dateStr = data.tarikhMula ? new Date(data.tarikhMula).toLocaleDateString('ms-MY', { day: '2-digit', month: '2-digit', year: '2-digit'}) : "-";
                     
                     tr.innerHTML = `
                         <td class="px-3 py-3 whitespace-nowrap font-medium text-gray-900">${dateStr}</td>
@@ -1700,12 +1636,21 @@
             function getRankWeight(jawatan) {
                 jawatan = (jawatan || "").toUpperCase();
                 
+                // TIER 1: PENGURUSAN TERTINGGI (PPD / NEGERI)
                 if (jawatan.includes("PENGARAH") || jawatan.includes("PEGAWAI PENDIDIKAN DAERAH")) return 10;
                 if (jawatan.includes("TIMBALAN")) return 9;
+                
+                // TIER 2: PENTADBIR SEKOLAH (PENGETUA / GURU BESAR)
                 if (jawatan.includes("PENGETUA") || jawatan.includes("GURU BESAR")) return 8;
+
+                // TIER 3: PENOLONG KANAN
                 if (jawatan.includes("PENOLONG KANAN") || jawatan.includes("PK PENTADBIRAN") || jawatan.includes("PK HEM") || jawatan.includes("PK KO")) return 7;
+
+                // TIER 4: PEGAWAI UNIT / KETUA BIDANG
                 if (jawatan.includes("SIP") || jawatan.includes("SISC") || jawatan.includes("KETUA PENOLONG")) return 6;
                 if (jawatan.includes("KETUA BIDANG") || jawatan.includes("GURU KANAN")) return 5;
+
+                // TIER 5: GURU & LAIN-LAIN
                 if (jawatan.includes("KAUNSELOR")) return 4;
                 if (jawatan.includes("GURU")) return 3;
                 if (jawatan.includes("AKP") || jawatan.includes("PEMBANTU")) return 2;
@@ -1723,13 +1668,14 @@
                 const nameB = (b.name || "").toUpperCase();
 
                 // 1. FILTER UTAMA: ORGANISASI PPD MIRI (Tuan Rumah/Atasan)
+                // Keyword: "PPD MIRI" atau "PEJABAT PENDIDIKAN DAERAH MIRI"
                 const isPpdA = (stationA.includes("PPD MIRI") || stationA.includes("PEJABAT PENDIDIKAN DAERAH MIRI"));
                 const isPpdB = (stationB.includes("PPD MIRI") || stationB.includes("PEJABAT PENDIDIKAN DAERAH MIRI"));
 
                 if (isPpdA && !isPpdB) return -1; // A naik atas
                 if (!isPpdA && isPpdB) return 1;  // B naik atas
 
-                // 2. FILTER KEDUA: KEKANANAN JAWATAN
+                // 2. FILTER KEDUA: KEKANANAN JAWATAN (Dalam kumpulan yg sama)
                 const rankA = getRankWeight(jawatanA);
                 const rankB = getRankWeight(jawatanB);
 
@@ -1750,10 +1696,10 @@
                 const stesen = p.station ? p.station.toUpperCase() : "-";
                 const status = p.status ? p.status.toUpperCase() : "HADIR"; 
 
-                // Highlight jika PPD atau Pengetua/GB
+                // Highlight jika PPD atau Pengetua/GB untuk mudah semak visual
                 let rowClass = "";
                 const rank = getRankWeight(jawatan);
-                if (rank >= 8) rowClass = "font-bold bg-indigo-50/50";
+                if (rank >= 8) rowClass = "font-bold bg-indigo-50/50"; // Bold untuk Pengetua ke atas
 
                 tr.innerHTML = `
                     <td class="text-center font-bold ${rowClass}">${index + 1}</td>
