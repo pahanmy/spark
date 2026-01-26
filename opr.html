@@ -41,24 +41,23 @@
             #pdf-wrapper .a4-paper { margin-bottom: 20px; }
         }
 
-        /* --- TAMBAH INI DI DALAM <style> --- */
+        /* Style untuk butang naik/turun */
+        .sort-btn {
+            background: #f3f4f6;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+            padding: 2px 6px;
+            font-size: 10px;
+            cursor: pointer;
+            margin: 0 2px;
+        }
+        .sort-btn:hover { background: #e5e7eb; color: #4f46e5; }
 
-/* Style untuk butang naik/turun */
-.sort-btn {
-    background: #f3f4f6;
-    border: 1px solid #d1d5db;
-    border-radius: 4px;
-    padding: 2px 6px;
-    font-size: 10px;
-    cursor: pointer;
-    margin: 0 2px;
-}
-.sort-btn:hover { background: #e5e7eb; color: #4f46e5; }
+        /* Pastikan kolom butang HILANG bila print/PDF */
+        @media print {
+            .no-print-col { display: none !important; }
+        }
 
-/* Pastikan kolom butang HILANG bila print/PDF */
-@media print {
-    .no-print-col { display: none !important; }
-}
         /* Background Overlay */
         .paper-background {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
@@ -285,18 +284,18 @@
 
                 <div class="bg-indigo-50 p-2 rounded border border-indigo-200">
                     <div class="mt-2 flex items-center justify-between bg-white p-2 rounded border border-gray-200 shadow-sm">
-    <span class="text-[10px] font-bold text-gray-500 uppercase">Mod Susunan:</span>
-    <label class="flex items-center cursor-pointer">
-        <input type="checkbox" id="chk-manual-sort" class="w-3 h-3 text-orange-500 rounded" onchange="renderAttendanceTable()">
-        <span class="ml-1 text-[9px] font-bold text-orange-600 uppercase">Susun Manual (Ada Butang)</span>
-    </label>
-</div>
+                        <span class="text-[10px] font-bold text-gray-500 uppercase">Mod Susunan:</span>
+                        <label class="flex items-center cursor-pointer">
+                            <input type="checkbox" id="chk-manual-sort" class="w-3 h-3 text-orange-500 rounded" onchange="renderAttendanceTable()">
+                            <span class="ml-1 text-[9px] font-bold text-orange-600 uppercase">Susun Manual (Ada Butang)</span>
+                        </label>
+                    </div>
                     <div class="flex justify-between items-center">
                          <label class="text-xs font-bold text-indigo-700 uppercase flex items-center gap-1">
                             <span class="w-1.5 h-4 bg-indigo-500 rounded-full"></span> Lampiran Kehadiran
                         </label>
                         <label class="flex items-center cursor-pointer">
-                            <input type="checkbox" id="chk-attendance" class="w-3 h-3 text-indigo-600 rounded" onchange="updatePreview()">
+                            <input type="checkbox" id="chk-attendance" class="w-3 h-3 text-indigo-600 rounded" onchange="updatePreview(); renderAttendanceTable()">
                             <span class="ml-1 text-[9px] font-bold text-gray-500 uppercase">Sertakan Senarai</span>
                         </label>
                     </div>
@@ -748,58 +747,6 @@
         window.currentAttFontSize = 9; 
         window.currentRowsPerPage = 15; 
 
-
-        // --- FUNGSI GERAKKAN BARIS (MANUAL SORT) ---
-        // PENTING: Wajib ada "window." di depan supaya butang HTML boleh baca
-        window.moveItem = function(index, direction) {
-            // Pastikan data wujud
-            if (!window.attendanceData) return;
-
-            const list = window.attendanceData;
-            const newIndex = index + direction;
-
-            // Elak error jika dah paling atas atau paling bawah
-            if (newIndex < 0 || newIndex >= list.length) return;
-
-            // Tukar tempat (Swap data dalam array)
-            const temp = list[index];
-            list[index] = list[newIndex];
-            list[newIndex] = temp;
-
-            // Render semula jadual dengan susunan baru
-            // Pastikan renderAttendanceTable juga ada "window."
-            if (typeof window.renderAttendanceTable === "function") {
-                window.renderAttendanceTable();
-            } else {
-                console.error("Ralat: renderAttendanceTable tidak dijumpai.");
-            }
-        }
-
-        window.isSparkPro = false;
-        
-        window.imageMode = 2;
-        window.imageFiles = [null, null, null, null];
-        window.imageUrls = ["", "", "", ""];
-        window.bgFile = null;
-        window.bgUrl = "";
-        window.bgOpacity = 0.1;
-        
-        window.logoFile = null;
-        window.logoUrl = "";
-
-        // SIGNATURE VARIABLES
-        window.sigFile = null;
-        window.sigUrl = "";
-        window.defaultSigUrl = ""; 
-        
-        window.activeCropIndex = null;
-        window.cropper = null;
-
-        // CANVAS VARIABLES
-        let isDrawing = false;
-        let sigCanvas, sigCtx;
-        let isSignatureDrawn = false; 
-
         // RENDER DEFAULT BARCODE PLACEHOLDER
         function renderBarcode(text) {
             JsBarcode("#barcode", text, {
@@ -814,51 +761,53 @@
         }
         renderBarcode("SPARK-OPR"); // Initial
 
-        // --- AI FUNCTION (DIKEMASKINI: GROQ / LLAMA 3) ---
+        // --- AI FUNCTION (DIKEMASKINI DENGAN KONTEKS) ---
         window.askAI = async function(type) {
             const btn = event.currentTarget;
             const originalText = btn.innerHTML;
             const GROQ_API_KEY = "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"; 
-
-            btn.innerHTML = `⏳...`;
-            btn.disabled = true;
 
             const title = document.getElementById('in-tajuk').value;
             const place = document.getElementById('in-tempat').value;
             
             if(!title || title === "LAPORAN PROGRAM") {
                 alert("Sila masukkan Tajuk Program dahulu.");
-                btn.innerHTML = originalText;
-                btn.disabled = false;
                 return;
             }
 
-            // CHECK PRO STATUS FOR RESTRICTED FEATURES
+            // CHECK PRO STATUS
             if ((type === 'kekuatan' || type === 'isu') && !window.isSparkPro) {
-                alert("Maaf, fungsi AI untuk Kekuatan dan Isu/Tindakan adalah eksklusif untuk pengguna SPARK PRO.\n\nSila langgan akaun Pro untuk akses penuh.");
-                btn.innerHTML = originalText;
-                btn.disabled = false;
+                alert("Maaf, fungsi AI untuk Kekuatan dan Isu/Tindakan adalah eksklusif untuk pengguna SPARK PRO.");
                 return;
             }
 
-            let systemPrompt = "Anda adalah pembantu admin sekolah yang pakar membuat laporan rasmi Kementerian Pendidikan Malaysia (KPM). Jawab dalam Bahasa Melayu baku dan profesional. Terus kepada poin tanpa pendahuluan atau penutup. Jangan gunakan markdown bold (**).";
+            // --- SOALAN TAMBAHAN UNTUK KEYPOINT ---
+            let context = prompt("Masukkan KATA KUNCI/KONTEKS khusus (Penting supaya AI tidak merepek).\n\nContoh: 'Mesyuarat korporat, bukan sekolah' atau 'Program santai keluarga'.\nBiarkan kosong jika tiada.", "");
+            
+            if (context === null) return; // Jika tekan Cancel
+
+            btn.innerHTML = `⏳ Menjana...`;
+            btn.disabled = true;
+
+            let systemPrompt = "Anda adalah pembantu admin profesional di Malaysia. Jawab dalam Bahasa Melayu baku. Jangan berbunga-bunga. Terus kepada point. Gunakan konteks yang diberi sepenuhnya. Jika konteks kata 'pejabat', JANGAN sebut pasal 'murid' atau 'sekolah'.";
             
             let userPrompt = "";
             let targetId = "";
             let isList = false;
+            let contextString = context ? `KONTEKS PENTING: ${context}.` : "";
 
             if (type === 'objektif') {
                 targetId = 'in-objektif';
                 isList = true;
-                userPrompt = `Senaraikan 3 objektif ringkas dan profesional untuk program: "${title}" bertempat di "${place}". Format: Bullet point standard (-).`;
+                userPrompt = `Senaraikan 3 objektif ringkas dan profesional untuk program: "${title}" bertempat di "${place}". ${contextString} Format: Bullet point standard (-).`;
             } else if (type === 'kekuatan') {
                 targetId = 'in-dapatan';
                 isList = true;
-                userPrompt = `Senaraikan 3 impak/kekuatan kejayaan bagi program "${title}". Fokus kepada kelancaran dan kerjasama. Format: Bullet point standard (-).`;
+                userPrompt = `Senaraikan 3 impak/kekuatan kejayaan bagi program "${title}". ${contextString} Fokus kepada hasil positif. Format: Bullet point standard (-).`;
             } else if (type === 'isu') {
                 targetId = 'in-isu';
                 isList = true;
-                userPrompt = `Senaraikan 2 isu berbangkit biasa (contoh: teknikal/masa) dan cadangan penambahbaikan untuk program "${title}". Format: "Isu - Cadangan".`;
+                userPrompt = `Senaraikan 2 isu berbangkit (contoh: teknikal/masa) dan cadangan penambahbaikan untuk program "${title}". ${contextString} Format: "Isu - Cadangan".`;
             }
 
             try {
@@ -874,15 +823,12 @@
                             { role: "user", content: userPrompt }
                         ],
                         model: "llama-3.3-70b-versatile", 
-                        temperature: 0.6,
+                        temperature: 0.5, // Dikurangkan supaya lebih strict
                         max_tokens: 300
                     })
                 });
 
-                if (!response.ok) {
-                    const errData = await response.json();
-                    throw new Error(errData.error?.message || "Ralat sambungan Groq.");
-                }
+                if (!response.ok) throw new Error("Ralat sambungan AI.");
 
                 const data = await response.json();
                 
@@ -950,14 +896,14 @@
         }
 
         // --- CANVAS SIGNATURE LOGIC (FIXED) ---
+        let isDrawing = false;
+        let sigCanvas, sigCtx;
+        let isSignatureDrawn = false; 
+
         function initSignaturePad() {
             sigCanvas = document.getElementById('signature-pad');
-            
-            // FIX: Check if exist
             if (!sigCanvas) return;
-
             sigCtx = sigCanvas.getContext('2d');
-            
             function resizeCanvas() {
                 if(sigCanvas) {
                     const rect = sigCanvas.getBoundingClientRect();
@@ -967,12 +913,10 @@
             }
             resizeCanvas();
             window.addEventListener('resize', resizeCanvas);
-
             sigCanvas.addEventListener('mousedown', startDrawing);
             sigCanvas.addEventListener('mouseup', stopDrawing);
             sigCanvas.addEventListener('mousemove', draw);
             sigCanvas.addEventListener('mouseleave', stopDrawing);
-
             sigCanvas.addEventListener('touchstart', (e) => { e.preventDefault(); startDrawing(e.touches[0]); });
             sigCanvas.addEventListener('touchend', (e) => { e.preventDefault(); stopDrawing(); });
             sigCanvas.addEventListener('touchmove', (e) => { e.preventDefault(); draw(e.touches[0]); });
@@ -1028,6 +972,20 @@
         }
 
         // --- CROPPER LOGIC (HIGH QUALITY) ---
+        window.activeCropIndex = null;
+        window.cropper = null;
+        window.imageMode = 2;
+        window.imageFiles = [null, null, null, null];
+        window.imageUrls = ["", "", "", ""];
+        window.bgFile = null;
+        window.bgUrl = "";
+        window.bgOpacity = 0.1;
+        window.logoFile = null;
+        window.logoUrl = "";
+        window.sigFile = null;
+        window.sigUrl = "";
+        window.defaultSigUrl = ""; 
+
         window.triggerUpload = function(index) {
             window.activeCropIndex = index;
             document.getElementById('temp-file-input').value = "";
@@ -1042,7 +1000,6 @@
                     imageElement.src = e.target.result;
                     document.getElementById('crop-modal').classList.remove('hidden');
                     if (window.cropper) window.cropper.destroy();
-                    // --- FORCE LANDSCAPE RATIO 16:9 ---
                     window.cropper = new Cropper(imageElement, { 
                         aspectRatio: 16/9, 
                         viewMode: 1, 
@@ -1061,7 +1018,6 @@
 
         window.applyCrop = function() {
             if (!window.cropper) return;
-            // --- RESIZE TO 1280x720 (HD) ---
             window.cropper.getCroppedCanvas({ width: 1280, height: 720 }).toBlob((blob) => {
                 const idx = window.activeCropIndex;
                 const file = new File([blob], "cropped.jpg", { type: "image/jpeg" });
@@ -1069,7 +1025,7 @@
                 window.imageUrls[idx] = URL.createObjectURL(blob);
                 refreshImages();
                 closeCropModal();
-            }, 'image/jpeg', 0.90); // 90% Quality
+            }, 'image/jpeg', 0.90);
         }
 
         window.refreshImages = function() {
@@ -1119,8 +1075,6 @@
 
             if(isChecked) {
                 container.classList.remove('hidden');
-                
-                // --- FIX: Safety Check for Canvas ---
                 setTimeout(() => {
                     const canvasEl = document.getElementById('signature-pad');
                     if (canvasEl) {
@@ -1128,7 +1082,6 @@
                         if(canvasEl.width !== rect.width) {
                              canvasEl.width = rect.width; 
                              canvasEl.height = rect.height;
-                             // Update global var if needed
                              sigCanvas = canvasEl;
                              sigCtx = canvasEl.getContext('2d');
                         }
@@ -1214,7 +1167,6 @@
                 document.getElementById('container-2').classList.remove('hidden'); document.getElementById('container-3').classList.remove('hidden');
                 document.getElementById('prev-box-2').classList.remove('hidden'); document.getElementById('prev-box-3').classList.remove('hidden');
                 gridPreview.classList.remove('grid-cols-2'); gridPreview.classList.add('grid-cols-2', 'grid-rows-2'); 
-                // REMOVED FIXED HEIGHT TO ALLOW ASPECT RATIO
             } else {
                 btn.textContent = "+ Tambah Gambar (4)";
                 document.getElementById('container-2').classList.add('hidden'); document.getElementById('container-3').classList.add('hidden');
@@ -1310,7 +1262,6 @@
             const input = document.getElementById(inputId);
             const output = document.getElementById(outputId);
             const checkbox = document.getElementById(checkId);
-            
             if(!input || !output) return;
             const text = input.value;
             const isListMode = checkbox ? checkbox.checked : false;
@@ -1348,7 +1299,6 @@
             const btn = document.getElementById('btn-save');
             btn.innerHTML = "Proses..."; btn.disabled = true;
             try {
-                // GENERATE SERIAL IF EMPTY
                 let currentSerial = document.getElementById('opr-serial-hidden').value;
                 if(!currentSerial) {
                     currentSerial = generateSerial();
@@ -1408,7 +1358,7 @@
                     linkDokumen: document.getElementById('in-link-dokumen').value,
                     showLinkDokumen: document.getElementById('chk-link-dokumen').checked,
                     serialNumber: currentSerial,
-                    attendanceList: window.attendanceData || [], // SIMPAN DATA KEHADIRAN
+                    attendanceList: window.attendanceData || [],
 
                     backgroundUrl: finalBgUrl, backgroundOpacity: window.bgOpacity,
                     logoUrl: finalLogoUrl,
@@ -1434,24 +1384,16 @@
             const element = document.getElementById('pdf-wrapper');
             const tajuk = document.getElementById('in-tajuk').value.replace(/[^a-zA-Z0-9]/g, "_").substring(0, 15);
             const fileName = `OPR_${tajuk}.pdf`;
-            
-            window.scrollTo(0,0); // Reset scroll to avoid glitch
-
+            window.scrollTo(0,0);
             const opt = { 
                 margin: 0, 
                 filename: fileName, 
                 image: { type: 'jpeg', quality: 0.98 }, 
-                html2canvas: { 
-                    scale: 2, 
-                    useCORS: true,
-                    scrollY: 0, 
-                    letterRendering: true
-                }, 
+                html2canvas: { scale: 2, useCORS: true, scrollY: 0, letterRendering: true }, 
                 jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
                 pagebreak: { mode: ['avoid-all', 'css', 'legacy'] } 
             };
             await html2pdf().set(opt).from(element).save();
-            
             if(isSaved) alert("Berjaya disimpan dan dimuat turun!");
         }
 
@@ -1462,73 +1404,38 @@
             if (result.success) return result.data.url; else throw new Error("Gagal upload gambar");
         }
 
-        // --- LOADERS & TABS (VERSI SELAMAT) ---
         window.showTab = function(tabName) {
-            // Senarai semua ID tab yang mungkin ada
             const tabs = ['form', 'history', 'settings'];
-
-            // 1. Sembunyikan semua content (dengan pemeriksaan keselamatan)
             tabs.forEach(t => {
                 const content = document.getElementById('tab-content-' + t);
                 const btn = document.getElementById('tab-btn-' + t);
-                
                 if (content) content.classList.add('hidden');
-                
-                if (btn) {
-                    // Reset style butang jadi kelabu
-                    btn.className = "flex-1 py-2 text-xs font-bold uppercase rounded-md text-gray-500 hover:text-gray-700 transition-all";
-                }
+                if (btn) btn.className = "flex-1 py-2 text-xs font-bold uppercase rounded-md text-gray-500 hover:text-gray-700 transition-all";
             });
-
-            // 2. Tunjukkan content yang dipilih
             const selectedContent = document.getElementById('tab-content-' + tabName);
             const selectedBtn = document.getElementById('tab-btn-' + tabName);
+            if (selectedContent) selectedContent.classList.remove('hidden');
+            if (selectedBtn) selectedBtn.className = "flex-1 py-2 text-xs font-bold uppercase rounded-md shadow-sm bg-white text-indigo-600 transition-all";
 
-            if (selectedContent) {
-                selectedContent.classList.remove('hidden');
-            } else {
-                console.error("Ralat: Elemen 'tab-content-" + tabName + "' tidak dijumpai dalam HTML.");
-                return; // Berhenti jika content tiada
-            }
-
-            if (selectedBtn) {
-                // Warnakan butang aktif jadi biru/putih
-                selectedBtn.className = "flex-1 py-2 text-xs font-bold uppercase rounded-md shadow-sm bg-white text-indigo-600 transition-all";
-            }
-
-            // 3. Fix canvas saiz jika buka tab form
             if(tabName === 'form' && typeof sigCanvas !== 'undefined' && sigCanvas) {
                 setTimeout(() => {
                     const container = document.getElementById('sig-input-container');
                     if (container && !container.classList.contains('hidden')) {
                         const rect = sigCanvas.getBoundingClientRect();
-                        sigCanvas.width = rect.width;
-                        sigCanvas.height = rect.height;
+                        sigCanvas.width = rect.width; sigCanvas.height = rect.height;
                     }
                 }, 200);
             }
         }
 
-        // NEW: LINE SPACING ADJUSTMENT
         window.adjustLineHeight = function(change) {
             window.currentLineHeight += change;
             if (window.currentLineHeight < 1.0) window.currentLineHeight = 1.0;
             if (window.currentLineHeight > 2.5) window.currentLineHeight = 2.5;
-            
-            // Limit decimal places
             window.currentLineHeight = Math.round(window.currentLineHeight * 10) / 10;
-            
             document.getElementById('line-height-display').textContent = window.currentLineHeight;
-            
-            // Apply to table cells
-            document.querySelectorAll('.opr-table td, .opr-table th').forEach(el => {
-                el.style.lineHeight = window.currentLineHeight;
-            });
-            
-            // Apply to specific content divs (crucial for long text)
-            document.querySelectorAll('#out-objektif, #out-dapatan, #out-isu').forEach(el => {
-                el.style.lineHeight = window.currentLineHeight;
-            });
+            document.querySelectorAll('.opr-table td, .opr-table th').forEach(el => { el.style.lineHeight = window.currentLineHeight; });
+            document.querySelectorAll('#out-objektif, #out-dapatan, #out-isu').forEach(el => { el.style.lineHeight = window.currentLineHeight; });
         }
 
         window.adjustFontSize = function(change) {
@@ -1541,43 +1448,19 @@
             document.querySelectorAll('.opr-table td').forEach(td => td.style.fontSize = window.currentFontSize + 'pt');
         }
 
-        // --- NEW: FUNCTION TO ADJUST ATTENDANCE FONT SIZE ---
         window.adjustAttFontSize = function(change) {
             window.currentAttFontSize += change;
             if (window.currentAttFontSize < 6) window.currentAttFontSize = 6; 
             if (window.currentAttFontSize > 12) window.currentAttFontSize = 12;
-            
             document.getElementById('att-font-size-display').textContent = window.currentAttFontSize + 'pt';
-
-
-// --- FUNGSI BARU: GERAKKAN NAMA (MANUAL) ---
-window.moveItem = function(index, direction) {
-    const list = window.attendanceData;
-    const newIndex = index + direction;
-
-    // Elak error jika dah paling atas/bawah
-    if (newIndex < 0 || newIndex >= list.length) return;
-
-    // Tukar kedudukan (Swap)
-    const temp = list[index];
-    list[index] = list[newIndex];
-    list[newIndex] = temp;
-
-    // Render semula
-    renderAttendanceTable();
-}
-            
-            renderAttendanceTable(); // Re-render to apply changes
+            renderAttendanceTable();
         }
 
-        // --- NEW: FUNCTION TO UPDATE ROWS PER PAGE ---
         window.updateRowsPerPage = function(val) {
             let rows = parseInt(val);
-            if (rows < 5) rows = 5;
-            if (rows > 50) rows = 50;
-            
+            if (rows < 5) rows = 5; if (rows > 50) rows = 50;
             window.currentRowsPerPage = rows;
-            renderAttendanceTable(); // Re-render
+            renderAttendanceTable(); 
         }
 
         window.adjustHeaderSize = function(change) {
@@ -1599,7 +1482,7 @@ window.moveItem = function(index, direction) {
             const userSnap = await getDocs(qUser);
             if (!userSnap.empty) {
                 const uDoc = userSnap.docs[0];
-                window.currentUserDocId = uDoc.id; // Store Doc ID for updates
+                window.currentUserDocId = uDoc.id; 
                 const uData = uDoc.data();
                 
                 document.getElementById('in-nama').value = uData.name.toUpperCase();
@@ -1613,7 +1496,6 @@ window.moveItem = function(index, direction) {
                 if (uData.defaultSignatureUrl) {
                     window.defaultSigUrl = uData.defaultSignatureUrl;
                     document.getElementById('btn-delete-default-sig').classList.remove('hidden');
-                    
                     if (!document.getElementById('report-id').value) {
                          window.sigUrl = window.defaultSigUrl;
                          document.getElementById('out-sig-img').src = window.sigUrl;
@@ -1621,7 +1503,6 @@ window.moveItem = function(index, direction) {
                          toggleSignature();
                     }
                 }
-
                 updatePreview();
             }
             
@@ -1642,45 +1523,30 @@ window.moveItem = function(index, direction) {
             } catch (err) { console.error(err); }
         }
 
-        // --- FIXED: loadSavedReports WITH SAFETY CHECK ---
         async function loadSavedReports() {
-            // 1. Pastikan pengguna wujud
             if (!window.currentUserIc) return;
-
             const reportRef = collection(db, `artifacts/${appId}/public/data/spark_opr_records`);
             const q = query(reportRef, where("ic", "==", window.currentUserIc), orderBy("createdAt", "desc"));
-            
             try {
                 const snaps = await getDocs(q);
-                
-                // 2. Cari elemen HTML
                 const tbody = document.getElementById('history-table-body');
                 const select = document.getElementById('history-select');
                 const limitMsg = document.getElementById('limit-warning');
                 const countDisplay = document.getElementById('history-count'); 
 
-                // 3. FIX PENTING: Jika elemen tiada, BERHENTI (Jangan buat apa-apa)
-                if (!tbody || !select) {
-                    console.warn("Elemen jadual sejarah belum bersedia.");
-                    return; 
-                }
+                if (!tbody || !select) return; 
 
                 tbody.innerHTML = ''; 
                 select.innerHTML = '<option value="">-- Pilih Rekod --</option>';
-                
                 window.allMyReports = [];
                 let docs = [];
                 snaps.forEach(doc => docs.push({ id: doc.id, ...doc.data() }));
 
-                // Update jumlah jika elemen wujud
                 if(countDisplay) countDisplay.textContent = docs.length;
 
                 if (!window.isSparkPro && docs.length > 5 && limitMsg) { 
-                    docs = docs.slice(0, 5); 
-                    limitMsg.classList.remove('hidden'); 
-                } else if (limitMsg) { 
-                    limitMsg.classList.add('hidden'); 
-                }
+                    docs = docs.slice(0, 5); limitMsg.classList.remove('hidden'); 
+                } else if (limitMsg) { limitMsg.classList.add('hidden'); }
 
                 if(docs.length === 0) {
                     tbody.innerHTML = '<tr><td colspan="3" class="px-3 py-4 text-center italic text-gray-400">Tiada rekod dijumpai.</td></tr>';
@@ -1689,15 +1555,12 @@ window.moveItem = function(index, direction) {
 
                 docs.forEach(data => {
                     window.allMyReports.push(data);
-                    
-                    const opt = document.createElement('option'); 
-                    opt.value = data.id; 
+                    const opt = document.createElement('option'); opt.value = data.id; 
                     opt.textContent = data.tajuk ? data.tajuk.substring(0, 30) : "Tiada Tajuk";
                     select.appendChild(opt);
 
                     const tr = document.createElement('tr');
                     tr.className = "hover:bg-gray-50 transition-colors group";
-                    
                     let dateStr = "-";
                     if(data.tarikhMula) dateStr = new Date(data.tarikhMula).toLocaleDateString('ms-MY', { day: '2-digit', month: '2-digit', year: '2-digit'});
 
@@ -1706,15 +1569,9 @@ window.moveItem = function(index, direction) {
                         <td class="px-3 py-3 truncate max-w-[140px]" title="${data.tajuk}">${data.tajuk}</td>
                         <td class="px-3 py-3 text-center">
                             <div class="flex items-center justify-center gap-2">
-                                <button onclick="loadHistory('${data.id}')" class="p-1.5 text-indigo-600 hover:bg-indigo-100 rounded-md transition-colors" title="Buka & Edit">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                                </button>
-                                <button onclick="downloadFromHistory('${data.id}')" class="p-1.5 text-teal-600 hover:bg-teal-100 rounded-md transition-colors" title="Muat Turun PDF">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                                </button>
-                                <button onclick="deleteHistory('${data.id}')" class="p-1.5 text-red-500 hover:bg-red-100 rounded-md transition-colors" title="Padam Rekod">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                </button>
+                                <button onclick="loadHistory('${data.id}')" class="p-1.5 text-indigo-600 hover:bg-indigo-100 rounded-md transition-colors" title="Buka & Edit"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg></button>
+                                <button onclick="downloadFromHistory('${data.id}')" class="p-1.5 text-teal-600 hover:bg-teal-100 rounded-md transition-colors" title="Muat Turun PDF"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg></button>
+                                <button onclick="deleteHistory('${data.id}')" class="p-1.5 text-red-500 hover:bg-red-100 rounded-md transition-colors" title="Padam Rekod"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
                             </div>
                         </td>`;
                     tbody.appendChild(tr);
@@ -1738,7 +1595,6 @@ window.moveItem = function(index, direction) {
             window.imageUrls = [report.img1||"", report.img2||"", report.img3||"", report.img4||""];
             window.imageFiles = [null, null, null, null];
             
-            // Load Attendance Data if available
             if(report.attendanceList && Array.isArray(report.attendanceList)) {
                 window.attendanceData = report.attendanceList;
                 document.getElementById('att-count-label').textContent = `${window.attendanceData.length} peserta direkod.`;
@@ -1750,7 +1606,6 @@ window.moveItem = function(index, direction) {
             }
             renderAttendanceTable();
 
-            // Restore Settings
             window.bgUrl = report.backgroundUrl || "";
             window.bgOpacity = report.backgroundOpacity || 0.1;
             if(window.bgUrl) document.querySelectorAll('.paper-background').forEach(bg => bg.style.backgroundImage = `url('${window.bgUrl}')`);
@@ -1765,19 +1620,15 @@ window.moveItem = function(index, direction) {
             updateHeader();
 
             document.getElementById('chk-show-caption').checked = (report.showCaption === false) ? false : true;
-            
             if(report.captions && Array.isArray(report.captions)) {
                 for(let i=0; i<4; i++) { document.getElementById(`in-cap-${i}`).value = report.captions[i] || ""; }
             }
-
             document.getElementById('in-catatan').value = report.catatan || "";
             document.getElementById('chk-catatan').checked = report.showCatatan === true;
 
-            // NEW: LINK DOKUMENTASI RESTORE
             document.getElementById('in-link-dokumen').value = report.linkDokumen || "";
             document.getElementById('chk-link-dokumen').checked = report.showLinkDokumen === true;
 
-            // NEW: SERIAL & BARCODE RESTORE
             document.getElementById('opr-serial-hidden').value = report.serialNumber || "";
             renderBarcode(report.serialNumber || "SPARK-OPR");
 
@@ -1785,11 +1636,8 @@ window.moveItem = function(index, direction) {
             window.sigFile = null;
             clearSignature(); 
             document.getElementById('chk-signature').checked = report.showSignature === true;
-            if(window.sigUrl) {
-                document.getElementById('out-sig-img').src = window.sigUrl;
-            } else {
-                document.getElementById('out-sig-img').src = "";
-            }
+            if(window.sigUrl) { document.getElementById('out-sig-img').src = window.sigUrl; } 
+            else { document.getElementById('out-sig-img').src = ""; }
             toggleSignature();
 
             if(report.imageMode === 4 && window.imageMode === 2) toggleImageCount();
@@ -1799,10 +1647,6 @@ window.moveItem = function(index, direction) {
 
         window.deleteHistory = async function(id) {
             if(!confirm("Adakah anda pasti mahu memadam rekod ini secara kekal?")) return;
-            const btn = event.currentTarget; 
-            const originalContent = btn.innerHTML;
-            btn.innerHTML = '<svg class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>';
-            btn.disabled = true;
             try {
                 await deleteDoc(doc(db, `artifacts/${appId}/public/data/spark_opr_records`, id));
                 await loadSavedReports();
@@ -1810,31 +1654,17 @@ window.moveItem = function(index, direction) {
                     document.getElementById('report-id').value = "";
                     alert("Rekod yang sedang dibuka telah dipadam.");
                 }
-            } catch (error) {
-                console.error("Gagal memadam:", error);
-                alert("Gagal memadam rekod.");
-                btn.innerHTML = originalContent;
-                btn.disabled = false;
-            }
+            } catch (error) { console.error("Gagal memadam:", error); alert("Gagal memadam rekod."); }
         }
 
         window.downloadFromHistory = function(id) {
             loadHistory(id);
-            const btn = event.currentTarget;
-            const originalInner = btn.innerHTML;
-            btn.innerHTML = '<svg class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>';
-            setTimeout(() => {
-                generatePDF(false).then(() => {
-                    btn.innerHTML = originalInner;
-                });
-            }, 1000); 
+            setTimeout(() => { generatePDF(false); }, 1000); 
         }
 
-        // --- FETCH ATTENDANCE DIRECTLY FROM PROGRAM OBJECT ---
         window.importProgramData = function(progId) {
             const prog = window.allMyPrograms.find(p => p.id === progId);
             if(prog) {
-                // 1. Isi Maklumat Asas
                 document.getElementById('report-id').value = "";
                 document.getElementById('opr-serial-hidden').value = ""; 
                 renderBarcode("SPARK-OPR"); 
@@ -1845,9 +1675,7 @@ window.moveItem = function(index, direction) {
                 if(prog.endDate) document.getElementById('in-tarikh-tamat').value = prog.endDate;
                 if(prog.description) document.getElementById('in-objektif').value = prog.description;
                 
-                // 2. AMBIL DATA KEHADIRAN DARI ARRAY PROGRAM
                 const label = document.getElementById('att-count-label');
-                
                 if (prog.attendance && Array.isArray(prog.attendance) && prog.attendance.length > 0) {
                     window.attendanceData = prog.attendance;
                     label.textContent = `${window.attendanceData.length} peserta dikesan.`;
@@ -1857,41 +1685,34 @@ window.moveItem = function(index, direction) {
                     label.textContent = "Tiada kehadiran dikesan dalam program ini.";
                     document.getElementById('chk-attendance').checked = false;
                 }
-
-                // 3. Render Jadual & Preview
                 renderAttendanceTable();
                 updatePreview();
             }
         }
 
-        // --- FUNGSI SUSUNAN KEKANANAN & RENDER JADUAL (PAGINATION FIXED) ---
-
-
-// --- FUNGSI RENDER (FIX: BUTANG TIDAK MASUK PDF) ---
+        // --- FUNGSI RENDER KEHADIRAN (FIXED V2) ---
         window.renderAttendanceTable = function() {
+            if (!window.attendanceData) window.attendanceData = [];
             const ROWS_PER_PAGE = window.currentRowsPerPage || 15; 
             const wrapper = document.getElementById('pdf-wrapper');
+            const templatePage = document.getElementById('attendance-page');
             const chkManual = document.getElementById('chk-manual-sort');
             const isManualMode = chkManual ? chkManual.checked : false;
 
-            // Bersihkan page lama
             document.querySelectorAll('.generated-att-page').forEach(el => el.remove());
 
-            const templatePage = document.getElementById('attendance-page');
-            const tbodyTemplate = templatePage.querySelector('tbody');
+            const tbodyFirst = templatePage.querySelector('tbody');
+            tbodyFirst.innerHTML = ""; 
             
-            // --- LOGIK HEADER TAMBAHAN ---
             const headerRow = templatePage.querySelector('thead tr');
-            const actionHeaderId = 'th-action-col';
-            let actionTh = document.getElementById(actionHeaderId);
-
+            let actionTh = document.getElementById('th-action-col');
+            
             if (isManualMode) {
                 if (!actionTh) {
                     actionTh = document.createElement('th');
-                    actionTh.id = actionHeaderId;
+                    actionTh.id = 'th-action-col';
                     actionTh.className = "w-16 text-center no-print-col bg-orange-50 text-orange-600 border border-orange-200";
                     actionTh.innerText = "UBAH";
-                    // FIX UTAMA: Arahan supaya PDF abaikan elemen ini
                     actionTh.setAttribute('data-html2canvas-ignore', 'true'); 
                     headerRow.appendChild(actionTh);
                 }
@@ -1899,83 +1720,61 @@ window.moveItem = function(index, direction) {
                 if (actionTh) actionTh.remove();
             }
 
-            tbodyTemplate.innerHTML = ""; 
-
-            if (!window.attendanceData || window.attendanceData.length === 0) {
-                tbodyTemplate.innerHTML = "<tr><td colspan='6' class='text-center italic text-gray-500 py-4'>Tiada Data Kehadiran</td></tr>";
+            if (window.attendanceData.length === 0) {
+                tbodyFirst.innerHTML = "<tr><td colspan='6' class='text-center italic text-gray-500 py-4'>Tiada Data Kehadiran. Sila Import Program.</td></tr>";
                 templatePage.querySelector('.att-total-count-el').textContent = "0";
                 return;
             }
 
-            // --- LOGIK SORTING ---
             if (!isManualMode) {
                 function getRankWeight(jawatan) {
                     const t = (jawatan || "").toUpperCase().trim();
-                    if (t.includes("PEGAWAI PENDIDIKAN DAERAH") || (t.includes("PENGARAH") && !t.includes("TIMBALAN"))) return 100;
+                    if (t.includes("PEGAWAI PENDIDIKAN DAERAH") || t.includes("PENGARAH")) return 100;
                     if (t.includes("TIMBALAN")) return 90;
                     if (t.includes("PENGETUA") || t.includes("GURU BESAR")) return 85;
-                    if (t.includes("SISC") || t.includes("SIP") || t.includes("PEGAWAI KHAS") || t.includes("PENOLONG PPD")) return 80;
-                    if (t.includes("PENTADBIRAN") || t.includes("PK 1") || t.includes("AKADEMIK") || t.includes("KANAN 1")) return 75;
-                    if (t.includes("HEM") || t.includes("HAL EHWAL")) return 74;
-                    if (t.includes("KOKURIKULUM") || t.includes("KO-Q") || t.includes("PK KO")) return 73;
-                    if (t.includes("PETANG") || t.includes("PK PKI") || t.includes("PENDIDIKAN KHAS")) return 72;
                     if (t.includes("PENOLONG KANAN") || t.includes("PK")) return 70;
-                    if (t.includes("GURU KANAN") || t.includes("KETUA BIDANG") || t.includes("GKMP")) return 60;
-                    if (t.includes("KAUNSELOR") || t.includes("BIMBINGAN")) return 50;
-                    if (t.includes("KETUA PANITIA") || t.includes("SU ") || t.includes("SETIAUSAHA")) return 40;
-                    if (t.includes("GURU") || t.includes("DG")) return 30;
-                    if (t.includes("PEMBANTU") || t.includes("ANGGOTA") || t.includes("AKP") || t.includes("KERANI")) return 20;
+                    if (t.includes("GURU KANAN") || t.includes("GKMP")) return 60;
+                    if (t.includes("KAUNSELOR")) return 50;
+                    if (t.includes("KETUA PANITIA")) return 40;
+                    if (t.includes("GURU")) return 30;
+                    if (t.includes("AKP") || t.includes("PT")) return 20;
                     return 10;
                 }
-
                 window.attendanceData.sort((a, b) => {
-                    const stationA = (a.station || "").toUpperCase();
-                    const stationB = (b.station || "").toUpperCase();
                     const rankA = getRankWeight(a.position);
                     const rankB = getRankWeight(b.position);
-                    
-                    const isPpdA = (stationA.includes("PPD") || stationA.includes("PEJABAT"));
-                    const isPpdB = (stationB.includes("PPD") || stationB.includes("PEJABAT"));
-
-                    if (isPpdA && !isPpdB) return -1;
-                    if (!isPpdA && isPpdB) return 1;
                     if (rankA !== rankB) return rankB - rankA;
                     return (a.name || "").localeCompare(b.name || "");
                 });
             }
 
-            // --- RENDER HALAMAN ---
             const totalPages = Math.ceil(window.attendanceData.length / ROWS_PER_PAGE);
             const nowStr = new Date().toLocaleDateString('ms-MY', {day: '2-digit', month: '2-digit', year: 'numeric'});
+            const tajuk = "PROGRAM: " + (document.getElementById('in-tajuk').value || "");
 
             for (let i = 0; i < totalPages; i++) {
-                let pageEl;
-                let tbody;
-
+                let currentPageEl, currentTbody;
                 if (i === 0) {
-                    pageEl = templatePage;
-                    tbody = tbodyTemplate;
-                    pageEl.style.pageBreakBefore = "auto";
-                    pageEl.classList.remove('force-break');
+                    currentPageEl = templatePage;
+                    currentTbody = tbodyFirst;
+                    if(document.getElementById('chk-attendance').checked) {
+                        currentPageEl.classList.remove('hidden');
+                    }
                 } else {
-                    pageEl = templatePage.cloneNode(true);
-                    pageEl.id = `attendance-page-${i}`;
-                    pageEl.classList.add('generated-att-page');
-                    pageEl.classList.add('force-break'); 
-                    pageEl.classList.remove('hidden');
-                    pageEl.style.pageBreakBefore = "always"; 
-                    pageEl.style.breakBefore = "page";
-                    wrapper.appendChild(pageEl);
-                    tbody = pageEl.querySelector('tbody');
-                    tbody.innerHTML = ""; 
+                    currentPageEl = templatePage.cloneNode(true);
+                    currentPageEl.id = `attendance-page-${i}`;
+                    currentPageEl.classList.add('generated-att-page');
+                    currentPageEl.classList.add('force-break'); 
+                    currentPageEl.removeAttribute('data-html2pdf-page-break'); 
+                    wrapper.appendChild(currentPageEl);
+                    currentTbody = currentPageEl.querySelector('tbody');
+                    currentTbody.innerHTML = ""; 
                 }
-                
-                const tableEl = pageEl.querySelector('.att-table');
-                tableEl.style.fontSize = window.currentAttFontSize + 'pt';
 
-                const tajuk = "PROGRAM: " + document.getElementById('in-tajuk').value;
-                pageEl.querySelectorAll('.att-subtitle-el').forEach(el => el.textContent = tajuk);
-                pageEl.querySelectorAll('.att-print-date-el').forEach(el => el.textContent = nowStr);
+                currentPageEl.querySelectorAll('.att-subtitle-el').forEach(el => el.textContent = tajuk);
+                currentPageEl.querySelectorAll('.att-print-date-el').forEach(el => el.textContent = nowStr);
+                const tableEl = currentPageEl.querySelector('.att-table');
+                if(tableEl) tableEl.style.fontSize = window.currentAttFontSize + 'pt';
 
                 const startIdx = i * ROWS_PER_PAGE;
                 const endIdx = startIdx + ROWS_PER_PAGE;
@@ -1985,51 +1784,59 @@ window.moveItem = function(index, direction) {
                     const tr = document.createElement('tr');
                     const globalIdx = startIdx + idx; 
                     const displayNum = globalIdx + 1;
-                    
                     const name = p.name ? p.name.toUpperCase() : "PESERTA";
                     const jawatan = p.position ? p.position.toUpperCase() : "-";
                     const stesen = p.station ? p.station.toUpperCase() : "-";
                     const status = p.status ? p.status.toUpperCase() : "HADIR"; 
                     
-                    let rowClass = "";
-                    if (!isManualMode) {
-                         if(jawatan.includes("PENGETUA") || jawatan.includes("GURU BESAR") || jawatan.includes("PEGAWAI")) rowClass = "font-bold bg-gray-100";
+                    let rowStyle = "";
+                    if (!isManualMode && (jawatan.includes("PPD") || jawatan.includes("PENGETUA") || jawatan.includes("GURU BESAR"))) {
+                        rowStyle = "font-weight:bold; background-color:#f9fafb;";
                     }
 
                     let actionBtns = "";
                     if (isManualMode) {
-                        // FIX UTAMA: data-html2canvas-ignore="true" ditambah di sini juga
                         actionBtns = `
-                            <td class="text-center no-print-col bg-orange-50 border border-orange-200" data-html2canvas-ignore="true">
-                                <button onclick="window.moveItem(${globalIdx}, -1)" class="sort-btn" title="Naik">⬆️</button>
-                                <button onclick="window.moveItem(${globalIdx}, 1)" class="sort-btn" title="Turun">⬇️</button>
+                            <td class="text-center no-print-col bg-orange-50 border-orange-200" style="border:1px solid #fed7aa;" data-html2canvas-ignore="true">
+                                <button onclick="window.moveItem(${globalIdx}, -1)" class="sort-btn" title="Naik">▲</button>
+                                <button onclick="window.moveItem(${globalIdx}, 1)" class="sort-btn" title="Turun">▼</button>
                             </td>
                         `;
                     }
 
                     tr.innerHTML = `
-                        <td class="text-center font-bold ${rowClass}">${displayNum}</td>
-                        <td class="font-semibold ${rowClass}">${name}</td>
-                        <td class="text-[inherit] ${rowClass}">${jawatan}</td>
-                        <td class="text-[inherit] ${rowClass}">${stesen}</td>
-                        <td class="text-center text-[inherit] font-bold">${status}</td>
+                        <td class="text-center" style="${rowStyle}">${displayNum}</td>
+                        <td style="${rowStyle}">${name}</td>
+                        <td style="${rowStyle}">${jawatan}</td>
+                        <td style="${rowStyle}">${stesen}</td>
+                        <td class="text-center" style="${rowStyle}">${status}</td>
                         ${actionBtns}
                     `;
-                    tbody.appendChild(tr);
+                    currentTbody.appendChild(tr);
                 });
 
-                const footerDiv = pageEl.querySelector('.att-footer-count');
-                if (i === totalPages - 1) {
-                    footerDiv.style.visibility = 'visible';
-                    pageEl.querySelector('.att-total-count-el').textContent = window.attendanceData.length;
-                } else {
-                    footerDiv.style.visibility = 'hidden';
+                const footerDiv = currentPageEl.querySelector('.att-footer-count');
+                if (footerDiv) {
+                    if (i === totalPages - 1) {
+                        footerDiv.style.visibility = 'visible';
+                        currentPageEl.querySelector('.att-total-count-el').textContent = window.attendanceData.length;
+                    } else {
+                        footerDiv.style.visibility = 'hidden';
+                    }
                 }
             }
         }
-        
 
-        // Initialize
+        window.moveItem = function(index, direction) {
+            const list = window.attendanceData;
+            const newIndex = index + direction;
+            if (newIndex < 0 || newIndex >= list.length) return;
+            const temp = list[index];
+            list[index] = list[newIndex];
+            list[newIndex] = temp;
+            renderAttendanceTable();
+        }
+
         updatePreview();
     </script>
 </body>
