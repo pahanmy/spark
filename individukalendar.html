@@ -15,18 +15,14 @@
         .btn:hover { transform: translateY(-2px); }
         
         .calendar-day { 
-            min-height: 110px;
-            max-height: 110px;
-            display: flex;
-            flex-direction: column;
-            position: relative;
-            transition: all 0.2s;
-            cursor: pointer;
+            min-height: 110px; max-height: 110px;
+            display: flex; flex-direction: column; position: relative;
+            transition: all 0.2s; cursor: pointer;
         }
         .calendar-day:hover { transform: translateY(-2px); z-index: 10; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
         .event-list { overflow-y: auto; flex-grow: 1; z-index: 10; }
         
-        /* Event Colors */
+        /* Colors */
         .calendar-day.has-own { background-color: #ecfdf5; border: 1px solid #a7f3d0; } 
         .calendar-day.has-tagged { background-color: #f3e8ff; border: 1px solid #d8b4fe; } 
         .calendar-day.has-official { background-color: #eef2ff; border: 1px dashed #c7d2fe; opacity: 0.9; } 
@@ -56,9 +52,7 @@
         <div class="max-w-screen-2xl mx-auto py-4 px-4 sm:px-6 lg:px-8 flex justify-between items-center">
             <div class="flex items-center gap-3">
                 <div class="bg-teal-600 p-2 rounded-lg">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                 </div>
                 <div>
                     <h1 class="text-2xl font-bold text-teal-600">SPARK</h1>
@@ -176,7 +170,7 @@
                                 <h3 class="text-lg font-extrabold text-gray-800 uppercase tracking-tight">Agenda</h3>
                                 <span id="selected-date-text" class="text-xs font-bold text-teal-600 bg-teal-50 px-2 py-1 rounded-md uppercase">Hari Ini</span>
                             </div>
-                            <button id="btn-add-activity" onclick="handleOpenPlanner()" class="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-4 rounded-lg uppercase text-xs shadow-sm flex items-center justify-center gap-2 transition-transform active:scale-95">
+                            <button id="btn-add-activity" onclick="handleAddActivity()" class="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-4 rounded-lg uppercase text-xs shadow-sm flex items-center justify-center gap-2 transition-transform active:scale-95">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
                                 Tambah Aktiviti
                             </button>
@@ -336,6 +330,7 @@
             } catch (error) { console.error("Error loading profile:", error); }
         }
 
+        // --- LOCAL FUNCTIONS ---
         function changeTheme(input) {
             const color = input.value;
             document.body.style.backgroundColor = color;
@@ -539,13 +534,19 @@
             if (shouldOpenModal) openDailyNoteModal();
         }
 
+        // --- NEW WRAPPER FOR ADD BUTTON ---
+        function handleAddActivity() {
+            openPlannerModal(selectedDateString);
+        }
+
         function displayProgramsForDate(date, element) {
             if (selectedDateElement) selectedDateElement.classList.remove('selected'); selectedDateElement = element; selectedDateElement.classList.add('selected');
             selectedDateString = element.dataset.date;
             const content = document.getElementById('program-list-content'); const term = document.getElementById('search-input').value.toLowerCase(); let fullHtml = '';
             document.getElementById('selected-date-text').textContent = date.toLocaleDateString('ms-MY', { day: 'numeric', month: 'short', year: 'numeric' }).toUpperCase();
             
-            document.getElementById('btn-add-activity').onclick = () => openPlannerModal(selectedDateString);
+            // Note: Modal logic moved to handleDateClick to prevent auto-popup
+            
             const birthdays = getBirthdaysForDate(date);
             if (birthdays.length > 0) fullHtml += `<h4 class="text-xs font-bold text-pink-400 uppercase tracking-wider mb-2">Hari Jadi Staf</h4><div class="space-y-3 mb-6">` + birthdays.map(b => `<div class="bg-pink-50 border border-pink-200 rounded-xl p-3 text-gray-800 flex items-center justify-between shadow-sm"><div class="flex items-center gap-3 overflow-hidden"><span class="text-xl">🎂</span><div class="truncate"><p class="font-bold text-xs text-pink-700 truncate uppercase">${b.name}</p></div></div><a href="birthday.html?name=${encodeURIComponent(b.name)}&dob=${btoa(b.dob)}" target="_blank" class="flex-shrink-0 bg-pink-500 hover:bg-pink-600 text-white text-[9px] font-bold py-1.5 px-3 rounded-lg uppercase transition-colors">Ucap</a></div>`).join('') + '</div>';
             const myEvents = getEventsForDate(myActivities, date).filter(p => p.title.toLowerCase().includes(term));
@@ -554,6 +555,51 @@
             if (fullHtml === '') content.innerHTML = `<div class="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center text-gray-400 h-full flex flex-col justify-center items-center"><p class="text-sm font-semibold">Tiada aktiviti.</p></div>`; else content.innerHTML = fullHtml;
         }
         
+        function openActivityModal(dataString) {
+            try {
+                const data = JSON.parse(decodeURIComponent(dataString));
+                const isOwn = data.type === 'own';
+                
+                const badgeEl = document.getElementById('modal-tag-badge');
+                if(isOwn) badgeEl.innerHTML = '<span class="bg-teal-100 text-teal-800 text-xs px-2 py-1 rounded font-bold uppercase border border-teal-200">Aktiviti Saya</span>';
+                else badgeEl.innerHTML = '<span class="bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded font-bold uppercase border border-purple-200">Dijemput / Di-Tag</span>';
+
+                document.getElementById('modal-activity-title').textContent = data.title;
+                document.getElementById('modal-activity-time').textContent = `🕒 ${data.startTime} - ${data.endTime || '...'}`;
+                document.getElementById('modal-activity-location').textContent = `📍 ${data.location}`;
+                document.getElementById('modal-activity-participants').textContent = data.participants || '-';
+                
+                const noteContainer = document.getElementById('modal-activity-notes-container');
+                if (data.notes) {
+                    document.getElementById('modal-activity-notes').textContent = data.notes;
+                    noteContainer.classList.remove('hidden');
+                } else {
+                    noteContainer.classList.add('hidden');
+                }
+
+                const imgContainer = document.getElementById('modal-activity-image-container');
+                const imgEl = document.getElementById('modal-activity-image');
+                if(data.imageUrl) {
+                    imgEl.src = data.imageUrl;
+                    imgContainer.classList.remove('hidden');
+                } else {
+                    imgContainer.classList.add('hidden');
+                }
+                
+                const linkBtn = document.getElementById('modal-activity-link');
+                if(data.link) {
+                    linkBtn.href = data.link;
+                    linkBtn.classList.remove('hidden');
+                } else {
+                    linkBtn.classList.add('hidden');
+                }
+
+                document.getElementById('activity-info-modal').classList.remove('hidden');
+            } catch (e) {
+                console.error("Error opening modal", e);
+            }
+        }
+
         function parseDateString(s) { const p = s.split('-'); return new Date(p[0], p[1]-1, p[2]); }
         function getEventsForDate(l, d) { const t = new Date(d.getFullYear(), d.getMonth(), d.getDate()); return l.filter(p => { const s = parseDateString(p.startDate); const e = p.endDate ? parseDateString(p.endDate) : s; return t >= s && t <= e; }); }
         function getBirthdaysForDate(d) { return allBirthdays.filter(b => b.dob && parseInt(b.dob.split('-')[1]) === d.getMonth()+1 && parseInt(b.dob.split('-')[2]) === d.getDate()); }
@@ -578,6 +624,7 @@
         function updateCalendarView() { currentDate = new Date(parseInt(document.getElementById('year-select').value), parseInt(document.getElementById('month-select').value), 1); refreshView(); }
         function changeMonth(o) { currentDate.setMonth(currentDate.getMonth()+o); document.getElementById('month-select').value=currentDate.getMonth(); document.getElementById('year-select').value=currentDate.getFullYear(); if(document.getElementById('year-select').value==="") { populateYearFilter(); document.getElementById('year-select').value=currentDate.getFullYear(); } refreshView(); }
 
+        // --- EXPORT ALL FUNCTIONS TO WINDOW ---
         window.closeModal = (id) => document.getElementById(id).classList.add('hidden');
         window.openActivityModal = openActivityModal;
         window.uploadPersonalBg = uploadPersonalBg;
@@ -596,7 +643,7 @@
         window.saveDailyNote = saveDailyNote;
         window.insertToNote = insertToNote;
         window.handleDateClick = handleDateClick; 
-        window.handleOpenPlanner = () => openPlannerModal(selectedDateString); // NEW WRAPPER FOR BUTTON
+        window.handleAddActivity = handleAddActivity; // Added this one!
 
     </script>
 </body>
