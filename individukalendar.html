@@ -31,7 +31,8 @@
         .calendar-day.selected { border-width: 2px; border-color: #0d9488; background-color: #ccfbf1; transform: scale(1.02); z-index: 20; shadow: lg; }
         .calendar-day.is-today { background-color: #fffbeb; border: 2px solid #f59e0b; }
         
-        .note-indicator { position: absolute; top: 2px; left: 2px; font-size: 10px; z-index: 15; }
+        /* Note Indicator removed (replaced by text bar) */
+
         .modal-backdrop { background-color: rgba(0,0,0,0.5); backdrop-filter: blur(2px); z-index: 50; }
         .toggle-checkbox:checked { right: 0; border-color: #4f46e5; }
         .toggle-checkbox:checked + .toggle-label { background-color: #4f46e5; }
@@ -139,7 +140,7 @@
                         <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-teal-500"></span> Aktiviti Saya</div>
                         <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-purple-500"></span> Dijemput</div>
                         <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-pink-500"></span> Birthday</div>
-                        <div class="flex items-center gap-1.5"><span class="text-xs">📝</span> Nota Harian</div>
+                        <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-200 border border-amber-400"></span> Nota Harian</div>
                     </div>
                 </div>
             </div>
@@ -518,7 +519,14 @@
                 if (isToday) dayClasses += ' is-today shadow-md';
                 if (hasOwn) indicatorsHtml += `<div class="absolute top-1 right-1 bg-teal-500 text-white text-[9px] font-bold w-4 h-4 flex items-center justify-center rounded-full shadow-sm ring-1 ring-white">${myEvents.filter(e=>e.type==='own').length}</div>`;
                 if (hasTagged) indicatorsHtml += `<div class="absolute top-1 ${hasOwn ? 'right-6' : 'right-1'} bg-purple-500 text-white text-[9px] font-bold w-4 h-4 flex items-center justify-center rounded-full shadow-sm ring-1 ring-white">${myEvents.filter(e=>e.type==='tagged').length}</div>`;
-                if (hasNote) indicatorsHtml += `<div class="note-indicator">📝</div>`;
+                
+                // NOTE DISPLAY IN CALENDAR (New Requirement)
+                if (hasNote) {
+                    const note = dailyNotes.find(n => n.date === dateString);
+                    const shortNote = note.content.length > 15 ? note.content.substring(0, 15) + '...' : note.content;
+                     eventHtml += `<div class="bg-amber-100 text-amber-800 text-[9px] rounded px-1 truncate mb-0.5 border border-amber-200 font-medium">📝 ${shortNote}</div>`;
+                }
+
                 eventHtml += myEvents.map(p => `<div class="${p.type === 'own' ? 'bg-teal-100 text-teal-800' : 'bg-purple-100 text-purple-800'} text-[9px] rounded px-1 truncate mb-0.5 font-bold tracking-tight">${p.title.toUpperCase()}</div>`).join('');
                 eventHtml += birthdays.map(b => `<div class="bg-pink-100 text-pink-800 text-[9px] rounded px-1 truncate mb-0.5">🎂 ${b.name.split(' ')[0].toUpperCase()}</div>`).join('');
                 eventHtml += officials.map(p => `<div class="bg-indigo-50 text-indigo-400 text-[9px] rounded px-1 truncate mb-0.5 italic border border-indigo-100">${p.name.toUpperCase()}</div>`).join('');
@@ -545,8 +553,19 @@
             const content = document.getElementById('program-list-content'); const term = document.getElementById('search-input').value.toLowerCase(); let fullHtml = '';
             document.getElementById('selected-date-text').textContent = date.toLocaleDateString('ms-MY', { day: 'numeric', month: 'short', year: 'numeric' }).toUpperCase();
             
-            // Note: Modal logic moved to handleDateClick to prevent auto-popup
-            
+            // NOTE IN SIDEBAR (New Requirement)
+            const noteForDay = dailyNotes.find(n => n.date === selectedDateString);
+            if (noteForDay && noteForDay.content) {
+                fullHtml += `<div class="bg-amber-50 border-l-4 border-amber-400 p-3 rounded-r-lg shadow-sm mb-4">
+                    <h4 class="text-xs font-bold text-amber-700 uppercase mb-1 flex justify-between">
+                        <span>Nota Harian</span>
+                        <button onclick="openDailyNoteModal()" class="text-[9px] underline text-amber-600 hover:text-amber-800">Edit</button>
+                    </h4>
+                    <p class="text-xs text-gray-700 whitespace-pre-wrap font-medium">${noteForDay.content}</p>
+                </div>`;
+            }
+
+            document.getElementById('btn-add-activity').onclick = () => openPlannerModal(selectedDateString);
             const birthdays = getBirthdaysForDate(date);
             if (birthdays.length > 0) fullHtml += `<h4 class="text-xs font-bold text-pink-400 uppercase tracking-wider mb-2">Hari Jadi Staf</h4><div class="space-y-3 mb-6">` + birthdays.map(b => `<div class="bg-pink-50 border border-pink-200 rounded-xl p-3 text-gray-800 flex items-center justify-between shadow-sm"><div class="flex items-center gap-3 overflow-hidden"><span class="text-xl">🎂</span><div class="truncate"><p class="font-bold text-xs text-pink-700 truncate uppercase">${b.name}</p></div></div><a href="birthday.html?name=${encodeURIComponent(b.name)}&dob=${btoa(b.dob)}" target="_blank" class="flex-shrink-0 bg-pink-500 hover:bg-pink-600 text-white text-[9px] font-bold py-1.5 px-3 rounded-lg uppercase transition-colors">Ucap</a></div>`).join('') + '</div>';
             const myEvents = getEventsForDate(myActivities, date).filter(p => p.title.toLowerCase().includes(term));
@@ -643,7 +662,7 @@
         window.saveDailyNote = saveDailyNote;
         window.insertToNote = insertToNote;
         window.handleDateClick = handleDateClick; 
-        window.handleAddActivity = handleAddActivity; // Added this one!
+        window.handleAddActivity = handleAddActivity;
 
     </script>
 </body>
