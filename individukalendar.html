@@ -45,8 +45,9 @@
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
 
         /* Mission Styles */
+        .mission-item { transition: all 0.3s ease; }
         .mission-item.completed span { text-decoration: line-through; color: #9ca3af; }
-        .mission-item.completed { background-color: #f9fafb; border-color: #e5e7eb; }
+        .mission-item.completed { background-color: #f9fafb; border-color: #e5e7eb; opacity: 0.8; }
     </style>
 </head>
 <body class="bg-gray-50 flex flex-col min-h-screen">
@@ -177,14 +178,14 @@
                         Misi & Nota Peribadi
                     </h3>
 
-                    <div class="flex gap-2 mb-3">
+                    <div class="flex gap-2 mb-3 relative z-10">
                         <input type="text" id="new-mission-input" class="w-full text-xs p-2 rounded border border-yellow-300 focus:outline-none focus:border-yellow-500 bg-white" placeholder="Tambah misi baharu...">
                         <button onclick="addMission()" class="bg-yellow-500 hover:bg-yellow-600 text-white p-2 rounded shadow-sm transition-colors">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
                         </button>
                     </div>
 
-                    <div id="mission-list-container" class="space-y-2 max-h-[200px] overflow-y-auto custom-scrollbar pr-1">
+                    <div id="mission-list-container" class="space-y-2 max-h-[250px] overflow-y-auto custom-scrollbar pr-1 relative z-10">
                         <div class="text-center py-4 text-gray-400 text-[10px] italic">Memuatkan...</div>
                     </div>
                 </div>
@@ -293,7 +294,6 @@
         let currentUserIc = "", showOfficial = false, selectedDateString = "";
         let currentUserSector = "", currentUserUnit = "";
 
-        // Sector Data
         const sectorUnitData = {
             "SEKTOR PERANCANGAN": ["UNIT PERANCANGAN DAN PENGURUSAN PPD", "UNIT PENGURUSAN MAKLUMAT (ICT)", "UNIT DATA DAN MAKLUMAT"],
             "SEKTOR PEMBELAJARAN": ["UNIT BAHASA", "UNIT SAINS DAN MATEMATIK", "UNIT TVET", "UNIT SAINS SOSIAL & KEMANUSIAAN", "UNIT PENDIDIKAN ISLAM", "UNIT PENDIDIKAN KHAS", "UNIT PEMULIHAN KHAS", "UNIT SUMBER PENDIDIKAN"],
@@ -355,14 +355,9 @@
             } catch (error) { console.error("Error loading profile:", error); }
         }
 
-        // --- ADD ACTIVITY LOGIC ---
+        // --- GLOBAL WINDOW FUNCTIONS ---
         window.openPlannerModal = function(dateStr) {
-            // Check Sector
-            if(!currentUserSector || !currentUserUnit) {
-                document.getElementById('sector-setup-modal').classList.remove('hidden');
-                return;
-            }
-
+            if(!currentUserSector || !currentUserUnit) { document.getElementById('sector-setup-modal').classList.remove('hidden'); return; }
             const modal = document.getElementById('planner-modal-form');
             document.getElementById('plan-title').value = '';
             document.getElementById('plan-location').value = '';
@@ -376,15 +371,11 @@
             modal.classList.remove('hidden');
         }
 
-        window.closePlannerModal = function() {
-            document.getElementById('planner-modal-form').classList.add('hidden');
-        }
+        window.closePlannerModal = function() { document.getElementById('planner-modal-form').classList.add('hidden'); }
 
         window.savePlannerActivity = async function(e) {
             e.preventDefault();
-            const btn = document.getElementById('btn-save-plan');
-            btn.disabled = true; btn.textContent = "Menyimpan...";
-            
+            const btn = document.getElementById('btn-save-plan'); btn.disabled = true; btn.textContent = "Menyimpan...";
             const title = document.getElementById('plan-title').value.toUpperCase();
             const location = document.getElementById('plan-location').value.toUpperCase();
             const notes = document.getElementById('plan-notes').value;
@@ -394,23 +385,11 @@
             const startTime = document.getElementById('plan-start-time').value;
             const isOneDay = document.getElementById('is-one-day').checked;
             let endDate = startDate, endTime = document.getElementById('plan-end-time-single').value;
-            
-            if (!isOneDay) {
-                endDate = document.getElementById('plan-end-date').value;
-                endTime = document.getElementById('plan-end-time-multi').value;
-            }
-
+            if (!isOneDay) { endDate = document.getElementById('plan-end-date').value; endTime = document.getElementById('plan-end-time-multi').value; }
             try {
-                const planData = {
-                    ic: currentUserIc, sector: currentUserSector, unit: currentUserUnit,
-                    title, startDate, startTime, endDate, endTime, isOneDay, location,
-                    imageUrl, participants: document.getElementById('display-name').textContent, 
-                    taggedIcs: [], notes, isPublic: isPublic, createdAt: new Date()
-                };
-                
+                const planData = { ic: currentUserIc, sector: currentUserSector, unit: currentUserUnit, title, startDate, startTime, endDate, endTime, isOneDay, location, imageUrl, participants: document.getElementById('display-name').textContent, taggedIcs: [], notes, isPublic: isPublic, createdAt: new Date() };
                 await addDoc(collection(db, `artifacts/${appId}/public/data/spark_planner`), planData);
-                alert("Aktiviti berjaya ditambah!");
-                closePlannerModal();
+                alert("Aktiviti berjaya ditambah!"); closePlannerModal();
             } catch (error) { console.error(error); alert("Gagal menyimpan."); }
             finally { btn.disabled = false; btn.textContent = "SIMPAN AKTIVITI"; }
         }
@@ -419,11 +398,7 @@
             const file = input.files[0]; if(!file) return;
             const stat = document.getElementById('image-upload-status'); stat.textContent="Uploading...";
             const fd = new FormData(); fd.append('image', file);
-            try {
-                const res = await fetch('https://api.imgbb.com/1/upload?key=a7c600ac733fe14649cacd8e65619c4b', {method:'POST',body:fd});
-                const d = await res.json();
-                if(d.success) { document.getElementById('plan-image-url').value = d.data.url; stat.textContent="Uploaded!"; }
-            } catch(e) { stat.textContent="Error."; }
+            try { const res = await fetch('https://api.imgbb.com/1/upload?key=a7c600ac733fe14649cacd8e65619c4b', {method:'POST',body:fd}); const d = await res.json(); if(d.success) { document.getElementById('plan-image-url').value = d.data.url; stat.textContent="Uploaded!"; } } catch(e) { stat.textContent="Error."; }
         }
 
         window.toggleDateRange = function() {
@@ -595,6 +570,14 @@
         window.addMission = addMission;
         window.deleteMission = deleteMission;
         window.toggleMission = toggleMission;
+        window.openPlannerModal = openPlannerModal;
+        window.closePlannerModal = closePlannerModal;
+        window.savePlannerActivity = savePlannerActivity;
+        window.uploadImageToImgBB = uploadImageToImgBB;
+        window.toggleDateRange = toggleDateRange;
+        window.saveSector = saveSector;
+        window.populateUnits = populateUnits;
+
     </script>
 </body>
 </html>
