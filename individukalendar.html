@@ -9,9 +9,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
-        /* Default Background */
         body { font-family: 'Poppins', sans-serif; background-color: #f8f9fa; transition: background-color 0.5s ease; }
-        
         .card { background-color: rgba(255, 255, 255, 0.95); border-radius: 0.75rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); backdrop-filter: blur(4px); }
         .btn { transition: background-color 0.3s, transform 0.2s; }
         .btn:hover { transform: translateY(-2px); }
@@ -21,8 +19,9 @@
             max-height: 110px;
             display: flex;
             flex-direction: column;
+            position: relative;
         }
-        .event-list { overflow-y: auto; flex-grow: 1; }
+        .event-list { overflow-y: auto; flex-grow: 1; z-index: 10; }
         
         /* Event Colors */
         .calendar-day.has-own { background-color: #ecfdf5; border: 1px solid #a7f3d0; cursor: pointer; } 
@@ -33,9 +32,30 @@
         .calendar-day.has-birthdays { background-color: #fff1f2; border: 1px solid #fecdd3; cursor: pointer; } 
         .calendar-day.has-birthdays:hover { background-color: #ffe4e6; }
         .calendar-day.mixed-events { background-color: #f3f4f6; border: 1px solid #e5e7eb; cursor: pointer; }
-        .calendar-day.selected { border-width: 2px; border-color: #0d9488; background-color: #ccfbf1; transform: scale(1.02); z-index: 10; shadow: lg; }
+        .calendar-day.selected { border-width: 2px; border-color: #0d9488; background-color: #ccfbf1; transform: scale(1.02); z-index: 20; shadow: lg; }
         .calendar-day.is-today { background-color: #fffbeb; border: 2px solid #f59e0b; }
         
+        /* Note Indicator */
+        .note-indicator {
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 0;
+            height: 0;
+            border-style: solid;
+            border-width: 12px 12px 0 0;
+            border-color: #facc15 transparent transparent transparent;
+            z-index: 15;
+        }
+        .note-icon {
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            font-size: 10px;
+            z-index: 16;
+            color: #b45309;
+        }
+
         .modal-backdrop { background-color: rgba(0,0,0,0.5); backdrop-filter: blur(2px); z-index: 50; }
         .toggle-checkbox:checked { right: 0; border-color: #4f46e5; }
         .toggle-checkbox:checked + .toggle-label { background-color: #4f46e5; }
@@ -46,11 +66,8 @@
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
 
-        /* Mission Styles */
         .mission-item.completed span { text-decoration: line-through; color: #9ca3af; }
         .mission-item.completed { background-color: #f9fafb; border-color: #e5e7eb; opacity: 0.7; }
-        
-        /* Color Picker Wrapper */
         .color-picker-wrapper { overflow: hidden; position: relative; }
         .color-picker-wrapper input[type="color"] { position: absolute; left: -100%; top: -100%; width: 300%; height: 300%; cursor: pointer; opacity: 0; }
     </style>
@@ -71,19 +88,13 @@
                 </div>
             </div>
             <div class="flex items-center gap-2">
-                
                 <div class="color-picker-wrapper btn bg-gray-100 text-gray-700 font-semibold py-2 px-4 rounded-lg shadow-sm hover:bg-gray-200 flex items-center gap-2 text-sm capitalize cursor-pointer relative overflow-hidden">
                     <input type="color" id="theme-color-input" onchange="changeTheme(this)" title="Pilih warna tema anda">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
-                    </svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" /></svg>
                     <span class="hidden sm:inline">Tema</span>
                 </div>
-
                 <button onclick="window.history.back()" class="btn bg-gray-100 text-gray-700 font-semibold py-2 px-4 rounded-lg shadow-sm hover:bg-gray-200 flex items-center gap-2 text-sm capitalize">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
-                    </svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" /></svg>
                     Kembali
                 </button>
             </div>
@@ -95,27 +106,19 @@
         <div id="personal-header" class="relative w-full h-48 md:h-64 rounded-2xl bg-gray-300 mb-8 overflow-hidden group shadow-lg transition-all mx-auto">
             <div id="personal-bg-img" class="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105" style="background-image: url('https://i.imgur.com/3utZGua.png');"></div>
             <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
-
             <div class="absolute bottom-6 left-6 md:left-10 flex items-end gap-5 z-10">
                 <div id="pro-profile-container" class="hidden relative shrink-0">
                     <img id="pro-profile-img" src="" class="w-20 h-20 md:w-24 md:h-24 rounded-full border-4 border-white shadow-xl object-cover bg-gray-200">
-                    <div class="absolute bottom-0 right-0 bg-gradient-to-r from-red-600 to-black text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-white shadow-sm tracking-widest uppercase">
-                        PRO
-                    </div>
+                    <div class="absolute bottom-0 right-0 bg-gradient-to-r from-red-600 to-black text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-white shadow-sm tracking-widest uppercase">PRO</div>
                 </div>
-                
                 <div class="text-white pb-1">
                     <h2 id="display-name" class="text-2xl md:text-4xl font-extrabold shadow-black drop-shadow-md tracking-tight uppercase">USER</h2>
                     <p class="text-xs md:text-sm text-gray-200 font-medium mt-1">Selamat datang ke papan pemuka peribadi anda.</p>
                 </div>
             </div>
-
             <label class="absolute top-4 right-4 bg-black/30 hover:bg-black/50 backdrop-blur-md p-2.5 rounded-xl cursor-pointer transition-all text-white border border-white/20 shadow-lg group-hover:opacity-100 opacity-0 translate-y-[-10px] group-hover:translate-y-0 duration-300">
                 <input type="file" class="hidden" accept="image/*" onchange="uploadPersonalBg(this)">
-                <div class="flex items-center gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                    <span class="text-xs font-bold hidden md:inline">Tukar Latar</span>
-                </div>
+                <div class="flex items-center gap-2"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg><span class="text-xs font-bold hidden md:inline">Tukar Latar</span></div>
             </label>
             <div id="bg-upload-status" class="absolute top-16 right-4 text-xs font-bold text-white hidden bg-black/50 px-2 py-1 rounded"></div>
         </div>
@@ -123,7 +126,6 @@
         <div class="grid grid-cols-1 lg:grid-cols-3 lg:gap-8">
             
             <div class="lg:col-span-2">
-                
                 <div class="card p-4 mb-6 flex flex-col md:flex-row items-center gap-4">
                     <div class="flex gap-2 w-full md:w-auto shrink-0">
                         <select id="month-select" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-teal-500 focus:border-teal-500 block w-full p-2.5 cursor-pointer"></select>
@@ -131,9 +133,7 @@
                     </div>
                     <div class="w-full flex-grow">
                         <div class="relative">
-                            <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                                <svg class="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 20 20"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m19 19-4-4m0-7A7 7 0 1 1 1 8a7 7 0 0 1 14 0Z"/></svg>
-                            </div>
+                            <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none"><svg class="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 20 20"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m19 19-4-4m0-7A7 7 0 1 1 1 8a7 7 0 0 1 14 0Z"/></svg></div>
                             <input type="text" id="search-input" class="block w-full p-2.5 pl-10 text-sm text-gray-900 border border-gray-300 rounded-lg bg-gray-50 focus:ring-teal-500 focus:border-teal-500" placeholder="Cari aktiviti...">
                         </div>
                     </div>
@@ -147,22 +147,10 @@
                 </div>
 
                 <div class="grid grid-cols-4 gap-2 mb-6 text-center">
-                    <div class="bg-teal-50 border border-teal-100 p-2 rounded-xl shadow-sm card">
-                        <h4 class="text-[9px] font-bold text-teal-600 uppercase">Ciptaan Saya</h4>
-                        <p id="stat-own" class="text-xl font-extrabold text-teal-700">0</p>
-                    </div>
-                    <div class="bg-purple-50 border border-purple-100 p-2 rounded-xl shadow-sm card">
-                        <h4 class="text-[9px] font-bold text-purple-600 uppercase">Jemputan</h4>
-                        <p id="stat-tagged" class="text-xl font-extrabold text-purple-700">0</p>
-                    </div>
-                    <div class="bg-pink-50 border border-pink-100 p-2 rounded-xl shadow-sm card">
-                        <h4 class="text-[9px] font-bold text-pink-600 uppercase">Birthday</h4>
-                        <p id="stat-birthday" class="text-xl font-extrabold text-pink-700">0</p>
-                    </div>
-                    <div class="bg-indigo-50 border border-indigo-100 p-2 rounded-xl shadow-sm opacity-70 card">
-                        <h4 class="text-[9px] font-bold text-indigo-500 uppercase">Rasmi</h4>
-                        <p id="stat-official" class="text-xl font-extrabold text-indigo-700">0</p>
-                    </div>
+                    <div class="bg-teal-50 border border-teal-100 p-2 rounded-xl shadow-sm card"><h4 class="text-[9px] font-bold text-teal-600 uppercase">Ciptaan Saya</h4><p id="stat-own" class="text-xl font-extrabold text-teal-700">0</p></div>
+                    <div class="bg-purple-50 border border-purple-100 p-2 rounded-xl shadow-sm card"><h4 class="text-[9px] font-bold text-purple-600 uppercase">Jemputan</h4><p id="stat-tagged" class="text-xl font-extrabold text-purple-700">0</p></div>
+                    <div class="bg-pink-50 border border-pink-100 p-2 rounded-xl shadow-sm card"><h4 class="text-[9px] font-bold text-pink-600 uppercase">Birthday</h4><p id="stat-birthday" class="text-xl font-extrabold text-pink-700">0</p></div>
+                    <div class="bg-indigo-50 border border-indigo-100 p-2 rounded-xl shadow-sm opacity-70 card"><h4 class="text-[9px] font-bold text-indigo-500 uppercase">Rasmi</h4><p id="stat-official" class="text-xl font-extrabold text-indigo-700">0</p></div>
                 </div>
 
                 <div class="card p-6 relative">
@@ -179,7 +167,7 @@
                         <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-teal-500"></span> Aktiviti Saya</div>
                         <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-purple-500"></span> Dijemput</div>
                         <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-pink-500"></span> Birthday</div>
-                        <div id="legend-ppd" class="flex items-center gap-1.5 opacity-50"><span class="w-2.5 h-2.5 rounded-full bg-indigo-500"></span> PPD (Rasmi)</div>
+                        <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 border border-amber-500 bg-amber-100"></span> Nota</div>
                     </div>
                 </div>
             </div>
@@ -188,19 +176,16 @@
                 
                 <div class="card p-5 border border-yellow-200 bg-yellow-50 shadow-sm relative overflow-hidden">
                     <div class="absolute top-0 right-0 -mt-2 -mr-2 w-16 h-16 bg-yellow-100 rounded-full opacity-50"></div>
-                    
                     <h3 class="text-xs font-bold text-yellow-700 uppercase mb-3 flex items-center gap-2 relative z-10">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                         Senarai Semak Tugasan
                     </h3>
-
                     <div class="flex gap-2 mb-3 relative z-10">
                         <input type="text" id="new-mission-input" class="w-full text-xs p-2 rounded border border-yellow-300 focus:outline-none focus:border-yellow-500 bg-white" placeholder="Taip tugasan yang perlu diselesaikan...">
                         <button onclick="addMission()" class="bg-yellow-500 hover:bg-yellow-600 text-white p-2 rounded shadow-sm transition-colors">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
                         </button>
                     </div>
-
                     <div id="mission-list-container" class="space-y-2 max-h-[250px] overflow-y-auto custom-scrollbar pr-1 relative z-10">
                         <div class="text-center py-4 text-gray-400 text-[10px] italic">Memuatkan...</div>
                     </div>
@@ -208,7 +193,6 @@
 
                 <div id="program-list-container" class="h-[500px]">
                     <div class="card p-6 h-full flex flex-col border border-gray-200 shadow-lg">
-                        
                         <div class="border-b border-gray-100 pb-3 mb-3">
                             <div class="flex justify-between items-center mb-2">
                                 <h3 class="text-lg font-extrabold text-gray-800 uppercase tracking-tight">Agenda</h3>
@@ -219,14 +203,10 @@
                                 Tambah Aktiviti
                             </button>
                         </div>
-
-                        <div id="program-list-content" class="space-y-3 overflow-y-auto flex-grow pr-2 custom-scrollbar">
-                            </div>
+                        <div id="program-list-content" class="space-y-3 overflow-y-auto flex-grow pr-2 custom-scrollbar"></div>
                     </div>
                 </div>
-
             </div>
-
         </div>
     </main>
     
@@ -235,25 +215,42 @@
         <p class="text-xs text-gray-400 mt-1">Disesuaikan untuk <span id="footer-user-ic"></span></p>
     </footer>
 
+    <div id="daily-note-modal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop hidden">
+        <div class="bg-amber-100 rounded-lg shadow-2xl w-full max-w-sm p-0 overflow-hidden relative transform rotate-1 transition-transform hover:rotate-0">
+            <div class="bg-amber-200 px-4 py-2 border-b border-amber-300 flex justify-between items-center">
+                <h3 id="note-modal-title" class="font-bold text-amber-800 uppercase text-sm">Nota</h3>
+                <button onclick="closeModal('daily-note-modal')" class="text-amber-800 hover:text-amber-900 font-bold">✕</button>
+            </div>
+            <div class="p-4">
+                <textarea id="daily-note-content" class="w-full h-40 bg-amber-100 border-none focus:ring-0 text-gray-800 text-sm resize-none font-medium" placeholder="Tulis nota penting hari ini di sini..."></textarea>
+                <div class="flex gap-2 mt-2 border-t border-amber-200 pt-2 justify-between items-center">
+                    <div class="flex gap-1">
+                        <button onclick="insertToNote('✅ ')" class="text-xs bg-amber-200 hover:bg-amber-300 px-2 py-1 rounded">✅</button>
+                        <button onclick="insertToNote('📌 ')" class="text-xs bg-amber-200 hover:bg-amber-300 px-2 py-1 rounded">📌</button>
+                        <button onclick="insertToNote(' - ')" class="text-xs bg-amber-200 hover:bg-amber-300 px-2 py-1 rounded font-bold">List</button>
+                    </div>
+                    <button onclick="saveDailyNote()" id="btn-save-note" class="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold py-1.5 px-4 rounded shadow-sm">SIMPAN</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div id="planner-modal-form" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop hidden">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-lg p-6 relative m-4 max-h-[90vh] overflow-y-auto">
-            <button onclick="closePlannerModal()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-            </button>
-            <h3 id="planner-modal-title" class="text-lg font-bold text-gray-800 mb-1 uppercase">Rancang Aktiviti</h3>
-            <p class="text-xs text-gray-500 mb-4">Masukkan butiran aktiviti anda.</p>
-            <form onsubmit="savePlannerActivity(event)" class="space-y-4">
-                <div><label class="block text-xs font-bold text-gray-700 uppercase mb-1">Nama Program / Aktiviti</label><input type="text" id="plan-title" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-teal-500 focus:border-teal-500 text-sm uppercase" required></div>
+            <button onclick="closePlannerModal()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg></button>
+            <h3 class="text-lg font-bold text-gray-800 mb-1 uppercase">Rancang Aktiviti</h3>
+            <form onsubmit="savePlannerActivity(event)" class="space-y-4 mt-4">
+                <div><label class="block text-xs font-bold text-gray-700 uppercase mb-1">Nama Program</label><input type="text" id="plan-title" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-teal-500 focus:border-teal-500 text-sm uppercase" required></div>
                 <div class="flex items-center justify-between mb-2">
-                    <div class="flex items-center"><input id="is-one-day" type="checkbox" checked onchange="toggleDateRange()" class="w-4 h-4 text-teal-600 border-gray-300 rounded focus:ring-teal-500"><label for="is-one-day" class="ml-2 block text-xs font-bold text-gray-700 uppercase">Program Sehari Sahaja?</label></div>
+                    <div class="flex items-center"><input id="is-one-day" type="checkbox" checked onchange="toggleDateRange()" class="w-4 h-4 text-teal-600 border-gray-300 rounded focus:ring-teal-500"><label for="is-one-day" class="ml-2 block text-xs font-bold text-gray-700 uppercase">Sehari Sahaja?</label></div>
                     <div class="flex items-center"><input id="is-public-program" type="checkbox" class="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"><label for="is-public-program" class="ml-2 block text-xs font-bold text-indigo-700 uppercase">Paparkan di Takwim Utama?</label></div>
                 </div>
-                <div class="grid grid-cols-2 gap-4"><div><label class="block text-xs font-bold text-gray-700 uppercase mb-1">Tarikh Mula</label><input type="date" id="plan-start-date" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-teal-500 focus:border-teal-500 text-sm" required></div><div><label class="block text-xs font-bold text-gray-700 uppercase mb-1">Masa Mula</label><input type="time" id="plan-start-time" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-teal-500 focus:border-teal-500 text-sm" required></div></div>
-                <div id="single-day-end-time" class="grid grid-cols-2 gap-4"><div></div><div><label class="block text-xs font-bold text-gray-700 uppercase mb-1">Masa Tamat</label><input type="time" id="plan-end-time-single" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-teal-500 focus:border-teal-500 text-sm"></div></div>
-                <div id="end-date-container" class="grid grid-cols-2 gap-4 hidden bg-gray-50 p-2 rounded border border-gray-200"><div><label class="block text-xs font-bold text-gray-700 uppercase mb-1">Tarikh Tamat</label><input type="date" id="plan-end-date" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-teal-500 focus:border-teal-500 text-sm"></div><div><label class="block text-xs font-bold text-gray-700 uppercase mb-1">Masa Tamat</label><input type="time" id="plan-end-time-multi" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-teal-500 focus:border-teal-500 text-sm"></div></div>
-                <div><label class="block text-xs font-bold text-gray-700 uppercase mb-1">Lokasi</label><input type="text" id="plan-location" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-teal-500 focus:border-teal-500 text-sm uppercase"></div>
-                <div><label class="block text-xs font-bold text-gray-700 uppercase mb-1">Catatan</label><textarea id="plan-notes" rows="4" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-teal-500 focus:border-teal-500 text-sm"></textarea><div class="mt-2 p-2 border border-dashed border-gray-300 rounded bg-gray-50"><label class="block text-xs font-bold text-gray-600 uppercase mb-1">Muat Naik Gambar</label><input type="file" id="plan-image-file" accept="image/*" onchange="uploadImageToImgBB(this)" class="block w-full text-xs"><input type="hidden" id="plan-image-url"><div id="image-upload-status" class="text-xs text-gray-500 mt-1 italic"></div></div></div>
-                <button type="submit" id="btn-save-plan" class="w-full bg-teal-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-teal-700 transition shadow-md uppercase text-sm mt-2">Simpan Aktiviti</button>
+                <div class="grid grid-cols-2 gap-4"><div><label class="block text-xs font-bold text-gray-700 uppercase mb-1">Mula</label><input type="date" id="plan-start-date" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" required></div><div><label class="block text-xs font-bold text-gray-700 uppercase mb-1">Masa</label><input type="time" id="plan-start-time" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" required></div></div>
+                <div id="single-day-end-time" class="grid grid-cols-2 gap-4"><div></div><div><label class="block text-xs font-bold text-gray-700 uppercase mb-1">Tamat</label><input type="time" id="plan-end-time-single" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"></div></div>
+                <div id="end-date-container" class="grid grid-cols-2 gap-4 hidden bg-gray-50 p-2 rounded border border-gray-200"><div><label class="block text-xs font-bold text-gray-700 uppercase mb-1">Tarikh Tamat</label><input type="date" id="plan-end-date" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"></div><div><label class="block text-xs font-bold text-gray-700 uppercase mb-1">Masa Tamat</label><input type="time" id="plan-end-time-multi" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"></div></div>
+                <div><label class="block text-xs font-bold text-gray-700 uppercase mb-1">Lokasi</label><input type="text" id="plan-location" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm uppercase"></div>
+                <div><label class="block text-xs font-bold text-gray-700 uppercase mb-1">Catatan</label><textarea id="plan-notes" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"></textarea></div>
+                <button type="submit" id="btn-save-plan" class="w-full bg-teal-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-teal-700 uppercase text-sm">Simpan Aktiviti</button>
             </form>
         </div>
     </div>
@@ -288,16 +285,10 @@
         </div>
     </div>
 
-    <style>
-        .toggle-checkbox { right: 20px; transition: all 0.3s; }
-        .toggle-checkbox:checked { right: 0; border-color: #4f46e5; }
-        .toggle-checkbox:checked + .toggle-label { background-color: #4f46e5; }
-    </style>
-
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, onSnapshot, query, orderBy, where, getDocs, doc, updateDoc, addDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, onSnapshot, query, orderBy, where, getDocs, doc, updateDoc, addDoc, deleteDoc, serverTimestamp, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const firebaseConfig = { apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM", authDomain: "myqrhadir.firebaseapp.com", projectId: "myqrhadir", storageBucket: "myqrhadir.appspot.com", messagingSenderId: "799691133747", appId: "1:799691133747:web:835a5e3e9413eace806446" };
         const app = initializeApp(firebaseConfig);
@@ -305,31 +296,17 @@
         const auth = getAuth(app);
         const appId = firebaseConfig.projectId;
         
-        let officialPrograms = [], myActivities = [], allBirthdays = [], userDocId = null;
+        let officialPrograms = [], myActivities = [], allBirthdays = [], dailyNotes = [], userDocId = null;
         let currentDate = new Date(), selectedDateElement = null, isInitialLoad = true;
         let currentUserIc = "", showOfficial = false, selectedDateString = "";
         let currentUserSector = "", currentUserUnit = "";
 
-        const sectorUnitData = {
-            "SEKTOR PERANCANGAN": ["UNIT PERANCANGAN DAN PENGURUSAN PPD", "UNIT PENGURUSAN MAKLUMAT (ICT)", "UNIT DATA DAN MAKLUMAT"],
-            "SEKTOR PEMBELAJARAN": ["UNIT BAHASA", "UNIT SAINS DAN MATEMATIK", "UNIT TVET", "UNIT SAINS SOSIAL & KEMANUSIAAN", "UNIT PENDIDIKAN ISLAM", "UNIT PENDIDIKAN KHAS", "UNIT PEMULIHAN KHAS", "UNIT SUMBER PENDIDIKAN"],
-            "SEKTOR PEMBANGUNAN MURID": ["UNIT HAL EHWAL MURID", "UNIT PEMBANGUNAN BAKAT MURID"],
-            "SEKTOR PENGURUSAN SEKOLAH": ["UNIT PENGUPAYAAN KEPIMPINAN SEKOLAH", "UNIT PRASEKOLAH & RENDAH","UNIT MENENGAH & TINGKATAN 6","UNIT SWASTA"],
-            "SEKTOR PENTAKSIRAN & PEPERIKSAAN": ["UNIT PENTAKSIRAN & PEPERIKSAAN"],
-            "SEKTOR PSIKOLOGI & KAUNSELING": ["UNIT PSIKOLOGI & KAUNSELING"],
-            "SEKTOR PENGURUSAN": ["UNIT PENTADBIRAN DAN KUMPULAN SOKONGAN", "UNIT KEWANGAN DAN AKAUN", "UNIT INFRASTRUKTUR DAN PEROLEHAN", "UNIT ICT"],
-            "BUKAN PPD": ["-"]
-        };
+        const sectorUnitData = { "SEKTOR PERANCANGAN": ["UNIT PERANCANGAN DAN PENGURUSAN PPD", "UNIT PENGURUSAN MAKLUMAT (ICT)", "UNIT DATA DAN MAKLUMAT"], "SEKTOR PEMBELAJARAN": ["UNIT BAHASA", "UNIT SAINS DAN MATEMATIK", "UNIT TVET", "UNIT SAINS SOSIAL & KEMANUSIAAN", "UNIT PENDIDIKAN ISLAM", "UNIT PENDIDIKAN KHAS", "UNIT PEMULIHAN KHAS", "UNIT SUMBER PENDIDIKAN"], "SEKTOR PEMBANGUNAN MURID": ["UNIT HAL EHWAL MURID", "UNIT PEMBANGUNAN BAKAT MURID"], "SEKTOR PENGURUSAN SEKOLAH": ["UNIT PENGUPAYAAN KEPIMPINAN SEKOLAH", "UNIT PRASEKOLAH & RENDAH","UNIT MENENGAH & TINGKATAN 6","UNIT SWASTA"], "SEKTOR PENTAKSIRAN & PEPERIKSAAN": ["UNIT PENTAKSIRAN & PEPERIKSAAN"], "SEKTOR PSIKOLOGI & KAUNSELING": ["UNIT PSIKOLOGI & KAUNSELING"], "SEKTOR PENGURUSAN": ["UNIT PENTADBIRAN DAN KUMPULAN SOKONGAN", "UNIT KEWANGAN DAN AKAUN", "UNIT INFRASTRUKTUR DAN PEROLEHAN", "UNIT ICT"], "BUKAN PPD": ["-"] };
 
         const urlParams = new URLSearchParams(window.location.search);
         const urlIc = urlParams.get('ic');
-        if (urlIc) currentUserIc = urlIc;
-        else currentUserIc = localStorage.getItem('user_ic');
-
-        if(!currentUserIc) { alert("Sila log masuk semula."); window.location.href = 'index.html'; } 
-        else { 
-            // document.getElementById('footer-user-ic').textContent = currentUserIc; 
-        }
+        if (urlIc) currentUserIc = urlIc; else currentUserIc = localStorage.getItem('user_ic');
+        if(!currentUserIc) { alert("Sila log masuk semula."); window.location.href = 'index.html'; }
 
         onAuthStateChanged(auth, async (user) => {
             if (user) main();
@@ -345,6 +322,7 @@
             loadPersonalPlanner(); 
             listenForBirthdays();
             listenForMissions();
+            listenForDailyNotes();
         }
 
         async function loadPersonalData() {
@@ -361,11 +339,7 @@
 
                     document.getElementById('display-name').textContent = data.name ? data.name.toUpperCase() : 'PENGGUNA';
                     if (data.personalBgUrl) document.getElementById('personal-bg-img').style.backgroundImage = `url('${data.personalBgUrl}')`;
-                    
-                    // NEW: THEME COLOR LOADER
-                    if (data.themeColor) {
-                        document.body.style.backgroundColor = data.themeColor;
-                    }
+                    if (data.themeColor) document.body.style.backgroundColor = data.themeColor;
 
                     const adminIC = "890522135381";
                     if ((data.isPro === true) || (currentUserIc === adminIC)) {
@@ -378,100 +352,59 @@
             } catch (error) { console.error("Error loading profile:", error); }
         }
 
-        // --- NEW: THEME COLOR CHANGER ---
+        // --- THEME COLOR ---
         window.changeTheme = async function(input) {
             const color = input.value;
             document.body.style.backgroundColor = color;
             if (userDocId) {
-                try {
-                    await updateDoc(doc(db, `artifacts/${appId}/public/data/spark_participants`, userDocId), { themeColor: color });
-                } catch (e) {
-                    console.error("Gagal simpan tema", e);
-                }
+                try { await updateDoc(doc(db, `artifacts/${appId}/public/data/spark_participants`, userDocId), { themeColor: color }); } 
+                catch (e) { console.error(e); }
             }
         }
 
-        // --- GLOBAL WINDOW FUNCTIONS ---
-        window.openPlannerModal = function(dateStr) {
-            if(!currentUserSector || !currentUserUnit) { document.getElementById('sector-setup-modal').classList.remove('hidden'); return; }
-            const modal = document.getElementById('planner-modal-form');
-            document.getElementById('plan-title').value = '';
-            document.getElementById('plan-location').value = '';
-            document.getElementById('plan-notes').value = '';
-            document.getElementById('plan-start-date').value = dateStr || new Date().toISOString().split('T')[0];
-            document.getElementById('plan-end-date').value = dateStr || new Date().toISOString().split('T')[0];
-            document.getElementById('plan-start-time').value = '08:00';
-            document.getElementById('plan-end-time-single').value = '17:00';
-            document.getElementById('is-one-day').checked = true;
-            toggleDateRange();
+        // --- DAILY NOTE LOGIC ---
+        function listenForDailyNotes() {
+            const q = query(collection(db, `artifacts/${appId}/public/data/spark_daily_notes`), where("ic", "==", currentUserIc));
+            onSnapshot(q, (snapshot) => {
+                dailyNotes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                refreshView();
+            });
+        }
+
+        window.openDailyNoteModal = function() {
+            const modal = document.getElementById('daily-note-modal');
+            const textarea = document.getElementById('daily-note-content');
+            const displayDate = new Date(selectedDateString).toLocaleDateString('ms-MY', { day: 'numeric', month: 'short' });
+            document.getElementById('note-modal-title').textContent = `Nota: ${displayDate}`;
+            
+            const existingNote = dailyNotes.find(n => n.date === selectedDateString);
+            textarea.value = existingNote ? existingNote.content : '';
             modal.classList.remove('hidden');
         }
 
-        window.closePlannerModal = function() { document.getElementById('planner-modal-form').classList.add('hidden'); }
-
-        window.savePlannerActivity = async function(e) {
-            e.preventDefault();
-            const btn = document.getElementById('btn-save-plan'); btn.disabled = true; btn.textContent = "Menyimpan...";
-            
-            const title = document.getElementById('plan-title').value.toUpperCase();
-            const location = document.getElementById('plan-location').value.toUpperCase();
-            const notes = document.getElementById('plan-notes').value;
-            const isPublic = document.getElementById('is-public-program').checked;
-            const imageUrl = document.getElementById('plan-image-url').value;
-            const startDate = document.getElementById('plan-start-date').value;
-            const startTime = document.getElementById('plan-start-time').value;
-            const isOneDay = document.getElementById('is-one-day').checked;
-            let endDate = startDate, endTime = document.getElementById('plan-end-time-single').value;
-            
-            if (!isOneDay) { endDate = document.getElementById('plan-end-date').value; endTime = document.getElementById('plan-end-time-multi').value; }
-
+        window.saveDailyNote = async function() {
+            const content = document.getElementById('daily-note-content').value;
+            const btn = document.getElementById('btn-save-note');
+            btn.textContent = "..."; btn.disabled = true;
             try {
-                const planData = { ic: currentUserIc, sector: currentUserSector, unit: currentUserUnit, title, startDate, startTime, endDate, endTime, isOneDay, location, imageUrl, participants: document.getElementById('display-name').textContent, taggedIcs: [], notes, isPublic: isPublic, createdAt: new Date() };
-                await addDoc(collection(db, `artifacts/${appId}/public/data/spark_planner`), planData);
-                alert("Aktiviti berjaya ditambah!"); closePlannerModal();
-            } catch (error) { console.error(error); alert("Gagal menyimpan."); }
-            finally { btn.disabled = false; btn.textContent = "SIMPAN AKTIVITI"; }
+                const noteId = `${currentUserIc}_${selectedDateString}`;
+                await setDoc(doc(db, `artifacts/${appId}/public/data/spark_daily_notes`, noteId), {
+                    ic: currentUserIc, date: selectedDateString, content: content, updatedAt: serverTimestamp()
+                }, { merge: true });
+                closeModal('daily-note-modal');
+            } catch(e) { console.error(e); alert("Gagal simpan."); }
+            finally { btn.textContent = "SIMPAN"; btn.disabled = false; }
         }
 
-        window.uploadImageToImgBB = async function(input) {
-            const file = input.files[0]; if(!file) return;
-            const stat = document.getElementById('image-upload-status'); stat.textContent="Uploading...";
-            const fd = new FormData(); fd.append('image', file);
-            try { const res = await fetch('https://api.imgbb.com/1/upload?key=a7c600ac733fe14649cacd8e65619c4b', {method:'POST',body:fd}); const d = await res.json(); if(d.success) { document.getElementById('plan-image-url').value = d.data.url; stat.textContent="Uploaded!"; } } catch(e) { stat.textContent="Error."; }
+        window.insertToNote = function(text) {
+            const textarea = document.getElementById('daily-note-content');
+            textarea.setRangeText(text, textarea.selectionStart, textarea.selectionEnd, 'end');
+            textarea.focus();
         }
 
-        window.toggleDateRange = function() {
-            const isOneDay = document.getElementById('is-one-day').checked;
-            if (isOneDay) { document.getElementById('end-date-container').classList.add('hidden'); document.getElementById('single-day-end-time').classList.remove('hidden'); } 
-            else { document.getElementById('end-date-container').classList.remove('hidden'); document.getElementById('single-day-end-time').classList.add('hidden'); }
-        }
-
-        window.saveSector = async function(e) {
-            e.preventDefault();
-            const sector = document.getElementById('user-sector-select').value;
-            const unit = document.getElementById('user-unit-select').value;
-            if(!sector || !unit) return;
-            try {
-                if(userDocId) await updateDoc(doc(db, `artifacts/${appId}/public/data/spark_participants`, userDocId), { sector, unit });
-                currentUserSector = sector; currentUserUnit = unit;
-                document.getElementById('sector-setup-modal').classList.add('hidden');
-                openPlannerModal(selectedDateString);
-            } catch(err) { alert("Gagal."); }
-        }
-
-        window.populateUnits = function(sector) {
-            const sel = document.getElementById('user-unit-select'); sel.innerHTML = '<option value="">-- PILIH UNIT --</option>';
-            if(sector && sectorUnitData[sector]) {
-                sectorUnitData[sector].forEach(u => { const o = document.createElement('option'); o.value=u; o.textContent=u; sel.appendChild(o); });
-                document.getElementById('unit-field-container').classList.remove('hidden');
-            }
-        }
-
-        // --- MISSION LOGIC (SAFE) ---
+        // --- MISSION LOGIC ---
         function listenForMissions() {
             const q = query(collection(db, `artifacts/${appId}/public/data/spark_personal_notes`), where("ic", "==", currentUserIc), orderBy("createdAt", "desc"));
-            
-            // Add Error Callback to Prevent Crash
             onSnapshot(q, (snapshot) => {
                 const container = document.getElementById('mission-list-container'); container.innerHTML = '';
                 if (snapshot.empty) { container.innerHTML = '<div class="text-center py-4 text-gray-400 text-[10px] italic">Tiada tugasan tertunggak.</div>'; return; }
@@ -482,46 +415,33 @@
                     div.innerHTML = `<div class="flex items-center gap-2 overflow-hidden"><input type="checkbox" ${m.isCompleted ? 'checked' : ''} onchange="toggleMission('${doc.id}', this.checked)" class="w-4 h-4 text-yellow-600 rounded border-gray-300 focus:ring-yellow-500 cursor-pointer"><span class="text-xs text-gray-700 truncate font-medium uppercase">${m.text}</span></div><button onclick="deleteMission('${doc.id}')" class="text-gray-400 hover:text-red-500 transition-colors"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg></button>`;
                     container.appendChild(div);
                 });
-            }, (error) => {
-                console.warn("Misi tidak dapat dimuatkan (Akses Ditolak/Ralat Rangkaian):", error.message);
-                document.getElementById('mission-list-container').innerHTML = '<div class="text-center py-2 text-red-400 text-[10px] italic">Gagal memuatkan misi. Periksa sambungan atau kebenaran.</div>';
-            });
+            }, (error) => { console.warn("Misi error", error); });
         }
-
-        window.addMission = async function() {
-            const input = document.getElementById('new-mission-input'); const text = input.value.trim(); if (!text) return;
-            try { await addDoc(collection(db, `artifacts/${appId}/public/data/spark_personal_notes`), { ic: currentUserIc, text: text, isCompleted: false, createdAt: serverTimestamp() }); input.value = ''; } catch (e) { console.error(e); }
-        }
+        window.addMission = async function() { const input = document.getElementById('new-mission-input'); const text = input.value.trim(); if (!text) return; try { await addDoc(collection(db, `artifacts/${appId}/public/data/spark_personal_notes`), { ic: currentUserIc, text: text, isCompleted: false, createdAt: serverTimestamp() }); input.value = ''; } catch (e) { console.error(e); } }
         window.toggleMission = async (id, s) => { try { await updateDoc(doc(db, `artifacts/${appId}/public/data/spark_personal_notes`, id), { isCompleted: s }); } catch (e) { console.error(e); } }
         window.deleteMission = async (id) => { if(confirm("Padam tugasan ini?")) { try { await deleteDoc(doc(db, `artifacts/${appId}/public/data/spark_personal_notes`, id)); } catch(e) { console.error(e); } } }
 
-        // --- UPLOAD BG ---
-        window.uploadPersonalBg = async function(input) {
-            const file = input.files[0]; if (!file) return;
-            const stat = document.getElementById('bg-upload-status'); stat.textContent = "Memuat naik..."; stat.classList.remove('hidden');
-            const fd = new FormData(); fd.append('image', file);
-            try {
-                const res = await fetch('https://api.imgbb.com/1/upload?key=a7c600ac733fe14649cacd8e65619c4b', { method: 'POST', body: fd });
-                const d = await res.json();
-                if (d.success) {
-                    const url = d.data.url; document.getElementById('personal-bg-img').style.backgroundImage = `url('${url}')`;
-                    if (userDocId) { await updateDoc(doc(db, `artifacts/${appId}/public/data/spark_participants`, userDocId), { personalBgUrl: url }); stat.textContent = "Disimpan!"; setTimeout(() => stat.classList.add('hidden'), 2000); }
-                }
-            } catch (e) { stat.textContent = "Gagal."; }
+        // --- GLOBAL FUNCTIONS & EVENTS ---
+        function setupEventListeners() {
+            document.getElementById('month-select').addEventListener('change', updateCalendarView);
+            document.getElementById('year-select').addEventListener('change', updateCalendarView);
+            document.getElementById('search-input').addEventListener('input', () => refreshView());
+            document.getElementById('prev-month-btn').addEventListener('click', () => changeMonth(-1));
+            document.getElementById('next-month-btn').addEventListener('click', () => changeMonth(1));
+            document.getElementById('ppd-toggle').addEventListener('change', (e) => { showOfficial = e.target.checked; const l = document.getElementById('legend-ppd'); if(showOfficial) l.classList.remove('opacity-50'); else l.classList.add('opacity-50'); refreshView(); });
         }
-
-        // --- DATA LOADERS ---
-        function listenForOfficialPrograms() { const q = query(collection(db, `artifacts/${appId}/public/data/spark_programs`), orderBy("startDate", "asc")); onSnapshot(q, (snap) => { officialPrograms = snap.docs.map(d => ({ id: d.id, type: 'official', ...d.data() })); refreshView(); }, (e) => console.warn("Official prog error", e)); }
-        function listenForBirthdays() { const q = query(collection(db, `artifacts/${appId}/public/data/spark_birthdays`), orderBy("dob", "asc")); onSnapshot(q, (snap) => { allBirthdays = snap.docs.map(d => ({ id: d.id, ...d.data() })); refreshView(); }, (e) => console.warn("Birthdays error", e)); }
+        function initializeRightPanel() { document.getElementById('program-list-content').innerHTML = `<div class="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center text-gray-400 h-full flex flex-col justify-center items-center"><svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 mb-2 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg><p class="text-sm font-semibold">Pilih tarikh untuk lihat agenda.</p></div>`; selectedDateString = new Date().toISOString().split('T')[0]; document.getElementById('btn-add-activity').onclick = () => openPlannerModal(selectedDateString); }
         function loadPersonalPlanner() {
             const plannerRef = collection(db, `artifacts/${appId}/public/data/spark_planner`);
             const qOwn = query(plannerRef, where("ic", "==", currentUserIc));
             const qTagged = query(plannerRef, where("taggedIcs", "array-contains", currentUserIc));
             let ownData = [], taggedData = [];
-            onSnapshot(qOwn, (snap) => { ownData = snap.docs.map(d => ({ id: d.id, type: 'own', ...d.data() })); mergeAndRefresh(); }, (e) => console.warn("Planner Error", e));
-            onSnapshot(qTagged, (snap) => { taggedData = snap.docs.map(d => ({ id: d.id, type: 'tagged', ...d.data() })); mergeAndRefresh(); }, (e) => console.warn("Tagged Error", e));
+            onSnapshot(qOwn, (snap) => { ownData = snap.docs.map(d => ({ id: d.id, type: 'own', ...d.data() })); mergeAndRefresh(); });
+            onSnapshot(qTagged, (snap) => { taggedData = snap.docs.map(d => ({ id: d.id, type: 'tagged', ...d.data() })); mergeAndRefresh(); });
             function mergeAndRefresh() { const map = new Map(); ownData.forEach(item => map.set(item.id, item)); taggedData.forEach(item => map.set(item.id, item)); myActivities = Array.from(map.values()); refreshView(); }
         }
+        function listenForOfficialPrograms() { const q = query(collection(db, `artifacts/${appId}/public/data/spark_programs`), orderBy("startDate", "asc")); onSnapshot(q, (snap) => { officialPrograms = snap.docs.map(d => ({ id: d.id, type: 'official', ...d.data() })); refreshView(); }); }
+        function listenForBirthdays() { const q = query(collection(db, `artifacts/${appId}/public/data/spark_birthdays`), orderBy("dob", "asc")); onSnapshot(q, (snap) => { allBirthdays = snap.docs.map(d => ({ id: d.id, ...d.data() })); refreshView(); }); }
         
         function refreshView() {
             const year = currentDate.getFullYear(); const month = currentDate.getMonth(); renderCalendar(year, month); updateMonthlyStats(year, month);
@@ -533,30 +453,32 @@
             } else if (selectedDateElement) { displayProgramsForDate(parseDateString(selectedDateElement.dataset.date), selectedDateElement); }
         }
 
-        // --- CALENDAR RENDER ---
         function renderCalendar(year, month) {
-            const calendarGrid = document.getElementById('calendar-grid');
+            const calendarGrid = document.getElementById('calendar-grid'); calendarGrid.innerHTML = '';
             document.getElementById('calendar-header').textContent = `${["Januari", "Februari", "Mac", "April", "Mei", "Jun", "Julai", "Ogos", "September", "Oktober", "November", "Disember"][month]} ${year}`.toUpperCase();
-            calendarGrid.innerHTML = '';
             const firstDay = new Date(year, month, 1).getDay(); const daysInMonth = new Date(year, month + 1, 0).getDate();
             for (let i = 0; i < firstDay; i++) calendarGrid.insertAdjacentHTML('beforeend', '<div class="border rounded-md bg-gray-50/50"></div>');
             for (let day = 1; day <= daysInMonth; day++) {
                 const date = new Date(year, month, day); const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                 const myEvents = getEventsForDate(myActivities, date); const birthdays = getBirthdaysForDate(date);
                 let officials = showOfficial ? getEventsForDate(officialPrograms, date) : [];
+                const hasNote = dailyNotes.some(n => n.date === dateString && n.content.trim() !== '');
                 const isToday = new Date().toDateString() === date.toDateString();
                 let dayClasses = 'calendar-day border rounded-md p-2 transition-all relative'; let eventHtml = ''; let indicatorsHtml = '';
-                const hasOwn = myEvents.some(e => e.type === 'own'); const hasTagged = myEvents.some(e => e.type === 'tagged'); const hasOfficial = officials.length > 0; const hasBirthday = birthdays.length > 0;
-                if (hasOwn) dayClasses += ' has-own'; else if (hasTagged) dayClasses += ' has-tagged'; else if (hasBirthday) dayClasses += ' has-birthdays'; else if (hasOfficial) dayClasses += ' has-official'; else dayClasses += ' bg-white hover:bg-gray-50';
+                const hasOwn = myEvents.some(e => e.type === 'own'); const hasTagged = myEvents.some(e => e.type === 'tagged');
+                if (hasOwn) dayClasses += ' has-own'; else if (hasTagged) dayClasses += ' has-tagged'; else if (birthdays.length > 0) dayClasses += ' has-birthdays'; else if (officials.length > 0) dayClasses += ' has-official'; else dayClasses += ' bg-white hover:bg-gray-50';
                 if (isToday) dayClasses += ' is-today shadow-md';
                 if (hasOwn) indicatorsHtml += `<div class="absolute top-1 right-1 bg-teal-500 text-white text-[9px] font-bold w-4 h-4 flex items-center justify-center rounded-full shadow-sm ring-1 ring-white">${myEvents.filter(e=>e.type==='own').length}</div>`;
                 if (hasTagged) indicatorsHtml += `<div class="absolute top-1 ${hasOwn ? 'right-6' : 'right-1'} bg-purple-500 text-white text-[9px] font-bold w-4 h-4 flex items-center justify-center rounded-full shadow-sm ring-1 ring-white">${myEvents.filter(e=>e.type==='tagged').length}</div>`;
+                
+                // NOTE INDICATOR
+                if (hasNote) indicatorsHtml += `<div class="note-indicator"></div><span class="note-icon">📝</span>`;
+
                 eventHtml += myEvents.map(p => `<div class="${p.type === 'own' ? 'bg-teal-100 text-teal-800' : 'bg-purple-100 text-purple-800'} text-[9px] rounded px-1 truncate mb-0.5 font-bold tracking-tight">${p.title.toUpperCase()}</div>`).join('');
                 eventHtml += birthdays.map(b => `<div class="bg-pink-100 text-pink-800 text-[9px] rounded px-1 truncate mb-0.5">🎂 ${b.name.split(' ')[0].toUpperCase()}</div>`).join('');
                 eventHtml += officials.map(p => `<div class="bg-indigo-50 text-indigo-400 text-[9px] rounded px-1 truncate mb-0.5 italic border border-indigo-100">${p.name.toUpperCase()}</div>`).join('');
-                calendarGrid.insertAdjacentHTML('beforeend', `<div class="${dayClasses}" data-date="${dateString}">${indicatorsHtml}<div class="font-bold text-gray-700 text-xs mb-1">${day}</div><div class="event-list">${eventHtml}</div></div>`);
+                calendarGrid.insertAdjacentHTML('beforeend', `<div class="${dayClasses}" data-date="${dateString}" onclick="displayProgramsForDate(parseDateString('${dateString}'), this)">${indicatorsHtml}<div class="font-bold text-gray-700 text-xs mb-1 ml-4">${day}</div><div class="event-list">${eventHtml}</div></div>`);
             }
-            calendarGrid.querySelectorAll('.calendar-day').forEach(el => el.addEventListener('click', (e) => displayProgramsForDate(parseDateString(e.currentTarget.dataset.date), e.currentTarget)));
         }
 
         // --- HELPERS ---
@@ -572,42 +494,23 @@
         }
 
         // --- DISPLAY AGENDA ---
-        function displayProgramsForDate(date, element) {
+        window.displayProgramsForDate = function(date, element) {
             if (selectedDateElement) selectedDateElement.classList.remove('selected'); selectedDateElement = element; selectedDateElement.classList.add('selected');
             selectedDateString = element.dataset.date;
             const content = document.getElementById('program-list-content'); const term = document.getElementById('search-input').value.toLowerCase(); let fullHtml = '';
             document.getElementById('selected-date-text').textContent = date.toLocaleDateString('ms-MY', { day: 'numeric', month: 'short', year: 'numeric' }).toUpperCase();
+            
+            // OPEN NOTE MODAL ON CLICK
+            openDailyNoteModal();
 
-            // Set Button Add Activity with Date
             document.getElementById('btn-add-activity').onclick = () => openPlannerModal(selectedDateString);
-
             const birthdays = getBirthdaysForDate(date);
             if (birthdays.length > 0) fullHtml += `<h4 class="text-xs font-bold text-pink-400 uppercase tracking-wider mb-2">Hari Jadi Staf</h4><div class="space-y-3 mb-6">` + birthdays.map(b => `<div class="bg-pink-50 border border-pink-200 rounded-xl p-3 text-gray-800 flex items-center justify-between shadow-sm"><div class="flex items-center gap-3 overflow-hidden"><span class="text-xl">🎂</span><div class="truncate"><p class="font-bold text-xs text-pink-700 truncate uppercase">${b.name}</p></div></div><a href="birthday.html?name=${encodeURIComponent(b.name)}&dob=${btoa(b.dob)}" target="_blank" class="flex-shrink-0 bg-pink-500 hover:bg-pink-600 text-white text-[9px] font-bold py-1.5 px-3 rounded-lg uppercase transition-colors">Ucap</a></div>`).join('') + '</div>';
-
             const myEvents = getEventsForDate(myActivities, date).filter(p => p.title.toLowerCase().includes(term));
             if (myEvents.length > 0) fullHtml += `<h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Aktiviti Saya</h4><div class="space-y-3 mb-6">` + myEvents.map(a => `<div class="bg-white border-l-4 ${a.type==='own'?'border-teal-500':'border-purple-500'} shadow-sm rounded-r-lg p-3 group hover:shadow-md transition-shadow"><div class="flex justify-between items-start mb-1"><p class="font-bold text-sm ${a.type==='own'?'text-teal-900':'text-purple-900'} uppercase leading-tight">${a.title.toUpperCase()}</p>${a.type==='own'?'<span class="bg-teal-100 text-teal-700 text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Saya</span>':'<span class="bg-purple-100 text-purple-700 text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Dijemput</span>'}</div><div class="text-xs text-gray-500 mt-1 space-y-0.5"><p class="flex items-center gap-1.5">📍 ${a.location.toUpperCase()}</p><p class="flex items-center gap-1.5">🕒 ${a.startTime}</p></div><button onclick="openActivityModal('${encodeURIComponent(JSON.stringify(a))}')" class="mt-2 w-full text-center text-[10px] text-gray-400 font-bold uppercase hover:text-teal-600 transition-colors border-t border-gray-100 pt-1">Lihat Butiran</button></div>`).join('') + '</div>';
-
-            if (showOfficial) {
-                const officials = getEventsForDate(officialPrograms, date).filter(p => p.name.toLowerCase().includes(term));
-                if (officials.length > 0) fullHtml += `<h4 class="text-xs font-bold text-indigo-300 uppercase tracking-wider mb-2">Program Rasmi PPD</h4><div class="space-y-2 opacity-80">` + officials.map(p => `<div class="bg-indigo-50 border border-indigo-100 rounded-lg p-2 text-gray-600"><p class="font-bold text-xs text-indigo-700 uppercase leading-tight">${p.name.toUpperCase()}</p><div class="text-[10px] mt-1 flex justify-between text-indigo-400"><span>${p.location.toUpperCase()}</span><span>${p.startTime}</span></div></div>`).join('') + '</div>';
-            }
+            if (showOfficial) { const officials = getEventsForDate(officialPrograms, date).filter(p => p.name.toLowerCase().includes(term)); if (officials.length > 0) fullHtml += `<h4 class="text-xs font-bold text-indigo-300 uppercase tracking-wider mb-2">Program Rasmi PPD</h4><div class="space-y-2 opacity-80">` + officials.map(p => `<div class="bg-indigo-50 border border-indigo-100 rounded-lg p-2 text-gray-600"><p class="font-bold text-xs text-indigo-700 uppercase leading-tight">${p.name.toUpperCase()}</p><div class="text-[10px] mt-1 flex justify-between text-indigo-400"><span>${p.location.toUpperCase()}</span><span>${p.startTime}</span></div></div>`).join('') + '</div>'; }
             if (fullHtml === '') content.innerHTML = `<div class="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center text-gray-400 h-full flex flex-col justify-center items-center"><p class="text-sm font-semibold">Tiada aktiviti.</p></div>`; else content.innerHTML = fullHtml;
         }
-
-        // Init Calls
-        function setupEventListeners() {
-            document.getElementById('month-select').addEventListener('change', updateCalendarView);
-            document.getElementById('year-select').addEventListener('change', updateCalendarView);
-            document.getElementById('search-input').addEventListener('input', () => refreshView());
-            document.getElementById('prev-month-btn').addEventListener('click', () => changeMonth(-1));
-            document.getElementById('next-month-btn').addEventListener('click', () => changeMonth(1));
-            document.getElementById('ppd-toggle').addEventListener('change', (e) => { showOfficial = e.target.checked; const l = document.getElementById('legend-ppd'); if(showOfficial) l.classList.remove('opacity-50'); else l.classList.add('opacity-50'); refreshView(); });
-        }
-        function initializeRightPanel() { document.getElementById('program-list-content').innerHTML = `<div class="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center text-gray-400 h-full flex flex-col justify-center items-center"><svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 mb-2 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg><p class="text-sm font-semibold">Pilih tarikh untuk lihat agenda.</p></div>`; selectedDateString = new Date().toISOString().split('T')[0]; document.getElementById('btn-add-activity').onclick = () => openPlannerModal(selectedDateString); }
-        function populateMonthFilter() { const m = document.getElementById('month-select'); m.innerHTML=''; ["Januari", "Februari", "Mac", "April", "Mei", "Jun", "Julai", "Ogos", "September", "Oktober", "November", "Disember"].forEach((month, i) => { const o=document.createElement('option'); o.value=i; o.textContent=month; if(i===currentDate.getMonth()) o.selected=true; m.appendChild(o); }); populateYearFilter(); }
-        function populateYearFilter() { const y = document.getElementById('year-select'); y.innerHTML=''; const c = new Date().getFullYear(); for(let i=c-2; i<=c+2; i++) { const o=document.createElement('option'); o.value=i; o.textContent=i; if(i===currentDate.getFullYear()) o.selected=true; y.appendChild(o); } }
-        function updateCalendarView() { currentDate = new Date(parseInt(document.getElementById('year-select').value), parseInt(document.getElementById('month-select').value), 1); refreshView(); }
-        function changeMonth(o) { currentDate.setMonth(currentDate.getMonth()+o); document.getElementById('month-select').value=currentDate.getMonth(); document.getElementById('year-select').value=currentDate.getFullYear(); if(document.getElementById('year-select').value==="") { populateYearFilter(); document.getElementById('year-select').value=currentDate.getFullYear(); } refreshView(); }
 
         window.closeModal = (id) => document.getElementById(id).classList.add('hidden');
         window.openActivityModal = openActivityModal;
@@ -623,6 +526,10 @@
         window.saveSector = saveSector;
         window.populateUnits = populateUnits;
         window.changeTheme = changeTheme;
+        window.openDailyNoteModal = openDailyNoteModal;
+        window.saveDailyNote = saveDailyNote;
+        window.insertToNote = insertToNote;
+        window.parseDateString = parseDateString; // Expose helper for onclick
 
     </script>
 </body>
