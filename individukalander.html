@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SPARK – Kalendar Peribadi</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Poppins', sans-serif; background-color: #f8f9fa; }
+        .card { background-color: white; border-radius: 0.75rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); }
+        .btn { transition: background-color 0.3s, transform 0.2s; }
+        .btn:hover { transform: translateY(-2px); }
+        .calendar-day { 
+            min-height: 110px;
+            max-height: 110px;
+            display: flex;
+            flex-direction: column;
+        }
+        .event-list { overflow-y: auto; flex-grow: 1; }
+        
+        /* Event Colors */
+        .calendar-day.has-own { background-color: #ecfdf5; border: 1px solid #a7f3d0; cursor: pointer; } /* Hijau - Ciptaan Sendiri */
+        .calendar-day.has-own:hover { background-color: #d1fae5; }
+        
+        .calendar-day.has-tagged { background-color: #f3e8ff; border: 1px solid #d8b4fe; cursor: pointer; } /* Ungu - Jemputan */
+        .calendar-day.has-tagged:hover { background-color: #e9d5ff; }
+        
+        .calendar-day.has-official { background-color: #eef2ff; border: 1px dashed #c7d2fe; cursor: pointer; } /* Indigo - Rasmi */
+        
+        .calendar-day.mixed-events { background-color: #f3f4f6; border: 1px solid #e5e7eb; cursor: pointer; }
+
+        .calendar-day.selected { border-width: 2px; border-color: #4f46e5; background-color: #e0e7ff; }
+        .calendar-day.is-today { background-color: #fffbeb; border: 2px solid #f59e0b; }
+        
+        .modal-backdrop { background-color: rgba(0,0,0,0.5); }
+        
+        /* Scrollbar hide */
+        .event-list::-webkit-scrollbar { width: 2px; }
+        .event-list::-webkit-scrollbar-track { background: transparent; }
+        .event-list::-webkit-scrollbar-thumb { background: #cbd5e1; }
+    </style>
+</head>
+<body class="bg-gray-50 flex flex-col min-h-screen">
+
+    <header class="bg-white shadow-sm sticky top-0 z-10">
+        <div class="max-w-screen-2xl mx-auto py-4 px-4 sm:px-6 lg:px-8 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="bg-teal-600 p-2 rounded-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-bold text-teal-600">SPARK</h1>
+                    <p class="text-sm text-gray-500">Kalendar Peribadi & Aktiviti Saya</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="window.history.back()" class="btn bg-gray-100 text-gray-700 font-semibold py-2 px-4 rounded-lg shadow-sm hover:bg-gray-200 flex items-center gap-2 text-sm capitalize">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
+                    </svg>
+                    Kembali
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-screen-2xl mx-auto py-6 sm:px-6 lg:px-8 flex-grow w-full">
+        <div class="grid grid-cols-1 lg:grid-cols-3 lg:gap-8">
+            
+            <div class="lg:col-span-2">
+                
+                <div class="grid grid-cols-3 gap-2 mb-6 text-center">
+                    <div class="bg-teal-50 border border-teal-100 p-3 rounded-xl shadow-sm">
+                        <h4 class="text-[10px] font-bold text-teal-600 uppercase">Ciptaan Saya</h4>
+                        <p id="stat-own" class="text-2xl font-extrabold text-teal-700">0</p>
+                    </div>
+                    <div class="bg-purple-50 border border-purple-100 p-3 rounded-xl shadow-sm">
+                        <h4 class="text-[10px] font-bold text-purple-600 uppercase">Jemputan (Tag)</h4>
+                        <p id="stat-tagged" class="text-2xl font-extrabold text-purple-700">0</p>
+                    </div>
+                    <div class="bg-indigo-50 border border-indigo-100 p-3 rounded-xl shadow-sm opacity-70">
+                        <h4 class="text-[10px] font-bold text-indigo-500 uppercase">Rasmi PPD</h4>
+                        <p id="stat-official" class="text-2xl font-extrabold text-indigo-700">0</p>
+                    </div>
+                </div>
+
+                <div class="card p-6">
+                    <div class="flex flex-wrap items-end gap-4 mb-6 bg-gray-50 p-4 rounded-lg border">
+                        <div class="flex-grow md:flex-grow-0">
+                            <label for="month-select" class="block text-sm font-medium text-gray-700">Bulan</label>
+                            <select id="month-select" class="mt-1 block w-full pl-3 pr-10 py-2 border-gray-300 rounded-md sm:text-sm"></select>
+                        </div>
+                        <div class="flex-grow md:flex-grow-0">
+                            <label for="year-select" class="block text-sm font-medium text-gray-700">Tahun</label>
+                            <select id="year-select" class="mt-1 block w-full pl-3 pr-10 py-2 border-gray-300 rounded-md sm:text-sm"></select>
+                        </div>
+                        <div class="flex-grow">
+                            <label for="search-input" class="block text-sm font-medium text-gray-700">Carian</label>
+                            <input type="text" id="search-input" placeholder="Cari aktiviti..." class="mt-1 block w-full px-3 py-2 border-gray-300 rounded-md sm:text-sm">
+                        </div>
+                    </div>
+                    
+                    <div class="flex flex-wrap gap-4 mb-4 text-xs font-semibold uppercase justify-center sm:justify-start">
+                        <div class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-teal-500"></span> Aktiviti Saya</div>
+                        <div class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-purple-500"></span> Di-Tag</div>
+                        <div class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-indigo-500"></span> Rasmi (Rujukan)</div>
+                    </div>
+
+                    <div class="flex justify-between items-center mb-4">
+                        <button id="prev-month-btn" class="p-2 rounded-full hover:bg-gray-100">&lt;</button>
+                        <h2 id="calendar-header" class="text-xl font-bold text-gray-800 uppercase"></h2>
+                        <button id="next-month-btn" class="p-2 rounded-full hover:bg-gray-100">&gt;</button>
+                    </div>
+
+                    <div id="calendar-weekdays" class="grid grid-cols-7 gap-2 text-center font-semibold text-sm text-gray-600 mb-2 uppercase">
+                        <div>Ahad</div><div>Isnin</div><div>Selasa</div><div>Rabu</div><div>Khamis</div><div>Jumaat</div><div>Sabtu</div>
+                    </div>
+                    <div id="calendar-grid" class="grid grid-cols-7 gap-2">
+                    </div>
+                </div>
+            </div>
+
+            <div class="lg:col-span-1">
+                <div id="program-list-container" class="mt-8 lg:mt-0 h-full">
+                    <div class="card p-6 h-full flex flex-col">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4 uppercase">Agenda <span id="selected-date-text"></span></h3>
+                        <div id="program-list-content" class="space-y-4 overflow-y-auto flex-grow max-h-[600px] pr-2"></div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+    
+    <footer class="text-center py-4 mt-8 border-t border-gray-200">
+        <p class="text-sm text-gray-600">Projek Inovasi oleh <a href="https://pahanmy.github.io/works/" target="_blank" class="font-semibold text-teal-500 hover:underline">Pahan</a></p>
+        <p class="text-xs text-gray-500">Modul Individu SPARK</p>
+    </footer>
+
+    <div id="activity-info-modal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop hidden">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-md p-6 m-4 max-h-[90vh] overflow-y-auto relative">
+            <button onclick="closeModal('activity-info-modal')" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+            
+            <div id="modal-tag-badge" class="mb-2"></div>
+            <h3 id="modal-activity-title" class="text-lg font-bold text-gray-800 uppercase mb-2 leading-tight"></h3>
+            
+            <div class="space-y-3 text-sm text-gray-700">
+                <div class="bg-gray-50 p-3 rounded-lg border border-gray-100">
+                    <p id="modal-activity-time" class="flex items-center gap-2 font-semibold"></p>
+                    <p id="modal-activity-location" class="flex items-center gap-2 mt-1"></p>
+                </div>
+                
+                <div class="bg-emerald-50 p-3 rounded border border-emerald-100">
+                    <p class="text-xs font-bold text-emerald-600 uppercase mb-1 flex items-center gap-1">
+                        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                        Yang Terlibat
+                    </p>
+                    <p id="modal-activity-participants" class="uppercase text-xs leading-relaxed font-medium"></p>
+                </div>
+
+                <div id="modal-activity-notes-container" class="bg-yellow-50 p-3 rounded border border-yellow-100 hidden">
+                    <p class="text-xs font-bold text-yellow-600 uppercase mb-1">Catatan</p>
+                    <p id="modal-activity-notes" class="whitespace-pre-wrap text-xs"></p>
+                </div>
+
+                <div id="modal-activity-image-container" class="hidden mt-2">
+                    <p class="text-xs font-bold text-gray-400 uppercase mb-1">Lampiran</p>
+                    <img id="modal-activity-image" src="" alt="Lampiran" class="w-full rounded border cursor-pointer hover:opacity-90" onclick="window.open(this.src)">
+                </div>
+            </div>
+            
+            <div class="mt-6 flex justify-end space-x-3">
+                 <a id="modal-activity-link" href="#" target="_blank" class="hidden btn bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg uppercase text-xs flex items-center shadow-sm">
+                    <svg class="w-3 h-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                    Buka Pautan
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, onSnapshot, query, orderBy, where, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const firebaseConfig = { apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM", authDomain: "myqrhadir.firebaseapp.com", projectId: "myqrhadir", storageBucket: "myqrhadir.appspot.com", messagingSenderId: "799691133747", appId: "1:799691133747:web:835a5e3e9413eace806446" };
+        
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        const appId = firebaseConfig.projectId;
+        
+        let officialPrograms = [];     
+        let myActivities = []; // Gabungan Own + Tagged
+        
+        let currentDate = new Date();
+        let selectedDateElement = null;
+        let isInitialLoad = true;
+        let currentUserIc = "";
+
+        // Check URL parameter for IC
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlIc = urlParams.get('ic');
+        if (urlIc) {
+            currentUserIc = urlIc;
+        } else {
+            // Fallback to localStorage or prompt if needed
+            currentUserIc = localStorage.getItem('user_ic');
+        }
+
+        if(!currentUserIc) {
+            alert("Ralat: Tiada maklumat pengguna. Sila log masuk semula.");
+            window.location.href = 'index.html';
+        }
+
+        onAuthStateChanged(auth, async (user) => {
+            if (user) main();
+            else { try { await signInAnonymously(auth); } catch (error) { console.error("Gagal daftar masuk:", error); } }
+        });
+
+        function main() {
+            setupEventListeners();
+            populateMonthFilter();
+            initializeRightPanel();
+            
+            // Listeners
+            listenForOfficialPrograms();
+            loadPersonalPlanner(); // Load User specific data
+        }
+
+        function setupEventListeners() {
+            document.getElementById('month-select').addEventListener('change', updateCalendarView);
+            document.getElementById('year-select').addEventListener('change', updateCalendarView);
+            document.getElementById('search-input').addEventListener('input', () => {
+                refreshView();
+            });
+            document.getElementById('prev-month-btn').addEventListener('click', () => changeMonth(-1));
+            document.getElementById('next-month-btn').addEventListener('click', () => changeMonth(1));
+        }
+
+        function initializeRightPanel() {
+            const programListContent = document.getElementById('program-list-content');
+            document.getElementById('selected-date-text').textContent = "HARI INI";
+            programListContent.innerHTML = `<div class="border-2 border-dashed border-gray-300 rounded-xl p-5 text-center text-gray-500 h-full flex flex-col justify-center items-center"><p class="mt-4 text-sm font-semibold">Tiada Agenda Hari Ini</p></div>`;
+        }
+        
+        // --- DATA FETCHING ---
+        function listenForOfficialPrograms() {
+            // Kita ambil semua program rasmi sebagai rujukan, tapi boleh filter client-side nanti
+            const q = query(collection(db, `artifacts/${appId}/public/data/spark_programs`), orderBy("startDate", "asc"));
+            onSnapshot(q, (snap) => { 
+                officialPrograms = snap.docs.map(d => ({ id: d.id, type: 'official', ...d.data() })); 
+                refreshView(); 
+            });
+        }
+
+        function loadPersonalPlanner() {
+            const plannerRef = collection(db, `artifacts/${appId}/public/data/spark_planner`);
+            
+            // 1. Aktiviti Ciptaan Sendiri
+            const qOwn = query(plannerRef, where("ic", "==", currentUserIc));
+            
+            // 2. Aktiviti Di-Tag
+            const qTagged = query(plannerRef, where("taggedIcs", "array-contains", currentUserIc));
+
+            // Gunakan onSnapshot untuk realtime update (kita perlu merge manual sebab Firestore tak support OR query complex real-time dengan mudah)
+            // Cara mudah: Subscribe kedua-duanya
+            
+            let ownData = [];
+            let taggedData = [];
+
+            onSnapshot(qOwn, (snap) => {
+                ownData = snap.docs.map(d => ({ id: d.id, type: 'own', ...d.data() }));
+                mergeAndRefresh();
+            });
+
+            onSnapshot(qTagged, (snap) => {
+                taggedData = snap.docs.map(d => ({ id: d.id, type: 'tagged', ...d.data() }));
+                mergeAndRefresh();
+            });
+
+            function mergeAndRefresh() {
+                // Merge arrays and remove duplicates based on ID (just in case)
+                const map = new Map();
+                ownData.forEach(item => map.set(item.id, item));
+                taggedData.forEach(item => map.set(item.id, item)); // Tagged priority logic or visual differentiation handled in type
+                
+                myActivities = Array.from(map.values());
+                refreshView();
+            }
+        }
+        
+        function refreshView() {
+            const year = currentDate.getFullYear();
+            const month = currentDate.getMonth();
+            renderCalendar(year, month);
+            updateMonthlyStats(year, month);
+            
+            if (isInitialLoad) { displayTodaysPrograms(); isInitialLoad = false; }
+            else if (selectedDateElement) { 
+                const d = parseDateString(selectedDateElement.dataset.date);
+                displayProgramsForDate(d, selectedDateElement); 
+            }
+        }
+
+        function updateMonthlyStats(year, month) {
+            let ownCount = 0, taggedCount = 0, officialCount = 0;
+            const firstDay = new Date(year, month, 1);
+            const lastDay = new Date(year, month + 1, 0);
+
+            myActivities.forEach(p => { 
+                const pDate = parseDateString(p.startDate);
+                if (pDate >= firstDay && pDate <= lastDay) {
+                    if(p.type === 'own') ownCount++;
+                    else taggedCount++;
+                }
+            });
+            
+            officialPrograms.forEach(p => { 
+                const pDate = parseDateString(p.startDate);
+                if (pDate >= firstDay && pDate <= lastDay) officialCount++; 
+            });
+
+            document.getElementById('stat-own').textContent = ownCount;
+            document.getElementById('stat-tagged').textContent = taggedCount;
+            document.getElementById('stat-official').textContent = officialCount;
+        }
+
+        function renderCalendar(year, month) {
+            const calendarGrid = document.getElementById('calendar-grid');
+            document.getElementById('calendar-header').textContent = `${["Januari", "Februari", "Mac", "April", "Mei", "Jun", "Julai", "Ogos", "September", "Oktober", "November", "Disember"][month]} ${year}`.toUpperCase();
+            calendarGrid.innerHTML = '';
+
+            const firstDay = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+            for (let i = 0; i < firstDay; i++) calendarGrid.insertAdjacentHTML('beforeend', '<div class="border rounded-md bg-gray-50"></div>');
+
+            for (let day = 1; day <= daysInMonth; day++) {
+                const date = new Date(year, month, day);
+                const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+                const myEvents = getEventsForDate(myActivities, date);
+                const officials = getEventsForDate(officialPrograms, date);
+
+                const isToday = new Date().toDateString() === date.toDateString();
+                
+                let dayClasses = 'calendar-day border rounded-md p-2 transition-colors relative';
+                let eventHtml = '';
+                let indicatorsHtml = '';
+
+                // Determine Class Priority: Own > Tagged > Official
+                const hasOwn = myEvents.some(e => e.type === 'own');
+                const hasTagged = myEvents.some(e => e.type === 'tagged');
+                const hasOfficial = officials.length > 0;
+
+                if (hasOwn && hasTagged) dayClasses += ' mixed-events';
+                else if (hasOwn) dayClasses += ' has-own';
+                else if (hasTagged) dayClasses += ' has-tagged';
+                else if (hasOfficial) dayClasses += ' has-official'; // Paling rendah priority visual
+
+                if (isToday) dayClasses += ' is-today';
+
+                // Indicators
+                if (hasOwn) indicatorsHtml += `<div class="absolute top-1 right-1 bg-teal-500 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full shadow">${myEvents.filter(e=>e.type==='own').length}</div>`;
+                
+                if (hasTagged) {
+                     const offset = hasOwn ? 'right-6' : 'right-1';
+                     indicatorsHtml += `<div class="absolute top-1 ${offset} bg-purple-500 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full shadow">${myEvents.filter(e=>e.type==='tagged').length}</div>`;
+                }
+
+                // Render List Text (Personal First)
+                eventHtml += myEvents.map(p => {
+                    const colorClass = p.type === 'own' ? 'bg-teal-100 text-teal-800' : 'bg-purple-100 text-purple-800';
+                    return `<div class="${colorClass} text-[10px] rounded px-1 truncate mb-0.5 font-bold">${p.title.toUpperCase()}</div>`;
+                }).join('');
+                
+                // Then Official (Grayed/Indigo)
+                eventHtml += officials.map(p => `<div class="bg-indigo-50 text-indigo-400 text-[9px] rounded px-1 truncate mb-0.5 italic">${p.name.toUpperCase()}</div>`).join('');
+
+                calendarGrid.insertAdjacentHTML('beforeend', `
+                    <div class="${dayClasses}" data-date="${dateString}">
+                        ${indicatorsHtml}
+                        <div class="font-semibold text-gray-800 text-sm mb-1">${day}</div>
+                        <div class="event-list">${eventHtml}</div>
+                    </div>
+                `);
+            }
+            
+            calendarGrid.querySelectorAll('.calendar-day').forEach(el => {
+                el.addEventListener('click', (e) => {
+                    const target = e.currentTarget;
+                    const date = parseDateString(target.dataset.date);
+                    displayProgramsForDate(date, target);
+                });
+            });
+        }
+
+        function parseDateString(dateString) { const parts = dateString.split('-'); return new Date(parts[0], parts[1] - 1, parts[2]); }
+        
+        function getEventsForDate(list, date) {
+            const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+            return list.filter(p => {
+                const start = parseDateString(p.startDate);
+                const end = p.endDate ? parseDateString(p.endDate) : start;
+                // Support multi-day (one-day logic covered if end==start)
+                return d >= start && d <= end;
+            });
+        }
+
+        function displayTodaysPrograms() {
+            const today = new Date();
+            const dateString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+            const cell = document.querySelector(`.calendar-day[data-date="${dateString}"]`);
+            if (cell) displayProgramsForDate(today, cell);
+            else initializeRightPanel();
+        }
+
+        // --- FUNGSI KLIK TARIKH ---
+        function displayProgramsForDate(date, element) {
+            if (selectedDateElement) selectedDateElement.classList.remove('selected');
+            selectedDateElement = element;
+            selectedDateElement.classList.add('selected');
+            
+            const content = document.getElementById('program-list-content');
+            const term = document.getElementById('search-input').value.toLowerCase();
+            
+            let fullHtml = '';
+
+            // 1. AKTIVITI PERIBADI (OWN & TAGGED)
+            const myEvents = getEventsForDate(myActivities, date).filter(p => p.title.toLowerCase().includes(term));
+            
+            if (myEvents.length > 0) {
+                 fullHtml += `<h4 class="text-sm font-bold text-teal-600 uppercase mb-2">Aktiviti Saya</h4><div class="space-y-3 mb-6">` + 
+                 myEvents.map(a => {
+                    const dataString = encodeURIComponent(JSON.stringify(a));
+                    const isOwn = a.type === 'own';
+                    const themeBorder = isOwn ? 'border-teal-500' : 'border-purple-500';
+                    const themeBg = isOwn ? 'bg-teal-50' : 'bg-purple-50';
+                    const themeText = isOwn ? 'text-teal-800' : 'text-purple-800';
+                    const badge = isOwn ? '<span class="bg-teal-200 text-teal-800 text-[9px] px-1 rounded font-bold uppercase">Saya</span>' : '<span class="bg-purple-200 text-purple-800 text-[9px] px-1 rounded font-bold uppercase">Jemputan</span>';
+
+                    return `
+                    <div class="${themeBg} border-l-4 ${themeBorder} shadow-sm rounded-r-lg p-3 text-gray-800">
+                        <div class="flex justify-between items-start">
+                            <p class="font-bold text-sm ${themeText} uppercase leading-tight">${a.title.toUpperCase()}</p>
+                            ${badge}
+                        </div>
+                        <div class="text-xs text-gray-600 mt-2 space-y-1">
+                             <p class="flex items-center gap-1">📍 ${a.location.toUpperCase()}</p>
+                             <p class="flex items-center gap-1">🕒 ${a.startTime} - ${a.endTime || '...'}</p>
+                        </div>
+                        <button onclick="openActivityModal('${dataString}')" class="mt-2 w-full bg-white hover:bg-white/50 border border-gray-200 text-gray-700 text-xs font-bold py-1.5 px-2 rounded uppercase shadow-sm">Butiran Penuh</button>
+                    </div>`
+                }).join('') + '</div>';
+            }
+
+            // 2. PROGRAM RASMI (RUJUKAN)
+            const officials = getEventsForDate(officialPrograms, date).filter(p => p.name.toLowerCase().includes(term));
+            
+            if (officials.length > 0) {
+                 fullHtml += `<div class="opacity-75"><h4 class="text-xs font-bold text-indigo-400 uppercase mb-2">Rujukan: Program Rasmi</h4><div class="space-y-2">` + 
+                 officials.map(p => {
+                    return `
+                    <div class="bg-indigo-50 border border-indigo-100 rounded-lg p-2 text-gray-600">
+                        <p class="font-bold text-xs text-indigo-600 uppercase leading-tight">${p.name.toUpperCase()}</p>
+                        <div class="text-[10px] mt-1 flex justify-between">
+                             <span>${p.location.toUpperCase()}</span>
+                             <span>${p.startTime}</span>
+                        </div>
+                    </div>`
+                }).join('') + '</div></div>';
+            }
+            
+            document.getElementById('selected-date-text').textContent = date.toDateString() === new Date().toDateString() ? 'HARI INI' : date.toLocaleDateString('ms-MY', { day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase();
+            
+            if (fullHtml === '') content.innerHTML = `<div class="border-2 border-dashed border-gray-300 rounded-xl p-5 text-center text-gray-500 h-full flex flex-col justify-center items-center"><p class="mt-4 text-sm font-semibold">Tiada aktiviti direkodkan.</p></div>`;
+            else content.innerHTML = fullHtml;
+        }
+
+        function populateMonthFilter() {
+            const monthSelect = document.getElementById('month-select');
+            monthSelect.innerHTML = '';
+            const months = ["Januari", "Februari", "Mac", "April", "Mei", "Jun", "Julai", "Ogos", "September", "Oktober", "November", "Disember"];
+            months.forEach((month, index) => {
+                const option = document.createElement('option');
+                option.value = index; option.textContent = month;
+                if (index === currentDate.getMonth()) option.selected = true;
+                monthSelect.appendChild(option);
+            });
+            populateYearFilter();
+        }
+
+        function populateYearFilter() {
+            const yearSelect = document.getElementById('year-select');
+            yearSelect.innerHTML = '';
+            const currentYear = new Date().getFullYear();
+            for (let i = currentYear - 2; i <= currentYear + 2; i++) {
+                const option = document.createElement('option');
+                option.value = i; option.textContent = i;
+                if (i === currentDate.getFullYear()) option.selected = true;
+                yearSelect.appendChild(option);
+            }
+        }
+
+        function updateCalendarView() {
+            const selectedMonth = parseInt(document.getElementById('month-select').value);
+            const selectedYear = parseInt(document.getElementById('year-select').value);
+            currentDate = new Date(selectedYear, selectedMonth, 1);
+            refreshView();
+        }
+
+        function changeMonth(offset) {
+            currentDate.setMonth(currentDate.getMonth() + offset);
+            document.getElementById('month-select').value = currentDate.getMonth();
+            document.getElementById('year-select').value = currentDate.getFullYear();
+            if (document.getElementById('year-select').value === "") { populateYearFilter(); document.getElementById('year-select').value = currentDate.getFullYear(); }
+            refreshView();
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.add('hidden');
+        }
+
+        function openActivityModal(dataString) {
+            try {
+                const data = JSON.parse(decodeURIComponent(dataString));
+                const isOwn = data.type === 'own';
+                
+                // Set Badge
+                const badgeEl = document.getElementById('modal-tag-badge');
+                if(isOwn) badgeEl.innerHTML = '<span class="bg-teal-100 text-teal-800 text-xs px-2 py-1 rounded font-bold uppercase border border-teal-200">Aktiviti Saya</span>';
+                else badgeEl.innerHTML = '<span class="bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded font-bold uppercase border border-purple-200">Dijemput / Di-Tag</span>';
+
+                document.getElementById('modal-activity-title').textContent = data.title;
+                document.getElementById('modal-activity-time').textContent = `🕒 ${data.startTime} - ${data.endTime || '...'}`;
+                document.getElementById('modal-activity-location').textContent = `📍 ${data.location}`;
+                document.getElementById('modal-activity-participants').textContent = data.participants || '-';
+                
+                const noteContainer = document.getElementById('modal-activity-notes-container');
+                if (data.notes) {
+                    document.getElementById('modal-activity-notes').textContent = data.notes;
+                    noteContainer.classList.remove('hidden');
+                } else {
+                    noteContainer.classList.add('hidden');
+                }
+
+                const imgContainer = document.getElementById('modal-activity-image-container');
+                const imgEl = document.getElementById('modal-activity-image');
+                if(data.imageUrl) {
+                    imgEl.src = data.imageUrl;
+                    imgContainer.classList.remove('hidden');
+                } else {
+                    imgContainer.classList.add('hidden');
+                }
+                
+                const linkBtn = document.getElementById('modal-activity-link');
+                if(data.link) {
+                    linkBtn.href = data.link;
+                    linkBtn.classList.remove('hidden');
+                } else {
+                    linkBtn.classList.add('hidden');
+                }
+
+                document.getElementById('activity-info-modal').classList.remove('hidden');
+            } catch (e) {
+                console.error("Error opening modal", e);
+            }
+        }
+
+        window.populateYearFilter = populateYearFilter;
+        window.populateMonthFilter = populateMonthFilter;
+        window.updateCalendarView = updateCalendarView;
+        window.changeMonth = changeMonth;
+        window.closeModal = closeModal;
+        window.openActivityModal = openActivityModal;
+
+    </script>
+</body>
+</html>
