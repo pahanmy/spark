@@ -9,7 +9,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     
-    <style>
+    <style id="memo-styles">
         body { font-family: 'Poppins', sans-serif; background-color: #525659; }
         
         /* WRAPPER UTAMA */
@@ -57,11 +57,11 @@
             color: #555;
         }
 
-        /* Table Meta Data - DIKEMASKINI (LEBIH RAPAT) */
+        /* Table Meta Data */
         .memo-meta-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-family: 'Arial', sans-serif; }
         .memo-meta-table td { 
             vertical-align: top; 
-            padding-bottom: 2px; /* Dikecilkan dari 6px ke 2px supaya rapat */
+            padding-bottom: 2px; 
         }
         .meta-label { width: 130px; font-weight: normal; } 
         .meta-sep { width: 20px; text-align: center; }
@@ -84,8 +84,8 @@
         /* KHAS UNTUK BUTIRAN PROGRAM (GRID ALIGNMENT) */
         .memo-detail-row {
             display: grid;
-            grid-template-columns: 25mm 5mm auto; /* Label Lebar | Sep | Nilai */
-            margin-left: 20mm; /* Indent Dalam Sikit */
+            grid-template-columns: 25mm 5mm auto; 
+            margin-left: 20mm; 
             margin-bottom: 0.3em;
             line-height: 1.5;
             font-family: 'Arial', sans-serif;
@@ -153,6 +153,10 @@
                     Kembali
                 </button>
                 <div class="h-6 w-px bg-gray-300 mx-1"></div>
+                <button onclick="exportToWord()" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-2 px-4 rounded-lg shadow-sm flex items-center gap-2 uppercase transition-all">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                    Word (.doc)
+                </button>
                 <button onclick="saveAndDownload()" id="btn-save" class="bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700 text-white text-xs font-bold py-2 px-5 rounded-lg shadow-md flex items-center gap-2 uppercase transition-transform hover:scale-105">
                     Simpan & PDF
                 </button>
@@ -430,7 +434,20 @@
         const db = getFirestore(app);
         const auth = getAuth(app);
         const appId = firebaseConfig.projectId;
-        const IMGBB_API_KEY = "a7c600ac733fe14649cacd8e65619c4b"; 
+
+        // --- NEW: OBFUSCATED API KEYS (Cara 1) ---
+        const SECRET_I = "YTdjNjAwYWM3MzNmZTE0NjQ5Y2FjZDhlNjU2MTljNGI="; // ImgBB (Base64 Encoded)
+        const SECRET_G = "Z3NrX0tONHlYTGYyV0ZHMkNGOHeFVlZXV0dkeWIzRllJcDlqaHl5SEZDSFBjZ0NUaEtHaktYRGw="; // Groq (Base64 Encoded)
+
+        function getKey(encoded) {
+            try {
+                return atob(encoded);
+            } catch (e) {
+                console.error("Decoding error", e);
+                return "";
+            }
+        }
+        // ------------------------------------------
 
         window.currentUserIc = "";
         window.allMyMemos = [];
@@ -550,7 +567,9 @@
         window.askAIMemo = async function() { 
             const btn = event.currentTarget; 
             const originalText = btn.innerHTML; 
-            const GROQ_API_KEY = "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"; 
+            
+            // USE OBFUSCATED KEY
+            const GROQ_API_KEY = getKey(SECRET_G);
             
             // LENGTH & LIMIT CHECK
             const lengthOption = document.getElementById('in-ai-length').value;
@@ -798,6 +817,9 @@
             try {
                 let finalSigUrl = window.sigUrl;
                 if(finalSigUrl.startsWith('data:')) {
+                     // USE OBFUSCATED KEY
+                     const IMGBB_API_KEY = getKey(SECRET_I);
+
                      const blob = await (await fetch(finalSigUrl)).blob();
                      const formData = new FormData(); formData.append("image", blob);
                      const res = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, { method: "POST", body: formData });
@@ -854,6 +876,55 @@
             await html2pdf().set(opt).from(element).save();
         }
 
+        // --- NEW: EXPORT TO WORD FUNCTION ---
+        window.exportToWord = async function() {
+            const tajuk = document.getElementById('in-perkara').value.replace(/[^a-zA-Z0-9]/g, "_").substring(0, 15) || 'Memo';
+            
+            // Ambil CSS dari style tag
+            const styles = document.getElementById('memo-styles').innerHTML;
+            
+            // Ambil HTML kandungan
+            const content = document.getElementById('pdf-wrapper').innerHTML;
+
+            const header = `
+            <html xmlns:o='urn:schemas-microsoft-com:office:office' 
+                  xmlns:w='urn:schemas-microsoft-com:office:word' 
+                  xmlns='http://www.w3.org/TR/REC-html40'>
+            <head>
+                <meta charset='utf-8'>
+                <title>Memo Export</title>
+                <style>
+                    /* Reset body margin untuk Word */
+                    body { margin: 0; padding: 0; font-family: 'Arial', sans-serif; }
+                    /* Masukkan style asal */
+                    ${styles}
+                    /* Overrides khusus untuk Word supaya layout tak pecah */
+                    .a4-page { 
+                        box-shadow: none !important; 
+                        margin: 0 !important; 
+                        width: 100% !important; 
+                        max-width: 100% !important;
+                    }
+                    #pdf-wrapper { gap: 0 !important; }
+                    /* Pastikan table dalam Word tak lari */
+                    table { width: 100%; }
+                </style>
+            </head>
+            <body>`;
+            
+            const footer = "</body></html>";
+            const sourceHTML = header + content + footer;
+
+            const source = 'data:application/vnd.ms-word;charset=utf-8,' + encodeURIComponent(sourceHTML);
+            const fileDownload = document.createElement("a");
+            document.body.appendChild(fileDownload);
+            fileDownload.href = source;
+            fileDownload.download = `MEMO_${tajuk}.doc`;
+            fileDownload.click();
+            document.body.removeChild(fileDownload);
+        }
+        // ------------------------------------
+
         // --- LOAD HISTORY TABLE (SEJARAH) ---
         async function loadSavedMemos() {
             const ref = collection(db, `artifacts/${appId}/public/data/spark_memo_records`);
@@ -897,6 +968,3 @@
     </script>
 </body>
 </html>
-
-}
-apa link untuk memo.html itu ?
