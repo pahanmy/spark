@@ -9,7 +9,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     
-    <style id="memo-styles">
+    <style>
         body { font-family: 'Poppins', sans-serif; background-color: #525659; }
         
         /* WRAPPER UTAMA */
@@ -153,10 +153,12 @@
                     Kembali
                 </button>
                 <div class="h-6 w-px bg-gray-300 mx-1"></div>
+                
                 <button onclick="exportToWord()" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-2 px-4 rounded-lg shadow-sm flex items-center gap-2 uppercase transition-all">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                     Word (.doc)
                 </button>
+
                 <button onclick="saveAndDownload()" id="btn-save" class="bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700 text-white text-xs font-bold py-2 px-5 rounded-lg shadow-md flex items-center gap-2 uppercase transition-transform hover:scale-105">
                     Simpan & PDF
                 </button>
@@ -876,50 +878,116 @@
             await html2pdf().set(opt).from(element).save();
         }
 
-        // --- NEW: EXPORT TO WORD FUNCTION ---
+        // --- NEW: EXPORT TO WORD FUNCTION (TABLE LAYOUT FOR WORD) ---
         window.exportToWord = async function() {
-            const tajuk = document.getElementById('in-perkara').value.replace(/[^a-zA-Z0-9]/g, "_").substring(0, 15) || 'Memo';
+            const tajukFile = document.getElementById('in-perkara').value.replace(/[^a-zA-Z0-9]/g, "_").substring(0, 15) || 'Memo';
             
-            // Ambil CSS dari style tag
-            const styles = document.getElementById('memo-styles').innerHTML;
+            // 1. Ambil data dari borang
+            const orgName = document.getElementById('in-org-name').value;
+            const address1 = document.getElementById('in-address-1').value;
+            const address2 = document.getElementById('in-address-2').value;
             
-            // Ambil HTML kandungan
-            const content = document.getElementById('pdf-wrapper').innerHTML;
+            const kepada = document.getElementById('in-kepada').value.replace(/\n/g, '<br>');
+            const daripada = document.getElementById('in-daripada').value;
+            const rujukan = document.getElementById('in-rujukan').value;
+            const tarikh = document.getElementById('in-tarikh').value; // Perlu format tarikh jika mahu cantik
+            const perkara = document.getElementById('in-perkara').value;
+            
+            // Tukar enter (\n) kepada <br> untuk kandungan dan tambah indent untuk para
+            let kandunganRaw = document.getElementById('in-kandungan').value;
+            let kandunganHTML = kandunganRaw.split('\n').map(line => {
+                if(line.trim().startsWith('2.') || line.trim().startsWith('3.') || line.trim().startsWith('4.')) {
+                    return `<p style="margin-top:10px; margin-bottom:10px;">${line}</p>`;
+                }
+                return line; // Baris biasa
+            }).join('<br>');
 
-            const header = `
-            <html xmlns:o='urn:schemas-microsoft-com:office:office' 
-                  xmlns:w='urn:schemas-microsoft-com:office:word' 
-                  xmlns='http://www.w3.org/TR/REC-html40'>
+            // Format tarikh manual sikit
+            const d = new Date(tarikh);
+            const dateStr = tarikh ? `${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()}` : "";
+
+            const namaPegawai = document.getElementById('in-nama').value;
+            
+            // 2. Bina HTML Khas untuk Word (Guna TABLE, bukan Flexbox)
+            // Word sangat suka TABLE untuk layout.
+            
+            const wordContent = `
+            <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
             <head>
                 <meta charset='utf-8'>
                 <title>Memo Export</title>
                 <style>
-                    /* Reset body margin untuk Word */
-                    body { margin: 0; padding: 0; font-family: 'Arial', sans-serif; }
-                    /* Masukkan style asal */
-                    ${styles}
-                    /* Overrides khusus untuk Word supaya layout tak pecah */
-                    .a4-page { 
-                        box-shadow: none !important; 
-                        margin: 0 !important; 
-                        width: 100% !important; 
-                        max-width: 100% !important;
-                    }
-                    #pdf-wrapper { gap: 0 !important; }
-                    /* Pastikan table dalam Word tak lari */
-                    table { width: 100%; }
+                    body { font-family: 'Arial', sans-serif; font-size: 11pt; line-height: 1.5; }
+                    table { width: 100%; border-collapse: collapse; border: none; }
+                    td { vertical-align: top; padding: 2px 0; }
+                    .header-text { text-align: center; font-weight: bold; font-size: 14pt; }
+                    .sub-header { text-align: center; font-size: 10pt; text-transform: uppercase; }
+                    .memo-title { border: 2px solid black; padding: 5px 20px; font-weight: bold; font-size: 16pt; display: inline-block; letter-spacing: 2px; }
+                    .meta-col-1 { width: 120px; font-weight: bold; }
+                    .meta-col-2 { width: 20px; text-align: center; }
                 </style>
             </head>
-            <body>`;
-            
-            const footer = "</body></html>";
-            const sourceHTML = header + content + footer;
+            <body>
+                <p class="header-text">${orgName}</p>
+                <p class="sub-header">${address1}<br>${address2}</p>
+                <br>
+                
+                <div style="text-align: center;">
+                    <span style="border: 2px solid black; padding: 5px 20px; font-weight: bold; font-size: 14pt; text-transform: uppercase;">MEMO</span>
+                </div>
+                <br><br>
 
-            const source = 'data:application/vnd.ms-word;charset=utf-8,' + encodeURIComponent(sourceHTML);
+                <table>
+                    <tr>
+                        <td class="meta-col-1">Kepada</td>
+                        <td class="meta-col-2">:</td>
+                        <td><b>${kepada}</b></td>
+                    </tr>
+                    <tr>
+                        <td class="meta-col-1">Daripada</td>
+                        <td class="meta-col-2">:</td>
+                        <td>${daripada}</td>
+                    </tr>
+                    <tr>
+                        <td class="meta-col-1">No. Rujukan</td>
+                        <td class="meta-col-2">:</td>
+                        <td>${rujukan}</td>
+                    </tr>
+                    <tr>
+                        <td class="meta-col-1">Tarikh</td>
+                        <td class="meta-col-2">:</td>
+                        <td>${dateStr}</td>
+                    </tr>
+                    <tr>
+                        <td class="meta-col-1">Perkara</td>
+                        <td class="meta-col-2">:</td>
+                        <td style="font-weight: bold; text-transform: uppercase;">${perkara}</td>
+                    </tr>
+                </table>
+                
+                <hr style="border: 1px solid #000;">
+                <br>
+
+                <div style="text-align: justify;">
+                    ${kandunganHTML}
+                </div>
+                
+                <br><br>
+                
+                <p>Sekian, terima kasih.</p>
+                <br><br><br>
+                <p><b>${namaPegawai}</b></p>
+                
+            </body>
+            </html>
+            `;
+
+            // 3. Download File
+            const source = 'data:application/vnd.ms-word;charset=utf-8,' + encodeURIComponent(wordContent);
             const fileDownload = document.createElement("a");
             document.body.appendChild(fileDownload);
             fileDownload.href = source;
-            fileDownload.download = `MEMO_${tajuk}.doc`;
+            fileDownload.download = `MEMO_${tajukFile}.doc`;
             fileDownload.click();
             document.body.removeChild(fileDownload);
         }
