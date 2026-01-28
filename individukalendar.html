@@ -60,6 +60,10 @@
         /* Quick Links Styles */
         .quick-link-btn { transition: all 0.2s; }
         .quick-link-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+
+        /* Emoji Bar */
+        .emoji-bar { -ms-overflow-style: none; scrollbar-width: none; }
+        .emoji-bar::-webkit-scrollbar { display: none; }
     </style>
 </head>
 <body id="main-body" class="bg-gray-50 flex flex-col min-h-screen">
@@ -296,13 +300,31 @@
             </div>
             <div class="p-4">
                 <textarea id="daily-note-content" class="w-full h-40 bg-amber-100 border-none focus:ring-0 text-gray-800 text-sm resize-none font-medium leading-relaxed" placeholder="Catat nota penting hari ini..."></textarea>
-                <div class="flex gap-2 mt-2 border-t border-amber-200 pt-2 justify-between items-center">
+                
+                <div class="flex gap-2 py-2 overflow-x-auto emoji-bar mb-2 border-b border-amber-200">
+                    <button onclick="insertToNote('😀')" class="text-lg hover:scale-110 transition">😀</button>
+                    <button onclick="insertToNote('😂')" class="text-lg hover:scale-110 transition">😂</button>
+                    <button onclick="insertToNote('😊')" class="text-lg hover:scale-110 transition">😊</button>
+                    <button onclick="insertToNote('😍')" class="text-lg hover:scale-110 transition">😍</button>
+                    <button onclick="insertToNote('🤔')" class="text-lg hover:scale-110 transition">🤔</button>
+                    <button onclick="insertToNote('👍')" class="text-lg hover:scale-110 transition">👍</button>
+                    <button onclick="insertToNote('🙏')" class="text-lg hover:scale-110 transition">🙏</button>
+                    <button onclick="insertToNote('🔥')" class="text-lg hover:scale-110 transition">🔥</button>
+                    <button onclick="insertToNote('📅')" class="text-lg hover:scale-110 transition">📅</button>
+                    <button onclick="insertToNote('⚠️')" class="text-lg hover:scale-110 transition">⚠️</button>
+                    <button onclick="insertToNote('⭐')" class="text-lg hover:scale-110 transition">⭐</button>
+                </div>
+
+                <div class="flex gap-2 justify-between items-center">
                     <div class="flex gap-1">
                         <button onclick="insertToNote('✅ ')" class="text-xs bg-amber-200 hover:bg-amber-300 px-2 py-1 rounded" title="Tanda">✅</button>
                         <button onclick="insertToNote('📌 ')" class="text-xs bg-amber-200 hover:bg-amber-300 px-2 py-1 rounded" title="Pin">📌</button>
                         <button onclick="insertToNote(' - ')" class="text-xs bg-amber-200 hover:bg-amber-300 px-2 py-1 rounded font-bold" title="Point">List</button>
                     </div>
-                    <button onclick="saveDailyNote()" id="btn-save-note" class="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold py-1.5 px-4 rounded shadow-sm">SIMPAN</button>
+                    <div class="flex gap-2">
+                        <button onclick="deleteDailyNote()" class="bg-red-500 hover:bg-red-600 text-white text-xs font-bold py-1.5 px-3 rounded shadow-sm">PADAM</button>
+                        <button onclick="saveDailyNote()" id="btn-save-note" class="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold py-1.5 px-4 rounded shadow-sm">SIMPAN</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -451,7 +473,6 @@
             
             listContainer.innerHTML = '';
             
-            // Render existing for delete
             if (quickLinks && quickLinks.length > 0) {
                 quickLinks.forEach((link, index) => {
                     const row = document.createElement('div');
@@ -463,7 +484,6 @@
                 listContainer.innerHTML = '<p class="text-xs text-gray-400 italic text-center">Tiada pautan disimpan.</p>';
             }
 
-            // Disable Add if max reached
             if (quickLinks && quickLinks.length >= 5) {
                 btnAdd.disabled = true;
                 btnAdd.textContent = "Maksimum Dicapai (5)";
@@ -497,7 +517,7 @@
                 document.getElementById('add-link-form').reset();
                 quickLinks = newLinks;
                 renderQuickLinks();
-                openLinkModal(); // Refresh list in modal
+                openLinkModal(); 
             } catch(e) { console.error(e); alert("Gagal."); }
         }
 
@@ -611,7 +631,7 @@
                     currentUserSector = data.sector;
                     currentUserUnit = data.unit;
                     
-                    // NEW: Load Quick Links
+                    // Load Quick Links
                     quickLinks = data.quickLinks || [];
                     renderQuickLinks();
 
@@ -687,6 +707,25 @@
                 closeModal('daily-note-modal');
             } catch(e) { console.error(e); alert("Gagal simpan."); }
             finally { btn.textContent = "SIMPAN"; btn.disabled = false; }
+        }
+
+        // NEW: DELETE FUNCTION
+        async function deleteDailyNote() {
+            if(!confirm("Adakah anda pasti mahu memadam nota ini?")) return;
+            
+            const btn = document.getElementById('btn-save-note'); // Just to disable during op
+            
+            try {
+                const noteId = `${currentUserIc}_${selectedDateString}`;
+                await deleteDoc(doc(db, `artifacts/${appId}/public/data/spark_daily_notes`, noteId));
+                document.getElementById('daily-note-content').value = ""; // Clear text
+                closeModal('daily-note-modal');
+            } catch(e) {
+                console.error("Error deleting note", e);
+                // If doc doesn't exist, just clear UI and close
+                document.getElementById('daily-note-content').value = "";
+                closeModal('daily-note-modal');
+            }
         }
 
         function insertToNote(text) {
@@ -822,6 +861,8 @@
                 isInitialLoad = false;
             } else if (selectedDateElement) { handleDateClick(selectedDateElement.dataset.date, selectedDateElement, false); }
         }
+        
+        // MODIFIED RENDER CALENDAR
         function renderCalendar(year, month) {
             const calendarGrid = document.getElementById('calendar-grid'); calendarGrid.innerHTML = '';
             document.getElementById('calendar-header').textContent = `${["Januari", "Februari", "Mac", "April", "Mei", "Jun", "Julai", "Ogos", "September", "Oktober", "November", "Disember"][month]} ${year}`.toUpperCase();
@@ -849,7 +890,9 @@
                 eventHtml += myEvents.map(p => `<div class="${p.type === 'own' ? 'bg-teal-100 text-teal-800' : 'bg-purple-100 text-purple-800'} text-[9px] rounded px-1 truncate mb-0.5 font-bold tracking-tight">${p.title.toUpperCase()}</div>`).join('');
                 eventHtml += birthdays.map(b => `<div class="bg-pink-100 text-pink-800 text-[9px] rounded px-1 truncate mb-0.5">🎂 ${b.name.split(' ')[0].toUpperCase()}</div>`).join('');
                 eventHtml += officials.map(p => `<div class="bg-indigo-50 text-indigo-400 text-[9px] rounded px-1 truncate mb-0.5 italic border border-indigo-100">${p.name.toUpperCase()}</div>`).join('');
-                calendarGrid.insertAdjacentHTML('beforeend', `<div class="${dayClasses}" data-date="${dateString}" onclick="handleDateClick('${dateString}', this, true)">${indicatorsHtml}<div class="font-bold text-gray-700 text-xs mb-1 ml-4">${day}</div><div class="event-list">${eventHtml}</div></div>`);
+                
+                // MODIFIED: Added ondblclick and set onclick to pass false
+                calendarGrid.insertAdjacentHTML('beforeend', `<div class="${dayClasses}" data-date="${dateString}" onclick="handleDateClick('${dateString}', this, false)" ondblclick="openDailyNoteModal()">${indicatorsHtml}<div class="font-bold text-gray-700 text-xs mb-1 ml-4">${day}</div><div class="event-list">${eventHtml}</div></div>`);
             }
         }
         
@@ -979,6 +1022,7 @@
         window.handleDateClick = handleDateClick; 
         window.handleAddActivity = handleAddActivity;
         window.saveQuote = saveQuote;
+        window.deleteDailyNote = deleteDailyNote;
         
         // Export reposition functions
         window.startReposition = startReposition;
