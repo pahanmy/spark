@@ -9,7 +9,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     
-    <style>
+    <style id="memo-styles">
         body { font-family: 'Poppins', sans-serif; background-color: #525659; }
         
         /* WRAPPER UTAMA */
@@ -565,7 +565,7 @@
              updatePreview();
         }
 
-        // --- AI LIMIT 5x & STRICT PPD FORMAT + SMART INDENT ---
+        // --- AI LIMIT 5x & STRICT PPD FORMAT (DIPERBAIKI) ---
         window.askAIMemo = async function() { 
             const btn = event.currentTarget; 
             const originalText = btn.innerHTML; 
@@ -575,8 +575,19 @@
             
             // LENGTH & LIMIT CHECK
             const lengthOption = document.getElementById('in-ai-length').value;
-            let lengthInstruction = lengthOption === 'short' ? "2-3 perenggan" : (lengthOption === 'medium' ? "4-5 perenggan" : ">5 perenggan");
-            let maxTokens = lengthOption === 'short' ? 500 : (lengthOption === 'medium' ? 800 : 1200);
+            let lengthInstruction = "";
+            let maxTokens = 500;
+
+            if (lengthOption === 'short') {
+                lengthInstruction = "Tulis TEPAT 2 perenggan isi sahaja (Nombor 2 dan 3). Jangan lebih.";
+                maxTokens = 400;
+            } else if (lengthOption === 'medium') {
+                lengthInstruction = "Tulis TEPAT 3-4 perenggan isi (Nombor 2, 3, 4...).";
+                maxTokens = 800;
+            } else {
+                lengthInstruction = "Tulis perincian lengkap (lebih 5 perenggan).";
+                maxTokens = 1200;
+            }
 
             if (!window.isSparkPro) {
                 const STORAGE_KEY = `spark_ai_memo_limit_${window.currentUserIc}`;
@@ -602,18 +613,23 @@
             else if (type === 'arahan') toneContext = "Ini adalah ARAHAN PENTADBIRAN PPD."; 
             else toneContext = "Ini adalah MEMO MAKLUMAN DALAMAN PPD."; 
             
-            const systemPrompt = `Anda adalah pegawai tadbir di Pejabat Pendidikan Daerah Miri. Fokus penulisan adalah untuk memo dalaman sesama warga PPD Miri. ${toneContext} Gunakan Bahasa Melayu Baku, formal. 
+            const systemPrompt = `Anda adalah pegawai tadbir di Pejabat Pendidikan Daerah Miri. 
+            TUGAS: Tulis ISI KANDUNGAN memo sahaja.
             
-            ARAHAN PENTING:
-            1. ARAHAN PANJANG TEKS: ${lengthInstruction}
-            2. JANGAN tulis 'Tuan,' atau 'Dengan segala hormatnya...'. Ia sudah ada dalam borang.
-            3. MULA TERUS dengan nombor '2.' dan isi kandungan utama.
-            4. Jarakkan setiap perenggan dengan satu baris kosong.
-            5. JIKA ADA BUTIRAN PROGRAM (Tarikh, Masa, Tempat), WAJIB indent/jarakkan ke dalam sedikit supaya nampak seperti senarai yang kemas. Gunakan jarak tab atau space.
-            6. Akhiri dengan 'Sekian, terima kasih.'`; 
+            PENTING - IKUT FORMAT INI:
+            1. JANGAN tulis "Tuan,".
+            2. JANGAN tulis "Dengan segala hormatnya...".
+            3. MULA TERUS dengan nombor 2. (Contoh: "2. Sukacita dimaklumkan...").
+            4. ${lengthInstruction}
+            5. JANGAN guna Markdown bold (**). Guna teks biasa.
+            6. Akhiri dengan "Sekian, terima kasih."
             
-            const userPrompt = `Tulis isi memo kepada "${kepada}" bertajuk "${tajuk}". Poin Penting: ${points}.
-            Mula terus dari perenggan kedua (2.). Pastikan butiran program di-inden.`; 
+            Gunakan Bahasa Melayu Baku, formal.`; 
+            
+            const userPrompt = `Tajuk: "${tajuk}". Kepada: "${kepada}". 
+            Poin Penting: ${points}.
+            
+            Sila tulis isi memo bermula dari perenggan 2.`; 
             
             try { 
                 const response = await fetch("https://api.groq.com/openai/v1/chat/completions", { 
@@ -622,15 +638,32 @@
                     body: JSON.stringify({ 
                         messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }], 
                         model: "llama-3.3-70b-versatile", 
-                        temperature: 0.6, 
+                        temperature: 0.5, 
                         max_tokens: maxTokens 
                     }) 
                 }); 
                 const data = await response.json(); 
                 if (data.choices && data.choices[0]) { 
-                    const aiOutput = data.choices[0].message.content.trim();
-                    const fullText = `${STANDARD_OPENING}${aiOutput}`;
-                    document.getElementById('in-kandungan').value = fullText; 
+                    let aiOutput = data.choices[0].message.content.trim();
+                    
+                    // --- PEMBERSIHAN OUTPUT (FORCE FORMAT) ---
+                    // 1. Buang kalau AI tertulis header "Tuan" atau "Dengan segala..."
+                    aiOutput = aiOutput.replace(/^Tuan,?\s*/i, ""); 
+                    aiOutput = aiOutput.replace(/^Dengan segala hormatnya.*?dirujuk\.?\s*/is, "");
+                    
+                    // 2. Jika AI mula dengan "1.", tukar jadi "2."
+                    if (aiOutput.startsWith("1.")) {
+                        aiOutput = "2." + aiOutput.substring(2);
+                    }
+                    // 3. Jika AI tak tulis nombor langsung, tambah "2. "
+                    else if (!aiOutput.match(/^\d\./)) {
+                        aiOutput = "2. " + aiOutput;
+                    }
+
+                    // 4. Gabungkan dengan Standard Opening yang betul
+                    const finalContent = "Tuan,\n\nDengan segala hormatnya perkara di atas adalah dirujuk.\n\n" + aiOutput;
+
+                    document.getElementById('in-kandungan').value = finalContent; 
                     updatePreview(); 
                 } 
             } catch (e) { alert("Ralat AI: " + e.message); } finally { btn.innerHTML = originalText; btn.disabled = false; } 
