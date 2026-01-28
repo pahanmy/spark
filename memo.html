@@ -323,7 +323,7 @@
                             </label>
                         </div>
                         <input type="text" id="in-qr-link" oninput="updatePreview()" class="hidden w-full text-xs border border-green-300 rounded p-2 bg-white" placeholder="Tampal Pautan (URL) di sini...">
-                        <p id="spark-qr-hint" class="text-[9px] text-green-600 italic">Link kehadiran program SPARK yang dipilih.</p>
+                        <p id="spark-qr-hint" class="text-[9px] text-green-600 italic">Link akan dijana automatik mengikut tetapan program.</p>
                         <input type="text" id="in-qr-label" oninput="updatePreview()" class="w-full text-xs border border-gray-300 rounded p-2 bg-white mt-1 uppercase" value="IMBAS UNTUK KEHADIRAN">
                     </div>
                 </div>
@@ -439,7 +439,7 @@
 
         // --- NEW: OBFUSCATED API KEYS (Cara 1) ---
         const SECRET_I = "YTdjNjAwYWM3MzNmZTE0NjQ5Y2FjZDhlNjU2MTljNGI="; // ImgBB (Base64 Encoded)
-        // const SECRET_G = "Z3NrX3hUbHQxRjVIYjRIdmRtejliS3Z5V0dkeWIzRllJcHdSazhrbWRxVlkySTdmTDlOZVdMMGs="; // Groq (Base64 Encoded - OLD)
+        const SECRET_G = "Z3NrX1ZwYWgxMGlReFRMN2NWVzMwNHBvV0dkeWIzRllRejB5TW9wbVBqNkhHR0tVNVZBeGJiVkU="; // Groq (Base64 Encoded)
 
         function getKey(encoded) {
             try {
@@ -457,6 +457,7 @@
         window.selectedProgram = null;
         window.sigUrl = "";
         window.defaultSigUrl = ""; 
+        window.sparkQrUrl = ""; // Simpan URL QR SPARK yang betul
         window.currentFontSize = 11;
         window.paragraphSpacing = 0; 
         window.isSparkPro = false; 
@@ -538,9 +539,7 @@
                 if(unit) daripadaText += `, ${unit}`;
                 else if(uData.sector) daripadaText += `, ${uData.sector}`;
                 
-                // GUNA HELPER TITLE CASE
                 document.getElementById('in-daripada').value = toTitleCase(daripadaText);
-                // ------------------------------------
             }
             const progRef = collection(db, `artifacts/${appId}/public/data/spark_programs`);
             const q1 = query(progRef, where("createdBy", "==", window.currentUserIc));
@@ -557,10 +556,41 @@
 
         function setDefaultDate() { document.getElementById('in-tarikh').value = new Date().toISOString().split('T')[0]; updatePreview(); }
         window.applyTemplate = function(val) { if(!val) return; const tmpl = memoTemplates[val]; if(tmpl) { document.getElementById('in-perkara').value = tmpl.title; document.getElementById('in-kandungan').value = tmpl.content; document.getElementById('in-memo-type').value = tmpl.type; updatePreview(); } }
-        window.importProgramData = function(progId) { const prog = window.allMyPrograms.find(p => p.id === progId); window.selectedProgram = prog; if(prog) { document.getElementById('in-perkara').value = prog.name ? prog.name.toUpperCase() : ""; let points = ""; if(prog.startDate) points += `- Tarikh: ${prog.startDate}\n`; if(prog.location) points += `- Tempat: ${prog.location}\n`; document.getElementById('in-ai-points').value = points; document.getElementById('in-memo-type').value = "jemputan"; document.getElementById('chk-show-qr').checked = true; const radios = document.getElementsByName('qr-mode'); for(let r of radios) { if(r.value === 'spark') r.checked = true; } toggleQrMode(); } updatePreview(); }
+        
+        window.importProgramData = function(progId) { 
+            const prog = window.allMyPrograms.find(p => p.id === progId); 
+            window.selectedProgram = prog; 
+            
+            if(prog) { 
+                document.getElementById('in-perkara').value = prog.name ? prog.name.toUpperCase() : ""; 
+                let points = ""; 
+                if(prog.startDate) points += `- Tarikh: ${prog.startDate}\n`; 
+                if(prog.location) points += `- Tempat: ${prog.location}\n`; 
+                document.getElementById('in-ai-points').value = points; 
+                document.getElementById('in-memo-type').value = "jemputan"; 
+                document.getElementById('chk-show-qr').checked = true; 
+                
+                // --- LOGIK QR CODE YANG DIPERBAIKI ---
+                // Tentukan URL berdasarkan jenis program (Ada survey atau tidak)
+                const baseUrl = window.location.origin + window.location.pathname.replace('memo.html', '');
+                
+                if (prog.surveyNeeded && prog.surveyKey) {
+                    window.sparkQrUrl = `${baseUrl}tinjauan.html?kod=${prog.surveyKey}`;
+                    document.getElementById('spark-qr-hint').textContent = "Pautan Tinjauan Kehadiran (RSVP) dipilih.";
+                } else {
+                    window.sparkQrUrl = `${baseUrl}participant.html?kod=${prog.id}`;
+                    document.getElementById('spark-qr-hint').textContent = "Pautan Kehadiran Peserta biasa dipilih.";
+                }
+                
+                const radios = document.getElementsByName('qr-mode'); 
+                for(let r of radios) { if(r.value === 'spark') r.checked = true; } 
+                toggleQrMode(); 
+            } 
+            updatePreview(); 
+        }
+
         window.toggleQrMode = function() { const mode = document.querySelector('input[name="qr-mode"]:checked').value; const inputLink = document.getElementById('in-qr-link'); const hint = document.getElementById('spark-qr-hint'); if (mode === 'spark') { inputLink.classList.add('hidden'); hint.classList.remove('hidden'); } else { inputLink.classList.remove('hidden'); hint.classList.add('hidden'); } updatePreview(); }
         
-        // --- TOGGLE SALINAN KEPADA ---
         window.toggleSalinan = function() {
              updatePreview();
         }
@@ -570,12 +600,8 @@
             const btn = event.currentTarget; 
             const originalText = btn.innerHTML; 
             
-            // ---------------------------------------------------------
-            // KEY YANG ANDA BERI:
-            // ---------------------------------------------------------
             const GROQ_API_KEY = "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"; 
             
-            // CHECK INPUT
             const tajuk = document.getElementById('in-perkara').value; 
             const kepada = document.getElementById('in-kepada').value; 
             const points = document.getElementById('in-ai-points').value; 
@@ -583,7 +609,6 @@
             
             if(!tajuk) { alert("Sila isi 'Perkara / Tajuk' dahulu."); return; } 
 
-            // TETAPAN PANJANG
             const lengthOption = document.getElementById('in-ai-length').value;
             let lengthInstruction = "";
             let maxTokens = 500;
@@ -599,7 +624,6 @@
                 maxTokens = 1250;
             }
 
-            // CHECK HAD PENGGUNAAN (NON-PRO)
             if (!window.isSparkPro) {
                 const STORAGE_KEY = `spark_ai_memo_limit_${window.currentUserIc}`;
                 const currentMonth = new Date().toISOString().slice(0, 7); 
@@ -655,7 +679,6 @@
                 if (data.choices && data.choices[0]) { 
                     let aiOutput = data.choices[0].message.content.trim();
                     
-                    // PEMBERSIHAN OUTPUT
                     aiOutput = aiOutput.replace(/^Tuan,?\s*/i, ""); 
                     aiOutput = aiOutput.replace(/^Dengan segala hormatnya.*?dirujuk\.?\s*/is, "");
                     
@@ -734,18 +757,15 @@
             const refNo = document.getElementById('in-rujukan').value;
 
             paragraphs.forEach((paraText) => {
-                // --- SMART ALIGNMENT LOGIC ---
-                // Detect Program Details (e.g. Tarikh : 20 Mei)
                 const detailRegex = /^\s*(Tarikh|Masa|Tempat|Pengerusi|Anjuran)\s*:/i;
                 const match = paraText.match(detailRegex);
 
                 let p;
                 if (match) {
-                    // Create formatted GRID row for details
                     p = document.createElement('div');
                     p.className = 'memo-detail-row';
-                    const label = match[1]; // e.g. Tarikh
-                    const value = paraText.replace(match[0], '').trim(); // Remove "Tarikh :" from start
+                    const label = match[1]; 
+                    const value = paraText.replace(match[0], '').trim(); 
                     
                     p.innerHTML = `
                         <div class="memo-detail-label">${label}</div>
@@ -753,7 +773,6 @@
                         <div class="memo-detail-val">${value}</div>
                     `;
                 } else {
-                    // Standard Paragraph
                     p = document.createElement('p');
                     p.className = 'memo-paragraph';
                     p.innerHTML = paraText.trim() ? paraText : '&nbsp;'; 
@@ -762,7 +781,6 @@
                 p.style.marginBottom = window.paragraphSpacing + 'px'; 
                 contentContainer.appendChild(p);
 
-                // Page Break Check
                 if (contentContainer.getBoundingClientRect().height > MAX_HEIGHT_PX) {
                     contentContainer.removeChild(p);
                     currentPage = createNewPage(mTop, mRight, mBot, mLeft);
@@ -776,15 +794,22 @@
                 }
             });
 
-            // ... Signature & QR Code logic remains same ...
+            // SIGNATURE SECTION
             const sigDiv = document.createElement('div');
             sigDiv.className = 'signature-section';
+            
+            // Logik paparan imej tandatangan di PDF
+            let sigImgHtml = '';
+            if (window.sigUrl) {
+                sigImgHtml = `<div class="h-16 mb-1 flex items-end"><img src="${window.sigUrl}" class="h-full w-auto object-contain"></div>`;
+            } else {
+                sigImgHtml = `<div class="h-16 mb-1 flex items-end hidden"></div>`;
+            }
+
             sigDiv.innerHTML = `
                 <div class="mt-8 mb-4">
                     <p class="mb-6 font-normal">Sekian, terima kasih.</p>
-                    <div class="h-16 mb-1 flex items-end">
-                         <img src="${window.sigUrl || ''}" class="h-full w-auto object-contain ${window.sigUrl ? '' : 'hidden'}">
-                    </div>
+                    ${sigImgHtml}
                     <p class="font-bold uppercase">${document.getElementById('in-nama').value}</p>
                     <div class="text-[0.95em] mt-1 font-sans">
                          <p class="${document.getElementById('in-phone').value ? '' : 'hidden'} m-0">No Tel : ${document.getElementById('in-phone').value}</p>
@@ -804,6 +829,8 @@
                 contentContainer.appendChild(contHeader);
                 contentContainer.appendChild(sigDiv);
             }
+            
+            // QR CODE SECTION
              if (document.getElementById('chk-show-qr').checked) {
                 const qrDiv = document.createElement('div');
                 qrDiv.className = 'qr-floating-box';
@@ -812,7 +839,16 @@
                 const label = document.getElementById('in-qr-label').value;
                 let qrData = "https://google.com";
                 const qrModeEl = document.querySelector('input[name="qr-mode"]:checked');
-                if(qrModeEl) { if(qrModeEl.value === 'spark' && window.selectedProgram) { qrData = `https://myqrhadir.web.app/participant.html?kod=${window.selectedProgram.id}`; } else { const linkInput = document.getElementById('in-qr-link'); if (linkInput) qrData = linkInput.value || "https://google.com"; } }
+                
+                // LOGIK QR UNTUK PDF
+                if(qrModeEl) { 
+                    if(qrModeEl.value === 'spark') { 
+                        qrData = window.sparkQrUrl || "https://google.com"; // Guna URL yang telah diset
+                    } else { 
+                        const linkInput = document.getElementById('in-qr-link'); 
+                        if (linkInput) qrData = linkInput.value || "https://google.com"; 
+                    } 
+                }
                 const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(qrData)}`;
                 qrDiv.innerHTML = `<img src="${qrSrc}"><p>${label}</p>`;
                 currentPage.appendChild(qrDiv); 
@@ -851,20 +887,45 @@
         function resizeCanvas() { if(sigCanvas) { const rect = sigCanvas.getBoundingClientRect(); sigCanvas.width = rect.width; sigCanvas.height = rect.height; } }
         function startDrawing(e) { isDrawing = true; const rect = sigCanvas.getBoundingClientRect(); sigCtx.beginPath(); sigCtx.moveTo(e.clientX - rect.left, e.clientY - rect.top); }
         function draw(e) { if(!isDrawing) return; const rect = sigCanvas.getBoundingClientRect(); sigCtx.lineWidth = 2; sigCtx.lineCap = 'round'; sigCtx.lineTo(e.clientX - rect.left, e.clientY - rect.top); sigCtx.stroke(); }
-        function stopDrawing() { isDrawing = false; updateSigFromCanvas(); }
+        function stopDrawing() { 
+            isDrawing = false; 
+            updateSigFromCanvas(); // Simpan ke variable window.sigUrl
+        }
         window.clearSignature = function() { sigCtx.clearRect(0,0,sigCanvas.width, sigCanvas.height); window.sigUrl = ""; updatePreview(); }
-        function updateSigFromCanvas() { const dataUrl = sigCanvas.toDataURL("image/png"); window.sigUrl = dataUrl; updatePreview(); }
-        window.toggleSignature = function() { const chk = document.getElementById('chk-signature').checked; document.getElementById('sig-container').classList.toggle('hidden', !chk); if(!chk) { window.sigUrl = ""; updatePreview(); } else { resizeCanvas(); } }
-        window.restoreDefaultSig = function() { if(window.defaultSigUrl) { window.sigUrl = window.defaultSigUrl; document.getElementById('chk-signature').checked = true; updatePreview(); alert("Tandatangan dimuatkan."); } }
+        function updateSigFromCanvas() { 
+            const dataUrl = sigCanvas.toDataURL("image/png"); 
+            window.sigUrl = dataUrl; 
+            updatePreview(); 
+        }
+        
+        window.toggleSignature = function() { 
+            const chk = document.getElementById('chk-signature').checked; 
+            document.getElementById('sig-container').classList.toggle('hidden', !chk); 
+            
+            // JANGAN PADAM sigUrl JIKA CHECKBOX DI-TICK SEMULA
+            if(!chk) { 
+                window.sigUrl = ""; 
+            } 
+            updatePreview(); 
+            if(chk) resizeCanvas(); 
+        }
+        
+        window.restoreDefaultSig = function() { 
+            if(window.defaultSigUrl) { 
+                window.sigUrl = window.defaultSigUrl; 
+                document.getElementById('chk-signature').checked = true; 
+                document.getElementById('sig-container').classList.remove('hidden'); // Pastikan container nampak
+                updatePreview(); 
+                alert("Tandatangan dimuatkan."); 
+            } 
+        }
 
         window.saveAndDownload = async function() {
             const btn = document.getElementById('btn-save'); btn.innerHTML = "Proses..."; btn.disabled = true;
             try {
                 let finalSigUrl = window.sigUrl;
                 if(finalSigUrl.startsWith('data:')) {
-                     // USE OBFUSCATED KEY
                      const IMGBB_API_KEY = getKey(SECRET_I);
-
                      const blob = await (await fetch(finalSigUrl)).blob();
                      const formData = new FormData(); formData.append("image", blob);
                      const res = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, { method: "POST", body: formData });
@@ -904,6 +965,8 @@
                     qrMode: document.querySelector('input[name="qr-mode"]:checked').value,
                     qrLink: document.getElementById('in-qr-link').value,
                     qrLabel: document.getElementById('in-qr-label').value,
+                    // Simpan URL SPARK khusus jika ada
+                    sparkQrUrl: window.sparkQrUrl || "",
                     updatedAt: new Date()
                 };
 
@@ -921,11 +984,10 @@
             await html2pdf().set(opt).from(element).save();
         }
 
-        // --- NEW: EXPORT TO WORD FUNCTION (TABLE LAYOUT FOR WORD) ---
+        // --- EXPORT TO WORD FUNCTION (TABLE LAYOUT) ---
         window.exportToWord = async function() {
             const tajukFile = document.getElementById('in-perkara').value.replace(/[^a-zA-Z0-9]/g, "_").substring(0, 15) || 'Memo';
             
-            // 1. Ambil data dari borang
             const orgName = document.getElementById('in-org-name').value;
             const address1 = document.getElementById('in-address-1').value;
             const address2 = document.getElementById('in-address-2').value;
@@ -933,25 +995,21 @@
             const kepada = document.getElementById('in-kepada').value.replace(/\n/g, '<br>');
             const daripada = document.getElementById('in-daripada').value;
             const rujukan = document.getElementById('in-rujukan').value;
-            const tarikh = document.getElementById('in-tarikh').value; // Perlu format tarikh jika mahu cantik
+            const tarikh = document.getElementById('in-tarikh').value; 
             const perkara = document.getElementById('in-perkara').value;
             
-            // Tukar enter (\n) kepada <br> untuk kandungan dan tambah indent untuk para
             let kandunganRaw = document.getElementById('in-kandungan').value;
             let kandunganHTML = kandunganRaw.split('\n').map(line => {
                 if(line.trim().startsWith('2.') || line.trim().startsWith('3.') || line.trim().startsWith('4.')) {
                     return `<p style="margin-top:10px; margin-bottom:10px;">${line}</p>`;
                 }
-                return line; // Baris biasa
+                return line; 
             }).join('<br>');
 
-            // Format tarikh manual sikit
             const d = new Date(tarikh);
             const dateStr = tarikh ? `${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()}` : "";
 
             const namaPegawai = document.getElementById('in-nama').value;
-            
-            // 2. Bina HTML Khas untuk Word (Guna TABLE, bukan Flexbox)
             
             const wordContent = `
             <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
@@ -959,10 +1017,9 @@
                 <meta charset='utf-8'>
                 <title>Memo Export</title>
                 <style>
-                    /* Reset margins for Word specifically */
                     @page { margin: 1.0in; }
                     body { font-family: 'Arial', sans-serif; font-size: 11pt; }
-                    p { margin: 0; padding: 0; } /* CRITICAL FIX for spacing */
+                    p { margin: 0; padding: 0; }
                     table { border-collapse: collapse; width: 100%; }
                     td { vertical-align: top; padding: 2px 0; }
                 </style>
@@ -971,48 +1028,21 @@
                 <p style="text-align: center; font-weight: bold; font-size: 14pt; line-height: 1.1;">${orgName}</p>
                 <p style="text-align: center; font-size: 10pt; text-transform: uppercase; line-height: 1.1;">${address1}</p>
                 <p style="text-align: center; font-size: 10pt; text-transform: uppercase; line-height: 1.1;">${address2}</p>
-                
                 <br>
-
                 <div style="text-align: center; margin-bottom: 20px;">
                     <span style="border-top: 2px solid black; border-bottom: 2px solid black; padding: 5px 30px; font-weight: bold; font-size: 14pt; letter-spacing: 2px;">MEMO</span>
                 </div>
-
                 <br>
-
                 <table>
-                    <tr>
-                        <td style="width: 120px; font-weight: bold;">Kepada</td>
-                        <td style="width: 20px; text-align: center;">:</td>
-                        <td><b>${kepada}</b></td>
-                    </tr>
-                    <tr>
-                        <td style="width: 120px; font-weight: bold;">Daripada</td>
-                        <td style="width: 20px; text-align: center;">:</td>
-                        <td>${daripada}</td>
-                    </tr>
-                    <tr>
-                        <td style="width: 120px; font-weight: bold;">No. Rujukan</td>
-                        <td style="width: 20px; text-align: center;">:</td>
-                        <td>${rujukan}</td>
-                    </tr>
-                    <tr>
-                        <td style="width: 120px; font-weight: bold;">Tarikh</td>
-                        <td style="width: 20px; text-align: center;">:</td>
-                        <td>${dateStr}</td>
-                    </tr>
-                    <tr>
-                        <td style="width: 120px; font-weight: bold;">Perkara</td>
-                        <td style="width: 20px; text-align: center;">:</td>
-                        <td style="font-weight: bold; text-transform: uppercase;">${perkara}</td>
-                    </tr>
+                    <tr><td style="width: 120px; font-weight: bold;">Kepada</td><td style="width: 20px; text-align: center;">:</td><td><b>${kepada}</b></td></tr>
+                    <tr><td style="width: 120px; font-weight: bold;">Daripada</td><td style="width: 20px; text-align: center;">:</td><td>${daripada}</td></tr>
+                    <tr><td style="width: 120px; font-weight: bold;">No. Rujukan</td><td style="width: 20px; text-align: center;">:</td><td>${rujukan}</td></tr>
+                    <tr><td style="width: 120px; font-weight: bold;">Tarikh</td><td style="width: 20px; text-align: center;">:</td><td>${dateStr}</td></tr>
+                    <tr><td style="width: 120px; font-weight: bold;">Perkara</td><td style="width: 20px; text-align: center;">:</td><td style="font-weight: bold; text-transform: uppercase;">${perkara}</td></tr>
                 </table>
-
-                <br> 
+                <br>
                 <div style="text-align: justify;">${kandunganHTML}</div>
-                
                 <br><br>
-                
                 <p>Sekian, terima kasih.</p>
                 <br><br><br>
                 <p><b>${namaPegawai}</b></p>
@@ -1020,7 +1050,6 @@
             </html>
             `;
 
-            // 3. Download File
             const source = 'data:application/vnd.ms-word;charset=utf-8,' + encodeURIComponent(wordContent);
             const fileDownload = document.createElement("a");
             document.body.appendChild(fileDownload);
@@ -1029,9 +1058,7 @@
             fileDownload.click();
             document.body.removeChild(fileDownload);
         }
-        // ------------------------------------
 
-        // --- LOAD HISTORY TABLE (SEJARAH) ---
         async function loadSavedMemos() {
             const ref = collection(db, `artifacts/${appId}/public/data/spark_memo_records`);
             const q = query(ref, where("ic", "==", window.currentUserIc), orderBy("createdAt", "desc"), limit(20));
@@ -1062,8 +1089,33 @@
             if(data.fontSize) window.currentFontSize = data.fontSize;
             if(data.paragraphSpacing !== undefined) { window.paragraphSpacing = data.paragraphSpacing; document.getElementById('spacing-display').textContent = window.paragraphSpacing + 'px'; }
             if(data.margins) { document.getElementById('margin-top').value = data.margins.top; document.getElementById('margin-bottom').value = data.margins.bottom; document.getElementById('margin-left').value = data.margins.left; document.getElementById('margin-right').value = data.margins.right; }
-            if(data.showQr) { document.getElementById('chk-show-qr').checked = true; if(data.qrMode) { const radios = document.getElementsByName('qr-mode'); for(let r of radios) { if(r.value === data.qrMode) r.checked = true; } } document.getElementById('in-qr-link').value = data.qrLink || ""; document.getElementById('in-qr-label').value = data.qrLabel || ""; toggleQrMode(); } else { document.getElementById('chk-show-qr').checked = false; }
-            if(data.signatureUrl) { window.sigUrl = data.signatureUrl; document.getElementById('chk-signature').checked = true; } else { window.sigUrl = ""; document.getElementById('chk-signature').checked = false; }
+            
+            // --- LOAD QR ---
+            if(data.showQr) { 
+                document.getElementById('chk-show-qr').checked = true; 
+                if(data.qrMode) { 
+                    const radios = document.getElementsByName('qr-mode'); 
+                    for(let r of radios) { if(r.value === data.qrMode) r.checked = true; } 
+                } 
+                document.getElementById('in-qr-link').value = data.qrLink || ""; 
+                document.getElementById('in-qr-label').value = data.qrLabel || ""; 
+                window.sparkQrUrl = data.sparkQrUrl || ""; // Load saved SPARK URL
+                toggleQrMode(); 
+            } else { 
+                document.getElementById('chk-show-qr').checked = false; 
+            }
+
+            // --- LOAD SIGNATURE (DIPERBAIKI) ---
+            if(data.signatureUrl) { 
+                window.sigUrl = data.signatureUrl; 
+                document.getElementById('chk-signature').checked = true; 
+                document.getElementById('sig-container').classList.remove('hidden');
+            } else { 
+                window.sigUrl = ""; 
+                document.getElementById('chk-signature').checked = false; 
+                document.getElementById('sig-container').classList.add('hidden');
+            }
+            
             updatePreview(); updateHeader(); showTab('form'); 
         }
 
