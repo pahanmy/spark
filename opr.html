@@ -97,8 +97,14 @@
                     Kembali
                 </button>
                 <div class="h-6 w-px bg-gray-300 mx-1"></div>
+                
+                <button onclick="exportToWord()" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-2 px-4 rounded-lg shadow-sm flex items-center gap-2 uppercase transition-all">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                    Word (.doc)
+                </button>
+
                 <button onclick="downloadPDFOnly()" class="bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 text-xs font-bold py-2 px-4 rounded-lg shadow-sm flex items-center gap-2 uppercase transition-all">
-                    Download Sahaja
+                    Download PDF
                 </button>
                 <button onclick="saveAndDownload()" id="btn-save" class="bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 text-white text-xs font-bold py-2 px-5 rounded-lg shadow-md flex items-center gap-2 uppercase transition-transform hover:scale-105">
                     Simpan & PDF
@@ -1259,6 +1265,146 @@
         window.downloadPDFOnly = function() {
             document.body.style.cursor = "wait";
             generatePDF(false).then(() => { document.body.style.cursor = "default"; });
+        }
+
+        // --- NEW: FUNGSI EXPORT KE WORD ---
+        window.exportToWord = function() {
+            const title = document.getElementById('in-tajuk').value || "Laporan";
+            const date = document.getElementById('out-tarikh').textContent;
+            const location = document.getElementById('out-tempat').textContent;
+            const objective = document.getElementById('out-objektif').innerHTML;
+            const impact = document.getElementById('out-dapatan').innerHTML;
+            const issue = document.getElementById('out-isu').innerHTML;
+            
+            const orgName = document.getElementById('out-org-name').textContent;
+            const subOrg = document.getElementById('out-sub-org').textContent;
+            const logoSrc = document.getElementById('header-logo').src;
+
+            // Membina kandungan HTML untuk Word
+            // Menggunakan Table untuk layout yang lebih stabil dalam Word
+            let content = `
+                <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+                <head><meta charset='utf-8'><title>Export HTML to Word Document with JavaScript</title>
+                <style>
+                    body { font-family: 'Arial', sans-serif; font-size: 11pt; }
+                    table { border-collapse: collapse; width: 100%; }
+                    th, td { border: 1px solid black; padding: 5px; vertical-align: top; }
+                    .header-table { border: none; margin-bottom: 20px; }
+                    .header-table td { border: none; vertical-align: middle; }
+                    .title { font-weight: bold; font-size: 14pt; text-align: center; margin-bottom: 10px; text-transform: uppercase; }
+                    .section-title { font-weight: bold; background-color: #f0fdf4; width: 20%; }
+                </style>
+                </head><body>
+            `;
+
+            // HEADER
+            content += `
+                <table class="header-table">
+                    <tr>
+                        <td width="100"><img src="${logoSrc}" width="80" height="auto"></td>
+                        <td>
+                            <p style="font-size: 16pt; font-weight: bold; margin:0;">${orgName}</p>
+                            <p style="font-size: 12pt; margin:0;">${subOrg}</p>
+                        </td>
+                    </tr>
+                </table>
+                <p class="title">${title}</p>
+            `;
+
+            // MAIN TABLE
+            content += `
+                <table>
+                    <tr>
+                        <td class="section-title">TARIKH</td>
+                        <td width="30%">${date}</td>
+                        <td class="section-title">LOKASI</td>
+                        <td>${location}</td>
+                    </tr>
+                    <tr>
+                        <td class="section-title">FOKUS</td>
+                        <td colspan="3">${objective}</td>
+                    </tr>
+                    <tr>
+                        <td class="section-title">IMPAK</td>
+                        <td colspan="3">${impact}</td>
+                    </tr>
+                    <tr>
+                        <td class="section-title">ISU/TINDAKAN</td>
+                        <td colspan="3">${issue}</td>
+                    </tr>
+                </table>
+                <br>
+            `;
+
+            // IMAGES
+            content += `<p style="font-weight:bold; text-align:center; background:#f3f4f6; padding:5px; border:1px solid black;">LAPORAN BERGAMBAR</p>`;
+            content += `<table>`;
+            
+            // Grid 2x2 Logic
+            for(let i=0; i<2; i++) {
+                content += `<tr>`;
+                for(let j=0; j<2; j++) {
+                    let idx = (i*2) + j;
+                    let imgUrl = window.imageUrls[idx];
+                    let caption = document.getElementById(`in-cap-${idx}`).value;
+                    
+                    if(imgUrl) {
+                        content += `
+                            <td align="center" style="padding:10px;">
+                                <img src="${imgUrl}" width="300" height="auto" style="display:block; margin-bottom:5px;">
+                                <p style="font-size:9pt; margin:0;">${caption}</p>
+                            </td>
+                        `;
+                    } else {
+                        content += `<td></td>`;
+                    }
+                }
+                content += `</tr>`;
+            }
+            content += `</table><br>`;
+
+            // ATTENDANCE LIST (New Page)
+            if (document.getElementById('chk-attendance').checked && window.attendanceData && window.attendanceData.length > 0) {
+                content += `<br clear=all style='mso-special-character:line-break;page-break-before:always'>`;
+                content += `<p class="title">LAMPIRAN: SENARAI KEHADIRAN</p>`;
+                content += `
+                    <table>
+                        <tr style="background-color:#f3f4f6;">
+                            <th width="5%">BIL</th>
+                            <th width="35%">NAMA</th>
+                            <th width="25%">JAWATAN</th>
+                            <th width="25%">STESEN</th>
+                            <th width="10%">STATUS</th>
+                        </tr>
+                `;
+                
+                window.attendanceData.forEach((p, index) => {
+                    content += `
+                        <tr>
+                            <td align="center">${index + 1}</td>
+                            <td>${p.name ? p.name.toUpperCase() : ''}</td>
+                            <td>${p.position ? p.position.toUpperCase() : ''}</td>
+                            <td>${p.station ? p.station.toUpperCase() : ''}</td>
+                            <td align="center">${p.status ? p.status.toUpperCase() : 'HADIR'}</td>
+                        </tr>
+                    `;
+                });
+                content += `</table>`;
+            }
+
+            content += `</body></html>`;
+
+            // Download Logic
+            const blob = new Blob(['\ufeff', content], {
+                type: 'application/msword'
+            });
+            
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `OPR_${title.replace(/[^a-zA-Z0-9]/g, '_')}.doc`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         }
 
         function dataURLtoBlob(dataurl) {
