@@ -14,8 +14,6 @@
         import { getFirestore, collection, doc, setDoc, getDoc, getDocs, where, onSnapshot, updateDoc, arrayUnion, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- Data Constants ---
-        
-        // Nama Juzuk
         const juzukNames = [
             "Alif Lam Mim", "Sayaqulu", "Tilka Rusul", "Lan Tanalu", "Wal Muhsanat", 
             "La Yuhibbullah", "Wa Iza Samiu", "Wa Lau Annana", "Qalal Malao", "Wa A'lamu",
@@ -25,7 +23,6 @@
             "Ha Mim", "Qala Fama Khatbukum", "Qad Sami'allah", "Tabarakallazi", "'Amma Yatasa'alun"
         ];
 
-        // Anggaran Jumlah Ayat Per Juzuk
         const juzukVersesCount = [
             148, 111, 126, 131, 124, 110, 149, 142, 159, 127,
             151, 170, 154, 227, 185, 269, 190, 202, 339, 171,
@@ -33,8 +30,6 @@
         ];
 
         // --- Configuration & Safety Check ---
-        
-        // 1. Konfigurasi User (myqrhadir)
         const userFirebaseConfig = {
             apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM",
             authDomain: "myqrhadir.firebaseapp.com",
@@ -44,26 +39,19 @@
             appId: "1:799691133747:web:835a5e3e9413eace806446"
         };
 
-        // 2. Setup Variables
-        let firebaseConfig = userFirebaseConfig; 
-        
-        // PENTING: Wajib guna 'myqrhadir' untuk baca data SPARK sebenar
+        // PENTING: KITA PAKSA GUNA 'myqrhadir'
+        // Abaikan environment variable untuk memastikan kita cari di DB yang betul
         let artifactAppId = 'myqrhadir';   
         
         let app, auth, db;
         let isOnlineMode = false;
 
         try {
-            if (typeof __firebase_config !== 'undefined') {
-                // firebaseConfig = JSON.parse(__firebase_config); 
-            }
-
-            app = initializeApp(firebaseConfig);
+            app = initializeApp(userFirebaseConfig);
             auth = getAuth(app);
             db = getFirestore(app);
             isOnlineMode = true;
-            console.log("Firebase initialized. Target App ID:", artifactAppId);
-
+            console.log("Firebase initialized. FORCED App ID:", artifactAppId);
         } catch (e) {
             console.warn("Error initializing Firebase. Switching to Offline Mode.", e);
         }
@@ -100,10 +88,8 @@
         initApp();
 
         // --- Data Handling ---
-
         function initFirestoreListeners() {
             const dataRef = collection(db, 'artifacts', artifactAppId, 'public', 'data', 'tadarus_data');
-            
             onSnapshot(dataRef, (snapshot) => {
                 const newData = {};
                 snapshot.forEach(doc => {
@@ -118,9 +104,7 @@
 
         function loadFromLocalStorage() {
             const stored = localStorage.getItem('tadarus_data_v2');
-            if (stored) {
-                juzukData = JSON.parse(stored);
-            }
+            if (stored) juzukData = JSON.parse(stored);
         }
 
         function saveToLocalStorage() {
@@ -140,20 +124,17 @@
 
         // --- Calculator Logic ---
         function getDaysRemaining() {
-            const targetDate = new Date("2026-03-06"); // Tarikh Sasaran
+            const targetDate = new Date("2026-03-06");
             const today = new Date();
             today.setHours(0,0,0,0);
-            
             const diffTime = targetDate - today;
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
-            
             return diffDays > 0 ? diffDays : 0;
         }
 
-        // --- SPARK Logic: Check IC (Roboh & Menyeluruh) ---
+        // --- SPARK Logic: Check IC (ROBUST VERSION) ---
         async function checkIC() {
             let icRaw = document.getElementById('modalIC').value.trim();
-            // Versi bersih (tanpa sengkang)
             const icClean = icRaw.replace(/[^0-9a-zA-Z]/g, '');
 
             const feedbackArea = document.getElementById('icFeedback');
@@ -167,94 +148,72 @@
             }
 
             feedbackArea.innerHTML = `<span class="text-gray-500 text-xs"><i class="fas fa-circle-notch fa-spin"></i> Mencari rekod...</span>`;
+            console.log(`Searching IC: ${icClean} & ${icRaw} in App: ${artifactAppId}`);
             
             if (isOnlineMode) {
+                let foundData = null;
+                let foundSource = "";
+
+                // --- 1. CHECK TADARUS_USERS (Local App DB) ---
                 try {
-                    // --- STRATEGI 1: Cari dalam 'tadarus_users' (Keutamaan) ---
-                    // Guna ID dokumen (paling pantas)
-                    const userRef = doc(db, 'artifacts', artifactAppId, 'public', 'data', 'tadarus_users', icClean);
-                    const userSnap = await getDoc(userRef);
-                    if (userSnap.exists()) {
-                        foundUser(userSnap.data(), "Rekod Tadarus");
-                        return;
-                    }
+                    const docSnap = await getDoc(doc(db, 'artifacts', artifactAppId, 'public', 'data', 'tadarus_users', icClean));
+                    if (docSnap.exists()) { foundData = docSnap.data(); foundSource = "Rekod Tadarus"; }
+                } catch(e) { console.log("Skip Tadarus check", e); }
 
-                    // --- STRATEGI 2: Cari dalam 'spark_participants' (Peserta Umum) ---
-                    // Guna Query kerana ID biasanya auto-generated
-                    const sparkRef = collection(db, 'artifacts', artifactAppId, 'public', 'data', 'spark_participants');
-                    // Cuba cari IC bersih
-                    let qSpark = query(sparkRef, where("ic", "==", icClean));
-                    let sparkSnaps = await getDocs(qSpark);
-                    
-                    if (!sparkSnaps.empty) {
-                        foundUser(sparkSnaps.docs[0].data(), "Rekod SPARK");
-                        return;
-                    } 
-                    // Fallback: Cuba cari IC asal (mungkin ada sengkang dalam DB)
-                    if (icRaw !== icClean) {
-                        qSpark = query(sparkRef, where("ic", "==", icRaw));
-                        sparkSnaps = await getDocs(qSpark);
-                        if (!sparkSnaps.empty) {
-                            foundUser(sparkSnaps.docs[0].data(), "Rekod SPARK");
-                            return;
-                        }
-                    }
-
-                    // --- STRATEGI 3: Cari dalam 'spark_school_auth' (Guru/AKP) ---
-                    // Cuba cari guna ID Dokumen dahulu (Biasanya ID = IC)
+                // --- 2. CHECK SPARK_PARTICIPANTS (Public DB) ---
+                // Try CLEAN IC first
+                if (!foundData) {
                     try {
-                        const schoolAuthRef = doc(db, 'artifacts', artifactAppId, 'public', 'data', 'spark_school_auth', icClean);
-                        const schoolAuthSnap = await getDoc(schoolAuthRef);
-                        if (schoolAuthSnap.exists()) {
-                            foundUser(schoolAuthSnap.data(), "Rekod Guru/Staf Sekolah");
-                            return;
-                        }
-                    } catch (e) { console.log("Direct doc check failed/denied for school_auth"); }
-
-                    // Jika tak jumpa ID, cuba cari Query (kot ID lain tapi field ic ada)
-                    try {
-                        const schoolAuthCol = collection(db, 'artifacts', artifactAppId, 'public', 'data', 'spark_school_auth');
-                        const qAuth = query(schoolAuthCol, where("ic", "==", icClean));
-                        const schoolAuthSnaps = await getDocs(qAuth);
-                        if (!schoolAuthSnaps.empty) {
-                            foundUser(schoolAuthSnaps.docs[0].data(), "Rekod Guru/Staf Sekolah");
-                            return;
-                        }
-                    } catch (e) { console.log("Query check failed for school_auth"); }
-
-                    // --- STRATEGI 4: Cari dalam 'spark_ppd_officers' (Pegawai) ---
-                    // Cuba Query
-                    try {
-                        const officerRef = collection(db, 'artifacts', artifactAppId, 'public', 'data', 'spark_ppd_officers');
-                        const qOfficer = query(officerRef, where("ic", "==", icClean));
-                        const officerSnaps = await getDocs(qOfficer);
-                        if (!officerSnaps.empty) {
-                            foundUser(officerSnaps.docs[0].data(), "Rekod Pegawai PPD");
-                            return;
-                        }
-                    } catch(e) { console.log("Officer check failed"); }
-
-                    // --- STRATEGI 5: Cari dalam 'spark_staff' ---
-                    try {
-                        // Cuba ID Dokumen dahulu
-                        const staffDocRef = doc(db, 'artifacts', artifactAppId, 'public', 'data', 'spark_staff', icClean);
-                        const staffDocSnap = await getDoc(staffDocRef);
-                        if (staffDocSnap.exists()) {
-                            foundUser(staffDocSnap.data(), "Rekod Staf");
-                            return;
-                        }
-                    } catch (e) {}
-
-                    // Jika tiada di semua tempat
-                    console.log("No record found in any collection.");
-                    promptNewUser(nameInput, nameInputContainer, feedbackArea, submitBtn);
-
-                } catch (e) {
-                    console.error("General Check Error:", e);
-                    feedbackArea.innerHTML = `<span class="text-red-500 text-xs">Ralat sambungan: ${e.message}</span>`;
+                        const q = query(collection(db, 'artifacts', artifactAppId, 'public', 'data', 'spark_participants'), where("ic", "==", icClean));
+                        const snaps = await getDocs(q);
+                        if (!snaps.empty) { foundData = snaps.docs[0].data(); foundSource = "Rekod SPARK"; }
+                    } catch(e) { console.log("Skip Participant Clean check", e); }
                 }
+                // Try RAW IC if different
+                if (!foundData && icRaw !== icClean) {
+                    try {
+                        const q = query(collection(db, 'artifacts', artifactAppId, 'public', 'data', 'spark_participants'), where("ic", "==", icRaw));
+                        const snaps = await getDocs(q);
+                        if (!snaps.empty) { foundData = snaps.docs[0].data(); foundSource = "Rekod SPARK (Raw)"; }
+                    } catch(e) { console.log("Skip Participant Raw check", e); }
+                }
+
+                // --- 3. CHECK SPARK_SCHOOL_AUTH (Guru/AKP) ---
+                // Check by Doc ID (Efficient)
+                if (!foundData) {
+                    try {
+                        const docSnap = await getDoc(doc(db, 'artifacts', artifactAppId, 'public', 'data', 'spark_school_auth', icClean));
+                        if (docSnap.exists()) { foundData = docSnap.data(); foundSource = "Rekod Sekolah"; }
+                    } catch(e) { console.log("Skip School Auth ID check (likely permission)", e); }
+                }
+                // Check by Query (Fallback)
+                if (!foundData) {
+                    try {
+                        const q = query(collection(db, 'artifacts', artifactAppId, 'public', 'data', 'spark_school_auth'), where("ic", "==", icClean));
+                        const snaps = await getDocs(q);
+                        if (!snaps.empty) { foundData = snaps.docs[0].data(); foundSource = "Rekod Sekolah"; }
+                    } catch(e) { console.log("Skip School Auth Query check", e); }
+                }
+
+                // --- 4. CHECK SPARK_PPD_OFFICERS (Pegawai) ---
+                if (!foundData) {
+                    try {
+                        const q = query(collection(db, 'artifacts', artifactAppId, 'public', 'data', 'spark_ppd_officers'), where("ic", "==", icClean));
+                        const snaps = await getDocs(q);
+                        if (!snaps.empty) { foundData = snaps.docs[0].data(); foundSource = "Rekod Pegawai"; }
+                    } catch(e) { console.log("Skip Officer check", e); }
+                }
+
+                // --- RESULT HANDLING ---
+                if (foundData) {
+                    foundUser(foundData, foundSource);
+                } else {
+                    console.log("Not found in any collection.");
+                    promptNewUser(nameInput, nameInputContainer, feedbackArea, submitBtn);
+                }
+
             } else {
-                // Offline Logic - Cari dalam data lokal semasa
+                // Offline Logic
                 let foundName = null;
                 Object.values(juzukData).forEach(juz => {
                     if (juz.participants) {
@@ -272,7 +231,6 @@
         }
 
         function foundUser(data, msg) {
-            // Handle variasi nama field yang mungkin wujud dalam database berbeza
             const name = data.name || data.nama || data.full_name || data.Nama || data.nama_penuh || "";
             
             const feedbackArea = document.getElementById('icFeedback');
@@ -282,13 +240,12 @@
 
             if (name) {
                 nameInput.value = name;
-                nameInput.disabled = true; // Kunci nama (Auto-Fill)
+                nameInput.disabled = true;
                 nameInputContainer.classList.remove('hidden');
-                feedbackArea.innerHTML = `<span class="text-green-600 text-xs font-bold"><i class="fas fa-check-circle"></i> ${msg} ditemui: ${name}</span>`;
+                feedbackArea.innerHTML = `<span class="text-green-600 text-xs font-bold"><i class="fas fa-check-circle"></i> ${msg}: ${name}</span>`;
                 submitBtn.disabled = false;
                 submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
             } else {
-                // Rekod ada tapi nama kosong
                 promptNewUser(nameInput, nameInputContainer, feedbackArea, submitBtn);
             }
         }
@@ -297,7 +254,7 @@
             nameInput.value = '';
             nameInput.disabled = false;
             container.classList.remove('hidden');
-            feedback.innerHTML = `<span class="text-amber-600 text-xs font-bold"><i class="fas fa-info-circle"></i> Peserta Baru. Sila masukkan nama.</span>`;
+            feedback.innerHTML = `<span class="text-amber-600 text-xs font-bold"><i class="fas fa-info-circle"></i> Tiada rekod dijumpai. Sila isi nama manual.</span>`;
             btn.disabled = false;
             btn.classList.remove('opacity-50', 'cursor-not-allowed');
             setTimeout(() => document.getElementById('modalName').focus(), 100);
@@ -306,7 +263,7 @@
         // --- Logic: Confirm Registration ---
         async function confirmRegistration() {
             const icRaw = document.getElementById('modalIC').value.trim();
-            const ic = icRaw.replace(/[^0-9a-zA-Z]/g, ''); // Simpan versi bersih
+            const ic = icRaw.replace(/[^0-9a-zA-Z]/g, '');
             const name = document.getElementById('modalName').value.trim();
             const juzukId = currentJuzukSelection.toString();
             
@@ -326,11 +283,9 @@
 
             if (isOnlineMode) {
                 try {
-                    // Simpan ke 'tadarus_users' untuk rujukan masa depan
                     const userRef = doc(db, 'artifacts', artifactAppId, 'public', 'data', 'tadarus_users', ic);
                     await setDoc(userRef, { name: name, ic: ic, last_updated: new Date().toISOString() }, { merge: true });
 
-                    // Simpan ke Juzuk
                     const juzukRef = doc(db, 'artifacts', artifactAppId, 'public', 'data', 'tadarus_data', juzukId);
                     await setDoc(juzukRef, {
                         participants: arrayUnion(newParticipant),
@@ -341,7 +296,7 @@
                     showToast(`Berjaya: ${name}`);
                 } catch (e) {
                     console.error("Save error:", e);
-                    alert("Gagal menyimpan ke cloud.");
+                    alert("Gagal menyimpan ke cloud. (Permission/Network)");
                 }
             } else {
                 if (!juzukData[juzukId]) juzukData[juzukId] = { participants: [] };
@@ -425,7 +380,6 @@
         }
 
         // --- UI Rendering ---
-
         function renderList() {
             const container = document.getElementById('juzukContainer');
             container.innerHTML = '';
