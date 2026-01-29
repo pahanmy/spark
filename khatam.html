@@ -25,8 +25,7 @@
             "Ha Mim", "Qala Fama Khatbukum", "Qad Sami'allah", "Tabarakallazi", "'Amma Yatasa'alun"
         ];
 
-        // Anggaran Jumlah Ayat Per Juzuk (Untuk pengiraan bahagi)
-        // Nota: Ini adalah anggaran berdasarkan pembahagian standard mashaf Uthmani
+        // Anggaran Jumlah Ayat Per Juzuk
         const juzukVersesCount = [
             148, 111, 126, 131, 124, 110, 149, 142, 159, 127,
             151, 170, 154, 227, 185, 269, 190, 202, 339, 171,
@@ -47,21 +46,25 @@
 
         // 2. Setup Variables
         let firebaseConfig = userFirebaseConfig; 
-        let artifactAppId = 'tadarus-default';   
+        
+        // PENTING: Gunakan 'myqrhadir' sebagai default ID supaya boleh baca data SPARK yang sedia ada
+        let artifactAppId = 'myqrhadir';   
+        
         let app, auth, db;
         let isOnlineMode = false;
 
         try {
             if (typeof __firebase_config !== 'undefined') {
                 firebaseConfig = JSON.parse(__firebase_config);
-                if (typeof __app_id !== 'undefined') artifactAppId = __app_id;
+                // Jika sistem bagi ID khusus, guna itu. Jika tidak, kekal 'myqrhadir'
+                if (typeof __app_id !== 'undefined' && __app_id) artifactAppId = __app_id;
             }
 
             app = initializeApp(firebaseConfig);
             auth = getAuth(app);
             db = getFirestore(app);
             isOnlineMode = true;
-            console.log("Firebase initialized.");
+            console.log("Firebase initialized. App ID:", artifactAppId);
 
         } catch (e) {
             console.warn("Error initializing Firebase. Switching to Offline Mode.", e);
@@ -101,6 +104,7 @@
         // --- Data Handling ---
 
         function initFirestoreListeners() {
+            // Data tadarus disimpan di sini
             const dataRef = collection(db, 'artifacts', artifactAppId, 'public', 'data', 'tadarus_data');
             
             onSnapshot(dataRef, (snapshot) => {
@@ -139,9 +143,8 @@
 
         // --- Calculator Logic ---
         function getDaysRemaining() {
-            const targetDate = new Date("2026-03-06"); // Tarikh Sasaran: 6 Mac 2026
+            const targetDate = new Date("2026-03-06"); // Tarikh Sasaran
             const today = new Date();
-            // Reset time to midnight for accurate day calculation
             today.setHours(0,0,0,0);
             
             const diffTime = targetDate - today;
@@ -167,7 +170,7 @@
 
             if (isOnlineMode) {
                 try {
-                    // Carian 1: Tadarus Users (Specific to this app) - Public Read
+                    // Carian 1: Tadarus Users (Rekod dalam app ini)
                     const userRef = doc(db, 'artifacts', artifactAppId, 'public', 'data', 'tadarus_users', icInput);
                     const userSnap = await getDoc(userRef);
 
@@ -176,7 +179,7 @@
                         return;
                     }
 
-                    // Carian 2: SPARK Participants (Global/Public DB) - Public Read
+                    // Carian 2: SPARK Participants (Database kehadiran awam)
                     const sparkRef = doc(db, 'artifacts', artifactAppId, 'public', 'data', 'spark_participants', icInput);
                     const sparkSnap = await getDoc(sparkRef);
 
@@ -185,8 +188,16 @@
                         return;
                     }
 
-                    // Carian 3: SPARK Staff - RESTRICTED (Try-Catch ditambah)
-                    // Data staf biasanya private, jadi kita wrap dalam try-catch supaya tak error jika permission denied
+                    // Carian 3: SPARK PPD Officers (Database Pegawai)
+                    const officerRef = doc(db, 'artifacts', artifactAppId, 'public', 'data', 'spark_ppd_officers', icInput);
+                    const officerSnap = await getDoc(officerRef);
+
+                    if (officerSnap.exists()) {
+                        foundUser(officerSnap.data(), "Rekod Pegawai PPD ditemui");
+                        return;
+                    }
+
+                    // Carian 4: SPARK Staff - (Cuba baca, abaikan jika 'permission denied')
                     try {
                         const staffRef = doc(db, 'artifacts', artifactAppId, 'public', 'data', 'spark_staff', icInput);
                         const staffSnap = await getDoc(staffRef);
@@ -196,15 +207,15 @@
                             return;
                         }
                     } catch (staffErr) {
-                        console.log("Akses staf dihadkan (Permission Denied). Teruskan ke pendaftaran manual.");
-                        // Jangan throw error, teruskan sahaja flow
+                        // Abaikan error permission, teruskan ke next step
+                        console.log("Skipping staff check due to permission.");
                     }
 
-                    // Jika tiada di semua tempat atau permission denied
+                    // Jika tiada di semua tempat
                     promptNewUser(nameInput, nameInputContainer, feedbackArea, submitBtn);
 
                 } catch (e) {
-                    console.error("General Check Error:", e);
+                    console.error("Check Error:", e);
                     feedbackArea.innerHTML = `<span class="text-red-500 text-xs">Ralat sambungan. Sila cuba lagi.</span>`;
                 }
             } else {
@@ -226,7 +237,9 @@
         }
 
         function foundUser(data, msg) {
-            const name = data.name || data.nama || data.full_name || "";
+            // Handle variasi nama field (name, nama, Name, full_name)
+            const name = data.name || data.nama || data.full_name || data.Nama || "";
+            
             const feedbackArea = document.getElementById('icFeedback');
             const nameInputContainer = document.getElementById('nameInputContainer');
             const nameInput = document.getElementById('modalName');
@@ -234,12 +247,13 @@
 
             if (name) {
                 nameInput.value = name;
-                nameInput.disabled = true; // Lock name
+                nameInput.disabled = true; // Kunci nama (Auto-Fill)
                 nameInputContainer.classList.remove('hidden');
                 feedbackArea.innerHTML = `<span class="text-green-600 text-xs font-bold"><i class="fas fa-check-circle"></i> ${msg}: ${name}</span>`;
                 submitBtn.disabled = false;
                 submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
             } else {
+                // Rekod ada tapi nama kosong
                 promptNewUser(nameInput, nameInputContainer, feedbackArea, submitBtn);
             }
         }
@@ -276,11 +290,11 @@
 
             if (isOnlineMode) {
                 try {
-                    // 1. Save User Directory (Update tadarus_users for faster lookup next time)
+                    // Simpan ke 'tadarus_users' untuk rujukan masa depan
                     const userRef = doc(db, 'artifacts', artifactAppId, 'public', 'data', 'tadarus_users', ic);
                     await setDoc(userRef, { name: name, ic: ic, last_updated: new Date().toISOString() }, { merge: true });
 
-                    // 2. Add to Juzuk
+                    // Simpan ke Juzuk
                     const juzukRef = doc(db, 'artifacts', artifactAppId, 'public', 'data', 'tadarus_data', juzukId);
                     await setDoc(juzukRef, {
                         participants: arrayUnion(newParticipant),
@@ -403,15 +417,8 @@
                 const totalAyat = juzukVersesCount[i-1];
                 
                 // --- LOGIK PEMBAHAGIAN AYAT ---
-                // 1. Kira berapa orang peserta dalam Juz ini (jika 0, anggap 1 orang untuk kiraan dasar)
                 const activeParticipants = participants.length > 0 ? participants.length : 1;
-                
-                // 2. Bahagi jumlah ayat mengikut jumlah peserta
-                // Cth: 150 ayat / 2 orang = 75 ayat seorang
                 const ayatPerPersonTotal = Math.ceil(totalAyat / activeParticipants);
-                
-                // 3. Bahagi beban setiap orang dengan jumlah hari yang tinggal
-                // Cth: 75 ayat / 10 hari = 7.5 (8) ayat sehari
                 const ayatPerDay = daysLeft > 0 ? Math.ceil(ayatPerPersonTotal / daysLeft) : ayatPerPersonTotal;
 
                 // Teks Tambahan untuk UI
