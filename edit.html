@@ -11,7 +11,6 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        // PENTING: Tambah 'where' dan 'getDocs' untuk carian query
         import { getFirestore, collection, doc, setDoc, getDoc, getDocs, where, onSnapshot, updateDoc, arrayUnion, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- Data Constants ---
@@ -56,7 +55,7 @@
 
         try {
             if (typeof __firebase_config !== 'undefined') {
-                // firebaseConfig = JSON.parse(__firebase_config); // Guna config user yang hardcoded di atas lebih selamat
+                // firebaseConfig = JSON.parse(__firebase_config); 
             }
 
             app = initializeApp(firebaseConfig);
@@ -103,7 +102,6 @@
         // --- Data Handling ---
 
         function initFirestoreListeners() {
-            // Data tadarus disimpan di sini
             const dataRef = collection(db, 'artifacts', artifactAppId, 'public', 'data', 'tadarus_data');
             
             onSnapshot(dataRef, (snapshot) => {
@@ -152,17 +150,18 @@
             return diffDays > 0 ? diffDays : 0;
         }
 
-        // --- SPARK Logic: Check IC (Updated: Query Mode) ---
+        // --- SPARK Logic: Check IC (Roboh & Menyeluruh) ---
         async function checkIC() {
             let icRaw = document.getElementById('modalIC').value.trim();
-            const icInput = icRaw.replace(/[^0-9a-zA-Z]/g, '');
+            // Versi bersih (tanpa sengkang)
+            const icClean = icRaw.replace(/[^0-9a-zA-Z]/g, '');
 
             const feedbackArea = document.getElementById('icFeedback');
             const nameInputContainer = document.getElementById('nameInputContainer');
             const nameInput = document.getElementById('modalName');
             const submitBtn = document.getElementById('submitBtn');
 
-            if (icInput.length < 6) {
+            if (icClean.length < 6) {
                 feedbackArea.innerHTML = `<span class="text-red-500 text-xs">Sila masukkan No. IC yang sah.</span>`;
                 return;
             }
@@ -171,61 +170,80 @@
             
             if (isOnlineMode) {
                 try {
-                    // 1. Carian Tadarus Users (Rekod dalam app ini - ID=IC)
-                    // Ini satu-satunya yang guna getDoc sebab kita set ID dia manually
-                    const userRef = doc(db, 'artifacts', artifactAppId, 'public', 'data', 'tadarus_users', icInput);
+                    // --- STRATEGI 1: Cari dalam 'tadarus_users' (Keutamaan) ---
+                    // Guna ID dokumen (paling pantas)
+                    const userRef = doc(db, 'artifacts', artifactAppId, 'public', 'data', 'tadarus_users', icClean);
                     const userSnap = await getDoc(userRef);
                     if (userSnap.exists()) {
                         foundUser(userSnap.data(), "Rekod Tadarus");
                         return;
                     }
 
-                    // 2. Carian SPARK Participants (Query by Field 'ic')
-                    // Ini cara edit.html cari data
+                    // --- STRATEGI 2: Cari dalam 'spark_participants' (Peserta Umum) ---
+                    // Guna Query kerana ID biasanya auto-generated
                     const sparkRef = collection(db, 'artifacts', artifactAppId, 'public', 'data', 'spark_participants');
-                    const qSpark = query(sparkRef, where("ic", "==", icInput));
-                    const sparkSnaps = await getDocs(qSpark);
+                    // Cuba cari IC bersih
+                    let qSpark = query(sparkRef, where("ic", "==", icClean));
+                    let sparkSnaps = await getDocs(qSpark);
                     
                     if (!sparkSnaps.empty) {
                         foundUser(sparkSnaps.docs[0].data(), "Rekod SPARK");
                         return;
+                    } 
+                    // Fallback: Cuba cari IC asal (mungkin ada sengkang dalam DB)
+                    if (icRaw !== icClean) {
+                        qSpark = query(sparkRef, where("ic", "==", icRaw));
+                        sparkSnaps = await getDocs(qSpark);
+                        if (!sparkSnaps.empty) {
+                            foundUser(sparkSnaps.docs[0].data(), "Rekod SPARK");
+                            return;
+                        }
                     }
 
-                    // 3. Carian SPARK School Auth (Query by Field 'ic')
+                    // --- STRATEGI 3: Cari dalam 'spark_school_auth' (Guru/AKP) ---
+                    // Cuba cari guna ID Dokumen dahulu (Biasanya ID = IC)
                     try {
-                        const schoolAuthRef = collection(db, 'artifacts', artifactAppId, 'public', 'data', 'spark_school_auth');
-                        const qAuth = query(schoolAuthRef, where("ic", "==", icInput));
+                        const schoolAuthRef = doc(db, 'artifacts', artifactAppId, 'public', 'data', 'spark_school_auth', icClean);
+                        const schoolAuthSnap = await getDoc(schoolAuthRef);
+                        if (schoolAuthSnap.exists()) {
+                            foundUser(schoolAuthSnap.data(), "Rekod Guru/Staf Sekolah");
+                            return;
+                        }
+                    } catch (e) { console.log("Direct doc check failed/denied for school_auth"); }
+
+                    // Jika tak jumpa ID, cuba cari Query (kot ID lain tapi field ic ada)
+                    try {
+                        const schoolAuthCol = collection(db, 'artifacts', artifactAppId, 'public', 'data', 'spark_school_auth');
+                        const qAuth = query(schoolAuthCol, where("ic", "==", icClean));
                         const schoolAuthSnaps = await getDocs(qAuth);
-                        
                         if (!schoolAuthSnaps.empty) {
                             foundUser(schoolAuthSnaps.docs[0].data(), "Rekod Guru/Staf Sekolah");
                             return;
                         }
-                    } catch (e) { console.log("Skip school auth check", e); }
+                    } catch (e) { console.log("Query check failed for school_auth"); }
 
-                    // 4. Carian SPARK PPD Officers (Query by Field 'ic')
+                    // --- STRATEGI 4: Cari dalam 'spark_ppd_officers' (Pegawai) ---
+                    // Cuba Query
                     try {
                         const officerRef = collection(db, 'artifacts', artifactAppId, 'public', 'data', 'spark_ppd_officers');
-                        const qOfficer = query(officerRef, where("ic", "==", icInput));
+                        const qOfficer = query(officerRef, where("ic", "==", icClean));
                         const officerSnaps = await getDocs(qOfficer);
-                        
                         if (!officerSnaps.empty) {
                             foundUser(officerSnaps.docs[0].data(), "Rekod Pegawai PPD");
                             return;
                         }
-                    } catch(e) { console.log("Skip officer check", e); }
+                    } catch(e) { console.log("Officer check failed"); }
 
-                    // 5. Carian SPARK Staff (Query by Field 'ic')
+                    // --- STRATEGI 5: Cari dalam 'spark_staff' ---
                     try {
-                        const staffRef = collection(db, 'artifacts', artifactAppId, 'public', 'data', 'spark_staff');
-                        const qStaff = query(staffRef, where("ic", "==", icInput));
-                        const staffSnaps = await getDocs(qStaff);
-                        
-                        if (!staffSnaps.empty) {
-                            foundUser(staffSnaps.docs[0].data(), "Rekod Staf");
+                        // Cuba ID Dokumen dahulu
+                        const staffDocRef = doc(db, 'artifacts', artifactAppId, 'public', 'data', 'spark_staff', icClean);
+                        const staffDocSnap = await getDoc(staffDocRef);
+                        if (staffDocSnap.exists()) {
+                            foundUser(staffDocSnap.data(), "Rekod Staf");
                             return;
                         }
-                    } catch (e) { console.log("Skip staff check", e); }
+                    } catch (e) {}
 
                     // Jika tiada di semua tempat
                     console.log("No record found in any collection.");
@@ -236,11 +254,11 @@
                     feedbackArea.innerHTML = `<span class="text-red-500 text-xs">Ralat sambungan: ${e.message}</span>`;
                 }
             } else {
-                // Offline Logic
+                // Offline Logic - Cari dalam data lokal semasa
                 let foundName = null;
                 Object.values(juzukData).forEach(juz => {
                     if (juz.participants) {
-                        const p = juz.participants.find(p => p.ic === icInput);
+                        const p = juz.participants.find(p => p.ic === icClean || p.ic === icRaw);
                         if (p) foundName = p.name;
                     }
                 });
@@ -254,8 +272,8 @@
         }
 
         function foundUser(data, msg) {
-            // Handle variasi nama field
-            const name = data.name || data.nama || data.full_name || data.Nama || "";
+            // Handle variasi nama field yang mungkin wujud dalam database berbeza
+            const name = data.name || data.nama || data.full_name || data.Nama || data.nama_penuh || "";
             
             const feedbackArea = document.getElementById('icFeedback');
             const nameInputContainer = document.getElementById('nameInputContainer');
@@ -270,6 +288,7 @@
                 submitBtn.disabled = false;
                 submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
             } else {
+                // Rekod ada tapi nama kosong
                 promptNewUser(nameInput, nameInputContainer, feedbackArea, submitBtn);
             }
         }
@@ -287,7 +306,7 @@
         // --- Logic: Confirm Registration ---
         async function confirmRegistration() {
             const icRaw = document.getElementById('modalIC').value.trim();
-            const ic = icRaw.replace(/[^0-9a-zA-Z]/g, '');
+            const ic = icRaw.replace(/[^0-9a-zA-Z]/g, ''); // Simpan versi bersih
             const name = document.getElementById('modalName').value.trim();
             const juzukId = currentJuzukSelection.toString();
             
@@ -307,7 +326,7 @@
 
             if (isOnlineMode) {
                 try {
-                    // Simpan ke 'tadarus_users' untuk rujukan masa depan (supaya carian 1 berfungsi nanti)
+                    // Simpan ke 'tadarus_users' untuk rujukan masa depan
                     const userRef = doc(db, 'artifacts', artifactAppId, 'public', 'data', 'tadarus_users', ic);
                     await setDoc(userRef, { name: name, ic: ic, last_updated: new Date().toISOString() }, { merge: true });
 
@@ -587,136 +606,5 @@
             });
         }
     </script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Poppins:wght@300;400;500;600&display=swap');
-        
-        body { font-family: 'Poppins', sans-serif; background-color: #f0fdf4; }
-        .font-arabic { font-family: 'Amiri', serif; }
-        .card-shadow { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
-        .modal-enter { animation: modalPop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
-        @keyframes modalPop { 0% { transform: scale(0.9); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: #f1f1f1; }
-        ::-webkit-scrollbar-thumb { background: #888; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #555; }
-    </style>
-</head>
-<body class="bg-emerald-50 min-h-screen pb-24">
-
-    <!-- Header -->
-    <div class="bg-emerald-700 text-white p-6 rounded-b-3xl shadow-lg sticky top-0 z-10">
-        <div class="max-w-md mx-auto">
-            <div class="flex justify-between items-start mb-2">
-                <div>
-                    <h1 class="text-xl md:text-2xl font-bold"><i class="fas fa-quran mr-2"></i> Tadarus Ramadhan</h1>
-                    <span class="text-xs bg-emerald-800 px-2 py-1 rounded-full border border-emerald-500 text-center leading-tight">PPD Miri</span>
-                </div>
-                <div id="modeIndicator"></div>
-            </div>
-            
-            <!-- Countdown Banner -->
-            <div class="flex justify-between items-center bg-emerald-800/50 rounded-lg p-2 mb-4 border border-emerald-600/30">
-                <div>
-                    <p class="text-[10px] text-emerald-200 uppercase tracking-wider" id="targetDateDisplay">Sasaran: ...</p>
-                    <p class="text-sm font-bold text-white"><i class="far fa-hourglass mr-1"></i> <span id="daysRemainingBadge">...</span></p>
-                </div>
-                <div class="text-right">
-                    <p class="text-[10px] text-emerald-200">Tips:</p>
-                    <p class="text-[10px] italic">"Istiqomah sedikit demi sedikit"</p>
-                </div>
-            </div>
-
-            <p class="text-emerald-100 text-xs md:text-sm mb-4 italic leading-relaxed hidden">"Bacalah Al-Quran, sesungguhnya ia akan datang pada hari kiamat sebagai pemberi syafaat kepada pembacanya."</p>
-            
-            <!-- Progress Bar -->
-            <div class="w-full bg-emerald-900 rounded-full h-2.5 mb-1">
-                <div id="progressBar" class="bg-yellow-400 h-2.5 rounded-full transition-all duration-500" style="width: 0%"></div>
-            </div>
-            <div class="flex justify-between text-xs text-emerald-100">
-                <span id="completedCount">0 Selesai</span>
-            </div>
-        </div>
-    </div>
-
-    <!-- Main List Container -->
-    <div class="max-w-md mx-auto p-4 space-y-3" id="juzukContainer">
-        <!-- Loading State -->
-        <div class="text-center py-10 text-gray-400">
-            <i class="fas fa-circle-notch fa-spin fa-2x mb-2"></i>
-            <p>Sedang memuatkan data...</p>
-        </div>
-    </div>
-
-    <!-- Floating Action Buttons -->
-    <div class="fixed bottom-0 left-0 right-0 bg-white p-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] border-t border-gray-100 z-20">
-        <div class="max-w-md mx-auto flex gap-2">
-            <button onclick="copyToWhatsapp()" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-medium py-3 px-4 rounded-xl shadow-md transition transform active:scale-95 flex items-center justify-center gap-2">
-                <i class="fab fa-whatsapp text-xl"></i> Salin List
-            </button>
-            <button onclick="clearAllData()" class="bg-red-50 hover:bg-red-100 text-red-600 font-medium py-3 px-4 rounded-xl transition transform active:scale-95">
-                <i class="fas fa-trash-alt"></i>
-            </button>
-        </div>
-    </div>
-
-    <!-- SPARK Style Registration Modal -->
-    <div id="authModal" class="fixed inset-0 bg-black bg-opacity-60 z-50 hidden flex items-center justify-center p-4 backdrop-blur-sm">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 relative modal-enter">
-            
-            <!-- Modal Header -->
-            <div class="flex items-center gap-3 mb-6">
-                <div class="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600">
-                    <i class="fas fa-search text-lg"></i>
-                </div>
-                <div>
-                    <h3 class="text-lg font-bold text-gray-800">Carian Peserta</h3>
-                    <p class="text-xs text-emerald-600 font-medium" id="modalJuzInfo">...</p>
-                </div>
-                <button onclick="closeModal()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            
-            <!-- Step 1: Input IC -->
-            <div class="space-y-4">
-                <div>
-                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1 tracking-wider">No. Kad Pengenalan / ID</label>
-                    <div class="flex gap-2">
-                        <div class="relative flex-1">
-                            <i class="fas fa-id-card absolute left-3 top-3 text-gray-400"></i>
-                            <input type="tel" id="modalIC" class="w-full pl-10 pr-4 py-2 border-2 border-gray-100 rounded-xl focus:border-emerald-500 focus:outline-none transition-colors text-sm font-medium" placeholder="Cth: 900101123456">
-                        </div>
-                        <button onclick="checkIC()" class="bg-emerald-100 text-emerald-700 px-4 rounded-xl font-bold hover:bg-emerald-200 transition-colors">
-                            <i class="fas fa-search"></i>
-                        </button>
-                    </div>
-                    <div id="icFeedback" class="mt-2 min-h-[20px]"></div>
-                </div>
-
-                <!-- Step 2: Name (Hidden until IC Checked) -->
-                <div id="nameInputContainer" class="hidden animate-fade-in-down">
-                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1 tracking-wider">Nama Penuh</label>
-                    <div class="relative">
-                        <i class="fas fa-user absolute left-3 top-3 text-gray-400"></i>
-                        <input type="text" id="modalName" class="w-full pl-10 pr-4 py-2 border-2 border-gray-100 rounded-xl focus:border-emerald-500 focus:outline-none transition-colors text-sm font-medium" placeholder="Nama akan muncul di sini">
-                    </div>
-                </div>
-            </div>
-
-            <!-- Buttons -->
-            <div class="flex gap-3 mt-8">
-                <button onclick="closeModal()" class="flex-1 bg-gray-100 text-gray-600 font-semibold py-2.5 rounded-xl hover:bg-gray-200 transition-colors text-sm">Batal</button>
-                <button id="submitBtn" onclick="confirmRegistration()" disabled class="flex-1 bg-emerald-600 text-white font-semibold py-2.5 rounded-xl hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-200 text-sm opacity-50 cursor-not-allowed">
-                    Simpan
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Notification Toast -->
-    <div id="toast" class="fixed top-24 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-6 py-3 rounded-full shadow-xl opacity-0 transition-opacity duration-300 pointer-events-none z-50 text-sm flex items-center gap-2">
-        <i class="fas fa-check-circle text-green-400"></i> <span id="toastMsg">Disalin!</span>
-    </div>
-
 </body>
 </html>
