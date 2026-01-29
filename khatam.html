@@ -11,9 +11,12 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, doc, setDoc, getDoc, getDocs, where, onSnapshot, updateDoc, arrayUnion, query, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        // PENTING: Tambah 'where' dan 'getDocs' untuk carian query
+        import { getFirestore, collection, doc, setDoc, getDoc, getDocs, where, onSnapshot, updateDoc, arrayUnion, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- Data Constants ---
+        
+        // Nama Juzuk
         const juzukNames = [
             "Alif Lam Mim", "Sayaqulu", "Tilka Rusul", "Lan Tanalu", "Wal Muhsanat", 
             "La Yuhibbullah", "Wa Iza Samiu", "Wa Lau Annana", "Qalal Malao", "Wa A'lamu",
@@ -23,6 +26,7 @@
             "Ha Mim", "Qala Fama Khatbukum", "Qad Sami'allah", "Tabarakallazi", "'Amma Yatasa'alun"
         ];
 
+        // Anggaran Jumlah Ayat Per Juzuk
         const juzukVersesCount = [
             148, 111, 126, 131, 124, 110, 149, 142, 159, 127,
             151, 170, 154, 227, 185, 269, 190, 202, 339, 171,
@@ -30,6 +34,8 @@
         ];
 
         // --- Configuration & Safety Check ---
+        
+        // 1. Konfigurasi User (myqrhadir)
         const userFirebaseConfig = {
             apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM",
             authDomain: "myqrhadir.firebaseapp.com",
@@ -39,18 +45,26 @@
             appId: "1:799691133747:web:835a5e3e9413eace806446"
         };
 
-        // PENTING: KITA PAKSA GUNA 'myqrhadir'
+        // 2. Setup Variables
+        let firebaseConfig = userFirebaseConfig; 
+        
+        // PENTING: Wajib guna 'myqrhadir' untuk baca data SPARK sebenar
         let artifactAppId = 'myqrhadir';   
         
         let app, auth, db;
         let isOnlineMode = false;
 
         try {
-            app = initializeApp(userFirebaseConfig);
+            if (typeof __firebase_config !== 'undefined') {
+                // firebaseConfig = JSON.parse(__firebase_config); // Guna config user yang hardcoded di atas lebih selamat
+            }
+
+            app = initializeApp(firebaseConfig);
             auth = getAuth(app);
             db = getFirestore(app);
             isOnlineMode = true;
             console.log("Firebase initialized. Target App ID:", artifactAppId);
+
         } catch (e) {
             console.warn("Error initializing Firebase. Switching to Offline Mode.", e);
         }
@@ -87,8 +101,11 @@
         initApp();
 
         // --- Data Handling ---
+
         function initFirestoreListeners() {
+            // Data tadarus disimpan di sini
             const dataRef = collection(db, 'artifacts', artifactAppId, 'public', 'data', 'tadarus_data');
+            
             onSnapshot(dataRef, (snapshot) => {
                 const newData = {};
                 snapshot.forEach(doc => {
@@ -103,7 +120,9 @@
 
         function loadFromLocalStorage() {
             const stored = localStorage.getItem('tadarus_data_v2');
-            if (stored) juzukData = JSON.parse(stored);
+            if (stored) {
+                juzukData = JSON.parse(stored);
+            }
         }
 
         function saveToLocalStorage() {
@@ -123,150 +142,135 @@
 
         // --- Calculator Logic ---
         function getDaysRemaining() {
-            const targetDate = new Date("2026-03-06");
+            const targetDate = new Date("2026-03-06"); // Tarikh Sasaran
             const today = new Date();
             today.setHours(0,0,0,0);
+            
             const diffTime = targetDate - today;
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+            
             return diffDays > 0 ? diffDays : 0;
         }
 
-        // --- SPARK Logic: Check IC (Fixed: Sequential Query Search) ---
+        // --- SPARK Logic: Check IC (Updated: Query Mode) ---
         async function checkIC() {
             let icRaw = document.getElementById('modalIC').value.trim();
-            // Buang semua kecuali nombor dan huruf (untuk handle sengkang)
-            const icClean = icRaw.replace(/[^0-9a-zA-Z]/g, '');
+            const icInput = icRaw.replace(/[^0-9a-zA-Z]/g, '');
 
             const feedbackArea = document.getElementById('icFeedback');
             const nameInputContainer = document.getElementById('nameInputContainer');
             const nameInput = document.getElementById('modalName');
             const submitBtn = document.getElementById('submitBtn');
 
-            if (icClean.length < 6) {
-                feedbackArea.innerHTML = `<span class="text-red-500 text-xs">Sila masukkan No. IC yang sah (min 6 digit).</span>`;
+            if (icInput.length < 6) {
+                feedbackArea.innerHTML = `<span class="text-red-500 text-xs">Sila masukkan No. IC yang sah.</span>`;
                 return;
             }
 
-            feedbackArea.innerHTML = `<span class="text-gray-500 text-xs"><i class="fas fa-circle-notch fa-spin"></i> Sedang menyemak pangkalan data...</span>`;
-            console.log(`Checking IC: ${icClean} (Raw: ${icRaw}) in ${artifactAppId}`);
+            feedbackArea.innerHTML = `<span class="text-gray-500 text-xs"><i class="fas fa-circle-notch fa-spin"></i> Mencari rekod...</span>`;
             
             if (isOnlineMode) {
-                let foundRecord = null;
-                let foundSource = "";
-
                 try {
-                    // --- 1. Cari dalam 'tadarus_users' (Database Tadarus Sendiri) ---
-                    // Keutamaan tinggi: Jika pernah daftar tadarus sebelum ini
-                    const tadarusRef = doc(db, 'artifacts', artifactAppId, 'public', 'data', 'tadarus_users', icClean);
-                    const tadarusSnap = await getDoc(tadarusRef);
+                    // 1. Carian Tadarus Users (Rekod dalam app ini - ID=IC)
+                    // Ini satu-satunya yang guna getDoc sebab kita set ID dia manually
+                    const userRef = doc(db, 'artifacts', artifactAppId, 'public', 'data', 'tadarus_users', icInput);
+                    const userSnap = await getDoc(userRef);
+                    if (userSnap.exists()) {
+                        foundUser(userSnap.data(), "Rekod Tadarus");
+                        return;
+                    }
+
+                    // 2. Carian SPARK Participants (Query by Field 'ic')
+                    // Ini cara edit.html cari data
+                    const sparkRef = collection(db, 'artifacts', artifactAppId, 'public', 'data', 'spark_participants');
+                    const qSpark = query(sparkRef, where("ic", "==", icInput));
+                    const sparkSnaps = await getDocs(qSpark);
                     
-                    if (tadarusSnap.exists()) {
-                        foundRecord = tadarusSnap.data();
-                        foundSource = "Rekod Tadarus";
+                    if (!sparkSnaps.empty) {
+                        foundUser(sparkSnaps.docs[0].data(), "Rekod SPARK");
+                        return;
                     }
 
-                    // --- 2. Cari dalam 'spark_participants' (Peserta SPARK Umum) ---
-                    // Jika tiada dalam Tadarus, cari dalam database utama SPARK
-                    if (!foundRecord) {
-                        const participantsRef = collection(db, 'artifacts', artifactAppId, 'public', 'data', 'spark_participants');
-                        // Guna Query 'where' sebab ID mungkin rawak (auto-generated)
-                        const q = query(participantsRef, where("ic", "==", icClean), limit(1));
-                        const querySnap = await getDocs(q);
-                        
-                        if (!querySnap.empty) {
-                            foundRecord = querySnap.docs[0].data();
-                            foundSource = "Rekod SPARK (Peserta)";
-                        } else if (icRaw !== icClean) {
-                            // Cuba cari dengan IC yang ada sengkang jika database lama simpan format sengkang
-                            const qRaw = query(participantsRef, where("ic", "==", icRaw), limit(1));
-                            const querySnapRaw = await getDocs(qRaw);
-                            if (!querySnapRaw.empty) {
-                                foundRecord = querySnapRaw.docs[0].data();
-                                foundSource = "Rekod SPARK (Peserta)";
-                            }
-                        }
-                    }
-
-                    // --- 3. Cari dalam 'spark_school_auth' (Guru & AKP) ---
-                    // Database ini untuk warga sekolah
-                    if (!foundRecord) {
+                    // 3. Carian SPARK School Auth (Query by Field 'ic')
+                    try {
                         const schoolAuthRef = collection(db, 'artifacts', artifactAppId, 'public', 'data', 'spark_school_auth');
-                        const qSchool = query(schoolAuthRef, where("ic", "==", icClean), limit(1));
-                        const schoolSnap = await getDocs(qSchool);
-
-                        if (!schoolSnap.empty) {
-                            foundRecord = schoolSnap.docs[0].data();
-                            foundSource = "Rekod Sekolah (Guru/AKP)";
-                        } else {
-                            // Fallback: Cuba cari direct by ID jika query gagal
-                            try {
-                                const docSnap = await getDoc(doc(db, 'artifacts', artifactAppId, 'public', 'data', 'spark_school_auth', icClean));
-                                if (docSnap.exists()) {
-                                    foundRecord = docSnap.data();
-                                    foundSource = "Rekod Sekolah (Guru/AKP)";
-                                }
-                            } catch(err) { console.log("Direct doc check skipped"); }
-                        }
-                    }
-
-                    // --- 4. Cari dalam 'spark_ppd_officers' (Pegawai PPD) ---
-                    if (!foundRecord) {
-                        const officersRef = collection(db, 'artifacts', artifactAppId, 'public', 'data', 'spark_ppd_officers');
-                        const qOfficer = query(officersRef, where("ic", "==", icClean), limit(1));
-                        const officerSnap = await getDocs(qOfficer);
-
-                        if (!officerSnap.empty) {
-                            foundRecord = officerSnap.docs[0].data();
-                            foundSource = "Rekod Pegawai PPD";
-                        }
-                    }
-
-                    // --- HASIL CARIAN ---
-                    if (foundRecord) {
-                        // Kenalpasti medan nama yang betul (kadang-kadang berbeza ikut database)
-                        const fullName = foundRecord.name || foundRecord.nama || foundRecord.full_name || foundRecord.Nama || "";
+                        const qAuth = query(schoolAuthRef, where("ic", "==", icInput));
+                        const schoolAuthSnaps = await getDocs(qAuth);
                         
-                        if (fullName) {
-                            nameInput.value = fullName;
-                            nameInput.disabled = true; // Kunci supaya tak perlu taip
-                            nameInputContainer.classList.remove('hidden');
-                            feedbackArea.innerHTML = `<span class="text-green-600 text-xs font-bold flex items-center gap-1"><i class="fas fa-check-circle"></i> ${foundSource} dijumpai!<br>Nama: ${fullName}</span>`;
-                            submitBtn.disabled = false;
-                            submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                        } else {
-                            // Rekod jumpa tapi medan nama kosong
-                            promptNewUser(nameInput, nameInputContainer, feedbackArea, submitBtn);
+                        if (!schoolAuthSnaps.empty) {
+                            foundUser(schoolAuthSnaps.docs[0].data(), "Rekod Guru/Staf Sekolah");
+                            return;
                         }
-                    } else {
-                        // Memang tiada rekod langsung
-                        console.log("No record found anywhere.");
-                        promptNewUser(nameInput, nameInputContainer, feedbackArea, submitBtn);
-                    }
+                    } catch (e) { console.log("Skip school auth check", e); }
+
+                    // 4. Carian SPARK PPD Officers (Query by Field 'ic')
+                    try {
+                        const officerRef = collection(db, 'artifacts', artifactAppId, 'public', 'data', 'spark_ppd_officers');
+                        const qOfficer = query(officerRef, where("ic", "==", icInput));
+                        const officerSnaps = await getDocs(qOfficer);
+                        
+                        if (!officerSnaps.empty) {
+                            foundUser(officerSnaps.docs[0].data(), "Rekod Pegawai PPD");
+                            return;
+                        }
+                    } catch(e) { console.log("Skip officer check", e); }
+
+                    // 5. Carian SPARK Staff (Query by Field 'ic')
+                    try {
+                        const staffRef = collection(db, 'artifacts', artifactAppId, 'public', 'data', 'spark_staff');
+                        const qStaff = query(staffRef, where("ic", "==", icInput));
+                        const staffSnaps = await getDocs(qStaff);
+                        
+                        if (!staffSnaps.empty) {
+                            foundUser(staffSnaps.docs[0].data(), "Rekod Staf");
+                            return;
+                        }
+                    } catch (e) { console.log("Skip staff check", e); }
+
+                    // Jika tiada di semua tempat
+                    console.log("No record found in any collection.");
+                    promptNewUser(nameInput, nameInputContainer, feedbackArea, submitBtn);
 
                 } catch (e) {
-                    console.error("Search Error:", e);
+                    console.error("General Check Error:", e);
                     feedbackArea.innerHTML = `<span class="text-red-500 text-xs">Ralat sambungan: ${e.message}</span>`;
                 }
             } else {
-                // Offline Logic (Cari dalam list tadarus semasa sahaja)
+                // Offline Logic
                 let foundName = null;
                 Object.values(juzukData).forEach(juz => {
                     if (juz.participants) {
-                        const p = juz.participants.find(p => p.ic === icClean || p.ic === icRaw);
+                        const p = juz.participants.find(p => p.ic === icInput);
                         if (p) foundName = p.name;
                     }
                 });
 
                 if (foundName) {
-                    nameInput.value = foundName;
-                    nameInput.disabled = true;
-                    nameInputContainer.classList.remove('hidden');
-                    feedbackArea.innerHTML = `<span class="text-green-600 text-xs font-bold"><i class="fas fa-check-circle"></i> Rekod Lokal ditemui: ${foundName}</span>`;
-                    submitBtn.disabled = false;
-                    submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    foundUser({ name: foundName }, "Rekod Lokal ditemui");
                 } else {
                     promptNewUser(nameInput, nameInputContainer, feedbackArea, submitBtn);
                 }
+            }
+        }
+
+        function foundUser(data, msg) {
+            // Handle variasi nama field
+            const name = data.name || data.nama || data.full_name || data.Nama || "";
+            
+            const feedbackArea = document.getElementById('icFeedback');
+            const nameInputContainer = document.getElementById('nameInputContainer');
+            const nameInput = document.getElementById('modalName');
+            const submitBtn = document.getElementById('submitBtn');
+
+            if (name) {
+                nameInput.value = name;
+                nameInput.disabled = true; // Kunci nama (Auto-Fill)
+                nameInputContainer.classList.remove('hidden');
+                feedbackArea.innerHTML = `<span class="text-green-600 text-xs font-bold"><i class="fas fa-check-circle"></i> ${msg} ditemui: ${name}</span>`;
+                submitBtn.disabled = false;
+                submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            } else {
+                promptNewUser(nameInput, nameInputContainer, feedbackArea, submitBtn);
             }
         }
 
@@ -274,7 +278,7 @@
             nameInput.value = '';
             nameInput.disabled = false;
             container.classList.remove('hidden');
-            feedback.innerHTML = `<span class="text-amber-600 text-xs font-bold flex items-center gap-1"><i class="fas fa-info-circle"></i> Peserta Baru. Sila taip nama.</span>`;
+            feedback.innerHTML = `<span class="text-amber-600 text-xs font-bold"><i class="fas fa-info-circle"></i> Peserta Baru. Sila masukkan nama.</span>`;
             btn.disabled = false;
             btn.classList.remove('opacity-50', 'cursor-not-allowed');
             setTimeout(() => document.getElementById('modalName').focus(), 100);
@@ -283,7 +287,7 @@
         // --- Logic: Confirm Registration ---
         async function confirmRegistration() {
             const icRaw = document.getElementById('modalIC').value.trim();
-            const ic = icRaw.replace(/[^0-9a-zA-Z]/g, ''); // Simpan format bersih
+            const ic = icRaw.replace(/[^0-9a-zA-Z]/g, '');
             const name = document.getElementById('modalName').value.trim();
             const juzukId = currentJuzukSelection.toString();
             
@@ -303,16 +307,11 @@
 
             if (isOnlineMode) {
                 try {
-                    // 1. Simpan ke Database Baru (tadarus_users) supaya lain kali dia ingat
+                    // Simpan ke 'tadarus_users' untuk rujukan masa depan (supaya carian 1 berfungsi nanti)
                     const userRef = doc(db, 'artifacts', artifactAppId, 'public', 'data', 'tadarus_users', ic);
-                    await setDoc(userRef, { 
-                        name: name, 
-                        ic: ic, 
-                        last_updated: new Date().toISOString(),
-                        source: 'tadarus_registration'
-                    }, { merge: true });
+                    await setDoc(userRef, { name: name, ic: ic, last_updated: new Date().toISOString() }, { merge: true });
 
-                    // 2. Simpan ke Senarai Juzuk (tadarus_data)
+                    // Simpan ke Juzuk
                     const juzukRef = doc(db, 'artifacts', artifactAppId, 'public', 'data', 'tadarus_data', juzukId);
                     await setDoc(juzukRef, {
                         participants: arrayUnion(newParticipant),
@@ -320,13 +319,12 @@
                     }, { merge: true });
 
                     closeModal();
-                    showToast(`Berjaya daftar: ${name}`);
+                    showToast(`Berjaya: ${name}`);
                 } catch (e) {
                     console.error("Save error:", e);
-                    alert("Gagal menyimpan. Sila semak sambungan internet.");
+                    alert("Gagal menyimpan ke cloud.");
                 }
             } else {
-                // Offline Save
                 if (!juzukData[juzukId]) juzukData[juzukId] = { participants: [] };
                 if (!juzukData[juzukId].participants) juzukData[juzukId].participants = [];
                 
@@ -408,6 +406,7 @@
         }
 
         // --- UI Rendering ---
+
         function renderList() {
             const container = document.getElementById('juzukContainer');
             container.innerHTML = '';
@@ -588,5 +587,136 @@
             });
         }
     </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Poppins:wght@300;400;500;600&display=swap');
+        
+        body { font-family: 'Poppins', sans-serif; background-color: #f0fdf4; }
+        .font-arabic { font-family: 'Amiri', serif; }
+        .card-shadow { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
+        .modal-enter { animation: modalPop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        @keyframes modalPop { 0% { transform: scale(0.9); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #888; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #555; }
+    </style>
+</head>
+<body class="bg-emerald-50 min-h-screen pb-24">
+
+    <!-- Header -->
+    <div class="bg-emerald-700 text-white p-6 rounded-b-3xl shadow-lg sticky top-0 z-10">
+        <div class="max-w-md mx-auto">
+            <div class="flex justify-between items-start mb-2">
+                <div>
+                    <h1 class="text-xl md:text-2xl font-bold"><i class="fas fa-quran mr-2"></i> Tadarus Ramadhan</h1>
+                    <span class="text-xs bg-emerald-800 px-2 py-1 rounded-full border border-emerald-500 text-center leading-tight">PPD Miri</span>
+                </div>
+                <div id="modeIndicator"></div>
+            </div>
+            
+            <!-- Countdown Banner -->
+            <div class="flex justify-between items-center bg-emerald-800/50 rounded-lg p-2 mb-4 border border-emerald-600/30">
+                <div>
+                    <p class="text-[10px] text-emerald-200 uppercase tracking-wider" id="targetDateDisplay">Sasaran: ...</p>
+                    <p class="text-sm font-bold text-white"><i class="far fa-hourglass mr-1"></i> <span id="daysRemainingBadge">...</span></p>
+                </div>
+                <div class="text-right">
+                    <p class="text-[10px] text-emerald-200">Tips:</p>
+                    <p class="text-[10px] italic">"Istiqomah sedikit demi sedikit"</p>
+                </div>
+            </div>
+
+            <p class="text-emerald-100 text-xs md:text-sm mb-4 italic leading-relaxed hidden">"Bacalah Al-Quran, sesungguhnya ia akan datang pada hari kiamat sebagai pemberi syafaat kepada pembacanya."</p>
+            
+            <!-- Progress Bar -->
+            <div class="w-full bg-emerald-900 rounded-full h-2.5 mb-1">
+                <div id="progressBar" class="bg-yellow-400 h-2.5 rounded-full transition-all duration-500" style="width: 0%"></div>
+            </div>
+            <div class="flex justify-between text-xs text-emerald-100">
+                <span id="completedCount">0 Selesai</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main List Container -->
+    <div class="max-w-md mx-auto p-4 space-y-3" id="juzukContainer">
+        <!-- Loading State -->
+        <div class="text-center py-10 text-gray-400">
+            <i class="fas fa-circle-notch fa-spin fa-2x mb-2"></i>
+            <p>Sedang memuatkan data...</p>
+        </div>
+    </div>
+
+    <!-- Floating Action Buttons -->
+    <div class="fixed bottom-0 left-0 right-0 bg-white p-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] border-t border-gray-100 z-20">
+        <div class="max-w-md mx-auto flex gap-2">
+            <button onclick="copyToWhatsapp()" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-medium py-3 px-4 rounded-xl shadow-md transition transform active:scale-95 flex items-center justify-center gap-2">
+                <i class="fab fa-whatsapp text-xl"></i> Salin List
+            </button>
+            <button onclick="clearAllData()" class="bg-red-50 hover:bg-red-100 text-red-600 font-medium py-3 px-4 rounded-xl transition transform active:scale-95">
+                <i class="fas fa-trash-alt"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- SPARK Style Registration Modal -->
+    <div id="authModal" class="fixed inset-0 bg-black bg-opacity-60 z-50 hidden flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 relative modal-enter">
+            
+            <!-- Modal Header -->
+            <div class="flex items-center gap-3 mb-6">
+                <div class="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600">
+                    <i class="fas fa-search text-lg"></i>
+                </div>
+                <div>
+                    <h3 class="text-lg font-bold text-gray-800">Carian Peserta</h3>
+                    <p class="text-xs text-emerald-600 font-medium" id="modalJuzInfo">...</p>
+                </div>
+                <button onclick="closeModal()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <!-- Step 1: Input IC -->
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1 tracking-wider">No. Kad Pengenalan / ID</label>
+                    <div class="flex gap-2">
+                        <div class="relative flex-1">
+                            <i class="fas fa-id-card absolute left-3 top-3 text-gray-400"></i>
+                            <input type="tel" id="modalIC" class="w-full pl-10 pr-4 py-2 border-2 border-gray-100 rounded-xl focus:border-emerald-500 focus:outline-none transition-colors text-sm font-medium" placeholder="Cth: 900101123456">
+                        </div>
+                        <button onclick="checkIC()" class="bg-emerald-100 text-emerald-700 px-4 rounded-xl font-bold hover:bg-emerald-200 transition-colors">
+                            <i class="fas fa-search"></i>
+                        </button>
+                    </div>
+                    <div id="icFeedback" class="mt-2 min-h-[20px]"></div>
+                </div>
+
+                <!-- Step 2: Name (Hidden until IC Checked) -->
+                <div id="nameInputContainer" class="hidden animate-fade-in-down">
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1 tracking-wider">Nama Penuh</label>
+                    <div class="relative">
+                        <i class="fas fa-user absolute left-3 top-3 text-gray-400"></i>
+                        <input type="text" id="modalName" class="w-full pl-10 pr-4 py-2 border-2 border-gray-100 rounded-xl focus:border-emerald-500 focus:outline-none transition-colors text-sm font-medium" placeholder="Nama akan muncul di sini">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Buttons -->
+            <div class="flex gap-3 mt-8">
+                <button onclick="closeModal()" class="flex-1 bg-gray-100 text-gray-600 font-semibold py-2.5 rounded-xl hover:bg-gray-200 transition-colors text-sm">Batal</button>
+                <button id="submitBtn" onclick="confirmRegistration()" disabled class="flex-1 bg-emerald-600 text-white font-semibold py-2.5 rounded-xl hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-200 text-sm opacity-50 cursor-not-allowed">
+                    Simpan
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="fixed top-24 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-6 py-3 rounded-full shadow-xl opacity-0 transition-opacity duration-300 pointer-events-none z-50 text-sm flex items-center gap-2">
+        <i class="fas fa-check-circle text-green-400"></i> <span id="toastMsg">Disalin!</span>
+    </div>
+
 </body>
 </html>
