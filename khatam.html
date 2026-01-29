@@ -11,44 +11,70 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, doc, setDoc, getDoc, onSnapshot, updateDoc, arrayUnion, arrayRemove, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, doc, setDoc, getDoc, onSnapshot, updateDoc, arrayUnion, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // --- Configuration ---
-        const firebaseConfig = JSON.parse(__firebase_config);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'tadarus-default';
-        
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
+        // --- Configuration & Safety Check ---
+        let firebaseConfig = null;
+        let appId = 'tadarus-default';
+        let app, auth, db;
+        let isOnlineMode = false;
+
+        try {
+            if (typeof __firebase_config !== 'undefined') {
+                firebaseConfig = JSON.parse(__firebase_config);
+                appId = typeof __app_id !== 'undefined' ? __app_id : 'tadarus-default';
+                
+                app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+                isOnlineMode = true;
+            } else {
+                console.warn("Firebase config missing. Switching to Offline Mode.");
+            }
+        } catch (e) {
+            console.warn("Error initializing Firebase. Switching to Offline Mode.", e);
+        }
 
         // --- State Management ---
         let currentUser = null;
         let juzukData = {}; // Stores the list of participants per juzuk
         let currentJuzukSelection = null; // Which juzuk is being edited
 
-        // --- Auth & Init ---
-        async function initAuth() {
-            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                await signInWithCustomToken(auth, __initial_auth_token);
+        // --- Init Logic ---
+        async function initApp() {
+            if (isOnlineMode) {
+                // Online Mode: Auth & Listeners
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        currentUser = user;
+                        initFirestoreListeners();
+                        document.getElementById('modeIndicator').innerHTML = '<span class="bg-green-100 text-green-700 px-2 py-1 rounded-full text-[10px] font-bold border border-green-200"><i class="fas fa-cloud"></i> Online</span>';
+                    }
+                });
             } else {
-                await signInAnonymously(auth);
+                // Offline Mode: Load from LocalStorage
+                loadFromLocalStorage();
+                document.getElementById('modeIndicator').innerHTML = '<span class="bg-gray-100 text-gray-600 px-2 py-1 rounded-full text-[10px] font-bold border border-gray-300"><i class="fas fa-save"></i> Local Mode</span>';
+                
+                // Remove loading spinner
+                document.getElementById('juzukContainer').innerHTML = '';
+                renderList();
             }
         }
 
-        initAuth();
+        initApp();
 
-        onAuthStateChanged(auth, (user) => {
-            if (user) {
-                currentUser = user;
-                initListeners();
-            }
-        });
+        // --- Data Handling (Hybrid) ---
 
-        // --- Firestore Listeners ---
-        function initListeners() {
+        function initFirestoreListeners() {
             const dataRef = collection(db, 'artifacts', appId, 'public', 'data', 'tadarus_data');
             
-            // Listen to Juzuk Data
             onSnapshot(dataRef, (snapshot) => {
                 const newData = {};
                 snapshot.forEach(doc => {
@@ -61,7 +87,19 @@
             });
         }
 
-        // --- Global Functions (Exposed to HTML) ---
+        function loadFromLocalStorage() {
+            const stored = localStorage.getItem('tadarus_data_v2');
+            if (stored) {
+                juzukData = JSON.parse(stored);
+            }
+        }
+
+        function saveToLocalStorage() {
+            localStorage.setItem('tadarus_data_v2', JSON.stringify(juzukData));
+            renderList();
+        }
+
+        // --- Global Functions ---
         window.openRegistrationModal = openRegistrationModal;
         window.checkIC = checkIC;
         window.confirmRegistration = confirmRegistration;
@@ -71,7 +109,7 @@
         window.closeModal = closeModal;
         window.clearAllData = clearAllData;
 
-        // --- DATA LOGIC: Check IC (SPARK Style) ---
+        // --- SPARK Logic: Check IC ---
         async function checkIC() {
             const icInput = document.getElementById('modalIC').value.trim();
             const feedbackArea = document.getElementById('icFeedback');
@@ -84,40 +122,64 @@
                 return;
             }
 
-            feedbackArea.innerHTML = `<span class="text-gray-500 text-xs"><i class="fas fa-circle-notch fa-spin"></i> Sedang menyemak pangkalan data...</span>`;
+            feedbackArea.innerHTML = `<span class="text-gray-500 text-xs"><i class="fas fa-circle-notch fa-spin"></i> Semak pangkalan data...</span>`;
 
-            try {
-                // Check if user exists in our global 'tadarus_users' directory
-                const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'tadarus_users', icInput);
-                const userSnap = await getDoc(userRef);
+            if (isOnlineMode) {
+                try {
+                    const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'tadarus_users', icInput);
+                    const userSnap = await getDoc(userRef);
 
-                if (userSnap.exists()) {
-                    const userData = userSnap.data();
-                    nameInput.value = userData.name;
-                    nameInput.disabled = true; // Lock name if found
+                    if (userSnap.exists()) {
+                        const userData = userSnap.data();
+                        nameInput.value = userData.name;
+                        nameInput.disabled = true;
+                        nameInputContainer.classList.remove('hidden');
+                        feedbackArea.innerHTML = `<span class="text-green-600 text-xs font-bold"><i class="fas fa-check-circle"></i> Rekod ditemui: ${userData.name}</span>`;
+                        submitBtn.disabled = false;
+                        submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    } else {
+                        promptNewUser(nameInput, nameInputContainer, feedbackArea, submitBtn);
+                    }
+                } catch (e) {
+                    console.error(e);
+                    feedbackArea.innerHTML = `<span class="text-red-500 text-xs">Ralat sambungan. Cuba lagi.</span>`;
+                }
+            } else {
+                // Offline Check
+                // Simulating check by looking at existing participants in local data
+                let foundName = null;
+                Object.values(juzukData).forEach(juz => {
+                    if (juz.participants) {
+                        const p = juz.participants.find(p => p.ic === icInput);
+                        if (p) foundName = p.name;
+                    }
+                });
+
+                if (foundName) {
+                    nameInput.value = foundName;
+                    nameInput.disabled = true;
                     nameInputContainer.classList.remove('hidden');
-                    feedbackArea.innerHTML = `<span class="text-green-600 text-xs font-bold"><i class="fas fa-check-circle"></i> Rekod ditemui: ${userData.name}</span>`;
+                    feedbackArea.innerHTML = `<span class="text-green-600 text-xs font-bold"><i class="fas fa-check-circle"></i> Rekod lokal ditemui: ${foundName}</span>`;
                     submitBtn.disabled = false;
                     submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
                 } else {
-                    nameInput.value = '';
-                    nameInput.disabled = false; // Allow typing if new
-                    nameInputContainer.classList.remove('hidden');
-                    feedbackArea.innerHTML = `<span class="text-amber-600 text-xs font-bold"><i class="fas fa-info-circle"></i> Peserta Baru. Sila masukkan nama.</span>`;
-                    submitBtn.disabled = false;
-                    submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                    document.getElementById('modalName').focus();
+                    promptNewUser(nameInput, nameInputContainer, feedbackArea, submitBtn);
                 }
-            } catch (e) {
-                console.error(e);
-                feedbackArea.innerHTML = `<span class="text-red-500 text-xs">Ralat sambungan.</span>`;
             }
         }
 
-        // --- DATA LOGIC: Confirm Registration ---
-        async function confirmRegistration() {
-            if (!currentUser) return;
+        function promptNewUser(nameInput, container, feedback, btn) {
+            nameInput.value = '';
+            nameInput.disabled = false;
+            container.classList.remove('hidden');
+            feedback.innerHTML = `<span class="text-amber-600 text-xs font-bold"><i class="fas fa-info-circle"></i> Peserta Baru. Sila masukkan nama.</span>`;
+            btn.disabled = false;
+            btn.classList.remove('opacity-50', 'cursor-not-allowed');
+            setTimeout(() => document.getElementById('modalName').focus(), 100);
+        }
 
+        // --- Logic: Confirm Registration ---
+        async function confirmRegistration() {
             const ic = document.getElementById('modalIC').value.trim();
             const name = document.getElementById('modalName').value.trim();
             const juzukId = currentJuzukSelection.toString();
@@ -126,111 +188,124 @@
 
             const submitBtn = document.getElementById('submitBtn');
             const originalBtnText = submitBtn.innerHTML;
-            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menyimpan...';
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ...';
             submitBtn.disabled = true;
 
-            try {
-                // 1. Save/Update User Directory (Global lookup)
-                const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'tadarus_users', ic);
-                await setDoc(userRef, { name: name, ic: ic, last_updated: new Date().toISOString() }, { merge: true });
+            const newParticipant = {
+                ic: ic,
+                name: name,
+                status: 'reading',
+                timestamp: Date.now()
+            };
 
-                // 2. Add to Juzuk List
-                const juzukRef = doc(db, 'artifacts', appId, 'public', 'data', 'tadarus_data', juzukId);
+            if (isOnlineMode) {
+                try {
+                    // 1. Save User Directory
+                    const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'tadarus_users', ic);
+                    await setDoc(userRef, { name: name, ic: ic, last_updated: new Date().toISOString() }, { merge: true });
+
+                    // 2. Add to Juzuk
+                    const juzukRef = doc(db, 'artifacts', appId, 'public', 'data', 'tadarus_data', juzukId);
+                    await setDoc(juzukRef, {
+                        participants: arrayUnion(newParticipant),
+                        juzuk_id: parseInt(juzukId)
+                    }, { merge: true });
+
+                    closeModal();
+                    showToast(`Berjaya: ${name}`);
+                } catch (e) {
+                    console.error("Save error:", e);
+                    alert("Gagal menyimpan ke cloud.");
+                }
+            } else {
+                // Offline Save
+                if (!juzukData[juzukId]) juzukData[juzukId] = { participants: [] };
+                if (!juzukData[juzukId].participants) juzukData[juzukId].participants = [];
                 
-                // Construct participant object
-                const newParticipant = {
-                    ic: ic,
-                    name: name,
-                    status: 'reading', // reading, done
-                    timestamp: Date.now()
-                };
-
-                // Use arrayUnion to add to list
-                // Note: Firestore arrayUnion only adds unique elements. 
-                // Since timestamp is unique, it acts as a unique ID effectively for the object in this simple case.
-                await setDoc(juzukRef, {
-                    participants: arrayUnion(newParticipant),
-                    juzuk_id: parseInt(juzukId)
-                }, { merge: true });
-
+                juzukData[juzukId].participants.push(newParticipant);
+                saveToLocalStorage();
                 closeModal();
-                showToast(`Berjaya menambah ${name} ke Juzuk ${juzukId}`);
-
-            } catch (e) {
-                console.error("Error saving:", e);
-                alert("Gagal menyimpan data. Sila cuba lagi.");
-            } finally {
-                submitBtn.innerHTML = originalBtnText;
-                submitBtn.disabled = false;
+                showToast(`Disimpan (Lokal): ${name}`);
             }
+            
+            submitBtn.innerHTML = originalBtnText;
+            submitBtn.disabled = false;
         }
 
-        // --- DATA LOGIC: Toggle Done Status ---
+        // --- Logic: Toggle Status ---
         async function toggleStatus(juzukId, ic, currentStatus) {
-            if (!currentUser) return;
-            
             const juzukStr = juzukId.toString();
-            const juzukRef = doc(db, 'artifacts', appId, 'public', 'data', 'tadarus_data', juzukStr);
-            
-            try {
-                // To update an item in an array in Firestore, we have to read, modify, write.
-                const docSnap = await getDoc(juzukRef);
-                if (docSnap.exists()) {
-                    let participants = docSnap.data().participants || [];
-                    
-                    // Find and toggle
-                    const updatedParticipants = participants.map(p => {
-                        if (p.ic === ic) {
-                            return { ...p, status: currentStatus === 'done' ? 'reading' : 'done' };
-                        }
-                        return p;
-                    });
+            const newStatus = currentStatus === 'done' ? 'reading' : 'done';
 
-                    await updateDoc(juzukRef, { participants: updatedParticipants });
+            if (isOnlineMode) {
+                const juzukRef = doc(db, 'artifacts', appId, 'public', 'data', 'tadarus_data', juzukStr);
+                try {
+                    const docSnap = await getDoc(juzukRef);
+                    if (docSnap.exists()) {
+                        let participants = docSnap.data().participants || [];
+                        const updatedParticipants = participants.map(p => {
+                            if (p.ic === ic) return { ...p, status: newStatus };
+                            return p;
+                        });
+                        await updateDoc(juzukRef, { participants: updatedParticipants });
+                    }
+                } catch (e) { console.error(e); }
+            } else {
+                // Offline
+                if (juzukData[juzukStr] && juzukData[juzukStr].participants) {
+                    const p = juzukData[juzukStr].participants.find(p => p.ic === ic);
+                    if (p) p.status = newStatus;
+                    saveToLocalStorage();
                 }
-            } catch (e) {
-                console.error("Error toggling:", e);
             }
         }
 
-        // --- DATA LOGIC: Remove Participant ---
+        // --- Logic: Remove ---
         async function removeParticipant(juzukId, ic, name) {
-            if (!confirm(`Padam ${name} dari senarai Juzuk ${juzukId}?`)) return;
-            
+            if (!confirm(`Padam ${name} dari senarai?`)) return;
             const juzukStr = juzukId.toString();
-            const juzukRef = doc(db, 'artifacts', appId, 'public', 'data', 'tadarus_data', juzukStr);
 
-            try {
-                 const docSnap = await getDoc(juzukRef);
-                if (docSnap.exists()) {
-                    let participants = docSnap.data().participants || [];
-                    // Filter out the participant
-                    const updatedParticipants = participants.filter(p => p.ic !== ic);
-                    await updateDoc(juzukRef, { participants: updatedParticipants });
-                    showToast("Peserta dipadam.");
+            if (isOnlineMode) {
+                const juzukRef = doc(db, 'artifacts', appId, 'public', 'data', 'tadarus_data', juzukStr);
+                try {
+                    const docSnap = await getDoc(juzukRef);
+                    if (docSnap.exists()) {
+                        let participants = docSnap.data().participants || [];
+                        const updatedParticipants = participants.filter(p => p.ic !== ic);
+                        await updateDoc(juzukRef, { participants: updatedParticipants });
+                        showToast("Peserta dipadam.");
+                    }
+                } catch (e) { console.error(e); }
+            } else {
+                // Offline
+                if (juzukData[juzukStr] && juzukData[juzukStr].participants) {
+                    juzukData[juzukStr].participants = juzukData[juzukStr].participants.filter(p => p.ic !== ic);
+                    saveToLocalStorage();
+                    showToast("Peserta dipadam (Lokal).");
                 }
-            } catch (e) {
-                console.error("Error removing:", e);
             }
         }
         
-        // --- DATA LOGIC: Clear All (Admin) ---
+        // --- Logic: Clear All ---
         async function clearAllData() {
-            if (!confirm("AWAS: Ini akan memadam SEMUA senarai dalam database. Anda pasti?")) return;
-             if (!confirm("Betul-betul pasti? Tindakan ini kekal.")) return;
+            if (!confirm("AWAS: Padam SEMUA data?")) return;
+            if (!confirm("Tindakan ini kekal.")) return;
             
-             // Since we can't delete collection easily from client, we iterate known keys or batch delete if possible.
-             // For this simple app, we'll just overwrite the docs we know about (1-30).
-             for(let i=1; i<=30; i++) {
-                 const juzukRef = doc(db, 'artifacts', appId, 'public', 'data', 'tadarus_data', i.toString());
-                 setDoc(juzukRef, { participants: [] });
-             }
-             showToast("Database diset semula.");
+            if (isOnlineMode) {
+                 for(let i=1; i<=30; i++) {
+                     const juzukRef = doc(db, 'artifacts', appId, 'public', 'data', 'tadarus_data', i.toString());
+                     setDoc(juzukRef, { participants: [] });
+                 }
+            } else {
+                juzukData = {};
+                localStorage.removeItem('tadarus_data_v2');
+                renderList();
+            }
+            showToast("Data diset semula.");
         }
 
 
-        // --- UI RENDERING ---
-        
+        // --- UI Rendering ---
         const juzukNames = [
             "Alif Lam Mim", "Sayaqulu", "Tilka Rusul", "Lan Tanalu", "Wal Muhsanat", 
             "La Yuhibbullah", "Wa Iza Samiu", "Wa Lau Annana", "Qalal Malao", "Wa A'lamu",
@@ -251,7 +326,6 @@
                 const data = juzukData[i.toString()] || { participants: [] };
                 const participants = data.participants || [];
                 
-                // Calculate stats
                 totalParticipants += participants.length;
                 const doneInJuz = participants.filter(p => p.status === 'done').length;
                 totalDone += doneInJuz;
@@ -262,7 +336,6 @@
                 
                 const juzName = juzukNames[i-1];
 
-                // Build Participants HTML
                 let participantsHtml = '';
                 if (participants.length > 0) {
                     participantsHtml = `<div class="mt-3 space-y-2">`;
@@ -304,7 +377,6 @@
                                     <i class="fas fa-plus mr-1"></i> Tambah
                                 </button>
                             </div>
-                            
                             ${participantsHtml}
                         </div>
                     </div>
@@ -318,14 +390,12 @@
             const percentage = total > 0 ? Math.round((done / total) * 100) : 0;
             document.getElementById('progressBar').style.width = `${percentage}%`;
             document.getElementById('completedCount').innerText = `${done} Selesai dibaca`;
-            // document.getElementById('percentCount').innerText = `${percentage}%`;
         }
 
-        // --- UI HELPERS ---
-
+        // --- Helpers ---
         function openRegistrationModal(juz) {
             currentJuzukSelection = juz;
-            document.getElementById('modalJuzInfo').innerText = `Menambah peserta untuk Juzuk ${juz}`;
+            document.getElementById('modalJuzInfo').innerText = `Juzuk ${juz} (${juzukNames[juz-1]})`;
             document.getElementById('modalIC').value = '';
             document.getElementById('modalName').value = '';
             document.getElementById('icFeedback').innerHTML = '';
@@ -345,13 +415,11 @@
             const toast = document.getElementById('toast');
             document.getElementById('toastMsg').innerText = message;
             toast.style.opacity = '1';
-            setTimeout(() => {
-                toast.style.opacity = '0';
-            }, 3000);
+            setTimeout(() => { toast.style.opacity = '0'; }, 3000);
         }
 
         function copyToWhatsapp() {
-            let text = "*TADARUS BULAN RAMADHAN, PPD MIRI* 🌙\n_\"Bacalah Al-Quran, ia penenang jiwa.\"_\n\n";
+            let text = "*TADARUS BULAN RAMADHAN, PPD MIRI* 🌙\n_\"Bacalah Al-Quran, sesungguhnya ia akan datang pada hari kiamat sebagai pemberi syafaat kepada pembacanya.\" (HR Muslim)_\n\n";
             let emptyJuzuks = 0;
 
             for (let i = 1; i <= 30; i++) {
@@ -379,28 +447,15 @@
                 showToast("Gagal menyalin.");
             });
         }
-
     </script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Poppins:wght@300;400;500;600&display=swap');
         
-        body {
-            font-family: 'Poppins', sans-serif;
-            background-color: #f0fdf4; 
-        }
-        .font-arabic {
-            font-family: 'Amiri', serif;
-        }
-        .card-shadow {
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-        }
-        .modal-enter {
-            animation: modalPop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        }
-        @keyframes modalPop {
-            0% { transform: scale(0.9); opacity: 0; }
-            100% { transform: scale(1); opacity: 1; }
-        }
+        body { font-family: 'Poppins', sans-serif; background-color: #f0fdf4; }
+        .font-arabic { font-family: 'Amiri', serif; }
+        .card-shadow { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
+        .modal-enter { animation: modalPop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        @keyframes modalPop { 0% { transform: scale(0.9); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
         ::-webkit-scrollbar { width: 8px; }
         ::-webkit-scrollbar-track { background: #f1f1f1; }
         ::-webkit-scrollbar-thumb { background: #888; border-radius: 4px; }
@@ -412,11 +467,14 @@
     <!-- Header -->
     <div class="bg-emerald-700 text-white p-6 rounded-b-3xl shadow-lg sticky top-0 z-10">
         <div class="max-w-md mx-auto">
-            <div class="flex justify-between items-center mb-2">
-                <h1 class="text-xl md:text-2xl font-bold"><i class="fas fa-quran mr-2"></i> Tadarus Ramadhan</h1>
-                <span class="text-xs bg-emerald-800 px-2 py-1 rounded-full border border-emerald-500 text-center leading-tight">PPD Miri</span>
+            <div class="flex justify-between items-start mb-2">
+                <div>
+                    <h1 class="text-xl md:text-2xl font-bold"><i class="fas fa-quran mr-2"></i> Tadarus Ramadhan</h1>
+                    <span class="text-xs bg-emerald-800 px-2 py-1 rounded-full border border-emerald-500 text-center leading-tight">PPD Miri</span>
+                </div>
+                <div id="modeIndicator"></div>
             </div>
-            <p class="text-emerald-100 text-sm mb-4 italic">"Bacalah Al-Quran, sesungguhnya ia akan datang pada hari kiamat sebagai pemberi syafaat kepada pembacanya." (HR Muslim)</p>
+            <p class="text-emerald-100 text-xs md:text-sm mb-4 italic leading-relaxed">"Bacalah Al-Quran, sesungguhnya ia akan datang pada hari kiamat sebagai pemberi syafaat kepada pembacanya." (HR Muslim)</p>
             
             <!-- Progress Bar -->
             <div class="w-full bg-emerald-900 rounded-full h-2.5 mb-1">
@@ -424,7 +482,6 @@
             </div>
             <div class="flex justify-between text-xs text-emerald-100">
                 <span id="completedCount">0 Selesai</span>
-                <span id="percentCount">Update masa nyata</span>
             </div>
         </div>
     </div>
