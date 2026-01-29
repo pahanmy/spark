@@ -47,24 +47,25 @@
         // 2. Setup Variables
         let firebaseConfig = userFirebaseConfig; 
         
-        // PENTING: Gunakan 'myqrhadir' sebagai default ID supaya boleh baca data SPARK yang sedia ada
+        // PENTING: Wajib guna 'myqrhadir' untuk baca data SPARK sebenar
+        // Kita abaikan __app_id dari environment supaya ia tak cari di tempat salah
         let artifactAppId = 'myqrhadir';   
         
         let app, auth, db;
         let isOnlineMode = false;
 
         try {
+            // Kita masih parse config environment untuk elak error jika ada, 
+            // tapi kita KEKALKAN artifactAppId sebagai 'myqrhadir'
             if (typeof __firebase_config !== 'undefined') {
-                firebaseConfig = JSON.parse(__firebase_config);
-                // Jika sistem bagi ID khusus, guna itu. Jika tidak, kekal 'myqrhadir'
-                if (typeof __app_id !== 'undefined' && __app_id) artifactAppId = __app_id;
+                // firebaseConfig = JSON.parse(__firebase_config); // Guna config user yang hardcoded di atas lebih selamat
             }
 
             app = initializeApp(firebaseConfig);
             auth = getAuth(app);
             db = getFirestore(app);
             isOnlineMode = true;
-            console.log("Firebase initialized. App ID:", artifactAppId);
+            console.log("Firebase initialized. Target App ID:", artifactAppId);
 
         } catch (e) {
             console.warn("Error initializing Firebase. Switching to Offline Mode.", e);
@@ -153,69 +154,79 @@
             return diffDays > 0 ? diffDays : 0;
         }
 
-        // --- SPARK Logic: Check IC (Updated: Multi-Database Search) ---
+        // --- SPARK Logic: Check IC (Updated: Clean IC & Force Path) ---
         async function checkIC() {
-            const icInput = document.getElementById('modalIC').value.trim();
+            let icRaw = document.getElementById('modalIC').value.trim();
+            
+            // PENTING: Bersihkan IC dari sengkang atau ruang kosong (cth: 900101-12-1234 -> 900101121234)
+            // Kebanyakan database simpan raw numbers sahaja
+            const icInput = icRaw.replace(/[^0-9a-zA-Z]/g, '');
+
             const feedbackArea = document.getElementById('icFeedback');
             const nameInputContainer = document.getElementById('nameInputContainer');
             const nameInput = document.getElementById('modalName');
             const submitBtn = document.getElementById('submitBtn');
 
-            if (icInput.length < 4) {
-                feedbackArea.innerHTML = `<span class="text-red-500 text-xs">Sila masukkan No. IC/ID yang sah.</span>`;
+            if (icInput.length < 6) {
+                feedbackArea.innerHTML = `<span class="text-red-500 text-xs">Sila masukkan No. IC yang sah.</span>`;
                 return;
             }
 
-            feedbackArea.innerHTML = `<span class="text-gray-500 text-xs"><i class="fas fa-circle-notch fa-spin"></i> Mencari dalam pangkalan data...</span>`;
+            feedbackArea.innerHTML = `<span class="text-gray-500 text-xs"><i class="fas fa-circle-notch fa-spin"></i> Mencari rekod...</span>`;
+            console.log("Checking IC:", icInput, "in AppID:", artifactAppId);
 
             if (isOnlineMode) {
                 try {
-                    // Carian 1: Tadarus Users (Rekod dalam app ini)
+                    // 1. Carian Tadarus Users (Rekod dalam app ini)
                     const userRef = doc(db, 'artifacts', artifactAppId, 'public', 'data', 'tadarus_users', icInput);
                     const userSnap = await getDoc(userRef);
-
                     if (userSnap.exists()) {
-                        foundUser(userSnap.data(), "Rekod Tadarus ditemui");
+                        foundUser(userSnap.data(), "Rekod Tadarus");
                         return;
                     }
 
-                    // Carian 2: SPARK Participants (Database kehadiran awam)
+                    // 2. Carian SPARK Participants (Awam)
                     const sparkRef = doc(db, 'artifacts', artifactAppId, 'public', 'data', 'spark_participants', icInput);
                     const sparkSnap = await getDoc(sparkRef);
-
                     if (sparkSnap.exists()) {
-                        foundUser(sparkSnap.data(), "Rekod SPARK ditemui");
+                        foundUser(sparkSnap.data(), "Rekod SPARK");
                         return;
                     }
 
-                    // Carian 3: SPARK PPD Officers (Database Pegawai)
+                    // 3. Carian SPARK School Auth (Guru/AKP)
+                    try {
+                        const schoolAuthRef = doc(db, 'artifacts', artifactAppId, 'public', 'data', 'spark_school_auth', icInput);
+                        const schoolAuthSnap = await getDoc(schoolAuthRef);
+                        if (schoolAuthSnap.exists()) {
+                            foundUser(schoolAuthSnap.data(), "Rekod Guru/Staf Sekolah");
+                            return;
+                        }
+                    } catch (e) { console.log("Skip school auth check"); }
+
+                    // 4. Carian SPARK PPD Officers (Pegawai)
                     const officerRef = doc(db, 'artifacts', artifactAppId, 'public', 'data', 'spark_ppd_officers', icInput);
                     const officerSnap = await getDoc(officerRef);
-
                     if (officerSnap.exists()) {
-                        foundUser(officerSnap.data(), "Rekod Pegawai PPD ditemui");
+                        foundUser(officerSnap.data(), "Rekod Pegawai PPD");
                         return;
                     }
 
-                    // Carian 4: SPARK Staff - (Cuba baca, abaikan jika 'permission denied')
+                    // 5. Carian SPARK Staff (Staf PPD Umum)
                     try {
                         const staffRef = doc(db, 'artifacts', artifactAppId, 'public', 'data', 'spark_staff', icInput);
                         const staffSnap = await getDoc(staffRef);
-
                         if (staffSnap.exists()) {
-                            foundUser(staffSnap.data(), "Rekod Staf ditemui");
+                            foundUser(staffSnap.data(), "Rekod Staf");
                             return;
                         }
-                    } catch (staffErr) {
-                        // Abaikan error permission, teruskan ke next step
-                        console.log("Skipping staff check due to permission.");
-                    }
+                    } catch (e) { console.log("Skip staff check"); }
 
                     // Jika tiada di semua tempat
+                    console.log("No record found in any collection.");
                     promptNewUser(nameInput, nameInputContainer, feedbackArea, submitBtn);
 
                 } catch (e) {
-                    console.error("Check Error:", e);
+                    console.error("General Check Error:", e);
                     feedbackArea.innerHTML = `<span class="text-red-500 text-xs">Ralat sambungan. Sila cuba lagi.</span>`;
                 }
             } else {
@@ -249,7 +260,7 @@
                 nameInput.value = name;
                 nameInput.disabled = true; // Kunci nama (Auto-Fill)
                 nameInputContainer.classList.remove('hidden');
-                feedbackArea.innerHTML = `<span class="text-green-600 text-xs font-bold"><i class="fas fa-check-circle"></i> ${msg}: ${name}</span>`;
+                feedbackArea.innerHTML = `<span class="text-green-600 text-xs font-bold"><i class="fas fa-check-circle"></i> ${msg} ditemui: ${name}</span>`;
                 submitBtn.disabled = false;
                 submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
             } else {
@@ -270,7 +281,10 @@
 
         // --- Logic: Confirm Registration ---
         async function confirmRegistration() {
-            const ic = document.getElementById('modalIC').value.trim();
+            // Ambil IC yang dah dibersihkan juga untuk simpan
+            const icRaw = document.getElementById('modalIC').value.trim();
+            const ic = icRaw.replace(/[^0-9a-zA-Z]/g, '');
+            
             const name = document.getElementById('modalName').value.trim();
             const juzukId = currentJuzukSelection.toString();
             
