@@ -167,7 +167,7 @@
 
             if (isOnlineMode) {
                 try {
-                    // Carian 1: Tadarus Users (Specific to this app)
+                    // Carian 1: Tadarus Users (Specific to this app) - Public Read
                     const userRef = doc(db, 'artifacts', artifactAppId, 'public', 'data', 'tadarus_users', icInput);
                     const userSnap = await getDoc(userRef);
 
@@ -176,7 +176,7 @@
                         return;
                     }
 
-                    // Carian 2: SPARK Participants (Global/Public DB)
+                    // Carian 2: SPARK Participants (Global/Public DB) - Public Read
                     const sparkRef = doc(db, 'artifacts', artifactAppId, 'public', 'data', 'spark_participants', icInput);
                     const sparkSnap = await getDoc(sparkRef);
 
@@ -185,20 +185,26 @@
                         return;
                     }
 
-                    // Carian 3: SPARK Staff (If available)
-                    const staffRef = doc(db, 'artifacts', artifactAppId, 'public', 'data', 'spark_staff', icInput);
-                    const staffSnap = await getDoc(staffRef);
+                    // Carian 3: SPARK Staff - RESTRICTED (Try-Catch ditambah)
+                    // Data staf biasanya private, jadi kita wrap dalam try-catch supaya tak error jika permission denied
+                    try {
+                        const staffRef = doc(db, 'artifacts', artifactAppId, 'public', 'data', 'spark_staff', icInput);
+                        const staffSnap = await getDoc(staffRef);
 
-                    if (staffSnap.exists()) {
-                        foundUser(staffSnap.data(), "Rekod Staf ditemui");
-                        return;
+                        if (staffSnap.exists()) {
+                            foundUser(staffSnap.data(), "Rekod Staf ditemui");
+                            return;
+                        }
+                    } catch (staffErr) {
+                        console.log("Akses staf dihadkan (Permission Denied). Teruskan ke pendaftaran manual.");
+                        // Jangan throw error, teruskan sahaja flow
                     }
 
-                    // Jika tiada di semua tempat
+                    // Jika tiada di semua tempat atau permission denied
                     promptNewUser(nameInput, nameInputContainer, feedbackArea, submitBtn);
 
                 } catch (e) {
-                    console.error(e);
+                    console.error("General Check Error:", e);
                     feedbackArea.innerHTML = `<span class="text-red-500 text-xs">Ralat sambungan. Sila cuba lagi.</span>`;
                 }
             } else {
