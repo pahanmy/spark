@@ -11,7 +11,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, doc, setDoc, getDoc, getDocs, where, onSnapshot, updateDoc, arrayUnion, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, doc, setDoc, getDoc, getDocs, where, onSnapshot, updateDoc, arrayUnion, query, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- Data Constants ---
         const juzukNames = [
@@ -40,7 +40,6 @@
         };
 
         // PENTING: KITA PAKSA GUNA 'myqrhadir'
-        // Abaikan environment variable untuk memastikan kita cari di DB yang betul
         let artifactAppId = 'myqrhadir';   
         
         let app, auth, db;
@@ -51,7 +50,7 @@
             auth = getAuth(app);
             db = getFirestore(app);
             isOnlineMode = true;
-            console.log("Firebase initialized. FORCED App ID:", artifactAppId);
+            console.log("Firebase initialized. Target App ID:", artifactAppId);
         } catch (e) {
             console.warn("Error initializing Firebase. Switching to Offline Mode.", e);
         }
@@ -132,9 +131,10 @@
             return diffDays > 0 ? diffDays : 0;
         }
 
-        // --- SPARK Logic: Check IC (ROBUST VERSION) ---
+        // --- SPARK Logic: Check IC (Fixed: Sequential Query Search) ---
         async function checkIC() {
             let icRaw = document.getElementById('modalIC').value.trim();
+            // Buang semua kecuali nombor dan huruf (untuk handle sengkang)
             const icClean = icRaw.replace(/[^0-9a-zA-Z]/g, '');
 
             const feedbackArea = document.getElementById('icFeedback');
@@ -143,77 +143,112 @@
             const submitBtn = document.getElementById('submitBtn');
 
             if (icClean.length < 6) {
-                feedbackArea.innerHTML = `<span class="text-red-500 text-xs">Sila masukkan No. IC yang sah.</span>`;
+                feedbackArea.innerHTML = `<span class="text-red-500 text-xs">Sila masukkan No. IC yang sah (min 6 digit).</span>`;
                 return;
             }
 
-            feedbackArea.innerHTML = `<span class="text-gray-500 text-xs"><i class="fas fa-circle-notch fa-spin"></i> Mencari rekod...</span>`;
-            console.log(`Searching IC: ${icClean} & ${icRaw} in App: ${artifactAppId}`);
+            feedbackArea.innerHTML = `<span class="text-gray-500 text-xs"><i class="fas fa-circle-notch fa-spin"></i> Sedang menyemak pangkalan data...</span>`;
+            console.log(`Checking IC: ${icClean} (Raw: ${icRaw}) in ${artifactAppId}`);
             
             if (isOnlineMode) {
-                let foundData = null;
+                let foundRecord = null;
                 let foundSource = "";
 
-                // --- 1. CHECK TADARUS_USERS (Local App DB) ---
                 try {
-                    const docSnap = await getDoc(doc(db, 'artifacts', artifactAppId, 'public', 'data', 'tadarus_users', icClean));
-                    if (docSnap.exists()) { foundData = docSnap.data(); foundSource = "Rekod Tadarus"; }
-                } catch(e) { console.log("Skip Tadarus check", e); }
+                    // --- 1. Cari dalam 'tadarus_users' (Database Tadarus Sendiri) ---
+                    // Keutamaan tinggi: Jika pernah daftar tadarus sebelum ini
+                    const tadarusRef = doc(db, 'artifacts', artifactAppId, 'public', 'data', 'tadarus_users', icClean);
+                    const tadarusSnap = await getDoc(tadarusRef);
+                    
+                    if (tadarusSnap.exists()) {
+                        foundRecord = tadarusSnap.data();
+                        foundSource = "Rekod Tadarus";
+                    }
 
-                // --- 2. CHECK SPARK_PARTICIPANTS (Public DB) ---
-                // Try CLEAN IC first
-                if (!foundData) {
-                    try {
-                        const q = query(collection(db, 'artifacts', artifactAppId, 'public', 'data', 'spark_participants'), where("ic", "==", icClean));
-                        const snaps = await getDocs(q);
-                        if (!snaps.empty) { foundData = snaps.docs[0].data(); foundSource = "Rekod SPARK"; }
-                    } catch(e) { console.log("Skip Participant Clean check", e); }
-                }
-                // Try RAW IC if different
-                if (!foundData && icRaw !== icClean) {
-                    try {
-                        const q = query(collection(db, 'artifacts', artifactAppId, 'public', 'data', 'spark_participants'), where("ic", "==", icRaw));
-                        const snaps = await getDocs(q);
-                        if (!snaps.empty) { foundData = snaps.docs[0].data(); foundSource = "Rekod SPARK (Raw)"; }
-                    } catch(e) { console.log("Skip Participant Raw check", e); }
-                }
+                    // --- 2. Cari dalam 'spark_participants' (Peserta SPARK Umum) ---
+                    // Jika tiada dalam Tadarus, cari dalam database utama SPARK
+                    if (!foundRecord) {
+                        const participantsRef = collection(db, 'artifacts', artifactAppId, 'public', 'data', 'spark_participants');
+                        // Guna Query 'where' sebab ID mungkin rawak (auto-generated)
+                        const q = query(participantsRef, where("ic", "==", icClean), limit(1));
+                        const querySnap = await getDocs(q);
+                        
+                        if (!querySnap.empty) {
+                            foundRecord = querySnap.docs[0].data();
+                            foundSource = "Rekod SPARK (Peserta)";
+                        } else if (icRaw !== icClean) {
+                            // Cuba cari dengan IC yang ada sengkang jika database lama simpan format sengkang
+                            const qRaw = query(participantsRef, where("ic", "==", icRaw), limit(1));
+                            const querySnapRaw = await getDocs(qRaw);
+                            if (!querySnapRaw.empty) {
+                                foundRecord = querySnapRaw.docs[0].data();
+                                foundSource = "Rekod SPARK (Peserta)";
+                            }
+                        }
+                    }
 
-                // --- 3. CHECK SPARK_SCHOOL_AUTH (Guru/AKP) ---
-                // Check by Doc ID (Efficient)
-                if (!foundData) {
-                    try {
-                        const docSnap = await getDoc(doc(db, 'artifacts', artifactAppId, 'public', 'data', 'spark_school_auth', icClean));
-                        if (docSnap.exists()) { foundData = docSnap.data(); foundSource = "Rekod Sekolah"; }
-                    } catch(e) { console.log("Skip School Auth ID check (likely permission)", e); }
-                }
-                // Check by Query (Fallback)
-                if (!foundData) {
-                    try {
-                        const q = query(collection(db, 'artifacts', artifactAppId, 'public', 'data', 'spark_school_auth'), where("ic", "==", icClean));
-                        const snaps = await getDocs(q);
-                        if (!snaps.empty) { foundData = snaps.docs[0].data(); foundSource = "Rekod Sekolah"; }
-                    } catch(e) { console.log("Skip School Auth Query check", e); }
-                }
+                    // --- 3. Cari dalam 'spark_school_auth' (Guru & AKP) ---
+                    // Database ini untuk warga sekolah
+                    if (!foundRecord) {
+                        const schoolAuthRef = collection(db, 'artifacts', artifactAppId, 'public', 'data', 'spark_school_auth');
+                        const qSchool = query(schoolAuthRef, where("ic", "==", icClean), limit(1));
+                        const schoolSnap = await getDocs(qSchool);
 
-                // --- 4. CHECK SPARK_PPD_OFFICERS (Pegawai) ---
-                if (!foundData) {
-                    try {
-                        const q = query(collection(db, 'artifacts', artifactAppId, 'public', 'data', 'spark_ppd_officers'), where("ic", "==", icClean));
-                        const snaps = await getDocs(q);
-                        if (!snaps.empty) { foundData = snaps.docs[0].data(); foundSource = "Rekod Pegawai"; }
-                    } catch(e) { console.log("Skip Officer check", e); }
-                }
+                        if (!schoolSnap.empty) {
+                            foundRecord = schoolSnap.docs[0].data();
+                            foundSource = "Rekod Sekolah (Guru/AKP)";
+                        } else {
+                            // Fallback: Cuba cari direct by ID jika query gagal
+                            try {
+                                const docSnap = await getDoc(doc(db, 'artifacts', artifactAppId, 'public', 'data', 'spark_school_auth', icClean));
+                                if (docSnap.exists()) {
+                                    foundRecord = docSnap.data();
+                                    foundSource = "Rekod Sekolah (Guru/AKP)";
+                                }
+                            } catch(err) { console.log("Direct doc check skipped"); }
+                        }
+                    }
 
-                // --- RESULT HANDLING ---
-                if (foundData) {
-                    foundUser(foundData, foundSource);
-                } else {
-                    console.log("Not found in any collection.");
-                    promptNewUser(nameInput, nameInputContainer, feedbackArea, submitBtn);
-                }
+                    // --- 4. Cari dalam 'spark_ppd_officers' (Pegawai PPD) ---
+                    if (!foundRecord) {
+                        const officersRef = collection(db, 'artifacts', artifactAppId, 'public', 'data', 'spark_ppd_officers');
+                        const qOfficer = query(officersRef, where("ic", "==", icClean), limit(1));
+                        const officerSnap = await getDocs(qOfficer);
 
+                        if (!officerSnap.empty) {
+                            foundRecord = officerSnap.docs[0].data();
+                            foundSource = "Rekod Pegawai PPD";
+                        }
+                    }
+
+                    // --- HASIL CARIAN ---
+                    if (foundRecord) {
+                        // Kenalpasti medan nama yang betul (kadang-kadang berbeza ikut database)
+                        const fullName = foundRecord.name || foundRecord.nama || foundRecord.full_name || foundRecord.Nama || "";
+                        
+                        if (fullName) {
+                            nameInput.value = fullName;
+                            nameInput.disabled = true; // Kunci supaya tak perlu taip
+                            nameInputContainer.classList.remove('hidden');
+                            feedbackArea.innerHTML = `<span class="text-green-600 text-xs font-bold flex items-center gap-1"><i class="fas fa-check-circle"></i> ${foundSource} dijumpai!<br>Nama: ${fullName}</span>`;
+                            submitBtn.disabled = false;
+                            submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                        } else {
+                            // Rekod jumpa tapi medan nama kosong
+                            promptNewUser(nameInput, nameInputContainer, feedbackArea, submitBtn);
+                        }
+                    } else {
+                        // Memang tiada rekod langsung
+                        console.log("No record found anywhere.");
+                        promptNewUser(nameInput, nameInputContainer, feedbackArea, submitBtn);
+                    }
+
+                } catch (e) {
+                    console.error("Search Error:", e);
+                    feedbackArea.innerHTML = `<span class="text-red-500 text-xs">Ralat sambungan: ${e.message}</span>`;
+                }
             } else {
-                // Offline Logic
+                // Offline Logic (Cari dalam list tadarus semasa sahaja)
                 let foundName = null;
                 Object.values(juzukData).forEach(juz => {
                     if (juz.participants) {
@@ -223,30 +258,15 @@
                 });
 
                 if (foundName) {
-                    foundUser({ name: foundName }, "Rekod Lokal ditemui");
+                    nameInput.value = foundName;
+                    nameInput.disabled = true;
+                    nameInputContainer.classList.remove('hidden');
+                    feedbackArea.innerHTML = `<span class="text-green-600 text-xs font-bold"><i class="fas fa-check-circle"></i> Rekod Lokal ditemui: ${foundName}</span>`;
+                    submitBtn.disabled = false;
+                    submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
                 } else {
                     promptNewUser(nameInput, nameInputContainer, feedbackArea, submitBtn);
                 }
-            }
-        }
-
-        function foundUser(data, msg) {
-            const name = data.name || data.nama || data.full_name || data.Nama || data.nama_penuh || "";
-            
-            const feedbackArea = document.getElementById('icFeedback');
-            const nameInputContainer = document.getElementById('nameInputContainer');
-            const nameInput = document.getElementById('modalName');
-            const submitBtn = document.getElementById('submitBtn');
-
-            if (name) {
-                nameInput.value = name;
-                nameInput.disabled = true;
-                nameInputContainer.classList.remove('hidden');
-                feedbackArea.innerHTML = `<span class="text-green-600 text-xs font-bold"><i class="fas fa-check-circle"></i> ${msg}: ${name}</span>`;
-                submitBtn.disabled = false;
-                submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-            } else {
-                promptNewUser(nameInput, nameInputContainer, feedbackArea, submitBtn);
             }
         }
 
@@ -254,7 +274,7 @@
             nameInput.value = '';
             nameInput.disabled = false;
             container.classList.remove('hidden');
-            feedback.innerHTML = `<span class="text-amber-600 text-xs font-bold"><i class="fas fa-info-circle"></i> Tiada rekod dijumpai. Sila isi nama manual.</span>`;
+            feedback.innerHTML = `<span class="text-amber-600 text-xs font-bold flex items-center gap-1"><i class="fas fa-info-circle"></i> Peserta Baru. Sila taip nama.</span>`;
             btn.disabled = false;
             btn.classList.remove('opacity-50', 'cursor-not-allowed');
             setTimeout(() => document.getElementById('modalName').focus(), 100);
@@ -263,7 +283,7 @@
         // --- Logic: Confirm Registration ---
         async function confirmRegistration() {
             const icRaw = document.getElementById('modalIC').value.trim();
-            const ic = icRaw.replace(/[^0-9a-zA-Z]/g, '');
+            const ic = icRaw.replace(/[^0-9a-zA-Z]/g, ''); // Simpan format bersih
             const name = document.getElementById('modalName').value.trim();
             const juzukId = currentJuzukSelection.toString();
             
@@ -283,9 +303,16 @@
 
             if (isOnlineMode) {
                 try {
+                    // 1. Simpan ke Database Baru (tadarus_users) supaya lain kali dia ingat
                     const userRef = doc(db, 'artifacts', artifactAppId, 'public', 'data', 'tadarus_users', ic);
-                    await setDoc(userRef, { name: name, ic: ic, last_updated: new Date().toISOString() }, { merge: true });
+                    await setDoc(userRef, { 
+                        name: name, 
+                        ic: ic, 
+                        last_updated: new Date().toISOString(),
+                        source: 'tadarus_registration'
+                    }, { merge: true });
 
+                    // 2. Simpan ke Senarai Juzuk (tadarus_data)
                     const juzukRef = doc(db, 'artifacts', artifactAppId, 'public', 'data', 'tadarus_data', juzukId);
                     await setDoc(juzukRef, {
                         participants: arrayUnion(newParticipant),
@@ -293,12 +320,13 @@
                     }, { merge: true });
 
                     closeModal();
-                    showToast(`Berjaya: ${name}`);
+                    showToast(`Berjaya daftar: ${name}`);
                 } catch (e) {
                     console.error("Save error:", e);
-                    alert("Gagal menyimpan ke cloud. (Permission/Network)");
+                    alert("Gagal menyimpan. Sila semak sambungan internet.");
                 }
             } else {
+                // Offline Save
                 if (!juzukData[juzukId]) juzukData[juzukId] = { participants: [] };
                 if (!juzukData[juzukId].participants) juzukData[juzukId].participants = [];
                 
