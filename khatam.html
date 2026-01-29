@@ -24,23 +24,37 @@
         ];
 
         // --- Configuration & Safety Check ---
-        let firebaseConfig = null;
-        let appId = 'tadarus-default';
+        
+        // 1. Konfigurasi User (myqrhadir)
+        const userFirebaseConfig = {
+            apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM",
+            authDomain: "myqrhadir.firebaseapp.com",
+            projectId: "myqrhadir",
+            storageBucket: "myqrhadir.firebasestorage.app",
+            messagingSenderId: "799691133747",
+            appId: "1:799691133747:web:835a5e3e9413eace806446"
+        };
+
+        // 2. Setup Variables
+        let firebaseConfig = userFirebaseConfig; // Default guna config anda
+        let artifactAppId = 'tadarus-default';   // ID untuk folder data dalam DB
         let app, auth, db;
         let isOnlineMode = false;
 
         try {
+            // Check jika environment preview ini memaksa config lain (untuk elak error dalam Canvas)
             if (typeof __firebase_config !== 'undefined') {
                 firebaseConfig = JSON.parse(__firebase_config);
-                appId = typeof __app_id !== 'undefined' ? __app_id : 'tadarus-default';
-                
-                app = initializeApp(firebaseConfig);
-                auth = getAuth(app);
-                db = getFirestore(app);
-                isOnlineMode = true;
-            } else {
-                console.warn("Firebase config missing. Switching to Offline Mode.");
+                if (typeof __app_id !== 'undefined') artifactAppId = __app_id;
             }
+
+            // Initialize Firebase
+            app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+            db = getFirestore(app);
+            isOnlineMode = true;
+            console.log("Firebase initialized via: " + (typeof __firebase_config !== 'undefined' ? "Environment" : "User Config (myqrhadir)"));
+
         } catch (e) {
             console.warn("Error initializing Firebase. Switching to Offline Mode.", e);
         }
@@ -83,7 +97,8 @@
         // --- Data Handling (Hybrid) ---
 
         function initFirestoreListeners() {
-            const dataRef = collection(db, 'artifacts', appId, 'public', 'data', 'tadarus_data');
+            // Guna 'artifactAppId' yang merujuk kepada 'tadarus-default' atau env ID
+            const dataRef = collection(db, 'artifacts', artifactAppId, 'public', 'data', 'tadarus_data');
             
             onSnapshot(dataRef, (snapshot) => {
                 const newData = {};
@@ -136,7 +151,7 @@
 
             if (isOnlineMode) {
                 try {
-                    const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'tadarus_users', icInput);
+                    const userRef = doc(db, 'artifacts', artifactAppId, 'public', 'data', 'tadarus_users', icInput);
                     const userSnap = await getDoc(userRef);
 
                     if (userSnap.exists()) {
@@ -211,11 +226,11 @@
             if (isOnlineMode) {
                 try {
                     // 1. Save User Directory
-                    const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'tadarus_users', ic);
+                    const userRef = doc(db, 'artifacts', artifactAppId, 'public', 'data', 'tadarus_users', ic);
                     await setDoc(userRef, { name: name, ic: ic, last_updated: new Date().toISOString() }, { merge: true });
 
                     // 2. Add to Juzuk
-                    const juzukRef = doc(db, 'artifacts', appId, 'public', 'data', 'tadarus_data', juzukId);
+                    const juzukRef = doc(db, 'artifacts', artifactAppId, 'public', 'data', 'tadarus_data', juzukId);
                     await setDoc(juzukRef, {
                         participants: arrayUnion(newParticipant),
                         juzuk_id: parseInt(juzukId)
@@ -248,7 +263,7 @@
             const newStatus = currentStatus === 'done' ? 'reading' : 'done';
 
             if (isOnlineMode) {
-                const juzukRef = doc(db, 'artifacts', appId, 'public', 'data', 'tadarus_data', juzukStr);
+                const juzukRef = doc(db, 'artifacts', artifactAppId, 'public', 'data', 'tadarus_data', juzukStr);
                 try {
                     const docSnap = await getDoc(juzukRef);
                     if (docSnap.exists()) {
@@ -276,7 +291,7 @@
             const juzukStr = juzukId.toString();
 
             if (isOnlineMode) {
-                const juzukRef = doc(db, 'artifacts', appId, 'public', 'data', 'tadarus_data', juzukStr);
+                const juzukRef = doc(db, 'artifacts', artifactAppId, 'public', 'data', 'tadarus_data', juzukStr);
                 try {
                     const docSnap = await getDoc(juzukRef);
                     if (docSnap.exists()) {
@@ -303,7 +318,7 @@
             
             if (isOnlineMode) {
                  for(let i=1; i<=30; i++) {
-                     const juzukRef = doc(db, 'artifacts', appId, 'public', 'data', 'tadarus_data', i.toString());
+                     const juzukRef = doc(db, 'artifacts', artifactAppId, 'public', 'data', 'tadarus_data', i.toString());
                      setDoc(juzukRef, { participants: [] });
                  }
             } else {
