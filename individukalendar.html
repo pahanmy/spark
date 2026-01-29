@@ -26,8 +26,10 @@
         .calendar-day.has-own { background-color: #ecfdf5; border: 1px solid #a7f3d0; } 
         .calendar-day.has-tagged { background-color: #f3e8ff; border: 1px solid #d8b4fe; } 
         .calendar-day.has-official { background-color: #eef2ff; border: 1px dashed #c7d2fe; opacity: 0.9; } 
+        .calendar-day.has-public { background-color: #ecfdf5; border: 1px solid #6ee7b7; } /* Emerald for Public */
         .calendar-day.has-birthdays { background-color: #fff1f2; border: 1px solid #fecdd3; } 
         .calendar-day.mixed-events { background-color: #f3f4f6; border: 1px solid #e5e7eb; }
+        
         .calendar-day.selected { border-width: 2px; border-color: #0d9488; background-color: #ccfbf1; transform: scale(1.02); z-index: 20; shadow: lg; }
         .calendar-day.is-today { background-color: #fffbeb; border: 2px solid #f59e0b; }
         
@@ -211,6 +213,7 @@
                     <div id="calendar-grid" class="grid grid-cols-7 gap-2"></div>
                     <div class="mt-6 flex flex-wrap gap-4 text-[10px] font-bold uppercase justify-center text-gray-500">
                         <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-teal-500"></span> Aktiviti Saya</div>
+                        <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span> Umum</div>
                         <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-purple-500"></span> Dijemput</div>
                         <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-pink-500"></span> Birthday</div>
                         <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-200 border border-amber-400"></span> Nota Harian</div>
@@ -258,7 +261,7 @@
     
     <footer class="text-center py-6 mt-8 bg-white/80 backdrop-blur border-t border-gray-200">
         <p class="text-sm text-gray-600 font-medium">Projek Inovasi SPARK oleh <a href="https://pahanmy.github.io/works/" target="_blank" class="font-bold text-teal-600 hover:underline">Pahan</a></p>
-        <p class="text-xs text-gray-400 mt-1">V2.5 | 2026 <span id="footer-user-ic"></span></p>
+        <p class="text-xs text-gray-400 mt-1">V2.6 | 2026 <span id="footer-user-ic"></span></p>
     </footer>
 
     <div id="link-modal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop hidden">
@@ -397,7 +400,7 @@
         const auth = getAuth(app);
         const appId = firebaseConfig.projectId;
         
-        let officialPrograms = [], myActivities = [], allBirthdays = [], dailyNotes = [], userDocId = null;
+        let officialPrograms = [], myActivities = [], publicPlannerPrograms = [], allBirthdays = [], dailyNotes = [], userDocId = null;
         let currentDate = new Date(), selectedDateElement = null, isInitialLoad = true;
         let currentUserIc = "", showOfficial = false, selectedDateString = "";
         let currentUserSector = "", currentUserUnit = "";
@@ -440,6 +443,7 @@
             loadPersonalData(); 
             listenForOfficialPrograms();
             loadPersonalPlanner(); 
+            listenForPublicPlanner(); // New: Listen for public events
             listenForBirthdays();
             listenForMissions();
             listenForDailyNotes();
@@ -843,6 +847,13 @@
         // --- DATA LOADERS & RENDER ---
         function listenForOfficialPrograms() { const q = query(collection(db, `artifacts/${appId}/public/data/spark_programs`), orderBy("startDate", "asc")); onSnapshot(q, (snap) => { officialPrograms = snap.docs.map(d => ({ id: d.id, type: 'official', ...d.data() })); refreshView(); }, (e) => console.warn("Official prog error", e)); }
         function listenForBirthdays() { const q = query(collection(db, `artifacts/${appId}/public/data/spark_birthdays`), orderBy("dob", "asc")); onSnapshot(q, (snap) => { allBirthdays = snap.docs.map(d => ({ id: d.id, ...d.data() })); refreshView(); }, (e) => console.warn("Birthdays error", e)); }
+        
+        // NEW: Listen for public planner
+        function listenForPublicPlanner() {
+             const q = query(collection(db, `artifacts/${appId}/public/data/spark_planner`), where("isPublic", "==", true));
+             onSnapshot(q, (snap) => { publicPlannerPrograms = snap.docs.map(d => ({ id: d.id, type: 'public', ...d.data() })); refreshView(); });
+        }
+
         function loadPersonalPlanner() {
             const plannerRef = collection(db, `artifacts/${appId}/public/data/spark_planner`);
             const qOwn = query(plannerRef, where("ic", "==", currentUserIc));
@@ -872,11 +883,25 @@
                 const date = new Date(year, month, day); const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                 const myEvents = getEventsForDate(myActivities, date); const birthdays = getBirthdaysForDate(date);
                 let officials = showOfficial ? getEventsForDate(officialPrograms, date) : [];
+                
+                // NEW: Get Public Events
+                let publicEvents = getEventsForDate(publicPlannerPrograms, date);
+                // Filter out if it's already in "myEvents" to avoid double counting visually if not desired, or just show both.
+                // Generally, if I created it, it's 'own'. If someone else created it, it's 'public'.
+
                 const hasNote = dailyNotes.some(n => n.date === dateString && n.content.trim() !== '');
                 const isToday = new Date().toDateString() === date.toDateString();
                 let dayClasses = 'calendar-day border rounded-md p-2 transition-all relative'; let eventHtml = ''; let indicatorsHtml = '';
                 const hasOwn = myEvents.some(e => e.type === 'own'); const hasTagged = myEvents.some(e => e.type === 'tagged');
-                if (hasOwn) dayClasses += ' has-own'; else if (hasTagged) dayClasses += ' has-tagged'; else if (birthdays.length > 0) dayClasses += ' has-birthdays'; else if (officials.length > 0) dayClasses += ' has-official'; else dayClasses += ' bg-white hover:bg-gray-50';
+                const hasPublic = publicEvents.length > 0;
+
+                if (hasOwn) dayClasses += ' has-own'; 
+                else if (hasTagged) dayClasses += ' has-tagged';
+                else if (hasPublic) dayClasses += ' has-public'; // New class for public events 
+                else if (birthdays.length > 0) dayClasses += ' has-birthdays'; 
+                else if (officials.length > 0) dayClasses += ' has-official'; 
+                else dayClasses += ' bg-white hover:bg-gray-50';
+                
                 if (isToday) dayClasses += ' is-today shadow-md';
                 if (hasOwn) indicatorsHtml += `<div class="absolute top-1 right-1 bg-teal-500 text-white text-[9px] font-bold w-4 h-4 flex items-center justify-center rounded-full shadow-sm ring-1 ring-white">${myEvents.filter(e=>e.type==='own').length}</div>`;
                 if (hasTagged) indicatorsHtml += `<div class="absolute top-1 ${hasOwn ? 'right-6' : 'right-1'} bg-purple-500 text-white text-[9px] font-bold w-4 h-4 flex items-center justify-center rounded-full shadow-sm ring-1 ring-white">${myEvents.filter(e=>e.type==='tagged').length}</div>`;
@@ -888,10 +913,15 @@
                 }
 
                 eventHtml += myEvents.map(p => `<div class="${p.type === 'own' ? 'bg-teal-100 text-teal-800' : 'bg-purple-100 text-purple-800'} text-[9px] rounded px-1 truncate mb-0.5 font-bold tracking-tight">${p.title.toUpperCase()}</div>`).join('');
+                
+                // Display Public events (avoid duplication if logic requires, but simple listing is fine)
+                // We filter out events that are already in 'myEvents' to avoid showing the same event twice (once as own, once as public)
+                const uniquePublic = publicEvents.filter(p => !myEvents.some(m => m.id === p.id));
+                eventHtml += uniquePublic.map(p => `<div class="bg-emerald-100 text-emerald-800 text-[9px] rounded px-1 truncate mb-0.5 font-medium border border-emerald-200">${p.title.toUpperCase()}</div>`).join('');
+
                 eventHtml += birthdays.map(b => `<div class="bg-pink-100 text-pink-800 text-[9px] rounded px-1 truncate mb-0.5">🎂 ${b.name.split(' ')[0].toUpperCase()}</div>`).join('');
                 eventHtml += officials.map(p => `<div class="bg-indigo-50 text-indigo-400 text-[9px] rounded px-1 truncate mb-0.5 italic border border-indigo-100">${p.name.toUpperCase()}</div>`).join('');
                 
-                // MODIFIED: Added ondblclick and set onclick to pass false
                 calendarGrid.insertAdjacentHTML('beforeend', `<div class="${dayClasses}" data-date="${dateString}" onclick="handleDateClick('${dateString}', this, false)" ondblclick="openDailyNoteModal()">${indicatorsHtml}<div class="font-bold text-gray-700 text-xs mb-1 ml-4">${day}</div><div class="event-list">${eventHtml}</div></div>`);
             }
         }
@@ -926,8 +956,21 @@
             document.getElementById('btn-add-activity').onclick = () => openPlannerModal(selectedDateString);
             const birthdays = getBirthdaysForDate(date);
             if (birthdays.length > 0) fullHtml += `<h4 class="text-xs font-bold text-pink-400 uppercase tracking-wider mb-2">Hari Jadi Staf</h4><div class="space-y-3 mb-6">` + birthdays.map(b => `<div class="bg-pink-50 border border-pink-200 rounded-xl p-3 text-gray-800 flex items-center justify-between shadow-sm"><div class="flex items-center gap-3 overflow-hidden"><span class="text-xl">🎂</span><div class="truncate"><p class="font-bold text-xs text-pink-700 truncate uppercase">${b.name}</p></div></div><a href="birthday.html?name=${encodeURIComponent(b.name)}&dob=${btoa(b.dob)}" target="_blank" class="flex-shrink-0 bg-pink-500 hover:bg-pink-600 text-white text-[9px] font-bold py-1.5 px-3 rounded-lg uppercase transition-colors">Ucap</a></div>`).join('') + '</div>';
+            
             const myEvents = getEventsForDate(myActivities, date).filter(p => p.title.toLowerCase().includes(term));
             if (myEvents.length > 0) fullHtml += `<h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Aktiviti Saya</h4><div class="space-y-3 mb-6">` + myEvents.map(a => `<div class="bg-white border-l-4 ${a.type==='own'?'border-teal-500':'border-purple-500'} shadow-sm rounded-r-lg p-3 group hover:shadow-md transition-shadow"><div class="flex justify-between items-start mb-1"><p class="font-bold text-sm ${a.type==='own'?'text-teal-900':'text-purple-900'} uppercase leading-tight">${a.title.toUpperCase()}</p>${a.type==='own'?'<span class="bg-teal-100 text-teal-700 text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Saya</span>':'<span class="bg-purple-100 text-purple-700 text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Dijemput</span>'}</div><div class="text-xs text-gray-500 mt-1 space-y-0.5"><p class="flex items-center gap-1.5">📍 ${a.location.toUpperCase()}</p><p class="flex items-center gap-1.5">🕒 ${a.startTime}</p></div><button onclick="openActivityModal('${encodeURIComponent(JSON.stringify(a))}')" class="mt-2 w-full text-center text-[10px] text-gray-400 font-bold uppercase hover:text-teal-600 transition-colors border-t border-gray-100 pt-1">Lihat Butiran</button></div>`).join('') + '</div>';
+            
+            // NEW: Public Programs Section (Emerald)
+            // Filter duplicates: Only show if NOT in myEvents
+            const publicEvents = getEventsForDate(publicPlannerPrograms, date).filter(p => 
+                p.title.toLowerCase().includes(term) && !myEvents.some(m => m.id === p.id)
+            );
+            
+            if (publicEvents.length > 0) {
+                 fullHtml += `<h4 class="text-xs font-bold text-emerald-500 uppercase tracking-wider mb-2">Program Umum / Komuniti</h4><div class="space-y-3 mb-6">` + 
+                 publicEvents.map(a => `<div class="bg-emerald-50 border-l-4 border-emerald-500 shadow-sm rounded-r-lg p-3 group hover:shadow-md transition-shadow"><div class="flex justify-between items-start mb-1"><p class="font-bold text-sm text-emerald-800 uppercase leading-tight">${a.title.toUpperCase()}</p><span class="bg-emerald-100 text-emerald-700 text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Umum</span></div><div class="text-xs text-gray-600 mt-1 space-y-0.5"><p class="flex items-center gap-1.5">📍 ${a.location.toUpperCase()}</p><p class="flex items-center gap-1.5">🕒 ${a.startTime}</p></div><button onclick="openActivityModal('${encodeURIComponent(JSON.stringify(a))}')" class="mt-2 w-full text-center text-[10px] text-emerald-400 font-bold uppercase hover:text-emerald-700 transition-colors border-t border-emerald-100 pt-1">Lihat Butiran</button></div>`).join('') + '</div>';
+            }
+
             if (showOfficial) { const officials = getEventsForDate(officialPrograms, date).filter(p => p.name.toLowerCase().includes(term)); if (officials.length > 0) fullHtml += `<h4 class="text-xs font-bold text-indigo-300 uppercase tracking-wider mb-2">Program Rasmi PPD</h4><div class="space-y-2 opacity-80">` + officials.map(p => `<div class="bg-indigo-50 border border-indigo-100 rounded-lg p-2 text-gray-600"><p class="font-bold text-xs text-indigo-700 uppercase leading-tight">${p.name.toUpperCase()}</p><div class="text-[10px] mt-1 flex justify-between text-indigo-400"><span>${p.location.toUpperCase()}</span><span>${p.startTime}</span></div></div>`).join('') + '</div>'; }
             if (fullHtml === '') content.innerHTML = `<div class="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center text-gray-400 h-full flex flex-col justify-center items-center"><p class="text-sm font-semibold">Tiada aktiviti.</p></div>`; else content.innerHTML = fullHtml;
         }
@@ -936,9 +979,11 @@
             try {
                 const data = JSON.parse(decodeURIComponent(dataString));
                 const isOwn = data.type === 'own';
+                const isPublic = data.type === 'public';
                 
                 const badgeEl = document.getElementById('modal-tag-badge');
                 if(isOwn) badgeEl.innerHTML = '<span class="bg-teal-100 text-teal-800 text-xs px-2 py-1 rounded font-bold uppercase border border-teal-200">Aktiviti Saya</span>';
+                else if(isPublic) badgeEl.innerHTML = '<span class="bg-emerald-100 text-emerald-800 text-xs px-2 py-1 rounded font-bold uppercase border border-emerald-200">Program Umum</span>';
                 else badgeEl.innerHTML = '<span class="bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded font-bold uppercase border border-purple-200">Dijemput / Di-Tag</span>';
 
                 document.getElementById('modal-activity-title').textContent = data.title;
