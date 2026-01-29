@@ -13,7 +13,9 @@
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, getDoc, onSnapshot, updateDoc, arrayUnion, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // --- Data Constants (Moved to Top) ---
+        // --- Data Constants ---
+        
+        // Nama Juzuk
         const juzukNames = [
             "Alif Lam Mim", "Sayaqulu", "Tilka Rusul", "Lan Tanalu", "Wal Muhsanat", 
             "La Yuhibbullah", "Wa Iza Samiu", "Wa Lau Annana", "Qalal Malao", "Wa A'lamu",
@@ -21,6 +23,14 @@
             "Qala Alam", "Iqtaraba", "Qad Aflaha", "Wa Qalallazina", "Amman Khalaqa",
             "Utlu Ma Uhiya", "Wa Man Yaqnut", "Wa Maliya", "Faman Azlamu", "Ilaihi Yuraddu",
             "Ha Mim", "Qala Fama Khatbukum", "Qad Sami'allah", "Tabarakallazi", "'Amma Yatasa'alun"
+        ];
+
+        // Anggaran Jumlah Ayat Per Juzuk (Untuk pengiraan bahagi)
+        // Nota: Ini adalah anggaran berdasarkan pembahagian standard mashaf Uthmani
+        const juzukVersesCount = [
+            148, 111, 126, 131, 124, 110, 149, 142, 159, 127,
+            151, 170, 154, 227, 185, 269, 190, 202, 339, 171,
+            178, 169, 357, 175, 246, 195, 399, 137, 431, 564
         ];
 
         // --- Configuration & Safety Check ---
@@ -36,24 +46,22 @@
         };
 
         // 2. Setup Variables
-        let firebaseConfig = userFirebaseConfig; // Default guna config anda
-        let artifactAppId = 'tadarus-default';   // ID untuk folder data dalam DB
+        let firebaseConfig = userFirebaseConfig; 
+        let artifactAppId = 'tadarus-default';   
         let app, auth, db;
         let isOnlineMode = false;
 
         try {
-            // Check jika environment preview ini memaksa config lain (untuk elak error dalam Canvas)
             if (typeof __firebase_config !== 'undefined') {
                 firebaseConfig = JSON.parse(__firebase_config);
                 if (typeof __app_id !== 'undefined') artifactAppId = __app_id;
             }
 
-            // Initialize Firebase
             app = initializeApp(firebaseConfig);
             auth = getAuth(app);
             db = getFirestore(app);
             isOnlineMode = true;
-            console.log("Firebase initialized via: " + (typeof __firebase_config !== 'undefined' ? "Environment" : "User Config (myqrhadir)"));
+            console.log("Firebase initialized.");
 
         } catch (e) {
             console.warn("Error initializing Firebase. Switching to Offline Mode.", e);
@@ -61,13 +69,12 @@
 
         // --- State Management ---
         let currentUser = null;
-        let juzukData = {}; // Stores the list of participants per juzuk
-        let currentJuzukSelection = null; // Which juzuk is being edited
+        let juzukData = {}; 
+        let currentJuzukSelection = null; 
 
         // --- Init Logic ---
         async function initApp() {
             if (isOnlineMode) {
-                // Online Mode: Auth & Listeners
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                     await signInWithCustomToken(auth, __initial_auth_token);
                 } else {
@@ -82,11 +89,8 @@
                     }
                 });
             } else {
-                // Offline Mode: Load from LocalStorage
                 loadFromLocalStorage();
                 document.getElementById('modeIndicator').innerHTML = '<span class="bg-gray-100 text-gray-600 px-2 py-1 rounded-full text-[10px] font-bold border border-gray-300"><i class="fas fa-save"></i> Local Mode</span>';
-                
-                // Remove loading spinner
                 document.getElementById('juzukContainer').innerHTML = '';
                 renderList();
             }
@@ -94,10 +98,9 @@
 
         initApp();
 
-        // --- Data Handling (Hybrid) ---
+        // --- Data Handling ---
 
         function initFirestoreListeners() {
-            // Guna 'artifactAppId' yang merujuk kepada 'tadarus-default' atau env ID
             const dataRef = collection(db, 'artifacts', artifactAppId, 'public', 'data', 'tadarus_data');
             
             onSnapshot(dataRef, (snapshot) => {
@@ -133,6 +136,19 @@
         window.copyToWhatsapp = copyToWhatsapp;
         window.closeModal = closeModal;
         window.clearAllData = clearAllData;
+
+        // --- Calculator Logic ---
+        function getDaysRemaining() {
+            const targetDate = new Date("2026-03-06"); // Tarikh Sasaran: 6 Mac 2026
+            const today = new Date();
+            // Reset time to midnight for accurate day calculation
+            today.setHours(0,0,0,0);
+            
+            const diffTime = targetDate - today;
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+            
+            return diffDays > 0 ? diffDays : 0;
+        }
 
         // --- SPARK Logic: Check IC ---
         async function checkIC() {
@@ -170,8 +186,6 @@
                     feedbackArea.innerHTML = `<span class="text-red-500 text-xs">Ralat sambungan. Cuba lagi.</span>`;
                 }
             } else {
-                // Offline Check
-                // Simulating check by looking at existing participants in local data
                 let foundName = null;
                 Object.values(juzukData).forEach(juz => {
                     if (juz.participants) {
@@ -225,11 +239,9 @@
 
             if (isOnlineMode) {
                 try {
-                    // 1. Save User Directory
                     const userRef = doc(db, 'artifacts', artifactAppId, 'public', 'data', 'tadarus_users', ic);
                     await setDoc(userRef, { name: name, ic: ic, last_updated: new Date().toISOString() }, { merge: true });
 
-                    // 2. Add to Juzuk
                     const juzukRef = doc(db, 'artifacts', artifactAppId, 'public', 'data', 'tadarus_data', juzukId);
                     await setDoc(juzukRef, {
                         participants: arrayUnion(newParticipant),
@@ -243,7 +255,6 @@
                     alert("Gagal menyimpan ke cloud.");
                 }
             } else {
-                // Offline Save
                 if (!juzukData[juzukId]) juzukData[juzukId] = { participants: [] };
                 if (!juzukData[juzukId].participants) juzukData[juzukId].participants = [];
                 
@@ -257,7 +268,6 @@
             submitBtn.disabled = false;
         }
 
-        // --- Logic: Toggle Status ---
         async function toggleStatus(juzukId, ic, currentStatus) {
             const juzukStr = juzukId.toString();
             const newStatus = currentStatus === 'done' ? 'reading' : 'done';
@@ -276,7 +286,6 @@
                     }
                 } catch (e) { console.error(e); }
             } else {
-                // Offline
                 if (juzukData[juzukStr] && juzukData[juzukStr].participants) {
                     const p = juzukData[juzukStr].participants.find(p => p.ic === ic);
                     if (p) p.status = newStatus;
@@ -285,7 +294,6 @@
             }
         }
 
-        // --- Logic: Remove ---
         async function removeParticipant(juzukId, ic, name) {
             if (!confirm(`Padam ${name} dari senarai?`)) return;
             const juzukStr = juzukId.toString();
@@ -302,7 +310,6 @@
                     }
                 } catch (e) { console.error(e); }
             } else {
-                // Offline
                 if (juzukData[juzukStr] && juzukData[juzukStr].participants) {
                     juzukData[juzukStr].participants = juzukData[juzukStr].participants.filter(p => p.ic !== ic);
                     saveToLocalStorage();
@@ -311,7 +318,6 @@
             }
         }
         
-        // --- Logic: Clear All ---
         async function clearAllData() {
             if (!confirm("AWAS: Padam SEMUA data?")) return;
             if (!confirm("Tindakan ini kekal.")) return;
@@ -329,13 +335,16 @@
             showToast("Data diset semula.");
         }
 
-
         // --- UI Rendering ---
 
         function renderList() {
             const container = document.getElementById('juzukContainer');
             container.innerHTML = '';
             
+            const daysLeft = getDaysRemaining();
+            document.getElementById('daysRemainingBadge').innerText = `${daysLeft} Hari Lagi`;
+            document.getElementById('targetDateDisplay').innerText = `Sasaran: 6 Mac 2026`;
+
             let totalParticipants = 0;
             let totalDone = 0;
 
@@ -352,6 +361,16 @@
                 card.className = `bg-white p-4 rounded-xl card-shadow border-l-4 transition-all mb-3 ${isJuzukComplete ? 'border-green-500 bg-green-50/50' : 'border-emerald-500'}`;
                 
                 const juzName = juzukNames[i-1];
+                const totalAyat = juzukVersesCount[i-1];
+                
+                // Kalkulator Harian
+                // Jika hari dah tamat (0 atau negatif), letak "-"
+                const ayatPerDay = daysLeft > 0 ? Math.ceil(totalAyat / daysLeft) : totalAyat;
+                const progressNote = isJuzukComplete 
+                    ? `<span class="text-green-600 font-bold text-[10px]"><i class="fas fa-check-circle"></i> Selesai Khatam</span>` 
+                    : `<span class="text-emerald-600 font-medium text-[10px] bg-emerald-50 px-2 py-1 rounded border border-emerald-100">
+                         <i class="fas fa-calculator mr-1"></i> Target: <b>${ayatPerDay}</b> ayat/hari
+                       </span>`;
 
                 let participantsHtml = '';
                 if (participants.length > 0) {
@@ -367,6 +386,7 @@
                                     </button>
                                     <div class="flex flex-col">
                                         <span class="text-sm font-semibold text-gray-800 ${isDone ? 'line-through text-gray-400' : ''}">${p.name}</span>
+                                        ${!isDone ? `<span class="text-[9px] text-gray-500">Misi: ${ayatPerDay} ayat hari ini</span>` : ''}
                                     </div>
                                 </div>
                                 <button onclick="removeParticipant(${i}, '${p.ic}', '${p.name}')" class="text-gray-300 hover:text-red-500 p-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -385,15 +405,18 @@
                         <div class="flex flex-col items-center justify-center w-14 text-center pt-1">
                             <span class="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Juz</span>
                             <span class="text-xl font-bold text-emerald-700 font-arabic leading-none">${i}</span>
+                            <span class="text-[9px] text-gray-400 mt-1">${totalAyat} Ayat</span>
                         </div>
                         
                         <div class="flex-1 min-w-0">
-                            <div class="flex justify-between items-center">
-                                <div class="text-[10px] font-semibold text-emerald-600 uppercase tracking-wide">${juzName}</div>
-                                <button onclick="openRegistrationModal(${i})" class="text-xs bg-emerald-100 hover:bg-emerald-200 text-emerald-700 px-2 py-1 rounded-full font-medium transition-colors">
+                            <div class="flex justify-between items-center mb-1">
+                                <div class="text-[10px] font-semibold text-emerald-600 uppercase tracking-wide truncate pr-2">${juzName}</div>
+                                <button onclick="openRegistrationModal(${i})" class="shrink-0 text-xs bg-emerald-100 hover:bg-emerald-200 text-emerald-700 px-2 py-1 rounded-full font-medium transition-colors">
                                     <i class="fas fa-plus mr-1"></i> Tambah
                                 </button>
                             </div>
+                            <div class="mb-2">${progressNote}</div>
+                            
                             ${participantsHtml}
                         </div>
                     </div>
@@ -412,7 +435,7 @@
         // --- Helpers ---
         function openRegistrationModal(juz) {
             currentJuzukSelection = juz;
-            document.getElementById('modalJuzInfo').innerText = `Juzuk ${juz} (${juzukNames[juz-1]})`;
+            document.getElementById('modalJuzInfo').innerText = `Juzuk ${juz} (${juzukNames[juz-1]}) - ${juzukVersesCount[juz-1]} Ayat`;
             document.getElementById('modalIC').value = '';
             document.getElementById('modalName').value = '';
             document.getElementById('icFeedback').innerHTML = '';
@@ -436,7 +459,10 @@
         }
 
         function copyToWhatsapp() {
-            let text = "*TADARUS BULAN RAMADHAN, PPD MIRI* 🌙\n_\"Bacalah Al-Quran, sesungguhnya ia akan datang pada hari kiamat sebagai pemberi syafaat kepada pembacanya.\" (HR Muslim)_\n\n";
+            const daysLeft = getDaysRemaining();
+            let text = `*TADARUS BULAN RAMADHAN, PPD MIRI* 🌙\n`;
+            text += `_Sasaran Khatam: 6 Mac 2026 (${daysLeft} Hari Lagi)_\n\n`;
+            
             let emptyJuzuks = 0;
 
             for (let i = 1; i <= 30; i++) {
@@ -445,10 +471,10 @@
                 const juzName = juzukNames[i-1];
                 
                 if (list.length === 0) {
-                    text += `⬜ Juz ${i} (${juzName}): _(Kosong)_\n`;
+                    text += `⬜ Juz ${i}: _(Kosong)_\n`;
                     emptyJuzuks++;
                 } else {
-                    text += `🔹 Juz ${i} (${juzName}):\n`;
+                    text += `🔹 Juz ${i}:\n`;
                     list.forEach(p => {
                         const icon = p.status === 'done' ? '✅' : '📖';
                         text += `    ${icon} ${p.name}\n`;
@@ -456,7 +482,7 @@
                 }
             }
 
-            text += `\n📊 *Info:* ${emptyJuzuks} Juzuk masih tiada pembaca.\nMarilah kita bersama mengimarahkan bulan mulia ini. Sila tekan link untuk turut serta. Terima kasih!`;
+            text += `\n📊 *Info:* ${emptyJuzuks} Juzuk masih kosong.\nMohon sertai kami untuk memeriahkan bulan Al-Quran. Terima kasih!`;
 
             navigator.clipboard.writeText(text).then(() => {
                 showToast("Senarai disalin ke clipboard!");
@@ -491,7 +517,20 @@
                 </div>
                 <div id="modeIndicator"></div>
             </div>
-            <p class="text-emerald-100 text-xs md:text-sm mb-4 italic leading-relaxed">"Bacalah Al-Quran, sesungguhnya ia akan datang pada hari kiamat sebagai pemberi syafaat kepada pembacanya." (HR Muslim)</p>
+            
+            <!-- Countdown Banner -->
+            <div class="flex justify-between items-center bg-emerald-800/50 rounded-lg p-2 mb-4 border border-emerald-600/30">
+                <div>
+                    <p class="text-[10px] text-emerald-200 uppercase tracking-wider" id="targetDateDisplay">Sasaran: ...</p>
+                    <p class="text-sm font-bold text-white"><i class="far fa-hourglass mr-1"></i> <span id="daysRemainingBadge">...</span></p>
+                </div>
+                <div class="text-right">
+                    <p class="text-[10px] text-emerald-200">Tips:</p>
+                    <p class="text-[10px] italic">"Istiqomah sedikit demi sedikit"</p>
+                </div>
+            </div>
+
+            <p class="text-emerald-100 text-xs md:text-sm mb-4 italic leading-relaxed hidden">"Bacalah Al-Quran, sesungguhnya ia akan datang pada hari kiamat sebagai pemberi syafaat kepada pembacanya."</p>
             
             <!-- Progress Bar -->
             <div class="w-full bg-emerald-900 rounded-full h-2.5 mb-1">
