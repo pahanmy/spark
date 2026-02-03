@@ -399,6 +399,7 @@
         const appId = firebaseConfig.projectId;
         
         let officialPrograms = [], myActivities = [], allBirthdays = [], dailyNotes = [], userDocId = null;
+        let isProUser = false; // Status pengguna PRO
         let currentDate = new Date(), selectedDateElement = null, isInitialLoad = true;
         let currentUserIc = "", showOfficial = false, selectedDateString = "";
         let currentUserSector = "", currentUserUnit = "";
@@ -620,48 +621,71 @@
             document.getElementById('drag-instruction').classList.add('hidden');
         }
 
-        async function loadPersonalData() {
-            try {
-                const usersRef = collection(db, `artifacts/${appId}/public/data/spark_participants`);
-                const q = query(usersRef, where("ic", "==", currentUserIc));
-                const querySnapshot = await getDocs(q);
-                if (!querySnapshot.empty) {
-                    const docSnap = querySnapshot.docs[0];
-                    const data = docSnap.data();
-                    userDocId = docSnap.id;
-                    currentUserSector = data.sector;
-                    currentUserUnit = data.unit;
-                    
-                    // Load Quick Links
-                    quickLinks = data.quickLinks || [];
-                    renderQuickLinks();
+    async function loadPersonalData() {
+    try {
+        const usersRef = collection(db, `artifacts/${appId}/public/data/spark_participants`);
+        const q = query(usersRef, where("ic", "==", currentUserIc));
+        const querySnapshot = await getDocs(q);
+        
+        if (!querySnapshot.empty) {
+            const docSnap = querySnapshot.docs[0];
+            const data = docSnap.data();
+            userDocId = docSnap.id;
+            currentUserSector = data.sector;
+            currentUserUnit = data.unit;
+            
+            // --- KOD BARU: LOGIC PRO USER ---
+            const adminIC = "890522135381";
+            // Semak jika user adalah Pro ATAU Admin
+            isProUser = (data.isPro === true) || (currentUserIc === adminIC);
 
-                    document.getElementById('display-name').textContent = data.name ? data.name.toUpperCase() : 'PENGGUNA';
-                    if (data.personalBgUrl) document.getElementById('personal-bg-img').style.backgroundImage = `url('${data.personalBgUrl}')`;
-                    if (data.themeColor) document.body.style.backgroundColor = data.themeColor;
-                    
-                    if (data.personalBgPosition !== undefined) {
-                        currentBgPosY = data.personalBgPosition;
-                        document.getElementById('personal-bg-img').style.backgroundPosition = `center ${currentBgPosY}%`;
-                    } else {
-                        currentBgPosY = 50; 
-                        document.getElementById('personal-bg-img').style.backgroundPosition = `center 50%`;
-                    }
-
-                    if(data.motivationalQuote) document.getElementById('motivational-quote').textContent = data.motivationalQuote;
-                    else document.getElementById('motivational-quote').textContent = "Jadikan hari ini lebih baik dari semalam.";
-
-                    const adminIC = "890522135381";
-                    if ((data.isPro === true) || (currentUserIc === adminIC)) {
-                        if(data.profileImageUrl) {
-                            document.getElementById('pro-profile-container').classList.remove('hidden');
-                            document.getElementById('pro-profile-img').src = data.profileImageUrl;
-                        }
-                    }
+            // Kawal butang upload: Cari elemen label yang ada input file
+            const uploadBtnLabel = document.querySelector('label:has(input[onchange="uploadPersonalBg(this)"])') || document.querySelector('#normal-header-controls label');
+            
+            if (uploadBtnLabel) {
+                if (isProUser) {
+                    uploadBtnLabel.classList.remove('hidden'); // Tunjuk jika Pro
+                } else {
+                    uploadBtnLabel.classList.add('hidden'); // Sorok jika bukan Pro
                 }
-            } catch (error) { console.error("Error loading profile:", error); }
-        }
+            }
+            // ---------------------------------
 
+            // Load Quick Links
+            quickLinks = data.quickLinks || [];
+            renderQuickLinks();
+
+            document.getElementById('display-name').textContent = data.name ? data.name.toUpperCase() : 'PENGGUNA';
+            
+            // Set Background Image
+            if (data.personalBgUrl) {
+                document.getElementById('personal-bg-img').style.backgroundImage = `url('${data.personalBgUrl}')`;
+            }
+            
+            if (data.themeColor) document.body.style.backgroundColor = data.themeColor;
+            
+            // Set Background Position
+            if (data.personalBgPosition !== undefined) {
+                currentBgPosY = data.personalBgPosition;
+                document.getElementById('personal-bg-img').style.backgroundPosition = `center ${currentBgPosY}%`;
+            } else {
+                currentBgPosY = 50; 
+                document.getElementById('personal-bg-img').style.backgroundPosition = `center 50%`;
+            }
+
+            if(data.motivationalQuote) document.getElementById('motivational-quote').textContent = data.motivationalQuote;
+            else document.getElementById('motivational-quote').textContent = "Jadikan hari ini lebih baik dari semalam.";
+
+            // Tunjuk lencana verified jika Pro
+            if (isProUser) {
+                if(data.profileImageUrl) {
+                    document.getElementById('pro-profile-container').classList.remove('hidden');
+                    document.getElementById('pro-profile-img').src = data.profileImageUrl;
+                }
+            }
+        }
+    } catch (error) { console.error("Error loading profile:", error); }
+}
         async function saveQuote(element) {
             const text = element.innerText.trim();
             if(!userDocId) return;
@@ -754,21 +778,69 @@
         async function toggleMission(id, s) { try { await updateDoc(doc(db, `artifacts/${appId}/public/data/spark_personal_notes`, id), { isCompleted: s }); } catch (e) { console.error(e); } }
         async function deleteMission(id) { if(confirm("Padam tugasan ini?")) { try { await deleteDoc(doc(db, `artifacts/${appId}/public/data/spark_personal_notes`, id)); } catch(e) { console.error(e); } } }
 
-        async function uploadPersonalBg(input) {
-            const file = input.files[0]; if (!file) return;
-            const stat = document.getElementById('bg-upload-status'); stat.textContent = "Memuat naik..."; stat.classList.remove('hidden');
-            const fd = new FormData(); fd.append('image', file);
-            try {
-                const res = await fetch('https://api.imgbb.com/1/upload?key=a7c600ac733fe14649cacd8e65619c4b', { method: 'POST', body: fd });
-                const d = await res.json();
-                if (d.success) {
-                    const url = d.data.url; document.getElementById('personal-bg-img').style.backgroundImage = `url('${url}')`;
-                    currentBgPosY = 50;
-                    document.getElementById('personal-bg-img').style.backgroundPosition = `center 50%`;
-                    if (userDocId) { await updateDoc(doc(db, `artifacts/${appId}/public/data/spark_participants`, userDocId), { personalBgUrl: url, personalBgPosition: 50 }); stat.textContent = "Disimpan!"; setTimeout(() => stat.classList.add('hidden'), 2000); }
-                }
-            } catch (e) { stat.textContent = "Gagal."; }
+       async function uploadPersonalBg(input) {
+    // 1. Semak jika pengguna adalah PRO
+    if (!isProUser) {
+        alert("Maaf, fungsi menukar latar belakang hanya untuk pengguna PRO.");
+        input.value = ""; // Reset input
+        return;
+    }
+
+    const file = input.files[0]; 
+    if (!file) return;
+
+    // Semak saiz fail (contoh: hadkan 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+        alert("Saiz gambar terlalu besar. Sila guna gambar bawah 5MB.");
+        return;
+    }
+
+    // UI Feedback
+    const stat = document.getElementById('bg-upload-status'); 
+    stat.textContent = "Sedang memuat naik ke server..."; 
+    stat.classList.remove('hidden');
+
+    const fd = new FormData(); 
+    fd.append('image', file);
+
+    try {
+        // 2. Upload ke API ImgBB
+        // Key API anda: a7c600ac733fe14649cacd8e65619c4b
+        const res = await fetch('https://api.imgbb.com/1/upload?key=a7c600ac733fe14649cacd8e65619c4b', { 
+            method: 'POST', 
+            body: fd 
+        });
+        
+        const d = await res.json();
+        
+        if (d.success) {
+            const url = d.data.url; // URL gambar dari ImgBB
+            
+            // 3. Update UI serta-merta
+            document.getElementById('personal-bg-img').style.backgroundImage = `url('${url}')`;
+            currentBgPosY = 50;
+            document.getElementById('personal-bg-img').style.backgroundPosition = `center 50%`;
+            
+            // 4. Simpan URL ke Firebase
+            if (userDocId) { 
+                await updateDoc(doc(db, `artifacts/${appId}/public/data/spark_participants`, userDocId), { 
+                    personalBgUrl: url, 
+                    personalBgPosition: 50 
+                }); 
+                
+                stat.textContent = "Berjaya ditukar!"; 
+                setTimeout(() => stat.classList.add('hidden'), 3000); 
+            }
+        } else {
+            throw new Error("ImgBB Error: " + (d.error ? d.error.message : "Unknown error"));
         }
+    } catch (e) { 
+        console.error(e);
+        stat.textContent = "Gagal memuat naik. Sila cuba lagi."; 
+        alert("Gagal memuat naik gambar. Sila pastikan internet stabil.");
+        setTimeout(() => stat.classList.add('hidden'), 3000);
+    }
+}
 
         function openPlannerModal(dateStr) {
             if(!currentUserSector || !currentUserUnit) { document.getElementById('sector-setup-modal').classList.remove('hidden'); return; }
