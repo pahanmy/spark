@@ -6,6 +6,8 @@
     <title>SPARK Curai – Minit & Nota Digital</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+    
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     
     <style>
@@ -15,7 +17,7 @@
         #pdf-wrapper { width: 210mm; margin: 0 auto; background: white; }
         .a4-paper {
             width: 210mm; min-height: 297mm; 
-            padding: 20mm 25mm;
+            padding: 15mm 20mm; /* Adjusted padding for header space */
             background: white; box-shadow: 0 10px 30px rgba(0,0,0,0.1);
             color: black; position: relative;
             font-family: 'Arial', sans-serif; 
@@ -38,18 +40,34 @@
         .minit-header { background-color: #e0f2fe; font-weight: bold; width: 25%; }
 
         /* List Styling in Preview */
-        ol.preview-list { list-style-type: decimal; padding-left: 1.5rem; margin: 0; }
-        ol.preview-list > li { margin-bottom: 0.75rem; font-weight: bold; }
-        ol.preview-list > li > p { font-weight: normal; display: inline; } /* Keep main text normal if needed, or bold based on preference */
+        ol.preview-list { list-style-type: none; padding-left: 0; margin: 0; counter-reset: item; }
+        ol.preview-list > li { margin-bottom: 1rem; position: relative; padding-left: 2rem; }
+        ol.preview-list > li::before { 
+            content: counter(item) "."; 
+            counter-increment: item; 
+            position: absolute; 
+            left: 0; 
+            font-weight: bold; 
+        }
         
-        ul.sub-list { list-style-type: disc; padding-left: 1.5rem; margin-top: 0.25rem; font-weight: normal; }
-        ul.sub-list li { margin-bottom: 0.25rem; }
+        /* Status Tag Styling */
+        .status-tag {
+            display: block;
+            text-align: right;
+            margin-top: 4px;
+            font-size: 8pt;
+            font-weight: bold;
+            font-style: italic;
+        }
 
         @media print {
             body { background: white; }
             .no-print { display: none !important; }
             .a4-paper { box-shadow: none; margin: 0; }
         }
+        
+        /* Modal Backdrop */
+        .modal-backdrop { background-color: rgba(0,0,0,0.5); backdrop-filter: blur(2px); }
     </style>
 </head>
 <body class="flex flex-col h-screen overflow-hidden text-gray-800">
@@ -71,6 +89,13 @@
             </div>
             
             <div class="flex items-center gap-2">
+                <button onclick="showCreditModal()" class="text-xs font-bold text-indigo-600 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 px-3 py-2 rounded-lg flex items-center gap-1 transition-colors mr-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-indigo-500" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M11 3a1 1 0 10-2 0v1a1 1 0 102 0V3zM15.657 5.757a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM18 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM5.05 6.464A1 1 0 106.464 5.05l-.707-.707a1 1 0 00-1.414 1.414l.707.707zM5 10a1 1 0 01-1 1H3a1 1 0 110-2h1a1 1 0 011 1zM8 16v-1h4v1a2 2 0 11-4 0zM12 14c.015-.34.208-.646.477-.859a4 4 0 10-4.954 0c.27.213.462.519.476.859h4.002z" />
+                    </svg>
+                    Idea Asal
+                </button>
+
                 <button onclick="window.location.href='user.html'" class="text-gray-500 hover:text-sky-600 text-sm font-semibold px-3 flex items-center gap-1 transition-colors">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
                     Kembali
@@ -131,7 +156,7 @@
 
                 <div class="bg-white border border-gray-200 rounded-xl p-4 mb-4 shadow-sm">
                     <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-xs font-bold text-gray-700 uppercase">Isi Kandungan</h3>
+                        <h3 class="text-xs font-bold text-gray-700 uppercase">Isi Kandungan & Tindakan</h3>
                     </div>
                     
                     <div id="points-container" class="space-y-4">
@@ -163,7 +188,11 @@
             <div id="pdf-wrapper">
                 <div class="a4-paper transform scale-100 origin-top" id="main-report">
                     
-                    <div class="text-center border-b-2 border-black pb-4 mb-6">
+                    <div class="absolute top-5 right-5 text-right z-10">
+                        <svg id="barcode"></svg>
+                    </div>
+
+                    <div class="text-center border-b-2 border-black pb-4 mb-6 mt-6">
                         <h2 class="text-xl font-bold uppercase tracking-wider mb-2 text-black">MINIT CURAI</h2>
                         <h3 id="out-tajuk" class="text-lg font-semibold uppercase text-gray-800 leading-tight">TAJUK PROGRAM</h3>
                     </div>
@@ -209,29 +238,58 @@
                 </div>
             </div>
         </div>
+    </div>
 
+    <div id="credit-modal" class="fixed inset-0 z-[100] flex items-center justify-center modal-backdrop hidden">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 relative transform transition-all scale-100">
+            <button onclick="closeCreditModal()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+            
+            <div class="text-center">
+                <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-yellow-100 mb-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                    </svg>
+                </div>
+                
+                <h3 class="text-xl font-extrabold text-gray-900 mb-1 uppercase tracking-tight">Penghargaan Khas</h3>
+                <p class="text-xs text-indigo-500 font-bold uppercase mb-4 tracking-wider">Spark Inovasi</p>
+                
+                <div class="bg-gray-50 p-4 rounded-lg border border-gray-100 mb-4">
+                    <p class="text-sm text-gray-600 mb-2">Setinggi-tinggi penghargaan diucapkan kepada:</p>
+                    <p class="text-lg font-bold text-gray-800 uppercase">PN. SU YIEN JIONG</p>
+                    <p class="text-xs text-gray-500 uppercase font-semibold">(SIPartners+ PPD Miri)</p>
+                </div>
+                
+                <p class="text-xs text-gray-500 italic">
+                    Atas idea bernas untuk mewujudkan modul <strong>Minit Curai Digital</strong> dalam sistem SPARK bagi memudahkan pengurusan pelaporan pegawai.
+                </p>
+
+                <div class="mt-6">
+                    <button onclick="closeCreditModal()" class="w-full inline-flex justify-center rounded-lg border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:text-sm uppercase tracking-wide">
+                        Terima Kasih Cikgu!
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
         // --- GLOBAL STATE ---
         let mainPointCounter = 0;
-        const subPointCounters = {}; // Track sub-point IDs per main point
+        const subPointCounters = {}; 
 
-        // --- INITIALIZATION ---
         window.onload = function() {
             setDefaults();
-            // Optional: Load empty state or demo
-             addPoint(); // Start with one point
+            renderBarcode();
+            addPoint(); 
         };
 
         function setDefaults() {
             const now = new Date();
-            
-            // Format Tarikh Bahasa Melayu
             const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
             const dateStr = now.toLocaleDateString('ms-MY', options);
-            
-            // Format Masa (12 jam)
             const timeStr = now.toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit' });
 
             document.getElementById('in-tarikh').value = dateStr;
@@ -239,10 +297,37 @@
             document.getElementById('out-tarikh-laporan').textContent = dateStr;
         }
 
+        // --- BARCODE GENERATOR ---
+        function renderBarcode() {
+            const now = new Date();
+            const dateCode = now.getFullYear().toString().substr(-2) + (now.getMonth()+1).toString().padStart(2,'0') + now.getDate().toString().padStart(2,'0');
+            const randomCode = Math.floor(1000 + Math.random() * 9000);
+            const serial = `SPARK-${dateCode}-${randomCode}`;
+
+            JsBarcode("#barcode", serial, {
+                format: "CODE128",
+                width: 1,
+                height: 25,
+                displayValue: true,
+                fontSize: 10,
+                margin: 0,
+                textMargin: 2,
+                lineColor: "#333"
+            });
+        }
+
+        // --- MODAL LOGIC ---
+        window.showCreditModal = function() {
+            document.getElementById('credit-modal').classList.remove('hidden');
+        }
+        window.closeCreditModal = function() {
+            document.getElementById('credit-modal').classList.add('hidden');
+        }
+
         // --- POINT SYSTEM LOGIC ---
 
-        // 1. Add Main Point
-        window.addPoint = function(text = "") {
+        // 1. Add Main Point (With Action/Status Dropdown)
+        window.addPoint = function(text = "", status = "MAKLUMAN", who = "") {
             mainPointCounter++;
             subPointCounters[mainPointCounter] = 0;
 
@@ -251,10 +336,31 @@
             pointDiv.id = `group-main-${mainPointCounter}`;
             pointDiv.className = "bg-gray-50 border border-gray-200 rounded-lg p-3 transition-all hover:shadow-sm";
             
+            // Logic to hide/show "Siapa" input
+            const isTindakan = status === "TINDAKAN";
+            const whoHiddenClass = isTindakan ? "" : "hidden";
+
             pointDiv.innerHTML = `
                 <div class="flex gap-2 items-start mb-2">
                     <span class="mt-2 text-xs font-bold text-gray-400 bg-white border border-gray-200 w-6 h-6 flex items-center justify-center rounded-full">${mainPointCounter}</span>
-                    <textarea id="input-main-${mainPointCounter}" rows="2" class="spark-input text-sm" placeholder="Isi Poin Utama..." oninput="updatePreview()">${text}</textarea>
+                    <div class="flex-grow">
+                        <textarea id="input-main-${mainPointCounter}" rows="2" class="spark-input text-sm mb-2" placeholder="Isi Poin Utama..." oninput="updatePreview()">${text}</textarea>
+                        
+                        <div class="flex items-center gap-2 bg-white p-2 rounded border border-gray-200">
+                            <div class="w-1/3">
+                                <label class="text-[9px] font-bold text-gray-400 uppercase block mb-1">Jenis Perkara</label>
+                                <select id="status-main-${mainPointCounter}" onchange="toggleActionInput(${mainPointCounter}); updatePreview()" class="w-full text-xs border border-gray-300 rounded p-1">
+                                    <option value="MAKLUMAN" ${status === "MAKLUMAN" ? "selected" : ""}>Makluman</option>
+                                    <option value="TINDAKAN" ${status === "TINDAKAN" ? "selected" : ""}>Tindakan</option>
+                                </select>
+                            </div>
+                            <div class="w-2/3 ${whoHiddenClass}" id="action-wrapper-${mainPointCounter}">
+                                <label class="text-[9px] font-bold text-red-400 uppercase block mb-1">Tindakan Siapa?</label>
+                                <input type="text" id="who-main-${mainPointCounter}" value="${who}" oninput="updatePreview()" class="w-full text-xs border border-red-200 bg-red-50 rounded p-1 placeholder-red-200 text-red-700" placeholder="Cth: Semua Guru / KP...">
+                            </div>
+                        </div>
+                    </div>
+
                     <button type="button" onclick="deleteMainPoint(${mainPointCounter})" class="mt-1 text-gray-400 hover:text-red-500" title="Padam Poin Ini">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                     </button>
@@ -272,6 +378,16 @@
             
             container.appendChild(pointDiv);
             updatePreview();
+        }
+
+        window.toggleActionInput = function(id) {
+            const select = document.getElementById(`status-main-${id}`);
+            const wrapper = document.getElementById(`action-wrapper-${id}`);
+            if (select.value === "TINDAKAN") {
+                wrapper.classList.remove("hidden");
+            } else {
+                wrapper.classList.add("hidden");
+            }
         }
 
         // 2. Add Sub Point (Nested)
@@ -315,96 +431,44 @@
             document.getElementById('in-tempat').value = '';
             document.getElementById('in-anjuran').value = '';
             mainPointCounter = 0;
-            addPoint(); // Add one blank one
+            addPoint(); 
             updatePreview();
         }
 
-        // --- DATA LOADING (FROM PDF) ---
+        // --- DEMO DATA ---
         window.loadDemoData = function() {
-            // Reset
             document.getElementById('points-container').innerHTML = '';
             mainPointCounter = 0;
 
-            // Header Data
             document.getElementById('in-tajuk').value = "CORETAN PESANAN PENGARAH JPNS DALAM SLU BERSAMA SEMUA SIPARTNERS+ SARAWAK";
-            document.getElementById('in-tarikh').value = "29 Januari 2026 (Khamis)";
-            document.getElementById('in-masa').value = "8.30 Pagi";
             document.getElementById('in-tempat').value = "Secara dalam talian (Google Meet)";
             document.getElementById('in-anjuran').value = "Sektor Pembelajaran JPNS";
             document.getElementById('in-nama').value = "PN. SU YIEN JIONG";
             document.getElementById('in-jawatan').value = "SIPARTNERS+ PPD MIRI";
 
-            // Points Data (Based on PDF)
             const demoPoints = [
-                {
-                    main: "Terima kasih atas kehadiran semua barisan SIPartners+ negeri Sarawak.",
-                    subs: []
+                { main: "Terima kasih atas kehadiran semua barisan SIPartners+ negeri Sarawak.", subs: [], status: "MAKLUMAN" },
+                { 
+                    main: "Rancangan Pendidikan Malaysia (RPM) 2026-2035: PGB perlu sebarluaskan RPM terkini di peringkat sekolah.", 
+                    subs: ["Sedikit Perubahan: 'Berkualiti' ditukarkan kepada 'Bermutu'."], 
+                    status: "TINDAKAN", who: "SEMUA PENGETUA & GURU BESAR" 
+                },
+                { 
+                    main: "Isu-isu sekolah: PGB perlu menandatangani dengan lebih baik dan peka terhadap keperluan di sekolah.", 
+                    subs: ["Uruskan dengan sebaik mungkin sebab masyarakat memerhatikan apa yang kita buat."], 
+                    status: "TINDAKAN", who: "PGB" 
                 },
                 {
-                    main: "Rancangan Pendidikan Malaysia (RPM) 2026-2035",
-                    subs: [
-                        "PGB perlu sebarluaskan RPM terkini di peringkat sekolah masing-masing.",
-                        "Sedikit Perubahan: 'Berkualiti' ditukarkan kepada 'Bermutu' dalam Visi dan Misi KPM."
-                    ]
-                },
-                {
-                    main: "Isu-isu sekolah",
-                    subs: [
-                        "PGB perlu menandatangani dengan lebih baik dan peka terhadap keperluan di sekolah.",
-                        "Uruskan dengan sebaik mungkin sebab masyarakat memerhatikan apa yang kita buat."
-                    ]
-                },
-                {
-                    main: "Standard Kompetensi Kepengetuaan Sekolah Malaysia (SKKSM)",
-                    subs: [
-                        "PGB perlu menguasai kemahiran pengurusan dalam 9 bidang yang dicatat dalam SKKSM.",
-                        "SIPartners+ boleh mainkan peranan dalam sesi bimbingan contohnya mengurus kewangan.",
-                        "Belanja dengan berhemah dan mematuhi peraturan setiap masa."
-                    ]
-                },
-                {
-                    main: "Tumpuan Sasaran Wajib Capai RPM 2026 - 2035 (Lima Tumpuan Utama)",
-                    subs: [
-                        "Mutu: Memperkukuh kualiti pembelajaran melalui kurikulum dan pedagogi.",
-                        "Akses dan Ekuiti: Pendidikan bermutu untuk semua tanpa mengira latar belakang.",
-                        "Ketersediaan Sumber: Pengurusan sumber cekap untuk persekitaran kondusif.",
-                        "Keluwesan: Sistem pendidikan yang fleksibel dan responsif teknologi.",
-                        "Kemampanan: Membudayakan amalan lestari."
-                    ]
-                },
-                {
-                    main: "Pencapaian akademik di negeri Sarawak",
-                    subs: [
-                        "Masih pada tahap yang rendah dan membimbangkan.",
-                        "PGB perlu memastikan langkah intervensi berimpak dirancang dan dilaksanakan."
-                    ]
-                },
-                {
-                    main: "Isu Pencapaian SPM",
-                    subs: [
-                        "Isu pencapaian perlu lebih khusus dan spesifik apabila justifikasi diminta.",
-                        "Contoh: Jangan tulis 'lemah', tulis 'Kemahiran Bertutur belum dikuasai'.",
-                        "Yayasan Sarawak telah memberi banyak peruntukan, perlu pastikan ada impak."
-                    ]
-                },
-                {
-                    main: "Kepimpinan PGB Mengurus Sekolah",
-                    subs: [
-                        "Mengadakan inisiatif mencari pelbagai sumber kewangan/sumbangan (JnJ).",
-                        "Contoh cemerlang: Pengetua SMK Agama Miri (Ustaz Fauzi) yang gigih menaik taraf sekolah."
-                    ]
+                    main: "Pencapaian akademik di negeri Sarawak masih pada tahap yang rendah.",
+                    subs: [], status: "MAKLUMAN"
                 }
             ];
 
-            // Render Demo Points
             demoPoints.forEach(p => {
-                addPoint(p.main);
+                addPoint(p.main, p.status, p.who);
                 const currentMainId = mainPointCounter;
-                p.subs.forEach(s => {
-                    addSubPoint(currentMainId, s);
-                });
+                p.subs.forEach(s => addSubPoint(currentMainId, s));
             });
-
             updatePreview();
         }
 
@@ -418,54 +482,78 @@
                 if(el) el.textContent = val.toUpperCase();
             });
             
-            // Special case for Tarikh Laporan (Footer)
+            // Footer Date
             const dateVal = document.getElementById('in-tarikh').value;
             document.getElementById('out-tarikh-laporan').textContent = dateVal.toUpperCase();
 
-            // Update Content List
+            // Render Content
             const previewList = document.getElementById('out-content');
             previewList.innerHTML = '';
 
-            // Iterate through main points containers found in DOM
             const mainDivs = document.querySelectorAll('[id^="group-main-"]');
             
             mainDivs.forEach((div) => {
                 const mainIdStr = div.id.replace('group-main-', '');
                 const mainInput = document.getElementById(`input-main-${mainIdStr}`);
+                const statusSelect = document.getElementById(`status-main-${mainIdStr}`);
+                const whoInput = document.getElementById(`who-main-${mainIdStr}`);
                 
-                // Only render if main text exists OR there are subpoints
                 if(mainInput) {
                     const mainText = mainInput.value;
+                    const status = statusSelect.value;
+                    const who = whoInput.value.toUpperCase();
+
                     const li = document.createElement('li');
                     
-                    // Main Text Paragraph
-                    const pMain = document.createElement('span'); // Span to keep inline with number
-                    pMain.style.fontWeight = "bold"; // Main points bold
+                    // 1. Text Wrapper
+                    const contentWrapper = document.createElement('div');
+                    
+                    // Main Text
+                    const pMain = document.createElement('span');
+                    pMain.style.fontWeight = "bold";
                     pMain.textContent = mainText;
-                    li.appendChild(pMain);
+                    contentWrapper.appendChild(pMain);
 
-                    // Check for sub-points
+                    // Sub-points
                     const subContainer = document.getElementById(`sub-container-${mainIdStr}`);
                     const subInputs = subContainer.querySelectorAll('textarea');
                     
                     if(subInputs.length > 0) {
                         const ulSub = document.createElement('ul');
-                        ulSub.className = "sub-list";
+                        ulSub.style.listStyleType = "disc";
+                        ulSub.style.paddingLeft = "1.5rem";
+                        ulSub.style.marginTop = "0.25rem";
+                        ulSub.style.fontWeight = "normal";
                         
                         let hasSubs = false;
                         subInputs.forEach(subIn => {
                             if(subIn.value.trim() !== "") {
                                 const liSub = document.createElement('li');
+                                liSub.style.marginBottom = "0.25rem";
                                 liSub.textContent = subIn.value;
                                 ulSub.appendChild(liSub);
                                 hasSubs = true;
                             }
                         });
-
-                        if(hasSubs) li.appendChild(ulSub);
+                        if(hasSubs) contentWrapper.appendChild(ulSub);
                     }
+                    
+                    li.appendChild(contentWrapper);
 
-                    // Only append LI if it has content
+                    // 2. Status Footer (Makluman / Tindakan)
+                    const statusDiv = document.createElement('div');
+                    statusDiv.className = "status-tag";
+                    
+                    if (status === "MAKLUMAN") {
+                        statusDiv.style.color = "#6b7280"; // Gray
+                        statusDiv.textContent = "MAKLUMAN";
+                    } else {
+                        statusDiv.style.color = "#dc2626"; // Red
+                        statusDiv.textContent = `TINDAKAN: ${who || "PGB"}`;
+                    }
+                    
+                    li.appendChild(statusDiv);
+
                     if(mainText.trim() !== "" || li.querySelector('ul')) {
                         previewList.appendChild(li);
                     }
@@ -490,7 +578,6 @@
 
             html2pdf().set(opt).from(element).save();
         }
-
     </script>
 </body>
 </html>
