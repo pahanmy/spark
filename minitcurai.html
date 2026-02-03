@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SPARK Curai – Professional Fixed</title>
+    <title>SPARK Curai – Professional</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
@@ -13,14 +13,23 @@
     <style>
         body { font-family: 'Poppins', sans-serif; background-color: #f0f9ff; }
         
-        /* A4 Paper */
+        /* A4 Paper Styling */
         #pdf-wrapper { width: 210mm; margin: 0 auto; background: white; transition: all 0.3s ease; }
         .a4-paper {
             width: 210mm; min-height: 297mm; 
-            padding: 20mm 20mm;
+            padding: 20mm 20mm; /* Standard Padding */
             background: white; box-shadow: 0 10px 30px rgba(0,0,0,0.1);
             color: black; position: relative;
             font-family: 'Arial', sans-serif; 
+        }
+
+        /* Barcode Container (Fixed Top Right relative to Paper) */
+        .barcode-container {
+            position: absolute;
+            top: 20mm; /* Sama level dengan padding atas */
+            right: 20mm; /* Sama level dengan padding kanan */
+            z-index: 50;
+            text-align: right;
         }
 
         /* Fixed Header Table */
@@ -31,7 +40,14 @@
 
         /* Content Body */
         #out-content { font-size: 11pt; line-height: 1.5; text-align: justify; }
-        .single-line-name { white-space: nowrap; width: 100%; display: block; }
+        
+        /* Single Line Name Fix */
+        .single-line-name { 
+            white-space: nowrap; 
+            overflow: visible; /* Biar ia keluar sikit jika terlalu panjang, asalkan satu baris */
+            width: auto;
+            display: block;
+        }
 
         /* Inputs & Scrollbar */
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }
@@ -140,11 +156,11 @@
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                             Mula Rekod (Aktifkan Auto-Save)
                         </button>
-                        <p class="text-[10px] text-gray-400 text-center mt-2 italic">Isi maklumat asas di atas, kemudian tekan butang ini.</p>
+                        <p class="text-[10px] text-gray-400 text-center mt-2 italic">Pastikan maklumat di atas tepat, kemudian tekan butang ini.</p>
                     </div>
 
                     <div class="bg-white border border-gray-200 rounded-xl p-4 mb-4 shadow-sm">
-                        <div class="flex justify-between items-center mb-4"><h3 class="text-xs font-bold text-gray-700 uppercase">Catatan Minit</h3><span id="session-status" class="text-[9px] text-gray-400 bg-gray-100 px-2 py-1 rounded">Mod Lihat (Tidak Disimpan)</span></div>
+                        <div class="flex justify-between items-center mb-4"><h3 class="text-xs font-bold text-gray-700 uppercase">Catatan Minit</h3><span id="session-status" class="text-[9px] text-gray-400 bg-gray-100 px-2 py-1 rounded">Mod Lihat</span></div>
                         <div id="speakers-container" class="space-y-6"></div>
                         <button type="button" onclick="addSpeaker()" class="mt-6 w-full py-3 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-bold uppercase hover:bg-indigo-100 transition flex justify-center items-center gap-2 border-dashed border-2"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg> Tambah Sesi / Pemucap</button>
                     </div>
@@ -185,7 +201,11 @@
         <div class="w-full lg:w-2/3 bg-gray-100 overflow-auto flex justify-center p-8 custom-scrollbar">
             <div id="pdf-wrapper">
                 <div class="a4-paper transform scale-100 origin-top" id="main-report">
-                    <div class="absolute top-8 right-8 text-right z-50"><svg id="barcode"></svg></div>
+                    
+                    <div class="barcode-container">
+                        <svg id="barcode"></svg>
+                    </div>
+
                     <div class="text-center border-b-2 border-black pb-4 mb-6 mt-6">
                         <h2 class="text-xl font-bold uppercase tracking-wider mb-2 text-black">MINIT CURAI</h2>
                         <h3 id="out-tajuk" class="text-lg font-semibold uppercase text-gray-800 leading-tight">TAJUK PROGRAM</h3>
@@ -255,6 +275,20 @@
         let sigCanvas, sigCtx, isDrawing = false, isSignatureDrawn = false;
         let saveTimeout;
 
+        // GLOBAL RENDER BARCODE (Available to all)
+        window.renderBarcode = function(serial) {
+            if(!serial) serial = "SPARK-" + Math.floor(Math.random() * 1000000);
+            JsBarcode("#barcode", serial, {
+                format: "CODE128",
+                width: 1,
+                height: 15, // Matching OPR
+                displayValue: true,
+                fontSize: 8,
+                margin: 0,
+                textMargin: 1
+            });
+        }
+
         window.onload = function() {
             initSignaturePad();
             onAuthStateChanged(auth, async (user) => {
@@ -263,8 +297,9 @@
                 if (window.currentUserIc) {
                     await fetchUserData(window.currentUserIc);
                     setDefaults();
-                    addSpeaker(true); // Silent Add
+                    addSpeaker(true); 
                     loadHistory();
+                    window.renderBarcode(); // Init barcode
                 } else {
                     alert("Sila log masuk semula.");
                     window.location.href = 'index.html';
@@ -399,7 +434,6 @@
             return `<div class="relative bg-white border border-gray-100 rounded p-2 shadow-sm"><div class="flex gap-2 items-start"><div class="flex flex-col gap-1 mt-1"><span class="text-xs font-bold text-gray-400 bg-gray-100 w-6 h-6 flex items-center justify-center rounded-full">${pi + 1}</span><button onclick="toggleBold(${i}, ${pi})" class="btn-bold ${boldCls}" title="Bold?">B</button></div><div class="flex-grow"><div class="relative"><textarea id="input-point-${i}-${pi}" oninput="autoResize(this); updatePointText(${i}, ${pi}, this.value)" rows="1" class="spark-input text-sm mb-1 pr-16" placeholder="Isi Poin Utama...">${p.text}</textarea><button onclick="askAI(this, 'point', ${i}, ${pi})" class="btn-ai-fancy absolute right-2 top-2 ${aiClass}">AI</button></div><div class="flex items-center justify-between mb-2 mt-1"><label class="inline-flex items-center cursor-pointer"><input type="checkbox" ${isStat ? 'checked' : ''} onchange="togglePointStatus(${i}, ${pi}, this.checked)" class="form-checkbox h-3 w-3 text-sky-600"><span class="ml-2 text-[9px] text-gray-400 hover:text-gray-600 uppercase font-bold">Status/Tindakan</span></label><button onclick="addSubPoint(${i}, ${pi})" class="text-[10px] font-bold text-teal-600 bg-teal-50 border border-teal-200 px-4 py-1.5 rounded-lg hover:bg-teal-100 flex items-center gap-1 transition-colors shadow-sm"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg> Sub-Poin (1.x)</button></div><div id="status-box-${i}-${pi}" class="flex items-center gap-2 bg-gray-50 p-2 rounded border border-gray-100 ${statHide} mb-2"><div class="w-1/3"><select onchange="updatePointStatusType(${i}, ${pi}, this.value)" class="w-full text-xs border border-gray-300 rounded p-1"><option value="MAKLUMAN" ${p.status === "MAKLUMAN" ? "selected" : ""}>Makluman</option><option value="TINDAKAN" ${p.status === "TINDAKAN" ? "selected" : ""}>Tindakan</option></select></div><div class="w-2/3 ${whoHide}" id="who-box-${i}-${pi}"><input type="text" value="${p.who}" oninput="updatePointWho(${i}, ${pi}, this.value)" class="w-full text-xs border border-gray-300 rounded p-1" placeholder="Siapa? (Cth: Semua Guru)"></div></div><div id="subs-container-${i}-${pi}">${subs}</div></div><button onclick="removePoint(${i}, ${pi})" class="text-gray-300 hover:text-red-400 self-start mt-2"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button></div></div>`;
         }
 
-        // Standard CRUD Operations
         window.addSpeaker = function() { window.speakersData.push({ name: "", points: [] }); addPoint(window.speakersData.length - 1); triggerAutoSave(); }
         window.removeSpeaker = function(i) { if(confirm("Padam?")) { window.speakersData.splice(i, 1); renderFormFromData(); triggerAutoSave(); updatePreview(); } }
         window.updateSpeakerName = function(i, v) { window.speakersData[i].name = v; triggerAutoSave(); updatePreview(); }
@@ -438,7 +472,7 @@
         }
 
         window.setDefaults = function() { const n = new Date(); document.getElementById('in-tarikh').value = n.toISOString().split('T')[0]; document.getElementById('in-masa').value = n.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }); }
-        window.renderBarcode = function() { const s = `SPARK-${Math.floor(Math.random()*1000000)}`; JsBarcode("#barcode", s, { format: "CODE128", width: 1, height: 25, displayValue: true, fontSize: 10, margin: 0 }); }
+        window.renderBarcode = function() { const s = `SPARK-${Math.floor(Math.random()*1000000)}`; JsBarcode("#barcode", s, { format: "CODE128", width: 1, height: 15, displayValue: true, fontSize: 8, margin: 0, textMargin: 1 }); }
         window.downloadPDF = function() { const el = document.getElementById('pdf-wrapper'); let t = document.getElementById('in-tajuk').value.substring(0, 20).replace(/[^a-zA-Z0-9]/g, '_'); html2pdf().set({ margin: 0, filename: `CURAI_${t}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } }).from(el).save(); }
         
         function initSignaturePad() { sigCanvas = document.getElementById('signature-pad'); if (!sigCanvas) return; sigCtx = sigCanvas.getContext('2d'); setTimeout(()=>{const r=sigCanvas.getBoundingClientRect();sigCanvas.width=r.width;sigCanvas.height=r.height;},500); sigCanvas.addEventListener('mousedown', sD); sigCanvas.addEventListener('mouseup', eD); sigCanvas.addEventListener('mousemove', dD); sigCanvas.addEventListener('touchstart', (e)=>{e.preventDefault();sD(e.touches[0])}); sigCanvas.addEventListener('touchend', (e)=>{e.preventDefault();eD()}); sigCanvas.addEventListener('touchmove', (e)=>{e.preventDefault();dD(e.touches[0])}); }
