@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SPARK Curai – Professional (Sig Fixed)</title>
+    <title>SPARK Curai – Final V15</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
@@ -44,20 +44,38 @@
         .nav-tab.active { background-color: #e0f2fe; color: #0369a1; border-color: #bae6fd; }
         .nav-tab.inactive { color: #64748b; background-color: transparent; }
         
+        /* Preview Lists */
         .preview-list { list-style: none; padding: 0; margin: 0; }
         .preview-item { margin-bottom: 10px; display: flex; align-items: flex-start; }
         .preview-num { font-weight: bold; min-width: 25px; }
         .preview-text { flex-grow: 1; text-align: justify; }
+        
         .sub-list { margin-top: 5px; }
         .sub-item { display: flex; align-items: flex-start; margin-bottom: 4px; }
         .sub-num { font-weight: normal; min-width: 35px; font-size: 0.95em; }
-        .sub-text { flex-grow: 1; font-size: 0.95em; }
+        .sub-text-wrapper { flex-grow: 1; }
+        .sub-text { font-size: 0.95em; }
 
         .speaker-section { margin-bottom: 20px; border-bottom: 1px dashed #ddd; padding-bottom: 10px; }
         .speaker-section:last-child { border-bottom: none; }
-        .speaker-title { font-weight: 800; text-transform: uppercase; text-decoration: underline; margin-bottom: 8px; font-size: 1.1em; background-color: #f8fafc; display: inline-block; padding: 2px 5px; }
-        .status-tag { display: block; text-align: right; margin-top: 2px; font-size: 0.8em; font-weight: bold; color: black; text-transform: uppercase; }
+        
+        /* UPDATED SPEAKER TITLE STYLE */
+        .speaker-title { 
+            font-weight: bold; 
+            /* text-transform removed */
+            /* text-decoration removed */
+            margin-bottom: 5px; 
+            font-size: 10pt; /* Smaller/Standard */
+            color: #334155;
+            background-color: #f1f5f9;
+            padding: 2px 6px;
+            border-radius: 4px;
+            display: inline-block;
+        }
 
+        .status-tag { display: block; text-align: right; margin-top: 2px; font-size: 8pt; font-weight: bold; color: black; text-transform: uppercase; }
+
+        /* Buttons */
         .btn-ai-fancy { background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%); color: white; font-weight: 700; font-size: 9px; padding: 4px 8px; border-radius: 6px; box-shadow: 0 2px 5px rgba(168, 85, 247, 0.3); transition: all 0.3s ease; display: flex; align-items: center; gap: 4px; text-transform: uppercase; }
         .btn-ai-fancy:hover { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(168, 85, 247, 0.5); }
         .btn-bold { width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; font-weight: bold; font-family: serif; font-size: 14px; transition: all 0.2s; border: 1px solid #ddd; }
@@ -224,7 +242,6 @@
         window.speakersData = []; window.currentUserIc = ""; window.currentDocId = ""; window.isSparkPro = false; window.isSessionActive = false;
         let sigCanvas, sigCtx, isDrawing = false, isSignatureDrawn = false, saveTimeout;
 
-        // GLOBAL RENDER BARCODE
         window.renderBarcode = function(serial) {
             if(!serial) serial = "SPARK-" + Math.floor(Math.random() * 1000000);
             JsBarcode("#barcode", serial, { format: "CODE128", width: 1, height: 15, displayValue: true, fontSize: 8, margin: 0, textMargin: 1 });
@@ -238,7 +255,9 @@
                 if (window.currentUserIc) {
                     await fetchUserData(window.currentUserIc);
                     setDefaults();
-                    addSpeaker(true); loadHistory(); window.renderBarcode();
+                    addSpeaker(true); 
+                    loadHistory();
+                    window.renderBarcode();
                 } else { alert("Sila log masuk semula."); window.location.href = 'index.html'; }
             });
         };
@@ -295,12 +314,16 @@
 
         window.loadHistory = async function() {
             const listDiv = document.getElementById('history-list');
-            try { const q = query(collection(db, `artifacts/${appId}/public/data/spark_minit_curai`), where("ic", "==", window.currentUserIc), orderBy("updatedAt", "desc"));
+            try {
+                const q = query(collection(db, `artifacts/${appId}/public/data/spark_minit_curai`), where("ic", "==", window.currentUserIc), orderBy("updatedAt", "desc"));
                 const snap = await getDocs(q); listDiv.innerHTML = ""; if(snap.empty) { listDiv.innerHTML = "<p class='text-xs text-center text-gray-400'>Tiada rekod.</p>"; return; }
-                snap.forEach(dSnap => { const d = dSnap.data(); const dt = d.tarikh?new Date(d.tarikh).toLocaleDateString('ms-MY'):"-";
+                snap.forEach(dSnap => {
+                    const d = dSnap.data(); const dt = d.tarikh?new Date(d.tarikh).toLocaleDateString('ms-MY'):"-";
                     const item = document.createElement('div'); item.className = "bg-white p-3 rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer";
                     item.onclick = () => loadFromHistory(dSnap.id, d);
-                    item.innerHTML = `<div class="flex justify-between items-start"><div><h4 class="text-xs font-bold text-gray-800 uppercase line-clamp-1">${d.tajuk||"Tiada Tajuk"}</h4><p class="text-[10px] text-gray-500">${dt} | ${d.tempat||"-"}</p></div><button onclick="event.stopPropagation(); deleteRecord('${dSnap.id}')" class="text-red-400 hover:text-red-600"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button></div>`; listDiv.appendChild(item); });
+                    item.innerHTML = `<div class="flex justify-between items-start"><div><h4 class="text-xs font-bold text-gray-800 uppercase line-clamp-1">${d.tajuk||"Tiada Tajuk"}</h4><p class="text-[10px] text-gray-500">${dt} | ${d.tempat||"-"}</p></div><button onclick="event.stopPropagation(); deleteRecord('${dSnap.id}')" class="text-red-400 hover:text-red-600"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button></div>`;
+                    listDiv.appendChild(item);
+                });
             } catch (e) { console.error(e); }
         }
 
@@ -317,9 +340,7 @@
         }
 
         window.deleteRecord = async function(id) { if(!confirm("Padam?")) return; try { await deleteDoc(doc(db, `artifacts/${appId}/public/data/spark_minit_curai`, id)); loadHistory(); if(window.currentDocId === id) clearForm(true); } catch(e) { alert("Ralat."); } }
-        window.switchTab = function(tName) { ['editor', 'history', 'settings'].forEach(t => { document.getElementById(`view-${t}`).classList.add('hidden'); document.getElementById(`tab-${t}`).className = 'nav-tab inactive flex-1 text-center'; }); document.getElementById(`view-${tName}`).classList.remove('hidden'); document.getElementById(`view-${tName}`).classList.add('block'); document.getElementById(`tab-${tName}`).className = 'nav-tab active flex-1 text-center'; 
-            if(tName === 'editor') { setTimeout(() => { const c = document.getElementById('signature-pad'); if(c) { c.width = c.parentElement.clientWidth; c.height = c.parentElement.clientHeight; } }, 200); }
-        }
+        window.switchTab = function(tName) { ['editor', 'history', 'settings'].forEach(t => { document.getElementById(`view-${t}`).classList.add('hidden'); document.getElementById(`tab-${t}`).className = 'nav-tab inactive flex-1 text-center'; }); document.getElementById(`view-${tName}`).classList.remove('hidden'); document.getElementById(`view-${tName}`).classList.add('block'); document.getElementById(`tab-${tName}`).className = 'nav-tab active flex-1 text-center'; }
         window.updateSettings = function(type, val) { const c = document.getElementById('out-content'); const p = document.getElementById('main-report'); if(type === 'fontSize') { c.style.fontSize = val + 'pt'; document.getElementById('lbl-fontSize').innerText = val + 'pt'; } else if (type === 'lineHeight') { c.style.lineHeight = val; document.getElementById('lbl-lineHeight').innerText = val; } else if (type === 'padding') { p.style.padding = `${val}mm 20mm`; document.getElementById('lbl-padding').innerText = val + 'mm'; } }
         window.shareRecord = function() { if(!window.currentDocId) { alert("Simpan dulu."); return; } const link = window.location.href.replace('sparkcurai.html', `viewminit.html?id=${window.currentDocId}`); window.open(`https://wa.me/?text=${encodeURIComponent("Salam, berikut pautan Minit Curai: " + link)}`, '_blank'); }
         window.autoResize = function(el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }
@@ -327,7 +348,8 @@
         // --- AI LOGIC (PRO ONLY) ---
         window.askAI = async function(btn, type, sIndex, pIndex, subIndex = null) {
             if(!window.isSparkPro) { alert("🔒 Ciri AI ini khas untuk pengguna SPARK PRO sahaja."); return; }
-            const originalText = btn.innerHTML; let inputId = (type === 'point') ? `input-point-${sIndex}-${pIndex}` : `input-sub-${sIndex}-${pIndex}-${subIndex}`;
+            const originalText = btn.innerHTML; 
+            let inputId = (type === 'point') ? `input-point-${sIndex}-${pIndex}` : `input-sub-${sIndex}-${pIndex}-${subIndex}`;
             const inputEl = document.getElementById(inputId); const userText = inputEl.value;
             if(!userText || userText.length < 3) { alert("Tulis minima 3 huruf."); return; }
             btn.innerHTML = `...`; btn.disabled = true;
@@ -335,24 +357,107 @@
             try {
                 const r = await fetch("https://api.groq.com/openai/v1/chat/completions", { method: "POST", headers: { "Authorization": `Bearer ${GROQ_API_KEY}`, "Content-Type": "application/json" }, body: JSON.stringify({ messages: [{ role: "system", content: "Tukar teks input menjadi ayat minit mesyuarat formal Bahasa Melayu." }, { role: "user", content: userText }], model: "llama-3.3-70b-versatile", temperature: 0.5 }) });
                 const d = await r.json(); let nText = d.choices[0].message.content.replace(/"/g, '').trim();
-                if(type === 'point') { updatePointText(sIndex, pIndex, nText); inputEl.value = nText; } else { updateSubPoint(sIndex, pIndex, subIndex, nText); inputEl.value = nText; }
+                
+                // Update based on Type
+                if(type === 'point') { 
+                    updatePointText(sIndex, pIndex, nText); 
+                    inputEl.value = nText; 
+                } else { 
+                    updateSubPoint(sIndex, pIndex, subIndex, nText); 
+                    inputEl.value = nText; 
+                }
                 autoResize(inputEl); triggerAutoSave();
             } catch (e) { alert("AI Gagal."); } finally { btn.innerHTML = originalText; btn.disabled = false; }
         }
 
         window.renderFormFromData = function() { document.getElementById('speakers-container').innerHTML = ''; window.speakersData.forEach((s, i) => createSpeakerHTML(s, i)); document.querySelectorAll('textarea.spark-input').forEach(el => autoResize(el)); }
+        
+        // --- HTML CREATORS (UPDATED) ---
         window.createSpeakerHTML = function(s, i) {
             const w = document.createElement('div'); w.className = "bg-gray-50 border border-gray-300 rounded-lg p-3 relative"; w.id = `speaker-wrapper-${i}`;
             let pts = ''; s.points.forEach((p, pi) => pts += createPointHTML(p, i, pi));
-            w.innerHTML = `<div class="mb-3 bg-white p-2 rounded border border-gray-200"><label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Nama Pemucap / Sesi</label><div class="flex gap-2"><input type="text" value="${s.name}" oninput="updateSpeakerName(${i}, this.value)" class="flex-grow text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 rounded p-1.5 placeholder-indigo-300 uppercase" placeholder="Cth: PENGARAH JPNS..."><button onclick="removeSpeaker(${i})" class="text-red-400 hover:text-red-600 p-1"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button></div></div><div id="points-list-${i}" class="space-y-4 pl-2 border-l-2 border-indigo-100">${pts}</div><div class="mt-4 pl-2"><button type="button" onclick="addPoint(${i})" class="text-[10px] font-bold text-sky-600 hover:text-sky-800 flex items-center gap-1 uppercase bg-white px-3 py-1.5 rounded border border-sky-100 hover:bg-sky-50 shadow-sm">+ Tambah Poin Utama</button></div>`;
+            w.innerHTML = `<div class="mb-3 bg-white p-2 rounded border border-gray-200"><label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Penyampai</label><div class="flex gap-2"><input type="text" value="${s.name}" oninput="updateSpeakerName(${i}, this.value)" class="flex-grow text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 rounded p-1.5 placeholder-indigo-300 uppercase" placeholder="Cth: Pengarah JPNS"><button onclick="removeSpeaker(${i})" class="text-red-400 hover:text-red-600 p-1"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button></div></div><div id="points-list-${i}" class="space-y-4 pl-2 border-l-2 border-indigo-100">${pts}</div><div class="mt-4 pl-2"><button type="button" onclick="addPoint(${i})" class="text-[10px] font-bold text-sky-600 hover:text-sky-800 flex items-center gap-1 uppercase bg-white px-3 py-1.5 rounded border border-sky-100 hover:bg-sky-50 shadow-sm">+ Tambah Poin Utama</button></div>`;
             document.getElementById('speakers-container').appendChild(w);
         }
+
         window.createPointHTML = function(p, i, pi) {
             const isStat = p.status !== ""; const statHide = isStat ? "" : "hidden"; const whoHide = p.status === "TINDAKAN" ? "" : "hidden"; const boldCls = p.isBold ? "active" : "inactive"; const aiClass = window.isSparkPro ? "" : "locked";
-            let subs = ''; p.subs.forEach((s, si) => { subs += `<div class="flex gap-2 items-start mt-2 ml-4 border-l border-gray-200 pl-2"><span class="mt-2 text-[10px] text-gray-400 font-bold w-6 text-right">${pi + 1}.${si + 1}</span><div class="flex-grow relative"><textarea id="input-sub-${i}-${pi}-${si}" oninput="autoResize(this); updateSubPoint(${i}, ${pi}, ${si}, this.value)" rows="1" class="spark-input text-xs bg-white w-full pr-16" placeholder="Isi Sub-Poin...">${s}</textarea><button onclick="askAI(this, 'sub', ${i}, ${pi}, ${si})" class="btn-ai-fancy absolute right-1 top-1 ${aiClass}">AI</button></div><button type="button" onclick="removeSubPoint(${i}, ${pi}, ${si})" class="mt-1 text-gray-300 hover:text-red-400">x</button></div>`; });
+            
+            let subs = ''; 
+            p.subs.forEach((s, si) => { 
+                // Handle new object structure for Sub-points
+                const subText = (typeof s === 'object') ? s.text : s;
+                const subStatus = (typeof s === 'object') ? s.status : "";
+                const subWho = (typeof s === 'object') ? s.who : "";
+                
+                const isSubStat = subStatus !== "";
+                const subStatHide = isSubStat ? "" : "hidden";
+                const subWhoHide = subStatus === "TINDAKAN" ? "" : "hidden";
+
+                subs += `
+                <div class="flex flex-col gap-1 mt-2 ml-4 border-l border-gray-200 pl-2">
+                    <div class="flex gap-2 items-start">
+                        <span class="mt-2 text-[10px] text-gray-400 font-bold w-6 text-right">${pi + 1}.${si + 1}</span>
+                        <div class="flex-grow relative">
+                             <textarea id="input-sub-${i}-${pi}-${si}" oninput="autoResize(this); updateSubPoint(${i}, ${pi}, ${si}, this.value)" rows="1" class="spark-input text-xs bg-white w-full pr-16" placeholder="Isi Sub-Poin...">${subText}</textarea>
+                             <button onclick="askAI(this, 'sub', ${i}, ${pi}, ${si})" class="btn-ai-fancy absolute right-1 top-1 ${aiClass}">AI</button>
+                        </div>
+                        <button type="button" onclick="removeSubPoint(${i}, ${pi}, ${si})" class="mt-1 text-gray-300 hover:text-red-400">x</button>
+                    </div>
+                    
+                    <div class="ml-8 flex items-center justify-between">
+                        <label class="inline-flex items-center cursor-pointer">
+                            <input type="checkbox" ${isSubStat ? 'checked' : ''} onchange="toggleSubPointStatus(${i}, ${pi}, ${si}, this.checked)" class="form-checkbox h-3 w-3 text-sky-600">
+                            <span class="ml-1 text-[9px] text-gray-400 hover:text-gray-600">Status/Tindakan</span>
+                        </label>
+                    </div>
+
+                    <div id="sub-status-box-${i}-${pi}-${si}" class="ml-8 flex items-center gap-2 bg-gray-50 p-1.5 rounded border border-gray-100 ${subStatHide}">
+                        <div class="w-1/3">
+                            <select onchange="updateSubPointStatusType(${i}, ${pi}, ${si}, this.value)" class="w-full text-[10px] border border-gray-300 rounded p-1">
+                                <option value="MAKLUMAN" ${subStatus === "MAKLUMAN" ? "selected" : ""}>Makluman</option>
+                                <option value="TINDAKAN" ${subStatus === "TINDAKAN" ? "selected" : ""}>Tindakan</option>
+                            </select>
+                        </div>
+                        <div class="w-2/3 ${subWhoHide}" id="sub-who-box-${i}-${pi}-${si}">
+                            <input type="text" value="${subWho}" oninput="updateSubPointWho(${i}, ${pi}, ${si}, this.value)" class="w-full text-[10px] border border-gray-300 rounded p-1" placeholder="Siapa?">
+                        </div>
+                    </div>
+                </div>`; 
+            });
+
             return `<div class="relative bg-white border border-gray-100 rounded p-2 shadow-sm"><div class="flex gap-2 items-start"><div class="flex flex-col gap-1 mt-1"><span class="text-xs font-bold text-gray-400 bg-gray-100 w-6 h-6 flex items-center justify-center rounded-full">${pi + 1}</span><button onclick="toggleBold(${i}, ${pi})" class="btn-bold ${boldCls}" title="Bold?">B</button></div><div class="flex-grow"><div class="relative"><textarea id="input-point-${i}-${pi}" oninput="autoResize(this); updatePointText(${i}, ${pi}, this.value)" rows="1" class="spark-input text-sm mb-1 pr-16" placeholder="Isi Poin Utama...">${p.text}</textarea><button onclick="askAI(this, 'point', ${i}, ${pi})" class="btn-ai-fancy absolute right-2 top-2 ${aiClass}">AI</button></div><div class="flex items-center justify-between mb-2 mt-1"><label class="inline-flex items-center cursor-pointer"><input type="checkbox" ${isStat ? 'checked' : ''} onchange="togglePointStatus(${i}, ${pi}, this.checked)" class="form-checkbox h-3 w-3 text-sky-600"><span class="ml-2 text-[9px] text-gray-400 hover:text-gray-600 uppercase font-bold">Status/Tindakan</span></label><button onclick="addSubPoint(${i}, ${pi})" class="text-[10px] font-bold text-teal-600 bg-teal-50 border border-teal-200 px-4 py-1.5 rounded-lg hover:bg-teal-100 flex items-center gap-1 transition-colors shadow-sm"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg> Sub-Poin (1.x)</button></div><div id="status-box-${i}-${pi}" class="flex items-center gap-2 bg-gray-50 p-2 rounded border border-gray-100 ${statHide} mb-2"><div class="w-1/3"><select onchange="updatePointStatusType(${i}, ${pi}, this.value)" class="w-full text-xs border border-gray-300 rounded p-1"><option value="MAKLUMAN" ${p.status === "MAKLUMAN" ? "selected" : ""}>Makluman</option><option value="TINDAKAN" ${p.status === "TINDAKAN" ? "selected" : ""}>Tindakan</option></select></div><div class="w-2/3 ${whoHide}" id="who-box-${i}-${pi}"><input type="text" value="${p.who}" oninput="updatePointWho(${i}, ${pi}, this.value)" class="w-full text-xs border border-gray-300 rounded p-1" placeholder="Siapa? (Cth: Semua Guru)"></div></div><div id="subs-container-${i}-${pi}">${subs}</div></div><button onclick="removePoint(${i}, ${pi})" class="text-gray-300 hover:text-red-400 self-start mt-2"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button></div></div>`;
         }
 
+        // --- SUB POINT ACTIONS ---
+        window.addSubPoint = function(i, pi) { 
+            window.speakersData[i].points[pi].subs.push({ text: "", status: "", who: "" }); // Push object now
+            renderFormFromData(); triggerAutoSave(); updatePreview(); 
+        }
+        window.updateSubPoint = function(i, pi, si, v) { 
+            let sub = window.speakersData[i].points[pi].subs[si];
+            if(typeof sub === 'string') sub = { text: v, status: "", who: "" }; // Migration check
+            else sub.text = v;
+            window.speakersData[i].points[pi].subs[si] = sub;
+            triggerAutoSave(); updatePreview(); 
+        }
+        window.toggleSubPointStatus = function(i, pi, si, chk) {
+            let sub = window.speakersData[i].points[pi].subs[si];
+            if(typeof sub === 'string') sub = { text: sub, status: "", who: "" };
+            sub.status = chk ? "MAKLUMAN" : "";
+            window.speakersData[i].points[pi].subs[si] = sub;
+            renderFormFromData(); triggerAutoSave(); updatePreview();
+        }
+        window.updateSubPointStatusType = function(i, pi, si, val) {
+            window.speakersData[i].points[pi].subs[si].status = val;
+            renderFormFromData(); triggerAutoSave(); updatePreview();
+        }
+        window.updateSubPointWho = function(i, pi, si, val) {
+            window.speakersData[i].points[pi].subs[si].who = val;
+            triggerAutoSave(); updatePreview();
+        }
+
+        // Standard CRUD Operations
         window.addSpeaker = function() { window.speakersData.push({ name: "", points: [] }); addPoint(window.speakersData.length - 1); triggerAutoSave(); }
         window.removeSpeaker = function(i) { if(confirm("Padam?")) { window.speakersData.splice(i, 1); renderFormFromData(); triggerAutoSave(); updatePreview(); } }
         window.updateSpeakerName = function(i, v) { window.speakersData[i].name = v; triggerAutoSave(); updatePreview(); }
@@ -363,9 +468,7 @@
         window.togglePointStatus = function(i, pi, chk) { window.speakersData[i].points[pi].status = chk ? "MAKLUMAN" : ""; renderFormFromData(); triggerAutoSave(); updatePreview(); }
         window.updatePointStatusType = function(i, pi, v) { window.speakersData[i].points[pi].status = v; renderFormFromData(); triggerAutoSave(); updatePreview(); }
         window.updatePointWho = function(i, pi, v) { window.speakersData[i].points[pi].who = v; triggerAutoSave(); updatePreview(); }
-        window.addSubPoint = function(i, pi) { window.speakersData[i].points[pi].subs.push(""); renderFormFromData(); triggerAutoSave(); updatePreview(); }
         window.removeSubPoint = function(i, pi, si) { window.speakersData[i].points[pi].subs.splice(si, 1); renderFormFromData(); triggerAutoSave(); updatePreview(); }
-        window.updateSubPoint = function(i, pi, si, v) { window.speakersData[i].points[pi].subs[si] = v; triggerAutoSave(); updatePreview(); }
         window.clearForm = function(r) { if(confirm("Reset?")) { window.currentDocId = ""; if(r) { document.getElementById('in-tajuk').value = ""; document.getElementById('in-tempat').value = ""; document.getElementById('in-anjuran').value = ""; } window.speakersData = []; addSpeaker(true); updatePreview(); document.getElementById('start-section').classList.remove('hidden'); document.getElementById('reset-btn-container').classList.add('hidden'); document.getElementById('save-indicator').className = ""; document.getElementById('save-indicator').innerHTML = "Menunggu Mula"; document.getElementById('session-status').innerText = "Mod Lihat (Tidak Disimpan)"; document.getElementById('session-status').className = "text-[9px] text-gray-400 bg-gray-100 px-2 py-1 rounded"; } }
 
         window.updatePreview = function() {
@@ -381,7 +484,29 @@
                     const item = document.createElement('div'); item.className = "preview-item";
                     item.innerHTML = `<div class="preview-num">${i+1}.</div><div class="preview-text"><div style="${p.isBold?'font-weight:bold':''}">${p.text}</div></div>`;
                     const td = item.querySelector('.preview-text');
-                    if(p.subs.length > 0) { const sl = document.createElement('div'); sl.className = "sub-list"; p.subs.forEach((sb, si) => { if(sb.trim()) sl.innerHTML += `<div class="sub-item"><div class="sub-num">${i+1}.${si+1}</div><div class="sub-text">${sb}</div></div>`; }); td.appendChild(sl); }
+                    if(p.subs.length > 0) { 
+                        const sl = document.createElement('div'); sl.className = "sub-list"; 
+                        p.subs.forEach((sb, si) => { 
+                            const subText = (typeof sb === 'object') ? sb.text : sb;
+                            const subStatus = (typeof sb === 'object') ? sb.status : "";
+                            const subWho = (typeof sb === 'object') ? sb.who : "";
+                            
+                            if(subText.trim()) {
+                                const subItem = document.createElement('div');
+                                subItem.className = "sub-item";
+                                
+                                let subHTML = `<div class="sub-num">${i+1}.${si+1}</div><div class="sub-text-wrapper"><div class="sub-text">${subText}</div>`;
+                                if(subStatus) {
+                                    const whoLabel = subStatus === "MAKLUMAN" ? "MAKLUMAN" : "TINDAKAN: " + (subWho.toUpperCase() || "PGB");
+                                    subHTML += `<div class="status-tag">(${whoLabel})</div>`;
+                                }
+                                subHTML += `</div>`;
+                                subItem.innerHTML = subHTML;
+                                sl.appendChild(subItem);
+                            } 
+                        }); 
+                        td.appendChild(sl); 
+                    }
                     if(p.status) td.innerHTML += `<div class="status-tag">(${p.status === "MAKLUMAN" ? "MAKLUMAN" : "TINDAKAN: " + (p.who.toUpperCase() || "PGB")})</div>`;
                     if(p.text.trim() || p.subs.length>0) list.appendChild(item);
                 });
@@ -394,99 +519,11 @@
         window.renderBarcode = function() { const s = `SPARK-${Math.floor(Math.random()*1000000)}`; JsBarcode("#barcode", s, { format: "CODE128", width: 1, height: 15, displayValue: true, fontSize: 8, margin: 0, textMargin: 1 }); }
         window.downloadPDF = function() { const el = document.getElementById('pdf-wrapper'); let t = document.getElementById('in-tajuk').value.substring(0, 20).replace(/[^a-zA-Z0-9]/g, '_'); html2pdf().set({ margin: 0, filename: `CURAI_${t}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } }).from(el).save(); }
         
-        // --- SIGNATURE LOGIC WITH FIXES ---
-        function initSignaturePad() { 
-            sigCanvas = document.getElementById('signature-pad'); 
-            if (!sigCanvas) return; 
-            sigCtx = sigCanvas.getContext('2d');
-            
-            // Force Resize on Init
-            setTimeout(resizeCanvas, 500); 
-            window.addEventListener('resize', resizeCanvas);
-
-            sigCanvas.addEventListener('mousedown', sD); 
-            sigCanvas.addEventListener('mouseup', eD); 
-            sigCanvas.addEventListener('mousemove', dD); 
-            sigCanvas.addEventListener('touchstart', (e)=>{e.preventDefault();sD(e.touches[0])}, {passive: false}); 
-            sigCanvas.addEventListener('touchend', (e)=>{e.preventDefault();eD()}, {passive: false}); 
-            sigCanvas.addEventListener('touchmove', (e)=>{e.preventDefault();dD(e.touches[0])}, {passive: false}); 
-        }
-
-        function resizeCanvas() {
-            if(!sigCanvas) return;
-            const rect = sigCanvas.getBoundingClientRect();
-            sigCanvas.width = rect.width;
-            sigCanvas.height = rect.height;
-        }
-
-        function sD(e){ 
-            isDrawing=true; 
-            isSignatureDrawn=true; 
-            const i = document.getElementById('sig-instruction'); 
-            if(i) i.classList.add('hidden'); 
-            dD(e); 
-        } 
-
-        function eD(){ 
-            isDrawing=false; 
-            sigCtx.beginPath(); 
-            uS(); 
-        } 
-
-        function dD(e){ 
-            if(!isDrawing)return; 
-            const r=sigCanvas.getBoundingClientRect(); 
-            sigCtx.lineWidth=2; 
-            sigCtx.lineCap = 'round';
-            sigCtx.strokeStyle = '#000';
-            sigCtx.lineTo(e.clientX-r.left, e.clientY-r.top); 
-            sigCtx.stroke(); 
-            sigCtx.beginPath(); 
-            sigCtx.moveTo(e.clientX-r.left, e.clientY-r.top); 
-        }
-
-        function uS(){ 
-            const dataUrl = sigCanvas.toDataURL("image/png");
-            const imgPreview = document.getElementById('out-sig-img');
-            imgPreview.src = dataUrl; 
-            
-            // AGGRESSIVE VISIBILITY FIX
-            if(document.getElementById('chk-signature').checked) {
-                imgPreview.classList.remove('hidden');
-                imgPreview.style.display = 'block'; // Force display
-            }
-            triggerAutoSave(); 
-        }
-
-        window.clearSignature=function(){ 
-            sigCtx.clearRect(0,0,sigCanvas.width,sigCanvas.height); 
-            isSignatureDrawn=false; 
-            const i = document.getElementById('sig-instruction'); 
-            if(i) i.classList.remove('hidden'); 
-            document.getElementById('out-sig-img').classList.add('hidden'); 
-            triggerAutoSave(); 
-        }
-
-        window.toggleSignature=function(){ 
-            const chk=document.getElementById('chk-signature'); 
-            const cont=document.getElementById('sig-input-container'); 
-            const img=document.getElementById('out-sig-img'); 
-            
-            if(chk.checked){ 
-                cont.classList.remove('hidden');
-                
-                // Force Resize when shown
-                setTimeout(resizeCanvas, 100); 
-
-                if(isSignatureDrawn || document.getElementById('sig-upload').files.length>0) {
-                    img.classList.remove('hidden'); 
-                }
-            } else { 
-                cont.classList.add('hidden'); 
-                img.classList.add('hidden'); 
-            } 
-        }
-
+        function initSignaturePad() { sigCanvas = document.getElementById('signature-pad'); if (!sigCanvas) return; sigCtx = sigCanvas.getContext('2d'); setTimeout(()=>{const r=sigCanvas.getBoundingClientRect();sigCanvas.width=r.width;sigCanvas.height=r.height;},500); sigCanvas.addEventListener('mousedown', sD); sigCanvas.addEventListener('mouseup', eD); sigCanvas.addEventListener('mousemove', dD); sigCanvas.addEventListener('touchstart', (e)=>{e.preventDefault();sD(e.touches[0])}); sigCanvas.addEventListener('touchend', (e)=>{e.preventDefault();eD()}); sigCanvas.addEventListener('touchmove', (e)=>{e.preventDefault();dD(e.touches[0])}); }
+        function sD(e){ isDrawing=true; isSignatureDrawn=true; const i = document.getElementById('sig-instruction'); if(i) i.classList.add('hidden'); dD(e); } function eD(){ isDrawing=false; sigCtx.beginPath(); uS(); } function dD(e){ if(!isDrawing)return; const r=sigCanvas.getBoundingClientRect(); sigCtx.lineWidth=2; sigCtx.lineTo(e.clientX-r.left, e.clientY-r.top); sigCtx.stroke(); sigCtx.beginPath(); sigCtx.moveTo(e.clientX-r.left, e.clientY-r.top); }
+        function uS(){ document.getElementById('out-sig-img').src=sigCanvas.toDataURL(); if(document.getElementById('chk-signature').checked) document.getElementById('out-sig-img').classList.remove('hidden'); triggerAutoSave(); }
+        window.clearSignature=function(){ sigCtx.clearRect(0,0,sigCanvas.width,sigCanvas.height); isSignatureDrawn=false; const i = document.getElementById('sig-instruction'); if(i) i.classList.remove('hidden'); document.getElementById('out-sig-img').classList.add('hidden'); triggerAutoSave(); }
+        window.toggleSignature=function(){ const chk=document.getElementById('chk-signature'); const cont=document.getElementById('sig-input-container'); const img=document.getElementById('out-sig-img'); if(chk.checked){ cont.classList.remove('hidden'); if(isSignatureDrawn || document.getElementById('sig-upload').files.length>0) img.classList.remove('hidden'); } else { cont.classList.add('hidden'); img.classList.add('hidden'); } }
         window.handleSigUpload=function(input){ if(input.files[0]){ const r=new FileReader(); r.onload=(e)=>{document.getElementById('out-sig-img').src=e.target.result; if(document.getElementById('chk-signature').checked) document.getElementById('out-sig-img').classList.remove('hidden'); triggerAutoSave(); }; r.readAsDataURL(input.files[0]); } }
         window.showCreditModal=function(){ document.getElementById('credit-modal').classList.remove('hidden'); }
         window.closeCreditModal=function(){ document.getElementById('credit-modal').classList.add('hidden'); }
