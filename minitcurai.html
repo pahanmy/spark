@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SPARK Curai – Minit & Nota Digital</title>
+    <title>SPARK Curai – AI Powered</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
@@ -13,7 +13,7 @@
     <style>
         body { font-family: 'Poppins', sans-serif; background-color: #f0f9ff; }
         
-        /* A4 Paper Styling */
+        /* A4 Paper */
         #pdf-wrapper { width: 210mm; margin: 0 auto; background: white; }
         .a4-paper {
             width: 210mm; min-height: 297mm; 
@@ -40,7 +40,7 @@
         .minit-header { background-color: #e0f2fe; font-weight: bold; width: 25%; }
 
         ol.preview-list { list-style-type: none; padding-left: 0; margin: 0; counter-reset: item; }
-        ol.preview-list > li { margin-bottom: 0.5rem; position: relative; padding-left: 1.5rem; }
+        ol.preview-list > li { margin-bottom: 0.75rem; position: relative; padding-left: 1.5rem; }
         ol.preview-list > li::before { 
             content: counter(item) "."; 
             counter-increment: item; 
@@ -49,14 +49,23 @@
             font-weight: bold; 
         }
         
-        .status-tag { display: block; text-align: right; margin-top: 2px; font-size: 8pt; font-weight: bold; font-style: italic; color: black; }
+        /* Status Tag Update: No Italic, Black Color */
+        .status-tag { display: block; text-align: right; margin-top: 2px; font-size: 8pt; font-weight: bold; font-style: normal; color: black; text-transform: uppercase; }
+        
         .speaker-section { margin-bottom: 1.5rem; }
         .speaker-title { font-weight: 800; text-transform: uppercase; text-decoration: underline; margin-bottom: 0.5rem; font-size: 10pt; }
+
+        /* AI Button Animation */
+        @keyframes pulse-purple {
+            0% { box-shadow: 0 0 0 0 rgba(168, 85, 247, 0.4); }
+            70% { box-shadow: 0 0 0 6px rgba(168, 85, 247, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(168, 85, 247, 0); }
+        }
+        .btn-ai:hover { animation: pulse-purple 1.5s infinite; }
 
         /* Auto Save Indicator */
         #save-indicator { position: fixed; bottom: 20px; right: 20px; background: #22c55e; color: white; padding: 8px 16px; border-radius: 50px; font-size: 0.75rem; font-weight: bold; opacity: 0; transition: opacity 0.5s; z-index: 100; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; items-center; gap: 5px; }
 
-        /* Signature Canvas */
         canvas#signature-pad { touch-action: none; border: 1px dashed #cbd5e1; border-radius: 0.5rem; cursor: crosshair; } 
 
         @media print {
@@ -84,9 +93,10 @@
                 </div>
                 <div>
                     <h1 class="text-xl font-bold text-sky-700 uppercase tracking-wide flex items-center gap-2">
-                        SPARK CURAI 4.0
+                        SPARK CURAI 5.0
+                        <span class="bg-purple-100 text-purple-700 text-[10px] px-2 py-0.5 rounded-full border border-purple-200">AI Powered</span>
                     </h1>
-                    <p class="text-xs text-gray-500">Auto-Save & Speaker Centric</p>
+                    <p class="text-xs text-gray-500">Auto-Save & AI Formatting</p>
                 </div>
             </div>
             
@@ -292,16 +302,73 @@
     </div>
 
     <script>
+        // --- API KEY (OBFUSCATED) ---
+        const SECRET_G = "Z3NrX3hUbHQxRjVIYjRIdmRtejliS3Z5V0dkeWIzRllJcHdSazhrbWRxVlkySTdmTDlOZVdMMGs="; 
+        function getKey(encoded) { try { return atob(encoded); } catch (e) { return ""; } }
+
         // --- GLOBAL STATE ---
-        // Structure: Array of Speakers. Each speaker has Array of Points.
         let speakersData = []; 
         let sigCanvas, sigCtx, isDrawing = false, isSignatureDrawn = false;
 
         // --- INITIALIZATION ---
         window.onload = function() {
             initSignaturePad();
-            loadLocalData(); // Load auto-saved data
+            loadLocalData(); 
         };
+
+        // --- AI FUNCTION ---
+        window.askAI = async function(btn, type, sIndex, pIndex, subIndex = null) {
+            const originalText = btn.innerHTML;
+            const originalClass = btn.className;
+            
+            // Getting the input element
+            let inputId = (type === 'point') ? `input-point-${sIndex}-${pIndex}` : `input-sub-${sIndex}-${pIndex}-${subIndex}`;
+            const inputEl = document.getElementById(inputId);
+            const userText = inputEl.value;
+
+            if(!userText || userText.length < 3) {
+                alert("Sila tulis sekurang-kurangnya 3 huruf untuk AI memproses.");
+                return;
+            }
+
+            // UI Feedback
+            btn.innerHTML = `<svg class="animate-spin h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>`;
+            btn.disabled = true;
+
+            const GROQ_API_KEY = getKey(SECRET_G);
+            const systemPrompt = "Anda adalah setiausaha mesyuarat profesional. Tugas anda adalah mengubah teks input yang ringkas/kasar menjadi ayat minit mesyuarat atau nota curai yang formal, gramatis, padat dan jelas dalam Bahasa Melayu. Jangan tambah pendahuluan, terus berikan ayat hasil.";
+
+            try {
+                const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+                    method: "POST",
+                    headers: { "Authorization": `Bearer ${GROQ_API_KEY}`, "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userText }],
+                        model: "llama-3.3-70b-versatile", temperature: 0.5, max_tokens: 200
+                    })
+                });
+
+                if (!response.ok) throw new Error("Ralat API");
+                const data = await response.json();
+                let newText = data.choices[0].message.content.replace(/"/g, '').trim();
+                
+                // Update State & UI
+                if(type === 'point') {
+                    updatePointText(sIndex, pIndex, newText);
+                    inputEl.value = newText;
+                } else {
+                    updateSubPoint(sIndex, pIndex, subIndex, newText);
+                    inputEl.value = newText;
+                }
+
+            } catch (error) {
+                console.error(error);
+                alert("AI Gagal: Sila cuba lagi.");
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
 
         // --- AUTO SAVE SYSTEM ---
         function saveLocalData() {
@@ -316,11 +383,8 @@
                 speakers: speakersData
             };
             localStorage.setItem('sparkCuraiDraft', JSON.stringify(data));
-            
-            // Show indicator
             const ind = document.getElementById('save-indicator');
-            ind.style.opacity = '1';
-            setTimeout(() => { ind.style.opacity = '0'; }, 1500);
+            ind.style.opacity = '1'; setTimeout(() => { ind.style.opacity = '0'; }, 1500);
         }
 
         function loadLocalData() {
@@ -338,7 +402,7 @@
                 renderFormFromData();
             } else {
                 setDefaults();
-                addSpeaker(); // Start with one empty speaker
+                addSpeaker(); 
             }
             updatePreview();
             renderBarcode();
@@ -347,20 +411,16 @@
         function setDefaults() {
             const now = new Date();
             const dateStr = now.toISOString().split('T')[0];
-            const timeStr = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }); // 24h format for input type=time
+            const timeStr = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
             document.getElementById('in-tarikh').value = dateStr;
             document.getElementById('in-masa').value = timeStr;
         }
 
-        // --- DATA STRUCTURE MANAGEMENT ---
-        
+        // --- DATA STRUCTURE & RENDERING ---
         function renderFormFromData() {
             const container = document.getElementById('speakers-container');
             container.innerHTML = '';
-            
-            speakersData.forEach((speaker, sIndex) => {
-                createSpeakerHTML(speaker, sIndex);
-            });
+            speakersData.forEach((speaker, sIndex) => createSpeakerHTML(speaker, sIndex));
         }
 
         function createSpeakerHTML(speaker, sIndex) {
@@ -370,9 +430,7 @@
             wrapper.id = `speaker-wrapper-${sIndex}`;
 
             let pointsHTML = '';
-            speaker.points.forEach((point, pIndex) => {
-                pointsHTML += createPointHTML(point, sIndex, pIndex);
-            });
+            speaker.points.forEach((point, pIndex) => pointsHTML += createPointHTML(point, sIndex, pIndex));
 
             wrapper.innerHTML = `
                 <div class="mb-3 bg-white p-2 rounded border border-gray-200">
@@ -382,11 +440,11 @@
                         <button onclick="removeSpeaker(${sIndex})" class="text-red-400 hover:text-red-600 p-1" title="Padam Sesi"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
                     </div>
                 </div>
-                <div id="points-list-${sIndex}" class="space-y-3 pl-2 border-l-2 border-indigo-100">
+                <div id="points-list-${sIndex}" class="space-y-4 pl-2 border-l-2 border-indigo-100">
                     ${pointsHTML}
                 </div>
-                <div class="mt-3 pl-2">
-                    <button type="button" onclick="addPoint(${sIndex})" class="text-[10px] font-bold text-sky-600 hover:text-sky-800 flex items-center gap-1 uppercase bg-white px-2 py-1 rounded border border-sky-100 hover:bg-sky-50 shadow-sm">
+                <div class="mt-4 pl-2">
+                    <button type="button" onclick="addPoint(${sIndex})" class="text-[10px] font-bold text-sky-600 hover:text-sky-800 flex items-center gap-1 uppercase bg-white px-3 py-1.5 rounded border border-sky-100 hover:bg-sky-50 shadow-sm">
                         + Tambah Poin
                     </button>
                 </div>
@@ -402,28 +460,42 @@
             let subsHTML = '';
             point.subs.forEach((sub, subIndex) => {
                 subsHTML += `
-                    <div class="flex gap-2 items-start mt-1" id="sub-${sIndex}-${pIndex}-${subIndex}">
-                        <span class="mt-2 text-[10px] text-gray-400">•</span>
-                        <textarea oninput="updateSubPoint(${sIndex}, ${pIndex}, ${subIndex}, this.value)" rows="1" class="spark-input text-xs bg-white" placeholder="Isi Sub-Poin...">${sub}</textarea>
+                    <div class="flex gap-2 items-start mt-2 ml-4 border-l border-gray-200 pl-2">
+                        <div class="flex-grow relative">
+                             <textarea id="input-sub-${sIndex}-${pIndex}-${subIndex}" oninput="updateSubPoint(${sIndex}, ${pIndex}, ${subIndex}, this.value)" rows="1" class="spark-input text-xs bg-white w-full pr-8" placeholder="Isi Sub-Poin...">${sub}</textarea>
+                             <button onclick="askAI(this, 'sub', ${sIndex}, ${pIndex}, ${subIndex})" class="btn-ai absolute right-1 top-1 text-purple-500 hover:text-purple-700 p-1 bg-white rounded-full shadow-sm" title="AI Baiki Ayat">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" /></svg>
+                             </button>
+                        </div>
                         <button type="button" onclick="removeSubPoint(${sIndex}, ${pIndex}, ${subIndex})" class="mt-1 text-gray-300 hover:text-red-400">x</button>
                     </div>`;
             });
 
             return `
-                <div class="relative bg-white border border-gray-100 rounded p-2" id="point-${sIndex}-${pIndex}">
+                <div class="relative bg-white border border-gray-100 rounded p-2 shadow-sm">
                     <div class="flex gap-2 items-start">
-                        <span class="mt-1 text-xs font-bold text-gray-400 bg-gray-100 w-5 h-5 flex items-center justify-center rounded-full flex-shrink-0">${pIndex + 1}</span>
+                        <span class="mt-2 text-xs font-bold text-gray-400 bg-gray-100 w-5 h-5 flex items-center justify-center rounded-full flex-shrink-0">${pIndex + 1}</span>
                         <div class="flex-grow">
-                            <textarea oninput="updatePointText(${sIndex}, ${pIndex}, this.value)" rows="2" class="spark-input text-sm mb-1" placeholder="Isi Poin...">${point.text}</textarea>
+                            <div class="relative">
+                                <textarea id="input-point-${sIndex}-${pIndex}" oninput="updatePointText(${sIndex}, ${pIndex}, this.value)" rows="2" class="spark-input text-sm mb-1 pr-8" placeholder="Isi Poin Utama...">${point.text}</textarea>
+                                <button onclick="askAI(this, 'point', ${sIndex}, ${pIndex})" class="btn-ai absolute right-2 top-2 text-purple-500 hover:text-purple-700 p-1 bg-white rounded-full shadow-sm" title="AI Baiki Ayat">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" /></svg>
+                                </button>
+                            </div>
                             
-                            <div class="mb-1">
+                            <div class="flex items-center justify-between mb-2">
                                 <label class="inline-flex items-center cursor-pointer">
                                     <input type="checkbox" ${isStatusChecked ? 'checked' : ''} onchange="togglePointStatus(${sIndex}, ${pIndex}, this.checked)" class="form-checkbox h-3 w-3 text-sky-600">
-                                    <span class="ml-1 text-[9px] text-gray-400 hover:text-gray-600 uppercase font-bold">Papar Status/Tindakan?</span>
+                                    <span class="ml-2 text-[9px] text-gray-400 hover:text-gray-600 uppercase font-bold">Status/Tindakan</span>
                                 </label>
+                                
+                                <button onclick="addSubPoint(${sIndex}, ${pIndex})" class="text-[10px] font-bold text-teal-600 bg-teal-50 border border-teal-200 px-3 py-1 rounded-md hover:bg-teal-100 flex items-center gap-1 transition-colors">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                                    Sub-Poin
+                                </button>
                             </div>
 
-                            <div id="status-box-${sIndex}-${pIndex}" class="flex items-center gap-2 bg-gray-50 p-2 rounded border border-gray-100 ${statusHidden}">
+                            <div id="status-box-${sIndex}-${pIndex}" class="flex items-center gap-2 bg-gray-50 p-2 rounded border border-gray-100 ${statusHidden} mb-2">
                                 <div class="w-1/3">
                                     <select onchange="updatePointStatusType(${sIndex}, ${pIndex}, this.value)" class="w-full text-xs border border-gray-300 rounded p-1">
                                         <option value="MAKLUMAN" ${point.status === "MAKLUMAN" ? "selected" : ""}>Makluman</option>
@@ -435,91 +507,41 @@
                                 </div>
                             </div>
 
-                            <div id="subs-container-${sIndex}-${pIndex}" class="mt-1 pl-2">
+                            <div id="subs-container-${sIndex}-${pIndex}">
                                 ${subsHTML}
                             </div>
-                            <button onclick="addSubPoint(${sIndex}, ${pIndex})" class="mt-1 text-[9px] text-indigo-400 hover:text-indigo-600 underline">+ Sub</button>
                         </div>
-                        <button onclick="removePoint(${sIndex}, ${pIndex})" class="text-gray-300 hover:text-red-400">
+                        <button onclick="removePoint(${sIndex}, ${pIndex})" class="text-gray-300 hover:text-red-400 self-start mt-2">
                             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                         </button>
                     </div>
                 </div>`;
         }
 
-        // --- ACTIONS ---
-        function addSpeaker() {
-            speakersData.push({ name: "", points: [] });
-            addPoint(speakersData.length - 1); // Auto add first point
-        }
-        function removeSpeaker(sIndex) {
-            if(confirm("Padam sesi ini?")) { speakersData.splice(sIndex, 1); renderFormFromData(); saveAndPreview(); }
-        }
+        // --- CRUD ACTIONS ---
+        function addSpeaker() { speakersData.push({ name: "", points: [] }); addPoint(speakersData.length - 1); }
+        function removeSpeaker(sIndex) { if(confirm("Padam sesi ini?")) { speakersData.splice(sIndex, 1); renderFormFromData(); saveAndPreview(); } }
         function updateSpeakerName(sIndex, val) { speakersData[sIndex].name = val; saveAndPreview(); }
 
-        function addPoint(sIndex) {
-            speakersData[sIndex].points.push({ text: "", subs: [], status: "", who: "" });
-            renderFormFromData(); saveAndPreview();
-        }
-        function removePoint(sIndex, pIndex) {
-            speakersData[sIndex].points.splice(pIndex, 1);
-            renderFormFromData(); saveAndPreview();
-        }
+        function addPoint(sIndex) { speakersData[sIndex].points.push({ text: "", subs: [], status: "", who: "" }); renderFormFromData(); saveAndPreview(); }
+        function removePoint(sIndex, pIndex) { speakersData[sIndex].points.splice(pIndex, 1); renderFormFromData(); saveAndPreview(); }
         function updatePointText(sIndex, pIndex, val) { speakersData[sIndex].points[pIndex].text = val; saveAndPreview(); }
-
-        function togglePointStatus(sIndex, pIndex, isChecked) {
-            speakersData[sIndex].points[pIndex].status = isChecked ? "MAKLUMAN" : "";
-            renderFormFromData(); saveAndPreview();
-        }
-        function updatePointStatusType(sIndex, pIndex, val) {
-            speakersData[sIndex].points[pIndex].status = val;
-            renderFormFromData(); saveAndPreview();
-        }
+        function togglePointStatus(sIndex, pIndex, isChecked) { speakersData[sIndex].points[pIndex].status = isChecked ? "MAKLUMAN" : ""; renderFormFromData(); saveAndPreview(); }
+        function updatePointStatusType(sIndex, pIndex, val) { speakersData[sIndex].points[pIndex].status = val; renderFormFromData(); saveAndPreview(); }
         function updatePointWho(sIndex, pIndex, val) { speakersData[sIndex].points[pIndex].who = val; saveAndPreview(); }
 
-        function addSubPoint(sIndex, pIndex) {
-            speakersData[sIndex].points[pIndex].subs.push("");
-            renderFormFromData(); saveAndPreview();
-        }
-        function removeSubPoint(sIndex, pIndex, subIndex) {
-            speakersData[sIndex].points[pIndex].subs.splice(subIndex, 1);
-            renderFormFromData(); saveAndPreview();
-        }
-        function updateSubPoint(sIndex, pIndex, subIndex, val) {
-            speakersData[sIndex].points[pIndex].subs[subIndex] = val;
-            saveAndPreview();
-        }
+        function addSubPoint(sIndex, pIndex) { speakersData[sIndex].points[pIndex].subs.push(""); renderFormFromData(); saveAndPreview(); }
+        function removeSubPoint(sIndex, pIndex, subIndex) { speakersData[sIndex].points[pIndex].subs.splice(subIndex, 1); renderFormFromData(); saveAndPreview(); }
+        function updateSubPoint(sIndex, pIndex, subIndex, val) { speakersData[sIndex].points[pIndex].subs[subIndex] = val; saveAndPreview(); }
 
-        function saveAndPreview() {
-            saveLocalData();
-            updatePreview();
-        }
+        function saveAndPreview() { saveLocalData(); updatePreview(); }
+        function clearForm(resetAll = false) { if(confirm("Data akan hilang. Teruskan?")) { localStorage.removeItem('sparkCuraiDraft'); if(resetAll) { document.getElementById('in-tajuk').value = ""; document.getElementById('in-tempat').value = ""; document.getElementById('in-anjuran').value = ""; } speakersData = []; addSpeaker(); saveAndPreview(); } }
 
-        function clearForm(resetAll = false) {
-            if(confirm("Adakah anda pasti? Semua data akan hilang.")) {
-                localStorage.removeItem('sparkCuraiDraft');
-                if(resetAll) {
-                    document.getElementById('in-tajuk').value = "";
-                    document.getElementById('in-tempat').value = "";
-                    document.getElementById('in-anjuran').value = "";
-                }
-                speakersData = [];
-                addSpeaker();
-                saveAndPreview();
-            }
-        }
-
-        // --- PREVIEW RENDER ---
+        // --- PREVIEW ---
         function updatePreview() {
-            // Header Info
-            const fields = ['tajuk', 'tempat', 'anjuran', 'nama', 'jawatan'];
-            fields.forEach(id => { 
-                const el = document.getElementById(`out-${id}`);
-                const val = document.getElementById(`in-${id}`).value;
-                if(el) el.textContent = val.toUpperCase();
+            ['tajuk', 'tempat', 'anjuran', 'nama', 'jawatan'].forEach(id => { 
+                const el = document.getElementById(`out-${id}`); const val = document.getElementById(`in-${id}`).value; if(el) el.textContent = val.toUpperCase();
             });
-
-            // Date & Time formatting
             const dateVal = document.getElementById('in-tarikh').value;
             if(dateVal) {
                 const dateObj = new Date(dateVal);
@@ -527,137 +549,60 @@
                 document.getElementById('out-tarikh').textContent = dateFormatted.toUpperCase();
                 document.getElementById('out-tarikh-laporan').textContent = dateFormatted.toUpperCase();
             }
-
             const timeVal = document.getElementById('in-masa').value;
             if(timeVal) {
-                // Convert 24h to 12h roughly for display
                 let [h, m] = timeVal.split(':');
                 let suffix = h >= 12 ? "PETANG" : "PAGI";
-                if (h > 12) h -= 12;
-                if (h === '00') h = 12;
+                if (h > 12) h -= 12; if (h === '00') h = 12;
                 document.getElementById('out-masa').textContent = `${h}.${m} ${suffix}`;
             }
 
-            // Content
             const container = document.getElementById('out-content');
             container.innerHTML = '';
-
             speakersData.forEach((speaker) => {
                 const section = document.createElement('div');
                 section.className = "speaker-section";
-                
-                if(speaker.name) {
-                    const title = document.createElement('div');
-                    title.className = "speaker-title";
-                    title.textContent = speaker.name;
-                    section.appendChild(title);
-                }
-
-                const ol = document.createElement('ol');
-                ol.className = "preview-list";
-
+                if(speaker.name) { const title = document.createElement('div'); title.className = "speaker-title"; title.textContent = speaker.name; section.appendChild(title); }
+                const ol = document.createElement('ol'); ol.className = "preview-list";
                 speaker.points.forEach((point) => {
                     const li = document.createElement('li');
-                    
-                    const divText = document.createElement('div');
-                    divText.textContent = point.text;
-                    divText.style.fontWeight = "bold";
-                    li.appendChild(divText);
-
+                    const divText = document.createElement('div'); divText.textContent = point.text; divText.style.fontWeight = "bold"; li.appendChild(divText);
                     if(point.subs.length > 0) {
-                        const ul = document.createElement('ul');
-                        ul.style.listStyleType = "disc";
-                        ul.style.paddingLeft = "1.5rem";
-                        ul.style.marginTop = "0.25rem";
-                        ul.style.fontWeight = "normal";
-                        point.subs.forEach(sub => {
-                            if(sub.trim()){
-                                const subLi = document.createElement('li');
-                                subLi.textContent = sub;
-                                ul.appendChild(subLi);
-                            }
-                        });
+                        const ul = document.createElement('ul'); ul.style.listStyleType = "disc"; ul.style.paddingLeft = "1.5rem"; ul.style.marginTop = "0.25rem"; ul.style.fontWeight = "normal";
+                        point.subs.forEach(sub => { if(sub.trim()){ const subLi = document.createElement('li'); subLi.textContent = sub; ul.appendChild(subLi); } });
                         li.appendChild(ul);
                     }
-
                     if(point.status) {
-                        const tag = document.createElement('div');
-                        tag.className = "status-tag";
-                        if(point.status === "MAKLUMAN") tag.textContent = "( MAKLUMAN )";
-                        else tag.textContent = `( TINDAKAN: ${point.who.toUpperCase() || 'PGB'} )`;
+                        const tag = document.createElement('div'); tag.className = "status-tag";
+                        tag.textContent = point.status === "MAKLUMAN" ? "MAKLUMAN" : `TINDAKAN: ${point.who.toUpperCase() || 'PGB'}`;
                         li.appendChild(tag);
                     }
-
                     if(point.text.trim() || point.subs.length > 0) ol.appendChild(li);
                 });
-
                 section.appendChild(ol);
                 if(speaker.points.length > 0 || speaker.name) container.appendChild(section);
             });
         }
 
-        // --- DEMO DATA ---
         function loadDemoData() {
             document.getElementById('in-tajuk').value = "CORETAN PESANAN PENGARAH JPNS";
             document.getElementById('in-tempat').value = "SECARA DALAM TALIAN";
             document.getElementById('in-anjuran').value = "JPNS";
             document.getElementById('in-nama').value = "PN. SU YIEN JIONG";
             document.getElementById('in-jawatan').value = "SIPARTNERS+";
-
-            speakersData = [
-                {
-                    name: "PENGARAH JPNS",
-                    points: [
-                        { text: "Terima kasih atas kehadiran semua.", subs: [], status: "MAKLUMAN", who: "" },
-                        { text: "Rancangan Pendidikan Malaysia 2026-2035.", subs: ["Visi KPM ditukar 'Berkualiti' kepada 'Bermutu'."], status: "TINDAKAN", who: "SEMUA PGB" }
-                    ]
-                }
-            ];
-            renderFormFromData();
-            saveAndPreview();
+            speakersData = [ { name: "PENGARAH JPNS", points: [ { text: "Terima kasih atas kehadiran semua.", subs: [], status: "MAKLUMAN", who: "" }, { text: "PGB perlu sebarluaskan RPM terkini.", subs: ["Ubah 'Berkualiti' kepada 'Bermutu'."], status: "TINDAKAN", who: "SEMUA PGB" } ] } ];
+            renderFormFromData(); saveAndPreview();
         }
 
-        // --- BARCODE & PDF & SIG (Reusable from previous) ---
-        function renderBarcode() {
-             const now = new Date();
-             const serial = `SPARK-${Math.floor(Math.random()*1000000)}`;
-             JsBarcode("#barcode", serial, { format: "CODE128", width: 1, height: 25, displayValue: true, fontSize: 10, margin: 0 });
-        }
-        function downloadPDF() {
-            const element = document.getElementById('pdf-wrapper');
-            let tajuk = document.getElementById('in-tajuk').value.substring(0, 20).replace(/[^a-zA-Z0-9]/g, '_');
-            const fileName = `CURAI_${tajuk}.pdf`;
-            const opt = { margin: 0, filename: fileName, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } };
-            html2pdf().set(opt).from(element).save();
-        }
-        
-        // --- SIGNATURE LOGIC ---
-        function initSignaturePad() {
-            sigCanvas = document.getElementById('signature-pad');
-            if (!sigCanvas) return;
-            sigCtx = sigCanvas.getContext('2d');
-            function resizeCanvas() { const rect = sigCanvas.getBoundingClientRect(); sigCanvas.width = rect.width; sigCanvas.height = rect.height; }
-            setTimeout(resizeCanvas, 500);
-            sigCanvas.addEventListener('mousedown', startD); sigCanvas.addEventListener('mouseup', stopD); sigCanvas.addEventListener('mousemove', drawD);
-            sigCanvas.addEventListener('touchstart', (e)=>{e.preventDefault(); startD(e.touches[0])}); sigCanvas.addEventListener('touchend', (e)=>{e.preventDefault(); stopD()}); sigCanvas.addEventListener('touchmove', (e)=>{e.preventDefault(); drawD(e.touches[0])});
-        }
-        function startD(e){ isDrawing=true; isSignatureDrawn=true; document.getElementById('sig-instruction').classList.add('hidden'); drawD(e); }
-        function stopD(){ isDrawing=false; sigCtx.beginPath(); updateSig(); }
-        function drawD(e){ if(!isDrawing)return; const rect=sigCanvas.getBoundingClientRect(); sigCtx.lineWidth=2; sigCtx.lineTo(e.clientX-rect.left, e.clientY-rect.top); sigCtx.stroke(); sigCtx.beginPath(); sigCtx.moveTo(e.clientX-rect.left, e.clientY-rect.top); }
+        function renderBarcode() { const now = new Date(); const serial = `SPARK-${Math.floor(Math.random()*1000000)}`; JsBarcode("#barcode", serial, { format: "CODE128", width: 1, height: 25, displayValue: true, fontSize: 10, margin: 0 }); }
+        function downloadPDF() { const element = document.getElementById('pdf-wrapper'); let tajuk = document.getElementById('in-tajuk').value.substring(0, 20).replace(/[^a-zA-Z0-9]/g, '_'); const opt = { margin: 0, filename: `CURAI_${tajuk}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } }; html2pdf().set(opt).from(element).save(); }
+        function initSignaturePad() { sigCanvas = document.getElementById('signature-pad'); if (!sigCanvas) return; sigCtx = sigCanvas.getContext('2d'); function resizeCanvas() { const rect = sigCanvas.getBoundingClientRect(); sigCanvas.width = rect.width; sigCanvas.height = rect.height; } setTimeout(resizeCanvas, 500); sigCanvas.addEventListener('mousedown', startD); sigCanvas.addEventListener('mouseup', stopD); sigCanvas.addEventListener('mousemove', drawD); sigCanvas.addEventListener('touchstart', (e)=>{e.preventDefault(); startD(e.touches[0])}); sigCanvas.addEventListener('touchend', (e)=>{e.preventDefault(); stopD()}); sigCanvas.addEventListener('touchmove', (e)=>{e.preventDefault(); drawD(e.touches[0])}); }
+        function startD(e){ isDrawing=true; isSignatureDrawn=true; document.getElementById('sig-instruction').classList.add('hidden'); drawD(e); } function stopD(){ isDrawing=false; sigCtx.beginPath(); updateSig(); } function drawD(e){ if(!isDrawing)return; const rect=sigCanvas.getBoundingClientRect(); sigCtx.lineWidth=2; sigCtx.lineTo(e.clientX-rect.left, e.clientY-rect.top); sigCtx.stroke(); sigCtx.beginPath(); sigCtx.moveTo(e.clientX-rect.left, e.clientY-rect.top); }
         function updateSig(){ const url=sigCanvas.toDataURL(); document.getElementById('out-sig-img').src=url; if(document.getElementById('chk-signature').checked) document.getElementById('out-sig-img').classList.remove('hidden'); }
         function clearSignature(){ sigCtx.clearRect(0,0,sigCanvas.width,sigCanvas.height); isSignatureDrawn=false; document.getElementById('sig-instruction').classList.remove('hidden'); document.getElementById('out-sig-img').classList.add('hidden'); }
-        function toggleSignature(){ 
-            const chk=document.getElementById('chk-signature'); 
-            const cont=document.getElementById('sig-input-container');
-            const img=document.getElementById('out-sig-img');
-            if(chk.checked){ cont.classList.remove('hidden'); if(isSignatureDrawn || document.getElementById('sig-upload').files.length>0) img.classList.remove('hidden'); }
-            else { cont.classList.add('hidden'); img.classList.add('hidden'); }
-        }
+        function toggleSignature(){ const chk=document.getElementById('chk-signature'); const cont=document.getElementById('sig-input-container'); const img=document.getElementById('out-sig-img'); if(chk.checked){ cont.classList.remove('hidden'); if(isSignatureDrawn || document.getElementById('sig-upload').files.length>0) img.classList.remove('hidden'); } else { cont.classList.add('hidden'); img.classList.add('hidden'); } }
         function handleSigUpload(input){ if(input.files[0]){ const reader=new FileReader(); reader.onload=(e)=>{document.getElementById('out-sig-img').src=e.target.result; if(document.getElementById('chk-signature').checked) document.getElementById('out-sig-img').classList.remove('hidden');}; reader.readAsDataURL(input.files[0]); } }
-
-        function showCreditModal(){ document.getElementById('credit-modal').classList.remove('hidden'); }
-        function closeCreditModal(){ document.getElementById('credit-modal').classList.add('hidden'); }
-
+        function showCreditModal(){ document.getElementById('credit-modal').classList.remove('hidden'); } function closeCreditModal(){ document.getElementById('credit-modal').classList.add('hidden'); }
     </script>
 </body>
 </html>
