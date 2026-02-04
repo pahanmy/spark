@@ -49,7 +49,10 @@
 
         .speaker-section { margin-bottom: 20px; border-bottom: 1px dashed #ddd; padding-bottom: 10px; }
         .speaker-section:last-child { border-bottom: none; }
-        .speaker-title { font-weight: bold; margin-bottom: 5px; font-size: 10pt; color: #334155; background-color: #f1f5f9; padding: 2px 6px; border-radius: 4px; display: inline-block; }
+        
+        /* FIX: REMOVED UPPERCASE, ADDED !important to force it */
+        .speaker-title { font-weight: bold; margin-bottom: 5px; font-size: 10pt; color: #334155; background-color: #f1f5f9; padding: 2px 6px; border-radius: 4px; display: inline-block; text-transform: none !important; }
+        
         .status-tag { display: block; text-align: right; margin-top: 2px; font-size: 8pt; font-weight: bold; color: black; text-transform: uppercase; }
 
         /* Buttons */
@@ -216,9 +219,6 @@
         window.speakersData = []; window.currentUserIc = ""; window.currentDocId = ""; window.isSparkPro = false; window.isSessionActive = false;
         let sigCanvas, sigCtx, isDrawing = false, isSignatureDrawn = false, saveTimeout;
         
-        // GLOBAL FLAG FOR SIGNATURE DATA
-        window.hasSignatureData = false;
-
         window.renderBarcode = function(serial) { if(!serial) serial = "SPARK-" + Math.floor(Math.random() * 1000000); JsBarcode("#barcode", serial, { format: "CODE128", width: 1, height: 15, displayValue: true, fontSize: 8, margin: 0, textMargin: 1 }); }
 
         window.onload = function() {
@@ -318,7 +318,6 @@
             if(data.signatureUrl && data.showSignature) { 
                 document.getElementById('out-sig-img').src = data.signatureUrl; 
                 document.getElementById('chk-signature').checked = true; 
-                window.hasSignatureData = true; // Mark as having data
                 window.toggleSignature(); 
             }
             renderFormFromData(); updatePreview(); switchTab('editor'); document.getElementById('btn-share').classList.remove('hidden');
@@ -430,7 +429,13 @@
         }
 
         // Standard CRUD Operations
-        window.addSpeaker = function() { window.speakersData.push({ name: "", points: [] }); addPoint(window.speakersData.length - 1); triggerAutoSave(); }
+        // FIX: DEFAULT SPEAKER NAME IS "PENGERUSI"
+        window.addSpeaker = function() { 
+            window.speakersData.push({ name: "Pengerusi", points: [] }); 
+            addPoint(window.speakersData.length - 1); 
+            triggerAutoSave(); 
+        }
+        
         window.removeSpeaker = function(i) { if(confirm("Padam?")) { window.speakersData.splice(i, 1); renderFormFromData(); triggerAutoSave(); updatePreview(); } }
         window.updateSpeakerName = function(i, v) { window.speakersData[i].name = v; triggerAutoSave(); updatePreview(); }
         
@@ -497,31 +502,37 @@
         function initSignaturePad() { sigCanvas = document.getElementById('signature-pad'); if (!sigCanvas) return; sigCtx = sigCanvas.getContext('2d'); setTimeout(()=>{const r=sigCanvas.getBoundingClientRect();sigCanvas.width=r.width;sigCanvas.height=r.height;},500); sigCanvas.addEventListener('mousedown', sD); sigCanvas.addEventListener('mouseup', eD); sigCanvas.addEventListener('mousemove', dD); sigCanvas.addEventListener('touchstart', (e)=>{e.preventDefault();sD(e.touches[0])}); sigCanvas.addEventListener('touchend', (e)=>{e.preventDefault();eD()}); sigCanvas.addEventListener('touchmove', (e)=>{e.preventDefault();dD(e.touches[0])}); }
         function sD(e){ isDrawing=true; isSignatureDrawn=true; const i = document.getElementById('sig-instruction'); if(i) i.classList.add('hidden'); dD(e); } function eD(){ isDrawing=false; sigCtx.beginPath(); uS(); } function dD(e){ if(!isDrawing)return; const r=sigCanvas.getBoundingClientRect(); sigCtx.lineWidth=2; sigCtx.lineTo(e.clientX-r.left, e.clientY-r.top); sigCtx.stroke(); sigCtx.beginPath(); sigCtx.moveTo(e.clientX-r.left, e.clientY-r.top); }
         
-        // --- FIXED SIGNATURE VISIBILITY LOGIC ---
+        // --- FINAL ROBUST SIGNATURE VISIBILITY LOGIC ---
         function checkSigVisibility() {
             const chk = document.getElementById('chk-signature');
             const img = document.getElementById('out-sig-img');
-            // Show image IF checkbox is checked AND (we have drawn data OR we loaded data)
-            if(chk.checked && window.hasSignatureData) {
+            
+            // Check directly if image has substantial data
+            // > 100 length filters out empty/corrupt data
+            const hasValidImage = img.src && img.src.length > 100 && img.src.startsWith('data:image');
+            
+            if(chk.checked && hasValidImage) {
                 img.classList.remove('hidden');
+                img.style.display = 'block'; // Force display
             } else {
                 img.classList.add('hidden');
+                img.style.display = 'none';
             }
         }
 
         function uS(){ 
             document.getElementById('out-sig-img').src=sigCanvas.toDataURL(); 
-            window.hasSignatureData = true; // Mark that we have data
             checkSigVisibility();
             triggerAutoSave(); 
         }
 
         window.clearSignature=function(){ 
             sigCtx.clearRect(0,0,sigCanvas.width,sigCanvas.height); 
-            isSignatureDrawn=false; 
-            window.hasSignatureData = false; // Data cleared
             const i = document.getElementById('sig-instruction'); 
             if(i) i.classList.remove('hidden'); 
+            
+            // Clear image source
+            document.getElementById('out-sig-img').src = "";
             checkSigVisibility();
             triggerAutoSave(); 
         }
@@ -534,7 +545,7 @@
             } else { 
                 cont.classList.add('hidden'); 
             } 
-            checkSigVisibility(); // Always run check logic
+            checkSigVisibility(); 
         }
         
         window.handleSigUpload=function(input){ 
@@ -542,7 +553,6 @@
                 const r=new FileReader(); 
                 r.onload=(e)=>{
                     document.getElementById('out-sig-img').src=e.target.result; 
-                    window.hasSignatureData = true; // Mark as having data
                     checkSigVisibility();
                     triggerAutoSave(); 
                 }; 
