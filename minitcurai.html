@@ -215,6 +215,9 @@
 
         window.speakersData = []; window.currentUserIc = ""; window.currentDocId = ""; window.isSparkPro = false; window.isSessionActive = false;
         let sigCanvas, sigCtx, isDrawing = false, isSignatureDrawn = false, saveTimeout;
+        
+        // GLOBAL FLAG FOR SIGNATURE DATA
+        window.hasSignatureData = false;
 
         window.renderBarcode = function(serial) { if(!serial) serial = "SPARK-" + Math.floor(Math.random() * 1000000); JsBarcode("#barcode", serial, { format: "CODE128", width: 1, height: 15, displayValue: true, fontSize: 8, margin: 0, textMargin: 1 }); }
 
@@ -310,7 +313,14 @@
             document.getElementById('in-anjuran').value = data.anjuran; document.getElementById('in-nama').value = data.nama;
             document.getElementById('in-jawatan').value = data.jawatan; window.speakersData = data.speakers || [];
             if(data.settings) { updateSettings('fontSize', parseFloat(data.settings.fontSize)); updateSettings('lineHeight', parseFloat(data.settings.lineHeight)); updateSettings('padding', parseFloat(data.settings.padding)); }
-            if(data.signatureUrl && data.showSignature) { document.getElementById('out-sig-img').src = data.signatureUrl; document.getElementById('chk-signature').checked = true; window.toggleSignature(); }
+            
+            // SIGNATURE LOADING FIX
+            if(data.signatureUrl && data.showSignature) { 
+                document.getElementById('out-sig-img').src = data.signatureUrl; 
+                document.getElementById('chk-signature').checked = true; 
+                window.hasSignatureData = true; // Mark as having data
+                window.toggleSignature(); 
+            }
             renderFormFromData(); updatePreview(); switchTab('editor'); document.getElementById('btn-share').classList.remove('hidden');
         }
 
@@ -461,7 +471,6 @@
                             if(subText.trim()) {
                                 let html = `<div class="sub-item"><div class="sub-num">${i+1}.${si+1}</div><div class="sub-text-wrapper"><div class="sub-text">${subText}</div>`;
                                 if(subStatus) {
-                                    // FIXED: REMOVED PARENTHESES
                                     const whoLabel = subStatus === "MAKLUMAN" ? "MAKLUMAN" : "TINDAKAN: " + (subWho.toUpperCase() || "PGB");
                                     html += `<div class="status-tag">${whoLabel}</div>`;
                                 }
@@ -472,7 +481,6 @@
                         td.appendChild(sl); 
                     }
                     if(p.status) {
-                         // FIXED: REMOVED PARENTHESES
                         td.innerHTML += `<div class="status-tag">${p.status === "MAKLUMAN" ? "MAKLUMAN" : "TINDAKAN: " + (p.who.toUpperCase() || "PGB")}</div>`;
                     }
                     if(p.text.trim() || p.subs.length>0) list.appendChild(item);
@@ -488,25 +496,60 @@
         
         function initSignaturePad() { sigCanvas = document.getElementById('signature-pad'); if (!sigCanvas) return; sigCtx = sigCanvas.getContext('2d'); setTimeout(()=>{const r=sigCanvas.getBoundingClientRect();sigCanvas.width=r.width;sigCanvas.height=r.height;},500); sigCanvas.addEventListener('mousedown', sD); sigCanvas.addEventListener('mouseup', eD); sigCanvas.addEventListener('mousemove', dD); sigCanvas.addEventListener('touchstart', (e)=>{e.preventDefault();sD(e.touches[0])}); sigCanvas.addEventListener('touchend', (e)=>{e.preventDefault();eD()}); sigCanvas.addEventListener('touchmove', (e)=>{e.preventDefault();dD(e.touches[0])}); }
         function sD(e){ isDrawing=true; isSignatureDrawn=true; const i = document.getElementById('sig-instruction'); if(i) i.classList.add('hidden'); dD(e); } function eD(){ isDrawing=false; sigCtx.beginPath(); uS(); } function dD(e){ if(!isDrawing)return; const r=sigCanvas.getBoundingClientRect(); sigCtx.lineWidth=2; sigCtx.lineTo(e.clientX-r.left, e.clientY-r.top); sigCtx.stroke(); sigCtx.beginPath(); sigCtx.moveTo(e.clientX-r.left, e.clientY-r.top); }
-        function uS(){ document.getElementById('out-sig-img').src=sigCanvas.toDataURL(); if(document.getElementById('chk-signature').checked) document.getElementById('out-sig-img').classList.remove('hidden'); triggerAutoSave(); }
-        window.clearSignature=function(){ sigCtx.clearRect(0,0,sigCanvas.width,sigCanvas.height); isSignatureDrawn=false; const i = document.getElementById('sig-instruction'); if(i) i.classList.remove('hidden'); document.getElementById('out-sig-img').classList.add('hidden'); triggerAutoSave(); }
         
-        // FIXED: TOGGLE SIGNATURE FUNCTION
+        // --- FIXED SIGNATURE VISIBILITY LOGIC ---
+        function checkSigVisibility() {
+            const chk = document.getElementById('chk-signature');
+            const img = document.getElementById('out-sig-img');
+            // Show image IF checkbox is checked AND (we have drawn data OR we loaded data)
+            if(chk.checked && window.hasSignatureData) {
+                img.classList.remove('hidden');
+            } else {
+                img.classList.add('hidden');
+            }
+        }
+
+        function uS(){ 
+            document.getElementById('out-sig-img').src=sigCanvas.toDataURL(); 
+            window.hasSignatureData = true; // Mark that we have data
+            checkSigVisibility();
+            triggerAutoSave(); 
+        }
+
+        window.clearSignature=function(){ 
+            sigCtx.clearRect(0,0,sigCanvas.width,sigCanvas.height); 
+            isSignatureDrawn=false; 
+            window.hasSignatureData = false; // Data cleared
+            const i = document.getElementById('sig-instruction'); 
+            if(i) i.classList.remove('hidden'); 
+            checkSigVisibility();
+            triggerAutoSave(); 
+        }
+        
         window.toggleSignature=function(){ 
             const chk=document.getElementById('chk-signature'); 
             const cont=document.getElementById('sig-input-container'); 
-            const img=document.getElementById('out-sig-img'); 
             if(chk.checked){ 
                 cont.classList.remove('hidden'); 
-                // Check if src exists and is not empty or just the current url (browser quirk)
-                if(img.src && img.src.length > 50) img.classList.remove('hidden'); 
             } else { 
                 cont.classList.add('hidden'); 
-                img.classList.add('hidden'); 
             } 
+            checkSigVisibility(); // Always run check logic
         }
         
-        window.handleSigUpload=function(input){ if(input.files[0]){ const r=new FileReader(); r.onload=(e)=>{document.getElementById('out-sig-img').src=e.target.result; if(document.getElementById('chk-signature').checked) document.getElementById('out-sig-img').classList.remove('hidden'); triggerAutoSave(); }; r.readAsDataURL(input.files[0]); } }
+        window.handleSigUpload=function(input){ 
+            if(input.files[0]){ 
+                const r=new FileReader(); 
+                r.onload=(e)=>{
+                    document.getElementById('out-sig-img').src=e.target.result; 
+                    window.hasSignatureData = true; // Mark as having data
+                    checkSigVisibility();
+                    triggerAutoSave(); 
+                }; 
+                r.readAsDataURL(input.files[0]); 
+            } 
+        }
+
         window.showCreditModal=function(){ document.getElementById('credit-modal').classList.remove('hidden'); }
         window.closeCreditModal=function(){ document.getElementById('credit-modal').classList.add('hidden'); }
     </script>
