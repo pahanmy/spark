@@ -57,8 +57,10 @@
         /* Buttons */
         .btn-ai-fancy { background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%); color: white; font-weight: 700; font-size: 9px; padding: 4px 8px; border-radius: 6px; box-shadow: 0 2px 5px rgba(168, 85, 247, 0.3); transition: all 0.3s ease; display: flex; align-items: center; gap: 4px; text-transform: uppercase; }
         .btn-ai-fancy:hover { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(168, 85, 247, 0.5); }
-        .btn-ai-locked { background: #cbd5e1; color: #64748b; cursor: not-allowed; box-shadow: none; border: 1px solid #94a3b8; }
-        .btn-ai-locked:hover { transform: none; box-shadow: none; background: #cbd5e1; }
+        
+        /* Locked AI Button Style */
+        .btn-ai-locked { background: #cbd5e1 !important; color: #64748b !important; cursor: not-allowed !important; box-shadow: none !important; border: 1px solid #94a3b8 !important; }
+        .btn-ai-locked:hover { transform: none !important; box-shadow: none !important; background: #cbd5e1 !important; }
 
         .btn-bold { width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; font-weight: bold; font-family: serif; font-size: 14px; transition: all 0.2s; border: 1px solid #ddd; }
         .btn-bold.active { background-color: #334155; color: white; border-color: #334155; }
@@ -256,6 +258,7 @@
             try { const q = query(collection(db, `artifacts/${appId}/public/data/spark_participants`), where("ic", "==", ic)); const snap = await getDocs(q);
                 if (!snap.empty) { const d = snap.docs[0].data(); 
                 const adminIC = "890522135381";
+                // --- PRO ACCOUNT CHECK LOGIC ---
                 window.isSparkPro = (d.isPro === true) || (ic === adminIC);
 
                 const badgeContainer = document.getElementById('account-badge-container');
@@ -265,9 +268,24 @@
                     badgeContainer.innerHTML = '<span class="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded border border-gray-200 font-bold uppercase tracking-wider">AKAUN BIASA</span>';
                 }
 
+                // Force update buttons based on new status
+                updateAIButtons();
+
                 if(!document.getElementById('in-nama').value) document.getElementById('in-nama').value = d.name.toUpperCase();
                 if(!document.getElementById('in-jawatan').value) document.getElementById('in-jawatan').value = (d.jawatan || d.unit || "").toUpperCase(); }
             } catch (e) { console.error(e); }
+        }
+
+        // --- NEW: Helper to update buttons state immediately ---
+        function updateAIButtons() {
+            const buttons = document.querySelectorAll('.btn-ai-fancy');
+            buttons.forEach(btn => {
+                if (window.isSparkPro) {
+                    btn.classList.remove('btn-ai-locked');
+                } else {
+                    btn.classList.add('btn-ai-locked');
+                }
+            });
         }
 
         window.startSession = async function() {
@@ -352,7 +370,12 @@
 
         // --- AI LOGIC (PRO ONLY) ---
         window.askAI = async function(btn, type, sIndex, pIndex, subIndex = null) {
-            if(!window.isSparkPro) { alert("🔒 AKSES TERHAD\n\nMaaf, fungsi AI ini eksklusif untuk pengguna SPARK PRO sahaja."); return; }
+            // 1. STRICT CHECK: Stop if not Pro
+            if(!window.isSparkPro) { 
+                alert("🔒 AKSES TERHAD\n\nMaaf, fungsi AI ini eksklusif untuk pengguna SPARK PRO sahaja."); 
+                return; // Stop execution immediately
+            }
+
             const originalText = btn.innerHTML; let inputId = (type === 'point') ? `input-point-${sIndex}-${pIndex}` : `input-sub-${sIndex}-${pIndex}-${subIndex}`;
             const inputEl = document.getElementById(inputId); const userText = inputEl.value;
             if(!userText || userText.length < 3) { alert("Tulis minima 3 huruf."); return; }
@@ -376,7 +399,10 @@
         }
 
         window.createPointHTML = function(p, i, pi) {
-            const isStat = p.status !== ""; const statHide = isStat ? "" : "hidden"; const whoHide = p.status === "TINDAKAN" ? "" : "hidden"; const boldCls = p.isBold ? "active" : "inactive"; const aiClass = window.isSparkPro ? "" : "btn-ai-locked";
+            const isStat = p.status !== ""; const statHide = isStat ? "" : "hidden"; const whoHide = p.status === "TINDAKAN" ? "" : "hidden"; const boldCls = p.isBold ? "active" : "inactive"; 
+            
+            // Apply locked class if NOT pro
+            const aiClass = window.isSparkPro ? "" : "btn-ai-locked";
             
             let subs = ''; 
             p.subs.forEach((s, si) => { 
