@@ -335,17 +335,22 @@
                 let breakdown = '';
                 if(b.breakdown) breakdown = `<div class="text-xs bg-gray-50 p-2 mt-2 rounded flex gap-3 text-gray-600"><span>Pegawai: ${b.breakdown.officer}</span><span>Guru: ${b.breakdown.teacher}</span><span>Murid: ${b.breakdown.student}</span></div>`;
 
-                let equipHtml = '<span class="text-gray-400 italic text-xs">Tiada / Belum Dipilih</span>';
-                if (b.equipment && b.equipment.length > 0) {
+                // EQUIPMENT LOGIC (Check if empty)
+                let equipHtml = '';
+                let isEquipMissing = !b.equipment || b.equipment.length === 0;
+
+                if (!isEquipMissing) {
                     equipHtml = `<div class="flex flex-wrap gap-1">${b.equipment.map(e => `<span class="text-[10px] bg-gray-100 border px-1 rounded text-gray-700">${e}</span>`).join('')}</div>`;
+                } else {
+                    equipHtml = `<div class="p-2 bg-red-50 border border-red-200 rounded text-red-600 text-xs font-bold flex items-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg> Peralatan belum direkod. Sila kemaskini.</div>`;
                 }
 
-                // Butang untuk Lulus/Tolak
+                // Butang Lulus/Tolak
                 let actions = '';
                 if(b.approvalStatus === 'Menunggu Kelulusan' || !b.approvalStatus) {
                     actions = `
                         <div class="flex gap-2 mt-4 pt-3 border-t">
-                            <button onclick="updateBookingStatus('${b.id}', 'Lulus', '${waPrefix}', '${b.programName}', '${dateStr}', '${b.room}')" class="flex-1 bg-green-600 text-white text-xs font-bold py-2 rounded hover:bg-green-700">LULUSKAN</button>
+                            <button onclick="checkAndApprove('${b.id}', '${waPrefix}', '${b.programName}', '${dateStr}', '${b.room}', ${isEquipMissing}, '${b.room === 'Hab STEM' ? 'hab_stem' : 'coe'}', encodeURIComponent('${JSON.stringify(b.equipment || [])}'))" class="flex-1 bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-2 rounded shadow-sm">LULUSKAN</button>
                             <button onclick="openRejectModal('${b.id}', '${waPrefix}')" class="flex-1 bg-white border border-red-200 text-red-600 text-xs font-bold py-2 rounded hover:bg-red-50">TOLAK</button>
                         </div>
                     `;
@@ -355,9 +360,8 @@
                     actions = `<button onclick="sendWhatsApp('${waPrefix}', 'Gagal', '${b.programName}', '${dateStr}', '${b.room}', '${b.approvalReason}')" class="mt-3 w-full bg-red-50 text-red-700 border border-red-200 text-xs font-bold py-2 rounded hover:bg-red-100">WhatsApp Info</button>`;
                 }
 
-                // Type of room for edit modal logic
+                // Type of room for edit modal
                 const roomType = b.room === 'Hab STEM' ? 'hab_stem' : 'coe';
-                // Escape equipment array safely for onclick
                 const currentEquipStr = encodeURIComponent(JSON.stringify(b.equipment || []));
 
                 const item = document.createElement('div');
@@ -378,7 +382,7 @@
                             <p class="text-xs font-bold text-gray-500 uppercase">Peralatan:</p>
                             <button onclick="openEquipModal('${b.id}', '${roomType}', '${currentEquipStr}')" class="text-xs text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-1">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                                Urus Peralatan
+                                Urus
                             </button>
                         </div>
                         ${equipHtml}
@@ -391,6 +395,16 @@
             });
         }
 
+        // --- NEW: CHECK BEFORE APPROVE ---
+        window.checkAndApprove = function(id, waPrefix, progName, dateStr, room, isEquipMissing, roomType, equipStr) {
+            if (isEquipMissing) {
+                alert("⚠️ Sila kemaskini senarai peralatan (atau pilih 'Tiada Peralatan') sebelum meluluskan tempahan ini.");
+                openEquipModal(id, roomType, equipStr);
+            } else {
+                updateBookingStatus(id, 'Lulus', waPrefix, progName, dateStr, room);
+            }
+        }
+
         // --- EQUIPMENT MANAGEMENT (MODAL) ---
         window.openEquipModal = function(id, roomType, currentEquipEncoded) {
             const currentEquip = JSON.parse(decodeURIComponent(currentEquipEncoded));
@@ -399,7 +413,7 @@
             const container = document.getElementById('equipment-list-container');
             container.innerHTML = '';
 
-            const items = inventoryData[roomType]; // Get from loaded inventory
+            const items = inventoryData[roomType]; 
             
             if(!items || items.length === 0) {
                 container.innerHTML = '<p class="text-sm text-red-500 text-center">Tiada inventori didaftarkan untuk bilik ini.</p>';
@@ -415,7 +429,6 @@
                     container.appendChild(div);
                 });
                 
-                // Add "Tiada Peralatan" option
                 const noneDiv = document.createElement('div');
                 noneDiv.className = "flex items-center gap-2 p-2 border rounded bg-gray-100 mt-2";
                 noneDiv.innerHTML = `
@@ -434,14 +447,14 @@
             let newEquip = [];
             checkboxes.forEach(cb => newEquip.push(cb.value));
 
-            if(newEquip.length === 0) newEquip = ["Tiada Peralatan"]; // Default if nothing selected
+            if(newEquip.length === 0) newEquip = ["Tiada Peralatan"];
 
             try {
                 await updateDoc(doc(db, `artifacts/${appId}/public/data/spark_bookings`, id), {
                     equipment: newEquip
                 });
                 closeModal('equipment-modal');
-                // Real-time listener will update the list
+                alert("Peralatan berjaya disimpan. Anda boleh meluluskan sekarang.");
             } catch(e) {
                 console.error(e);
                 alert("Gagal menyimpan peralatan.");
@@ -495,12 +508,11 @@
                 const listEl = document.getElementById(`list-${type}`);
                 const countEl = document.getElementById(`count-${type}`);
                 
-                // Clear and check existance
                 if(listEl) listEl.innerHTML = '';
                 
                 if(snap.exists() && snap.data().items) {
                     const items = snap.data().items;
-                    inventoryData[type] = items; // Store for modal usage
+                    inventoryData[type] = items;
                     if(countEl) countEl.textContent = `${items.length} Item`;
                     
                     if(listEl) {
@@ -589,12 +601,11 @@
             await updateDoc(ref, { items });
         }
 
-        // Expose functions
         Object.assign(window, {
             switchTab, filterByCard, loadBookings, updateBookingStatus, openRejectModal, 
             closeModal, toggleCustomReason, confirmReject, sendWhatsApp, 
             processBulkImport, handleFileUpload, activatePasteMode, deleteItem,
-            openEquipModal, saveEquipment
+            openEquipModal, saveEquipment, checkAndApprove
         });
 
     </script>
