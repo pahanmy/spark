@@ -81,6 +81,8 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        // TAMBAHAN PENTING: Import Auth Module
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, setDoc, updateDoc, arrayUnion, arrayRemove, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const firebaseConfig = {
@@ -94,14 +96,34 @@
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
+        // Initial Auth
+        const auth = getAuth(app);
+        
         const appId = firebaseConfig.projectId;
         const IMGBB_API_KEY = "27983a3f2b483a2ff935c595affbefa8";
 
-        // Variable untuk simpan data tempatan (untuk memudahkan update imej)
         let inventoryData = {
             coe: [],
             hab_stem: []
         };
+
+        // --- TAMBAHAN: FUNGSI AUTH ---
+        // Kita mesti log masuk sebelum boleh menulis ke database
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                console.log("Admin Logged In:", user.uid);
+                // Hanya load data selepas login berjaya
+                loadData('coe');
+                loadData('hab_stem');
+            } else {
+                try {
+                    await signInAnonymously(auth);
+                } catch (error) {
+                    console.error("Login failed", error);
+                    alert("Ralat Log Masuk: Sila refresh page.");
+                }
+            }
+        });
 
         // Load data secara real-time
         function loadData(type) {
@@ -113,10 +135,9 @@
                 
                 if (docSnap.exists() && docSnap.data().items && docSnap.data().items.length > 0) {
                     const items = docSnap.data().items;
-                    inventoryData[type] = items; // Simpan ke local state
+                    inventoryData[type] = items;
                     countEl.textContent = `${items.length} Item`;
 
-                    // Sort supaya item tanpa gambar naik atas (untuk memudahkan kerja)
                     const sortedItems = [...items].sort((a, b) => {
                         if (!a.image && b.image) return -1;
                         if (a.image && !b.image) return 1;
@@ -124,12 +145,11 @@
                     });
 
                     sortedItems.forEach((item, index) => {
-                        const originalIndex = items.findIndex(i => i.name === item.name); // Cari index sebenar dalam array asal
+                        const originalIndex = items.findIndex(i => i.name === item.name);
                         
                         const div = document.createElement('div');
                         div.className = "flex flex-col sm:flex-row sm:items-center justify-between bg-white p-3 rounded border border-gray-200 shadow-sm gap-3";
                         
-                        // Gambar Preview
                         let imgHtml = `<div class="w-12 h-12 bg-gray-100 rounded flex-shrink-0 flex items-center justify-center text-[10px] text-gray-400 text-center leading-tight">Tiada<br>Foto</div>`;
                         if(item.image) {
                             imgHtml = `<img src="${item.image}" class="w-12 h-12 object-cover rounded border border-gray-200 cursor-pointer hover:opacity-75 transition" onclick="window.open('${item.image}')">`;
@@ -169,8 +189,9 @@
             });
         }
 
-        // --- FUNGSI BULK IMPORT ---
         window.processBulkImport = async function(type) {
+            if(!auth.currentUser) return alert("Sila tunggu sehingga sistem log masuk.");
+
             const textarea = document.getElementById(`bulk-${type}`);
             const text = textarea.value.trim();
             
@@ -181,7 +202,7 @@
 
             const itemsToAdd = lines.map(name => ({
                 name: name.trim().toUpperCase(),
-                image: "" // Mula dengan kosong
+                image: ""
             }));
 
             try {
@@ -191,12 +212,8 @@
                 if (!docSnap.exists()) {
                     await setDoc(docRef, { items: itemsToAdd });
                 } else {
-                    // Gunakan arrayUnion untuk tambah, tapi pastikan unik (Firestore check exact object match)
-                    // Untuk bulk insert yang banyak, lebih selamat baca array lama, gabung, dan tulis semula
                     const currentItems = docSnap.data().items || [];
-                    // Gabung dan elak duplikasi nama sahaja (optional logic, disini kita gabung je)
                     const newItemsList = [...currentItems, ...itemsToAdd];
-                    
                     await updateDoc(docRef, { items: newItemsList });
                 }
 
@@ -205,28 +222,23 @@
 
             } catch (err) {
                 console.error(err);
-                alert("Gagal memproses import.");
+                alert("Gagal memproses import. " + err.message);
             }
         }
 
-        // --- FUNGSI UPLOAD GAMBAR (FILE PICKER) ---
         window.handleFileUpload = async function(input, type, index) {
             const file = input.files[0];
             if (!file) return;
             await uploadAndUpdate(file, type, index);
         }
 
-        // --- FUNGSI PASTE (CLIPBOARD) ---
         window.activatePasteMode = function(type, index) {
             const btn = document.getElementById(`paste-btn-${type}-${index}`);
             const originalText = btn.innerHTML;
             
-            // Set visual feedback
             btn.classList.add('paste-active');
             btn.innerHTML = `<span class="animate-pulse">Tekan Ctrl+V</span>`;
             
-            // Focus pada document body atau elemen khas untuk tangkap paste
-            // Kita pasang one-time listener pada window untuk paste
             const pasteHandler = async (e) => {
                 const items = (e.clipboardData || e.originalEvent.clipboardData).items;
                 let file = null;
@@ -240,13 +252,9 @@
 
                 if (file) {
                     e.preventDefault();
-                    // Remove listener
                     window.removeEventListener('paste', pasteHandler);
-                    // Reset butang
                     btn.classList.remove('paste-active');
                     btn.innerHTML = originalText;
-                    
-                    // Upload
                     await uploadAndUpdate(file, type, index);
                 } else {
                     alert("Tiada imej dijumpai dalam clipboard.");
@@ -258,7 +266,6 @@
 
             window.addEventListener('paste', pasteHandler);
 
-            // Timeout reset jika user tak paste dalam 5 saat
             setTimeout(() => {
                 window.removeEventListener('paste', pasteHandler);
                 btn.classList.remove('paste-active');
@@ -266,9 +273,9 @@
             }, 8000);
         }
 
-        // --- CORE UPLOAD & UPDATE LOGIC ---
         async function uploadAndUpdate(file, type, index) {
-            // Tunjuk loading pada butang
+            if(!auth.currentUser) return alert("Sila tunggu sehingga sistem log masuk.");
+
             const btn = document.getElementById(`paste-btn-${type}-${index}`) || document.activeElement;
             const originalContent = btn.innerHTML;
             btn.innerHTML = `Uploading...`;
@@ -278,7 +285,6 @@
                 const formData = new FormData();
                 formData.append('image', file);
                 
-                // Upload ke ImgBB
                 const res = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, { 
                     method: 'POST', body: formData 
                 });
@@ -287,19 +293,14 @@
                 if (data.success) {
                     const imageUrl = data.data.url;
                     
-                    // Update Firestore Array
-                    // Teknik selamat: Baca semua, ubah index tertentu, tulis semula
                     const docRef = doc(db, `artifacts/${appId}/public/data/pkg_equipment`, type);
                     
-                    // Ambil data terkini dari local state (inventoryData) yang disync oleh onSnapshot
-                    // Atau fetch fresh untuk lebih selamat
                     const docSnap = await getDoc(docRef);
                     if(docSnap.exists()) {
                         let items = docSnap.data().items;
                         if(items[index]) {
-                            items[index].image = imageUrl; // Update URL
+                            items[index].image = imageUrl;
                             await updateDoc(docRef, { items: items });
-                            // alert("Gambar berjaya dikemaskini!"); // Optional: Bising kalau alert setiap kali
                         }
                     }
                 } else {
@@ -310,15 +311,15 @@
                 console.error(err);
                 alert("Gagal memuat naik gambar. Sila cuba lagi.");
             } finally {
-                btn.innerHTML = originalText.includes('Paste') ? 
+                btn.innerHTML = originalContent.includes('Paste') ? 
                     `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg> Paste` : 
                     originalContent;
                 btn.disabled = false;
             }
         }
 
-        // --- FUNGSI DELETE ---
         window.deleteItem = async function(type, index) {
+            if(!auth.currentUser) return alert("Sila tunggu sehingga sistem log masuk.");
             if(!confirm(`Adakah anda pasti mahu memadam item ini?`)) return;
             
             try {
@@ -327,7 +328,6 @@
                 
                 if(docSnap.exists()) {
                     let items = docSnap.data().items;
-                    // Remove item at specific index
                     items.splice(index, 1);
                     await updateDoc(docRef, { items: items });
                 }
@@ -337,10 +337,6 @@
             }
         }
 
-        // Init
-        loadData('coe');
-        loadData('hab_stem');
-
         window.processBulkImport = processBulkImport;
         window.handleFileUpload = handleFileUpload;
         window.activatePasteMode = activatePasteMode;
@@ -348,7 +344,6 @@
     </script>
     
     <style>
-        /* Custom scrollbar untuk list panjang */
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
