@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SPARK Curai – Final Free Flow</title>
+    <title>SPARK Curai – Edisi Lengkap</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
@@ -36,6 +36,11 @@
         #out-content { font-size: 11pt; line-height: 1.5; text-align: justify; flex-grow: 1; }
         .single-line-name { white-space: nowrap; overflow: visible; width: 100%; display: block; }
 
+        /* Content Table (User Created) */
+        .content-table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 0.9em; }
+        .content-table th, .content-table td { border: 1px solid #333; padding: 5px; text-align: left; }
+        .content-table th { background-color: #f3f4f6; font-weight: bold; text-transform: uppercase; }
+
         /* UI Elements */
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
@@ -52,11 +57,19 @@
         .preview-item { margin-bottom: 10px; display: flex; align-items: flex-start; }
         .preview-num { font-weight: bold; min-width: 25px; }
         .preview-text { flex-grow: 1; text-align: justify; }
+        
+        /* Level 2 (Sub) */
         .sub-list { margin-top: 5px; }
         .sub-item { display: flex; align-items: flex-start; margin-bottom: 4px; }
         .sub-num { font-weight: normal; min-width: 35px; font-size: 0.95em; }
         .sub-text-wrapper { flex-grow: 1; }
         .sub-text { font-size: 0.95em; }
+
+        /* Level 3 (Sub-Sub) */
+        .sub-sub-list { margin-top: 3px; margin-left: 0; }
+        .sub-sub-item { display: flex; align-items: flex-start; margin-bottom: 3px; }
+        .sub-sub-num { font-weight: normal; min-width: 40px; font-size: 0.9em; font-style: italic; color: #444; }
+        .sub-sub-text { font-size: 0.9em; font-style: italic; }
 
         .speaker-section { margin-bottom: 20px; border-bottom: 1px dashed #ddd; padding-bottom: 10px; }
         .speaker-section:last-child { border-bottom: none; }
@@ -113,7 +126,7 @@
                             <span class="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded border border-gray-200 font-bold uppercase tracking-wider">Memuatkan...</span>
                         </div>
                     </div>
-                    <p class="text-xs text-gray-500">Minit Curai & Nota Mesyuarat</p>
+                    <p class="text-xs text-gray-500">Minit Curai, Nota & Jadual</p>
                 </div>
             </div>
             <div class="flex items-center gap-2">
@@ -267,34 +280,22 @@
             try { const q = query(collection(db, `artifacts/${appId}/public/data/spark_participants`), where("ic", "==", ic)); const snap = await getDocs(q);
                 if (!snap.empty) { const d = snap.docs[0].data(); 
                 const adminIC = "890522135381";
-                // --- PRO ACCOUNT CHECK LOGIC ---
                 window.isSparkPro = (d.isPro === true) || (ic === adminIC);
-
                 const badgeContainer = document.getElementById('account-badge-container');
                 if (window.isSparkPro) {
                     badgeContainer.innerHTML = '<span class="text-[10px] bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded border border-yellow-200 font-bold uppercase tracking-wider">PRO</span>';
                 } else {
                     badgeContainer.innerHTML = '<span class="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded border border-gray-200 font-bold uppercase tracking-wider">AKAUN BIASA</span>';
                 }
-
-                // Force update buttons based on new status
                 updateAIButtons();
-
                 if(!document.getElementById('in-nama').value) document.getElementById('in-nama').value = d.name.toUpperCase();
                 if(!document.getElementById('in-jawatan').value) document.getElementById('in-jawatan').value = (d.jawatan || d.unit || "").toUpperCase(); }
             } catch (e) { console.error(e); }
         }
 
-        // --- NEW: Helper to update buttons state immediately ---
         function updateAIButtons() {
             const buttons = document.querySelectorAll('.btn-ai-fancy');
-            buttons.forEach(btn => {
-                if (window.isSparkPro) {
-                    btn.classList.remove('btn-ai-locked');
-                } else {
-                    btn.classList.add('btn-ai-locked');
-                }
-            });
+            buttons.forEach(btn => { if (window.isSparkPro) btn.classList.remove('btn-ai-locked'); else btn.classList.add('btn-ai-locked'); });
         }
 
         window.startSession = async function() {
@@ -329,7 +330,7 @@
             try {
                 if(window.currentDocId) await updateDoc(doc(db, `artifacts/${appId}/public/data/spark_minit_curai`, window.currentDocId), dataToSave);
                 else { if(dataToSave.tajuk) { dataToSave.createdAt=new Date(); const r=await addDoc(collection(db, `artifacts/${appId}/public/data/spark_minit_curai`), dataToSave); window.currentDocId=r.id; } }
-                ind.className="saved"; ind.innerHTML="Disimpan"; document.getElementById('last-saved-time').innerText=`Disimpan: ${new Date().toLocaleTimeString()}`;
+                ind.className="saved"; ind.innerHTML="Disimpan"; 
                 if(window.currentDocId) document.getElementById('btn-share').classList.remove('hidden'); if(!silent) loadHistory();
             } catch(e){ ind.className="bg-red-500"; ind.innerHTML="Gagal"; }
         }
@@ -359,15 +360,9 @@
             document.getElementById('in-jawatan').value = data.jawatan; window.speakersData = data.speakers || [];
             if(data.settings) { updateSettings('fontSize', parseFloat(data.settings.fontSize)); updateSettings('lineHeight', parseFloat(data.settings.lineHeight)); updateSettings('padding', parseFloat(data.settings.padding)); }
             
-            // Signature Loading - Robust
             if(data.signatureUrl && data.showSignature) { 
-                document.getElementById('out-sig-img').src = data.signatureUrl; 
-                document.getElementById('chk-signature').checked = true; 
-                window.toggleSignature();
-            } else {
-                document.getElementById('chk-signature').checked = false;
-                window.toggleSignature();
-            }
+                document.getElementById('out-sig-img').src = data.signatureUrl; document.getElementById('chk-signature').checked = true; window.toggleSignature();
+            } else { document.getElementById('chk-signature').checked = false; window.toggleSignature(); }
             renderFormFromData(); updatePreview(); switchTab('editor'); document.getElementById('btn-share').classList.remove('hidden');
         }
 
@@ -377,14 +372,9 @@
         window.shareRecord = function() { if(!window.currentDocId) { alert("Simpan dulu."); return; } const link = window.location.href.replace('sparkcurai.html', `viewminit.html?id=${window.currentDocId}`); window.open(`https://wa.me/?text=${encodeURIComponent("Salam, berikut pautan Minit Curai: " + link)}`, '_blank'); }
         window.autoResize = function(el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }
 
-        // --- AI LOGIC (PRO ONLY) ---
+        // --- AI LOGIC ---
         window.askAI = async function(btn, type, sIndex, pIndex, subIndex = null) {
-            // 1. STRICT CHECK: Stop if not Pro
-            if(!window.isSparkPro) { 
-                alert("🔒 AKSES TERHAD\n\nMaaf, fungsi AI ini eksklusif untuk pengguna SPARK PRO sahaja."); 
-                return; // Stop execution immediately
-            }
-
+            if(!window.isSparkPro) { alert("🔒 AKSES TERHAD\n\nFungsi AI eksklusif untuk SPARK PRO."); return; }
             const originalText = btn.innerHTML; let inputId = (type === 'point') ? `input-point-${sIndex}-${pIndex}` : `input-sub-${sIndex}-${pIndex}-${subIndex}`;
             const inputEl = document.getElementById(inputId); const userText = inputEl.value;
             if(!userText || userText.length < 3) { alert("Tulis minima 3 huruf."); return; }
@@ -403,19 +393,51 @@
         window.createSpeakerHTML = function(s, i) {
             const w = document.createElement('div'); w.className = "bg-gray-50 border border-gray-300 rounded-lg p-3 relative"; w.id = `speaker-wrapper-${i}`;
             let pts = ''; s.points.forEach((p, pi) => pts += createPointHTML(p, i, pi));
-            w.innerHTML = `<div class="mb-3 bg-white p-2 rounded border border-gray-200"><label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Penyampai</label><div class="flex gap-2"><input type="text" value="${s.name}" oninput="updateSpeakerName(${i}, this.value)" class="flex-grow text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 rounded p-1.5 placeholder-indigo-300" placeholder="Cth: Pengarah JPNS"><button onclick="removeSpeaker(${i})" class="text-red-400 hover:text-red-600 p-1"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button></div></div><div id="points-list-${i}" class="space-y-4 pl-2 border-l-2 border-indigo-100">${pts}</div><div class="mt-4 pl-2"><button type="button" onclick="addPoint(${i})" class="text-[10px] font-bold text-sky-600 hover:text-sky-800 flex items-center gap-1 uppercase bg-white px-3 py-1.5 rounded border border-sky-100 hover:bg-sky-50 shadow-sm">+ Tambah Poin Utama</button></div>`;
+            w.innerHTML = `<div class="mb-3 bg-white p-2 rounded border border-gray-200"><label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Penyampai</label><div class="flex gap-2"><input type="text" value="${s.name}" oninput="updateSpeakerName(${i}, this.value)" class="flex-grow text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 rounded p-1.5 placeholder-indigo-300" placeholder="Cth: Pengarah JPNS"><button onclick="removeSpeaker(${i})" class="text-red-400 hover:text-red-600 p-1"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button></div></div><div id="points-list-${i}" class="space-y-4 pl-2 border-l-2 border-indigo-100">${pts}</div><div class="mt-4 pl-2 flex gap-2"><button type="button" onclick="addPoint(${i})" class="text-[10px] font-bold text-sky-600 hover:text-sky-800 flex items-center gap-1 uppercase bg-white px-3 py-1.5 rounded border border-sky-100 hover:bg-sky-50 shadow-sm">+ Tambah Poin</button><button type="button" onclick="addTablePoint(${i})" class="text-[10px] font-bold text-orange-600 hover:text-orange-800 flex items-center gap-1 uppercase bg-white px-3 py-1.5 rounded border border-orange-100 hover:bg-orange-50 shadow-sm">▦ Tambah Jadual</button></div>`;
             document.getElementById('speakers-container').appendChild(w);
         }
 
         window.createPointHTML = function(p, i, pi) {
-            const isStat = p.status !== ""; const statHide = isStat ? "" : "hidden"; const whoHide = p.status === "TINDAKAN" ? "" : "hidden"; const boldCls = p.isBold ? "active" : "inactive"; const aiClass = window.isSparkPro ? "" : "btn-ai-locked";
+            const aiClass = window.isSparkPro ? "" : "btn-ai-locked";
+            
+            // --- TABLE HANDLING ---
+            if(p.type === 'table') {
+                let rowsHtml = '';
+                p.tableData.forEach((row, rIndex) => {
+                    let colsHtml = '';
+                    row.forEach((cell, cIndex) => {
+                        colsHtml += `<td class="p-1 border border-gray-300"><input type="text" value="${cell}" oninput="updateTableCell(${i}, ${pi}, ${rIndex}, ${cIndex}, this.value)" class="w-full text-xs p-1 bg-white" placeholder="..."></td>`;
+                    });
+                    rowsHtml += `<tr>${colsHtml}<td class="w-6 p-1 text-center"><button onclick="removeTableRow(${i}, ${pi}, ${rIndex})" class="text-red-500 hover:text-red-700 font-bold">x</button></td></tr>`;
+                });
+
+                return `<div class="relative bg-white border border-orange-200 rounded p-2 shadow-sm border-l-4 border-l-orange-400">
+                    <div class="flex justify-between items-center mb-2"><span class="text-[10px] font-bold text-orange-600 uppercase">Jadual</span><button onclick="removePoint(${i}, ${pi})" class="text-gray-300 hover:text-red-400">x</button></div>
+                    <div class="overflow-x-auto"><table class="w-full border-collapse mb-2">${rowsHtml}</table></div>
+                    <div class="flex gap-2"><button onclick="addTableRow(${i}, ${pi})" class="text-[9px] bg-gray-100 px-2 py-1 rounded hover:bg-gray-200">+ Baris</button><button onclick="addTableCol(${i}, ${pi})" class="text-[9px] bg-gray-100 px-2 py-1 rounded hover:bg-gray-200">+ Lajur</button></div>
+                </div>`;
+            }
+
+            // --- STANDARD TEXT HANDLING ---
+            const isStat = p.status !== ""; const statHide = isStat ? "" : "hidden"; const whoHide = p.status === "TINDAKAN" ? "" : "hidden"; const boldCls = p.isBold ? "active" : "inactive";
             
             let subs = ''; 
             p.subs.forEach((s, si) => { 
                 const subText = (typeof s === 'object') ? s.text : s;
                 const subStatus = (typeof s === 'object') ? s.status : "";
                 const subWho = (typeof s === 'object') ? s.who : "";
+                const subSubsArray = (typeof s === 'object' && s.subsubs) ? s.subsubs : [];
                 
+                // Render Level 3 (Sub-Sub)
+                let subSubsHtml = '';
+                subSubsArray.forEach((ss, ssi) => {
+                     subSubsHtml += `<div class="flex gap-2 items-center mt-1 ml-4 border-l border-gray-300 pl-2">
+                        <span class="text-[9px] text-gray-400 italic">${pi+1}.${si+1}.${ssi+1}</span>
+                        <textarea oninput="updateSubSubPoint(${i}, ${pi}, ${si}, ${ssi}, this.value); autoResize(this)" rows="1" class="spark-input text-[11px] bg-white w-full italic" placeholder="Perincian...">${ss.text}</textarea>
+                        <button onclick="removeSubSubPoint(${i}, ${pi}, ${si}, ${ssi})" class="text-gray-300 hover:text-red-400">x</button>
+                     </div>`;
+                });
+
                 const isSubStat = subStatus !== "";
                 const subStatHide = isSubStat ? "" : "hidden";
                 const subWhoHide = subStatus === "TINDAKAN" ? "" : "hidden";
@@ -430,61 +452,79 @@
                         </div>
                         <button type="button" onclick="removeSubPoint(${i}, ${pi}, ${si})" class="mt-1 text-gray-300 hover:text-red-400">x</button>
                     </div>
-                    <div class="ml-8 flex items-center justify-between">
-                        <label class="inline-flex items-center cursor-pointer">
-                            <input type="checkbox" ${isSubStat ? 'checked' : ''} onchange="toggleSubPointStatus(${i}, ${pi}, ${si}, this.checked)" class="form-checkbox h-3 w-3 text-sky-600">
-                            <span class="ml-1 text-[9px] text-gray-400 hover:text-gray-600">Status/Tindakan</span>
-                        </label>
+                    
+                    <div class="ml-8 flex gap-3">
+                         <label class="inline-flex items-center cursor-pointer"><input type="checkbox" ${isSubStat ? 'checked' : ''} onchange="toggleSubPointStatus(${i}, ${pi}, ${si}, this.checked)" class="form-checkbox h-3 w-3 text-sky-600"><span class="ml-1 text-[9px] text-gray-400 hover:text-gray-600">Status</span></label>
+                         <button onclick="addSubSubPoint(${i}, ${pi}, ${si})" class="text-[9px] text-purple-500 hover:text-purple-700 font-bold">+ Perincian (${pi+1}.${si+1}.x)</button>
                     </div>
+
                     <div id="sub-status-box-${i}-${pi}-${si}" class="ml-8 flex items-center gap-2 bg-gray-50 p-1.5 rounded border border-gray-100 ${subStatHide}">
-                        <div class="w-1/3">
-                            <select onchange="updateSubPointStatusType(${i}, ${pi}, ${si}, this.value)" class="w-full text-[10px] border border-gray-300 rounded p-1">
-                                <option value="MAKLUMAN" ${subStatus === "MAKLUMAN" ? "selected" : ""}>Makluman</option>
-                                <option value="TINDAKAN" ${subStatus === "TINDAKAN" ? "selected" : ""}>Tindakan</option>
-                            </select>
-                        </div>
-                        <div class="w-2/3 ${subWhoHide}" id="sub-who-box-${i}-${pi}-${si}">
-                            <input type="text" value="${subWho}" oninput="updateSubPointWho(${i}, ${pi}, ${si}, this.value)" class="w-full text-[10px] border border-gray-300 rounded p-1" placeholder="Siapa?">
-                        </div>
+                        <div class="w-1/3"><select onchange="updateSubPointStatusType(${i}, ${pi}, ${si}, this.value)" class="w-full text-[10px] border border-gray-300 rounded p-1"><option value="MAKLUMAN" ${subStatus === "MAKLUMAN" ? "selected" : ""}>Makluman</option><option value="TINDAKAN" ${subStatus === "TINDAKAN" ? "selected" : ""}>Tindakan</option></select></div>
+                        <div class="w-2/3 ${subWhoHide}" id="sub-who-box-${i}-${pi}-${si}"><input type="text" value="${subWho}" oninput="updateSubPointWho(${i}, ${pi}, ${si}, this.value)" class="w-full text-[10px] border border-gray-300 rounded p-1" placeholder="Siapa?"></div>
                     </div>
+
+                    <div id="subsubs-container-${i}-${pi}-${si}">${subSubsHtml}</div>
                 </div>`; 
             });
 
             return `<div class="relative bg-white border border-gray-100 rounded p-2 shadow-sm"><div class="flex gap-2 items-start"><div class="flex flex-col gap-1 mt-1"><span class="text-xs font-bold text-gray-400 bg-gray-100 w-6 h-6 flex items-center justify-center rounded-full">${pi + 1}</span><button onclick="toggleBold(${i}, ${pi})" class="btn-bold ${boldCls}" title="Bold?">B</button></div><div class="flex-grow"><div class="relative"><textarea id="input-point-${i}-${pi}" oninput="autoResize(this); updatePointText(${i}, ${pi}, this.value)" rows="1" class="spark-input text-sm mb-1 pr-16" placeholder="Isi Poin Utama...">${p.text}</textarea><button onclick="askAI(this, 'point', ${i}, ${pi})" class="btn-ai-fancy absolute right-2 top-2 ${aiClass}">AI</button></div><div class="flex items-center justify-between mb-2 mt-1"><label class="inline-flex items-center cursor-pointer"><input type="checkbox" ${isStat ? 'checked' : ''} onchange="togglePointStatus(${i}, ${pi}, this.checked)" class="form-checkbox h-3 w-3 text-sky-600"><span class="ml-2 text-[9px] text-gray-400 hover:text-gray-600 uppercase font-bold">Status/Tindakan</span></label><button onclick="addSubPoint(${i}, ${pi})" class="text-[10px] font-bold text-teal-600 bg-teal-50 border border-teal-200 px-4 py-1.5 rounded-lg hover:bg-teal-100 flex items-center gap-1 transition-colors shadow-sm"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg> Sub-Poin (1.x)</button></div><div id="status-box-${i}-${pi}" class="flex items-center gap-2 bg-gray-50 p-2 rounded border border-gray-100 ${statHide} mb-2"><div class="w-1/3"><select onchange="updatePointStatusType(${i}, ${pi}, this.value)" class="w-full text-xs border border-gray-300 rounded p-1"><option value="MAKLUMAN" ${p.status === "MAKLUMAN" ? "selected" : ""}>Makluman</option><option value="TINDAKAN" ${p.status === "TINDAKAN" ? "selected" : ""}>Tindakan</option></select></div><div class="w-2/3 ${whoHide}" id="who-box-${i}-${pi}"><input type="text" value="${p.who}" oninput="updatePointWho(${i}, ${pi}, this.value)" class="w-full text-xs border border-gray-300 rounded p-1" placeholder="Siapa? (Cth: Semua Guru)"></div></div><div id="subs-container-${i}-${pi}">${subs}</div></div><button onclick="removePoint(${i}, ${pi})" class="text-gray-300 hover:text-red-400 self-start mt-2"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button></div></div>`;
         }
 
-        // --- SUB POINT ACTIONS ---
+        // --- SUB & SUB-SUB ACTIONS ---
         window.addSubPoint = function(i, pi) { 
-            window.speakersData[i].points[pi].subs.push({ text: "", status: "", who: "" }); 
+            window.speakersData[i].points[pi].subs.push({ text: "", status: "", who: "", subsubs: [] }); 
             renderFormFromData(); triggerAutoSave(); updatePreview(); 
+        }
+        window.addSubSubPoint = function(i, pi, si) {
+            let sub = window.speakersData[i].points[pi].subs[si];
+            if(!sub.subsubs) sub.subsubs = [];
+            sub.subsubs.push({ text: "" });
+            renderFormFromData(); triggerAutoSave(); updatePreview();
         }
         window.updateSubPoint = function(i, pi, si, v) { 
             let sub = window.speakersData[i].points[pi].subs[si];
-            if(typeof sub === 'string') sub = { text: v, status: "", who: "" }; 
-            else sub.text = v;
-            window.speakersData[i].points[pi].subs[si] = sub;
-            triggerAutoSave(); updatePreview(); 
+            if(typeof sub === 'string') sub = { text: v, status: "", who: "", subsubs: [] }; else sub.text = v;
+            window.speakersData[i].points[pi].subs[si] = sub; triggerAutoSave(); updatePreview(); 
         }
-        window.toggleSubPointStatus = function(i, pi, si, chk) {
-            let sub = window.speakersData[i].points[pi].subs[si];
-            if(typeof sub === 'string') sub = { text: sub, status: "", who: "" };
-            sub.status = chk ? "MAKLUMAN" : "";
-            window.speakersData[i].points[pi].subs[si] = sub;
-            renderFormFromData(); triggerAutoSave(); updatePreview();
+        window.updateSubSubPoint = function(i, pi, si, ssi, v) {
+            window.speakersData[i].points[pi].subs[si].subsubs[ssi].text = v; triggerAutoSave(); updatePreview();
         }
-        window.updateSubPointStatusType = function(i, pi, si, val) {
-            window.speakersData[i].points[pi].subs[si].status = val;
-            renderFormFromData(); triggerAutoSave(); updatePreview();
-        }
-        window.updateSubPointWho = function(i, pi, si, val) {
-            window.speakersData[i].points[pi].subs[si].who = val;
-            triggerAutoSave(); updatePreview();
+        window.removeSubSubPoint = function(i, pi, si, ssi) {
+            window.speakersData[i].points[pi].subs[si].subsubs.splice(ssi, 1); renderFormFromData(); triggerAutoSave(); updatePreview();
         }
 
+        // --- TABLE ACTIONS ---
+        window.addTablePoint = function(i) {
+            window.speakersData[i].points.push({ type: 'table', tableData: [['Header 1', 'Header 2'], ['Data 1', 'Data 2']], subs: [], status: "", who: "" });
+            renderFormFromData(); triggerAutoSave(); updatePreview();
+        }
+        window.updateTableCell = function(i, pi, r, c, val) {
+            window.speakersData[i].points[pi].tableData[r][c] = val; triggerAutoSave(); updatePreview();
+        }
+        window.addTableRow = function(i, pi) {
+            const cols = window.speakersData[i].points[pi].tableData[0].length;
+            window.speakersData[i].points[pi].tableData.push(new Array(cols).fill(""));
+            renderFormFromData(); triggerAutoSave(); updatePreview();
+        }
+        window.addTableCol = function(i, pi) {
+            window.speakersData[i].points[pi].tableData.forEach(row => row.push(""));
+            renderFormFromData(); triggerAutoSave(); updatePreview();
+        }
+        window.removeTableRow = function(i, pi, r) {
+            if(window.speakersData[i].points[pi].tableData.length > 1) {
+                 window.speakersData[i].points[pi].tableData.splice(r, 1);
+                 renderFormFromData(); triggerAutoSave(); updatePreview();
+            } else alert("Jadual mesti ada sekurangnya 1 baris.");
+        }
+        
+        // --- OTHER ACTIONS ---
+        window.toggleSubPointStatus = function(i, pi, si, chk) { let sub = window.speakersData[i].points[pi].subs[si]; if(typeof sub === 'string') sub = { text: sub, status: "", who: "" }; sub.status = chk ? "MAKLUMAN" : ""; window.speakersData[i].points[pi].subs[si] = sub; renderFormFromData(); triggerAutoSave(); updatePreview(); }
+        window.updateSubPointStatusType = function(i, pi, si, val) { window.speakersData[i].points[pi].subs[si].status = val; renderFormFromData(); triggerAutoSave(); updatePreview(); }
+        window.updateSubPointWho = function(i, pi, si, val) { window.speakersData[i].points[pi].subs[si].who = val; triggerAutoSave(); updatePreview(); }
         window.addSpeaker = function() { window.speakersData.push({ name: "Pengerusi", points: [] }); addPoint(window.speakersData.length - 1); triggerAutoSave(); }
         window.removeSpeaker = function(i) { if(confirm("Padam?")) { window.speakersData.splice(i, 1); renderFormFromData(); triggerAutoSave(); updatePreview(); } }
         window.updateSpeakerName = function(i, v) { window.speakersData[i].name = v; triggerAutoSave(); updatePreview(); }
-        window.addPoint = function(i, silent = false) { window.speakersData[i].points.push({ text: "", subs: [], status: "", who: "", isBold: false }); renderFormFromData(); if(!silent) triggerAutoSave(); updatePreview(); }
+        window.addPoint = function(i, silent = false) { window.speakersData[i].points.push({ text: "", subs: [], status: "", who: "", isBold: false, type: 'text' }); renderFormFromData(); if(!silent) triggerAutoSave(); updatePreview(); }
         window.removePoint = function(i, pi) { window.speakersData[i].points.splice(pi, 1); renderFormFromData(); triggerAutoSave(); updatePreview(); }
         window.updatePointText = function(i, pi, v) { window.speakersData[i].points[pi].text = v; triggerAutoSave(); updatePreview(); }
         window.toggleBold = function(i, pi) { window.speakersData[i].points[pi].isBold = !window.speakersData[i].points[pi].isBold; renderFormFromData(); triggerAutoSave(); updatePreview(); }
@@ -504,18 +544,49 @@
                 if(s.name) sec.innerHTML += `<div class="speaker-title">${s.name}</div>`;
                 const list = document.createElement('div'); list.className = "preview-list";
                 s.points.forEach((p, i) => {
+                    // --- PREVIEW TABLE ---
+                    if(p.type === 'table') {
+                         const item = document.createElement('div'); item.className = "preview-item";
+                         let thtml = '<table class="content-table"><thead><tr>';
+                         p.tableData[0].forEach(h => thtml += `<th>${h}</th>`);
+                         thtml += '</tr></thead><tbody>';
+                         for(let r=1; r<p.tableData.length; r++) {
+                             thtml += '<tr>';
+                             p.tableData[r].forEach(c => thtml += `<td>${c}</td>`);
+                             thtml += '</tr>';
+                         }
+                         thtml += '</tbody></table>';
+                         item.innerHTML = `<div class="preview-num">${i+1}.</div><div class="preview-text">${thtml}</div>`;
+                         list.appendChild(item);
+                         return; // Continue loop
+                    }
+
+                    // --- PREVIEW TEXT ---
                     const item = document.createElement('div'); item.className = "preview-item";
                     item.innerHTML = `<div class="preview-num">${i+1}.</div><div class="preview-text"><div style="${p.isBold?'font-weight:bold':''}">${p.text}</div></div>`;
                     const td = item.querySelector('.preview-text');
+                    
                     if(p.subs.length > 0) { 
                         const sl = document.createElement('div'); sl.className = "sub-list"; 
                         p.subs.forEach((sb, si) => { 
                             const subText = (typeof sb === 'object') ? sb.text : sb;
                             const subStatus = (typeof sb === 'object') ? sb.status : "";
                             const subWho = (typeof sb === 'object') ? sb.who : "";
-                            if(subText.trim()) {
+                            const subSubs = (typeof sb === 'object' && sb.subsubs) ? sb.subsubs : [];
+
+                            if(subText.trim() || subSubs.length > 0) {
                                 let html = `<div class="sub-item"><div class="sub-num">${i+1}.${si+1}</div><div class="sub-text-wrapper"><div class="sub-text">${subText}</div>`;
                                 if(subStatus) { const whoLabel = subStatus === "MAKLUMAN" ? "MAKLUMAN" : "TINDAKAN: " + (subWho.toUpperCase() || "PGB"); html += `<div class="status-tag">${whoLabel}</div>`; }
+                                
+                                // Level 3 Preview
+                                if(subSubs.length > 0) {
+                                    html += `<div class="sub-sub-list">`;
+                                    subSubs.forEach((ss, ssi) => {
+                                        if(ss.text.trim()) html += `<div class="sub-sub-item"><div class="sub-sub-num">${i+1}.${si+1}.${ssi+1}</div><div class="sub-sub-text">${ss.text}</div></div>`;
+                                    });
+                                    html += `</div>`;
+                                }
+
                                 html += `</div></div>`;
                                 sl.innerHTML += html;
                             } 
@@ -528,7 +599,7 @@
                 sec.appendChild(list); if(s.points.length>0 || s.name) c.appendChild(sec);
             });
             window.renderBarcode();
-            checkSigVisibility(); // Always check signature visibility on update
+            checkSigVisibility();
         }
 
         window.setDefaults = function() { const n = new Date(); document.getElementById('in-tarikh').value = n.toISOString().split('T')[0]; document.getElementById('in-masa').value = n.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }); }
@@ -536,98 +607,28 @@
         window.downloadPDF = function() { const el = document.getElementById('pdf-wrapper'); let t = document.getElementById('in-tajuk').value.substring(0, 20).replace(/[^a-zA-Z0-9]/g, '_'); html2pdf().set({ margin: 0, filename: `CURAI_${t}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } }).from(el).save(); }
         
         function initSignaturePad() { 
-            sigCanvas = document.getElementById('signature-pad'); 
-            if (!sigCanvas) return; 
+            sigCanvas = document.getElementById('signature-pad'); if (!sigCanvas) return; 
             sigCtx = sigCanvas.getContext('2d'); 
-            
-            // Adjust canvas resolution for sharpness
             const ratio = Math.max(window.devicePixelRatio || 1, 1);
-            sigCanvas.width = sigCanvas.offsetWidth * ratio;
-            sigCanvas.height = sigCanvas.offsetHeight * ratio;
-            sigCtx.scale(ratio, ratio);
-
-            sigCanvas.addEventListener('mousedown', sD); 
-            sigCanvas.addEventListener('mouseup', eD); 
-            sigCanvas.addEventListener('mousemove', dD); 
-            sigCanvas.addEventListener('touchstart', (e)=>{e.preventDefault();sD(e.touches[0])}); 
-            sigCanvas.addEventListener('touchend', (e)=>{e.preventDefault();eD()}); 
-            sigCanvas.addEventListener('touchmove', (e)=>{e.preventDefault();dD(e.touches[0])}); 
+            sigCanvas.width = sigCanvas.offsetWidth * ratio; sigCanvas.height = sigCanvas.offsetHeight * ratio; sigCtx.scale(ratio, ratio);
+            sigCanvas.addEventListener('mousedown', sD); sigCanvas.addEventListener('mouseup', eD); sigCanvas.addEventListener('mousemove', dD); 
+            sigCanvas.addEventListener('touchstart', (e)=>{e.preventDefault();sD(e.touches[0])}); sigCanvas.addEventListener('touchend', (e)=>{e.preventDefault();eD()}); sigCanvas.addEventListener('touchmove', (e)=>{e.preventDefault();dD(e.touches[0])}); 
         }
 
         function sD(e){ isDrawing=true; isSignatureDrawn=true; const i = document.getElementById('sig-instruction'); if(i) i.classList.add('hidden'); dD(e); } 
         function eD(){ isDrawing=false; sigCtx.beginPath(); uS(); } 
-        function dD(e){ 
-            if(!isDrawing) return; 
-            const r=sigCanvas.getBoundingClientRect(); 
-            sigCtx.lineWidth=3; // Thicker lines for visibility
-            sigCtx.lineCap = "round";
-            sigCtx.lineTo(e.clientX-r.left, e.clientY-r.top); 
-            sigCtx.stroke(); 
-            sigCtx.beginPath(); 
-            sigCtx.moveTo(e.clientX-r.left, e.clientY-r.top); 
-        }
-        function uS(){ 
-            document.getElementById('out-sig-img').src=sigCanvas.toDataURL(); 
-            checkSigVisibility(); 
-            triggerAutoSave(); 
-        }
+        function dD(e){ if(!isDrawing) return; const r=sigCanvas.getBoundingClientRect(); sigCtx.lineWidth=3; sigCtx.lineCap = "round"; sigCtx.lineTo(e.clientX-r.left, e.clientY-r.top); sigCtx.stroke(); sigCtx.beginPath(); sigCtx.moveTo(e.clientX-r.left, e.clientY-r.top); }
+        function uS(){ document.getElementById('out-sig-img').src=sigCanvas.toDataURL(); checkSigVisibility(); triggerAutoSave(); }
 
-        // VISIBILITY LOGIC (SIMPLIFIED & ROBUST)
         function checkSigVisibility() {
-            const chk = document.getElementById('chk-signature');
-            const img = document.getElementById('out-sig-img');
-            const hasData = img.src && img.src.length > 1000; // Basic check for data URL length
-            
-            if(chk.checked && hasData) {
-                img.classList.remove('hidden');
-            } else {
-                img.classList.add('hidden');
-            }
+            const chk = document.getElementById('chk-signature'); const img = document.getElementById('out-sig-img');
+            const hasData = img.src && img.src.length > 1000; 
+            if(chk.checked && hasData) img.classList.remove('hidden'); else img.classList.add('hidden');
         }
 
-        window.clearSignature=function(){ 
-            sigCtx.clearRect(0,0,sigCanvas.width,sigCanvas.height); 
-            isSignatureDrawn=false; 
-            const i = document.getElementById('sig-instruction'); 
-            if(i) i.classList.remove('hidden'); 
-            document.getElementById('out-sig-img').src = "";
-            checkSigVisibility();
-            triggerAutoSave(); 
-        }
-        
-        window.toggleSignature=function(){ 
-            const chk=document.getElementById('chk-signature'); 
-            const cont=document.getElementById('sig-input-container'); 
-            if(chk.checked){ 
-                cont.classList.remove('hidden'); 
-                // Slight delay to ensure element is visible before calculating rect
-                setTimeout(() => { 
-                    const rect = sigCanvas.getBoundingClientRect(); 
-                    if(rect.width > 0) {
-                        const ratio = Math.max(window.devicePixelRatio || 1, 1);
-                        sigCanvas.width = rect.width * ratio;
-                        sigCanvas.height = rect.height * ratio;
-                        sigCtx.scale(ratio, ratio);
-                    }
-                }, 100); 
-            } else { 
-                cont.classList.add('hidden'); 
-            } 
-            checkSigVisibility(); 
-        }
-        
-        window.handleSigUpload=function(input){ 
-            if(input.files[0]){ 
-                const r=new FileReader(); 
-                r.onload=(e)=>{
-                    document.getElementById('out-sig-img').src=e.target.result; 
-                    if(document.getElementById('chk-signature').checked) checkSigVisibility(); 
-                    triggerAutoSave(); 
-                }; 
-                r.readAsDataURL(input.files[0]); 
-            } 
-        }
-        
+        window.clearSignature=function(){ sigCtx.clearRect(0,0,sigCanvas.width,sigCanvas.height); isSignatureDrawn=false; const i = document.getElementById('sig-instruction'); if(i) i.classList.remove('hidden'); document.getElementById('out-sig-img').src = ""; checkSigVisibility(); triggerAutoSave(); }
+        window.toggleSignature=function(){ const chk=document.getElementById('chk-signature'); const cont=document.getElementById('sig-input-container'); if(chk.checked){ cont.classList.remove('hidden'); setTimeout(() => { const rect = sigCanvas.getBoundingClientRect(); if(rect.width > 0) { const ratio = Math.max(window.devicePixelRatio || 1, 1); sigCanvas.width = rect.width * ratio; sigCanvas.height = rect.height * ratio; sigCtx.scale(ratio, ratio); } }, 100); } else { cont.classList.add('hidden'); } checkSigVisibility(); }
+        window.handleSigUpload=function(input){ if(input.files[0]){ const r=new FileReader(); r.onload=(e)=>{ document.getElementById('out-sig-img').src=e.target.result; if(document.getElementById('chk-signature').checked) checkSigVisibility(); triggerAutoSave(); }; r.readAsDataURL(input.files[0]); } }
         window.showCreditModal=function(){ document.getElementById('credit-modal').classList.remove('hidden'); }
         window.closeCreditModal=function(){ document.getElementById('credit-modal').classList.add('hidden'); }
     </script>
