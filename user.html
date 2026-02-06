@@ -846,6 +846,7 @@
         let taskList = [];
         let allProgramsList = [];
         let plannerList = [];
+        let dailyNotes = [], allBirthdays = [];
         
         let allUsersData = []; 
         let selectedParticipants = []; 
@@ -997,11 +998,19 @@ async function loadUserData(ic) {
                 // Fetch Tasks
                 const tasksRef = collection(db, `artifacts/${appId}/public/data/spark_tasks`);
                 const tasksSnapshot = await getDocs(tasksRef);
-                
+               // FETCH NOTES & BIRTHDAYS HERE
+                const notesSnap = await getDocs(query(collection(db, `artifacts/${appId}/public/data/spark_daily_notes`), where("ic", "==", cleanUserIc)));
+                dailyNotes = notesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+                const bdaySnap = await getDocs(query(collection(db, `artifacts/${appId}/public/data/spark_birthdays`), orderBy("dob", "asc")));
+                allBirthdays = bdaySnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
                 // Fetch Planner
                 const plannerRef = collection(db, `artifacts/${appId}/public/data/spark_planner`);
-                const qOwn = query(plannerRef, where("ic", "==", cleanUserIc));
-                const qTagged = query(plannerRef, where("taggedIcs", "array-contains", cleanUserIc));
+                const [ownSnap, taggedSnap] = await Promise.all([
+                    getDocs(query(plannerRef, where("ic", "==", cleanUserIc))),
+                    getDocs(query(plannerRef, where("taggedIcs", "array-contains", cleanUserIc)))
+                ]);
 
                 const [ownSnap, taggedSnap] = await Promise.all([getDocs(qOwn), getDocs(qTagged)]);
 
@@ -1471,7 +1480,8 @@ function createTableRow(result, index) {
             renderPlannerList();
         }
 
-        window.renderPlannerList = function() {
+
+window.renderPlannerList = function() {
             const date = currentPlannerDate;
             const month = date.getMonth();
             const year = date.getFullYear();
@@ -1481,136 +1491,112 @@ function createTableRow(result, index) {
             const container = document.getElementById('planner-list-container');
             container.innerHTML = '';
 
-            const filteredEvents = plannerList.filter(p => {
+            // 1. Ambil Planner Events
+            const plannerEvents = plannerList.filter(p => {
                 const pDate = new Date(p.startDate);
                 return pDate.getMonth() === month && pDate.getFullYear() === year;
-            }).sort((a, b) => new Date(a.startDate + 'T' + (a.startTime || '00:00')) - new Date(b.startDate + 'T' + (b.startTime || '00:00')));
+            }).map(item => ({...item, type: 'planner', sortDate: new Date(item.startDate + 'T' + (item.startTime || '00:00'))}));
 
-            if (filteredEvents.length === 0) {
+            // 2. Ambil Nota Harian (Pastikan dailyNotes wujud)
+            const noteEvents = (dailyNotes || []).filter(n => {
+                const nDate = new Date(n.date);
+                return nDate.getMonth() === month && nDate.getFullYear() === year && n.content.trim() !== "";
+            }).map(item => ({
+                ...item, 
+                type: 'note', 
+                startDate: item.date, 
+                title: 'NOTA HARIAN', 
+                sortDate: new Date(item.date + 'T00:00')
+            }));
+
+            // 3. Ambil Birthday (Pastikan allBirthdays wujud)
+            const birthdayEvents = (allBirthdays || []).filter(b => {
+                if(!b.dob) return false;
+                const bMonth = parseInt(b.dob.split('-')[1]) - 1;
+                return bMonth === month;
+            }).map(item => {
+                const bDay = item.dob.split('-')[2];
+                const constructedDate = `${year}-${String(month+1).padStart(2,'0')}-${bDay}`;
+                return {
+                    ...item,
+                    type: 'birthday',
+                    startDate: constructedDate,
+                    title: `HARI JADI: ${item.name.toUpperCase()}`,
+                    sortDate: new Date(constructedDate + 'T00:00')
+                };
+            });
+
+            // 4. Gabung & Susun
+            const combinedEvents = [...plannerEvents, ...noteEvents, ...birthdayEvents];
+            combinedEvents.sort((a, b) => a.sortDate - b.sortDate);
+
+            if (combinedEvents.length === 0) {
                 container.innerHTML = `
                     <div class="text-center py-10 flex flex-col items-center justify-center opacity-50">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-gray-300 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                        <p class="text-gray-500 text-sm italic">Tiada aktiviti dirancang untuk bulan ini.</p>
+                        <p class="text-gray-500 text-sm italic">Tiada aktiviti, nota, atau sambutan bulan ini.</p>
                     </div>
                 `;
             } else {
                 const today = new Date();
                 today.setHours(0,0,0,0);
 
-                filteredEvents.forEach(ev => {
-                  // --- LOGIK TARIKH BARU ---
-const startDateObj = new Date(ev.startDate);
-const endDateObj = ev.endDate ? new Date(ev.endDate) : startDateObj;
-const isMultiDay = ev.endDate && ev.startDate !== ev.endDate;
-
-// Paparan Kotak Tarikh (Kiri)
-let dateBoxContent = '';
-const startDay = startDateObj.getDate();
-const startMonth = startDateObj.toLocaleDateString('ms-MY', { month: 'short' }).toUpperCase();
-const dayName = startDateObj.toLocaleDateString('ms-MY', { weekday: 'short' }).toUpperCase();
-
-if (isMultiDay) {
-    const endDay = endDateObj.getDate();
-    const endMonth = endDateObj.toLocaleDateString('ms-MY', { month: 'short' }).toUpperCase();
-    
-    // Jika bulan sama: 21-24 MAC
-    // Jika bulan lain: 28 FEB - 02 MAC
-    if (startMonth === endMonth) {
-        dateBoxContent = `
-            <span class="text-[10px] font-bold text-gray-500 uppercase leading-none mb-1">${dayName}</span>
-            <span class="text-xl font-bold text-gray-800 leading-none">${startDay}-${endDay}</span>
-            <span class="text-[10px] font-bold text-gray-400 uppercase mt-1">${startMonth}</span>
-        `;
-    } else {
-        dateBoxContent = `
-            <span class="text-[10px] font-bold text-gray-500 uppercase leading-none mb-1">${dayName}</span>
-            <div class="flex flex-col items-center leading-none">
-                <span class="text-sm font-bold text-gray-800">${startDay} ${startMonth}</span>
-                <span class="text-[8px] text-gray-400 my-0.5">HINGGA</span>
-                <span class="text-sm font-bold text-gray-800">${endDay} ${endMonth}</span>
-            </div>
-        `;
-    }
-} else {
-    // Single Day (Asal)
-    dateBoxContent = `
-        <span class="text-[10px] font-bold text-gray-500 uppercase leading-none mb-1">${dayName}</span>
-        <span class="text-2xl font-bold text-gray-800 leading-none">${startDay}</span>
-        <span class="text-[10px] font-bold text-gray-400 uppercase mt-1">${startMonth}</span>
-    `;
-}
-// --- TAMAT LOGIK TARIKH ---
-                    
+                combinedEvents.forEach(ev => {
                     const eventDate = new Date(ev.startDate);
                     eventDate.setHours(0,0,0,0);
-                    const diffTime = eventDate - today; 
-                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+                    const diffDays = Math.ceil((eventDate - today) / (1000 * 60 * 60 * 24)); 
 
-                    let countdownBadge = '';
-                    let borderClass = 'border-l-4 border-l-transparent bg-gray-50'; 
+                    let borderClass = '', iconType = '', onClickAction = '';
+                    let dateBoxContent = `<span class="text-[10px] font-bold text-gray-500 uppercase">${eventDate.toLocaleDateString('ms-MY', {weekday:'short'}).toUpperCase()}</span><span class="text-2xl font-bold text-gray-800">${eventDate.getDate()}</span>`;
 
-                    if (diffDays === 0) {
-                        countdownBadge = '<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-green-100 text-green-700 uppercase whitespace-nowrap border border-green-200">HARI INI</span>';
-                        borderClass = 'border-l-4 border-l-green-500 bg-green-50'; 
-                    } else if (diffDays === 1) {
-                        countdownBadge = '<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-blue-100 text-blue-700 uppercase whitespace-nowrap border border-blue-200">ESOK</span>';
-                        borderClass = 'border-l-4 border-l-blue-400 bg-blue-50'; 
-                    } else if (diffDays > 1) {
-                        countdownBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-gray-200 text-gray-600 uppercase whitespace-nowrap">${diffDays} HARI LAGI</span>`;
-                    } else {
-                        countdownBadge = '<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-gray-100 text-gray-400 uppercase whitespace-nowrap">SELESAI</span>';
-                        borderClass = 'border-l-4 border-l-gray-300 bg-gray-100 opacity-75';
+                    if (ev.type === 'planner') {
+                        if (diffDays === 0) borderClass = 'border-l-4 border-l-green-500 bg-green-50/50';
+                        else if (diffDays === 1) borderClass = 'border-l-4 border-l-blue-400 bg-blue-50/50';
+                        else borderClass = 'border-l-4 border-l-teal-500 bg-white';
+                        
+                        iconType = `<h4 class="text-sm font-bold text-gray-800 uppercase truncate">${ev.title}</h4>
+                                    <p class="text-xs text-teal-600 font-semibold uppercase">${ev.startTime || 'SEPANJANG HARI'}</p>`;
+                        onClickAction = `onclick="showPlannerDetails(plannerList.find(p => p.id === '${ev.id}'))"`;
+                    
+                    } else if (ev.type === 'note') {
+                        borderClass = 'border-l-4 border-l-amber-400 bg-amber-50 hover:bg-amber-100';
+                        iconType = `<span class="bg-amber-200 text-amber-800 text-[9px] font-bold px-1.5 py-0.5 rounded uppercase mb-1 inline-block">NOTA</span>
+                                    <p class="text-xs text-gray-700 italic font-medium truncate">"${ev.content}"</p>`;
+                        onClickAction = `onclick="selectedDateString='${ev.date}'; openDailyNoteModal()"`;
+                    
+                    } else if (ev.type === 'birthday') {
+                        borderClass = 'border-l-4 border-l-pink-400 bg-pink-50 hover:bg-pink-100';
+                        iconType = `<span class="bg-pink-200 text-pink-800 text-[9px] font-bold px-1.5 py-0.5 rounded uppercase mb-1 inline-block">BIRTHDAY</span>
+                                    <div class="flex items-center gap-1 text-xs font-bold text-pink-700 uppercase truncate">🎂 ${ev.name}</div>`;
+                        onClickAction = `onclick="window.open('birthday.html?name=${encodeURIComponent(ev.name)}&dob=${btoa(ev.dob)}', '_blank')"`;
                     }
-                    
-                    let timeDisplay = ev.startTime || '';
-                    if (ev.endTime) timeDisplay += ` - ${ev.endTime}`;
-                    if (!timeDisplay) timeDisplay = "SEPANJANG HARI";
-                    
-                    const isMyEvent = ev.ic === currentUserIc;
-                    const tagLabel = isMyEvent ? '' : '<span class="text-[9px] font-bold bg-purple-100 text-purple-700 px-2 py-0.5 rounded uppercase ml-2 border border-purple-200">DITAG</span>';
 
                     const item = document.createElement('div');
-                    item.className = `flex flex-row p-3 rounded-lg border border-gray-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer mb-3 ${borderClass}`;
+                    item.className = `flex flex-row p-3 rounded-lg border border-gray-100 shadow-sm hover:shadow-md cursor-pointer mb-3 ${borderClass}`;
+                    // Betulkan cara set attribute onclick
+                    item.setAttribute('onclick', onClickAction.replace('onclick="', '').slice(0, -1));
+                    
                     item.innerHTML = `
-                       <div class="flex flex-col items-center justify-center pr-3 border-r border-gray-200 min-w-[75px] h-full">
-    ${dateBoxContent}
-</div>
-                        <div class="pl-3 flex-grow overflow-hidden">
-                            <div class="flex justify-between items-start mb-1">
-                                <div class="flex items-center flex-wrap gap-1">
-                                    <h4 class="text-sm font-bold text-gray-800 uppercase truncate leading-tight">${ev.title}</h4>
-                                    ${tagLabel}
-                                </div>
-                                <div class="ml-2 flex-shrink-0">
-                                    ${countdownBadge}
-                                </div>
-                            </div>
-                            
-                            <p class="text-xs text-teal-600 font-semibold uppercase flex items-center gap-1">
-                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                                ${timeDisplay}
-                            </p>
-                            
-                            <div class="mt-1 text-xs text-gray-500 flex items-center gap-1 truncate">
-                                ${ev.location ? `
-                                    <svg class="w-3 h-3 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg> 
-                                    <span class="uppercase truncate">${ev.location}</span>
-                                ` : ''}
-                            </div>
-                        </div>
+                       <div class="flex flex-col items-center justify-center pr-3 border-r border-gray-200 min-w-[60px] bg-white/50 rounded-l">
+                            ${dateBoxContent}
+                       </div>
+                       <div class="pl-3 flex-grow overflow-hidden flex flex-col justify-center">
+                            ${iconType}
+                       </div>
                     `;
-                    item.onclick = () => showPlannerDetails(ev);
                     container.appendChild(item);
                 });
             }
-
+            
+            // Badge Notification
             const badge = document.getElementById('planner-badge');
-            const now = new Date();
-            now.setHours(0,0,0,0);
-            const hasUpcoming = plannerList.some(p => new Date(p.startDate) >= now);
-            if (hasUpcoming) badge.classList.remove('hidden');
+            const now = new Date(); now.setHours(0,0,0,0);
+            if (combinedEvents.some(p => p.sortDate >= now)) badge.classList.remove('hidden');
             else badge.classList.add('hidden');
         }
+
+
+        
         window.showPlannerDetails = function(eventData) {
             const modal = document.getElementById('planner-details-modal');
             const content = document.getElementById('planner-details-content');
