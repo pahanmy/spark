@@ -94,7 +94,7 @@
                     <p class="text-sm text-gray-500 font-medium">Tiada rekod sijil dijumpai untuk tahun ini.</p>
                 </div>
             </div>
-            <p class="text-xs text-gray-400 text-center italic mt-4">SPARK e-Sijil v3.6. Sijil dijana secara digital.</p>
+            <p class="text-xs text-gray-400 text-center italic mt-4">SPARK e-Sijil v3.7. Sijil dijana secara digital.</p>
         </div>
     </main>
 
@@ -176,7 +176,6 @@
             snapshot.docs.forEach(doc => {
                 const prog = doc.data();
                 const attendance = prog.attendance || [];
-                // Cari peserta dengan IC yang sama
                 const participant = attendance.find(p => p.ic === ic);
 
                 if (participant) {
@@ -255,13 +254,12 @@
             if (locked > 0) summaryEl.innerHTML += ` <br><span class="text-xs text-gray-500 mt-2 inline-block bg-gray-100 px-3 py-1.5 rounded-lg border border-gray-200 leading-snug">Terdapat <b>${locked} sijil arkib</b>. <a href="sponsor.html" class="text-indigo-600 font-bold">Ketahui Lanjut</a></span>`;
         }
 
-        // FUNGSI UTAMA: MENENTUKAN JENIS SIJIL DAN PERANAN
         function getCertificateStatus(prog, part, isPro) {
             let result = { isRelevant: false, isLocked: false, html: '', btn: '', type: 'NONE' };
             
-            // Periksa peranan khas dengan lebih teliti (buang space, huruf kecil)
-            const role = part.role ? part.role.trim().toLowerCase() : 'peserta';
-            const isSpecial = ['penceramah', 'fasilitator', 'urusetia'].includes(role);
+            // --- PEMBETULAN UTAMA: Pastikan logik role mengesan "Penceramah" dengan tepat ---
+            const roleRaw = part.role ? String(part.role).trim().toLowerCase() : 'peserta';
+            const isSpecial = ['penceramah', 'fasilitator', 'urusetia'].includes(roleRaw);
             
             if (prog.eCertificateNeeded === true) {
                 const progDate = new Date(prog.startDate);
@@ -278,11 +276,7 @@
                 const evals = prog.evaluations || [];
                 const hasEvaluated = evals.some(e => e.ic === part.ic);
 
-                // Logik Penilaian: Jika perlu penilaian & belum buat & BUKAN peranan khas
-                // Peranan khas (Penceramah dll) biasanya dapat sijil terus tanpa perlu penilaian, 
-                // TETAPI kita ikut arahan anda: "Sama ada mereka fasilitator... pastikan ada butang muat turun".
-                // Jadi kita benarkan peranan khas download terus walau belum nilai.
-                
+                // --- PEMBETULAN UTAMA: Jika Penceramah, JANGAN minta penilaian (bypass evaluationNeeded) ---
                 if (prog.evaluationNeeded === true && !hasEvaluated && !isSpecial) {
                     result.isRelevant = true;
                     result.type = 'EVAL';
@@ -291,12 +285,12 @@
                 } else if (prog.endDate) {
                     const today = new Date(); today.setHours(0,0,0,0);
                     const endDate = new Date(prog.endDate + 'T00:00:00');
-                    // Jika dah tamat ATAU sudah nilai ATAU peranan khas
+                    
+                    // Benarkan download jika: (Tamat) ATAU (Dah Nilai) ATAU (Penceramah/Fasi)
                     if (today > endDate || (prog.evaluationNeeded && hasEvaluated) || isSpecial) {
                         result.isRelevant = true;
                         result.type = 'DOWNLOAD';
                         
-                        // Label Jenis Sijil
                         if (isSpecial) {
                             result.html = `<span class="px-2 py-1 rounded text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-200 uppercase tracking-wide">PENGHARGAAN</span>`;
                         } else {
@@ -325,10 +319,10 @@
                 const dateStr = dateObj.toLocaleDateString('ms-MY', { day: 'numeric', month: 'short' });
                 const yearStr = dateObj.getFullYear();
                 
-                // Papar badge peranan jika bukan peserta biasa
-                const userRole = item.participant.role ? item.participant.role.toUpperCase() : 'PESERTA';
-                const roleBadge = userRole !== 'PESERTA' 
-                    ? `<span class="ml-2 px-1.5 py-0.5 rounded bg-amber-50 text-amber-600 border border-amber-100 text-[9px] font-bold uppercase tracking-wider">${userRole}</span>` 
+                // Papar peranan dalam jadual
+                const roleRaw = item.participant.role ? item.participant.role.toUpperCase() : 'PESERTA';
+                const roleBadge = (roleRaw !== 'PESERTA') 
+                    ? `<span class="ml-2 px-1.5 py-0.5 rounded bg-amber-50 text-amber-600 border border-amber-100 text-[9px] font-bold uppercase tracking-wider">${roleRaw}</span>` 
                     : '';
 
                 const row = `
@@ -350,7 +344,6 @@
             });
         }
 
-        // FUNGSI CETAK SIJIL (DIUBAHSUAI: PENGHARGAAN VS PENYERTAAN)
         window.printCertificate = function(key) {
             const dataItem = window.certificateData.find(d => d.program.key === key);
             if(!dataItem) return alert("Ralat data.");
@@ -360,8 +353,8 @@
             const participantIC = participant.ic;
             const courseName = program.name.toUpperCase();
             
-            // Logic Role
-            const roleRaw = participant.role ? participant.role.trim().toLowerCase() : 'peserta';
+            // Logic Role untuk Penentuan Tajuk Sijil
+            const roleRaw = participant.role ? String(participant.role).trim().toLowerCase() : 'peserta';
             const isSpecial = ['penceramah', 'fasilitator', 'urusetia'].includes(roleRaw);
             
             const certificateTitle = isSpecial ? "Sijil Penghargaan" : "Sijil Penyertaan";
@@ -369,7 +362,6 @@
             const introText = isSpecial ? "Dengan tulus ikhlas merakamkan setinggi-tinggi penghargaan kepada" : "Dengan ini disahkan bahawa";
             const eventLabel = isSpecial ? "Atas sumbangan bakti dan komitmen menjayakan" : "telah mengikuti";
             
-            // Tarikh
             const sDate = new Date(program.startDate + 'T00:00:00');
             const eDate = new Date(program.endDate + 'T00:00:00');
             let dateString = sDate.getTime() === eDate.getTime() 
@@ -396,7 +388,7 @@
                         .certificate-content { border: 6px solid; border-image-slice: 1; border-image-source: linear-gradient(to right top, #d4af37, #4B40FF, #d4af37); height: 100%; padding: 10mm; display: flex; flex-direction: column; z-index: 2; position: relative; }
                         .header-section { display: flex; justify-content: space-between; width: 100%; height: 80px; }
                         .qr-code { width: 65px; height: 65px; }
-                        .serial-number { font-family: monospace; font-size: 14px; color: #555; }
+                        .serial-number { font-family: monospace; font-size: 14px; color: #555; margin: 0; }
                         .logo { width: 140px; margin: 0 auto 15px auto; }
                         h1 { font-family: 'Playfair Display', serif; font-size: 42px; font-weight: 700; margin: 10px 0; text-transform: uppercase; color: #4B40FF; }
                         .role-badge { font-size: 18px; font-weight: 700; color: #d4af37; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 2px; }
