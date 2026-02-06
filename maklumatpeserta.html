@@ -302,6 +302,7 @@
             } else {
                 listBody.innerHTML = paginatedItems.map((p, index) => {
                     const role = p.role || 'Peserta';
+                    // Check if eligible for Appreciation Certificate
                     const isAppreciationEligible = ['Penceramah', 'Fasilitator', 'Urusetia'].includes(role);
 
                     return `
@@ -311,7 +312,7 @@
                             <div class="text-sm font-medium text-gray-900 truncate max-w-xs" title="${p.name}">${p.name}</div>
                             <div class="text-sm text-gray-700 truncate max-w-xs" title="${p.position}">${p.position.toUpperCase()}</div>
                             <div class="text-xs text-gray-500 truncate max-w-xs" title="${p.station}">${p.station.toUpperCase()}</div>
-                            ${isAppreciationEligible ? `
+                             ${isAppreciationEligible ? `
                                 <button onclick="downloadSingleAppreciation('${p.ic}')" class="mt-2 flex items-center gap-1 text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded border border-amber-200 hover:bg-amber-100 transition-colors">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
                                     SIJIL
@@ -855,7 +856,7 @@
             });
         }
 
-        // --- FUNGSI JANA SIJIL PENGHARGAAN (BARU) ---
+        // --- FUNGSI JANA SIJIL PENGHARGAAN (BARU & SMART) ---
         async function generateAppreciationPDF(doc, participant, isBulk = false) {
             const width = doc.internal.pageSize.getWidth();
             const height = doc.internal.pageSize.getHeight();
@@ -874,7 +875,7 @@
                 dateStr = `PADA ${startDate.toLocaleDateString('ms-MY', { day: '2-digit' })} HINGGA ${endDate.toLocaleDateString('ms-MY', { day: '2-digit', month: 'long', year: 'numeric' }).toUpperCase()}`;
             }
 
-            // 1. Bingkai Dwi-Warna Smart
+            // 1. Bingkai Dwi-Warna Smart (Biru & Emas) & Elemen Teknologi
             doc.setDrawColor(75, 64, 255); // Biru
             doc.setLineWidth(1.5);
             doc.rect(10, 10, width - 20, height - 20);
@@ -882,13 +883,24 @@
             doc.setLineWidth(0.5);
             doc.rect(12, 12, width - 24, height - 24);
 
-            // 2. Logo PPD Miri (Nisbah Betul & Latar Putih Bulat)
+            // Tambah elemen "litar" di bucu untuk kesan teknologi
+            const cornerSize = 15;
+            doc.setDrawColor(75, 64, 255); doc.setLineWidth(1);
+            // Kiri Atas
+            doc.line(10, 10 + cornerSize, 10 + cornerSize, 10); doc.circle(10 + cornerSize, 10, 1, 'F'); doc.circle(10, 10 + cornerSize, 1, 'F');
+            // Kanan Atas
+            doc.line(width - 10 - cornerSize, 10, width - 10, 10 + cornerSize); doc.circle(width - 10 - cornerSize, 10, 1, 'F'); doc.circle(width - 10, 10 + cornerSize, 1, 'F');
+            // Kiri Bawah
+            doc.line(10, height - 10 - cornerSize, 10 + cornerSize, height - 10); doc.circle(10 + cornerSize, height - 10, 1, 'F'); doc.circle(10, height - 10 - cornerSize, 1, 'F');
+            // Kanan Bawah
+            doc.line(width - 10 - cornerSize, height - 10, width - 10, height - 10 - cornerSize); doc.circle(width - 10 - cornerSize, height - 10, 1, 'F'); doc.circle(width - 10, height - 10 - cornerSize, 1, 'F');
+
+            // 2. Logo PPD Miri (Nisbah Betul, Latar Putih Bulat, Tidak Gepet)
             try {
                 doc.setFillColor(255, 255, 255); 
-                doc.circle(width / 2, 35, 18, 'F'); // Latar belakang logo
-                doc.addImage(logoUrl, 'PNG', (width / 2) - 15, 20, 30, 30); // Saiz 30x30 kekalkan aspek
+                doc.circle(width / 2, 35, 18, 'F'); // Latar belakang logo putih bulat
+                doc.addImage(logoUrl, 'PNG', (width / 2) - 15, 20, 30, 30); // Saiz 30x30 (persegi) kekalkan aspek
             } catch (e) {
-                // Fallback jika logo gagal
                 doc.setFontSize(10); doc.text("PPD MIRI", width/2, 35, {align:"center"});
             }
 
@@ -916,9 +928,10 @@
             doc.setFont("times", "bold");
             doc.text(participantName, width / 2, 110, { align: "center" });
             
+            // No IC (Tanpa perkataan 'NO. KAD PENGENALAN:')
             doc.setFontSize(12);
             doc.setFont("helvetica", "normal");
-            doc.text(`NO. KAD PENGENALAN: ${participant.ic}`, width / 2, 120, { align: "center" });
+            doc.text(participant.ic, width / 2, 120, { align: "center" });
 
             // 7. Deskripsi Program
             doc.setFontSize(13);
