@@ -94,7 +94,7 @@
                     <p class="text-sm text-gray-500 font-medium">Tiada rekod sijil dijumpai untuk tahun ini.</p>
                 </div>
             </div>
-            <p class="text-xs text-gray-400 text-center italic mt-4">SPARK e-Sijil v3.7. Sijil dijana secara digital.</p>
+            <p class="text-xs text-gray-400 text-center italic mt-4">SPARK e-Sijil v3.8. Sijil dijana secara digital.</p>
         </div>
     </main>
 
@@ -254,17 +254,32 @@
             if (locked > 0) summaryEl.innerHTML += ` <br><span class="text-xs text-gray-500 mt-2 inline-block bg-gray-100 px-3 py-1.5 rounded-lg border border-gray-200 leading-snug">Terdapat <b>${locked} sijil arkib</b>. <a href="sponsor.html" class="text-indigo-600 font-bold">Ketahui Lanjut</a></span>`;
         }
 
+        // --- FUNGSI KRITIKAL YANG DIPERBAIKI ---
         function getCertificateStatus(prog, part, isPro) {
             let result = { isRelevant: false, isLocked: false, html: '', btn: '', type: 'NONE' };
             
-            // --- PEMBETULAN UTAMA: Pastikan logik role mengesan "Penceramah" dengan tepat ---
+            // 1. Bersihkan data Role (Remove space, lowercase)
             const roleRaw = part.role ? String(part.role).trim().toLowerCase() : 'peserta';
             const isSpecial = ['penceramah', 'fasilitator', 'urusetia'].includes(roleRaw);
             
+            // 2. CHECK UTAMA: Jika Penceramah/Fasi/Urusetia, TERUS BAGI SIJIL (Bypass semua sekatan)
+            // Ini untuk selesaikan masalah anda dimana sijil tak keluar.
+            if (isSpecial) {
+                result.isRelevant = true;
+                result.type = 'DOWNLOAD';
+                result.html = `<span class="px-2 py-1 rounded text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-200 uppercase tracking-wide">PENGHARGAAN</span>`;
+                result.btn = `<button onclick="printCertificate('${prog.key}')" class="w-full flex items-center justify-center gap-1 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold rounded shadow-sm uppercase transition-all">
+                    <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg> Muat Turun
+                </button>`;
+                return result; // <--- RETURN TERUS, TAK PERLU CEK TARIKH ATAU BORANG
+            }
+
+            // 3. Jika BUKAN Special, baru masuk logik biasa (Peserta)
             if (prog.eCertificateNeeded === true) {
                 const progDate = new Date(prog.startDate);
                 const isPastYear = progDate.getFullYear() < currentYear;
 
+                // Logik Arkib
                 if (isPastYear && !isPro) {
                     result.isRelevant = true;
                     result.isLocked = true;
@@ -276,27 +291,21 @@
                 const evals = prog.evaluations || [];
                 const hasEvaluated = evals.some(e => e.ic === part.ic);
 
-                // --- PEMBETULAN UTAMA: Jika Penceramah, JANGAN minta penilaian (bypass evaluationNeeded) ---
-                if (prog.evaluationNeeded === true && !hasEvaluated && !isSpecial) {
+                // Logik Penilaian (Hanya untuk Peserta Biasa)
+                if (prog.evaluationNeeded === true && !hasEvaluated) {
                     result.isRelevant = true;
                     result.type = 'EVAL';
                     result.html = `<span class="px-2 py-1 rounded text-[10px] font-bold bg-blue-100 text-blue-700 border border-blue-200 uppercase tracking-wide">PERLU PENILAIAN</span>`;
                     result.btn = `<a href="penilaianprogram.html?kod=${prog.evaluationKey}" class="w-full flex items-center justify-center gap-1 px-3 py-2 bg-blue-600 text-white text-[10px] font-bold rounded uppercase">Isi Borang</a>`;
+                
                 } else if (prog.endDate) {
                     const today = new Date(); today.setHours(0,0,0,0);
                     const endDate = new Date(prog.endDate + 'T00:00:00');
                     
-                    // Benarkan download jika: (Tamat) ATAU (Dah Nilai) ATAU (Penceramah/Fasi)
-                    if (today > endDate || (prog.evaluationNeeded && hasEvaluated) || isSpecial) {
+                    if (today > endDate || (prog.evaluationNeeded && hasEvaluated)) {
                         result.isRelevant = true;
                         result.type = 'DOWNLOAD';
-                        
-                        if (isSpecial) {
-                            result.html = `<span class="px-2 py-1 rounded text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-200 uppercase tracking-wide">PENGHARGAAN</span>`;
-                        } else {
-                            result.html = `<span class="px-2 py-1 rounded text-[10px] font-bold bg-green-100 text-green-700 border border-green-200 uppercase tracking-wide">PENYERTAAN</span>`;
-                        }
-                        
+                        result.html = `<span class="px-2 py-1 rounded text-[10px] font-bold bg-green-100 text-green-700 border border-green-200 uppercase tracking-wide">PENYERTAAN</span>`;
                         result.btn = `<button onclick="printCertificate('${prog.key}')" class="w-full flex items-center justify-center gap-1 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold rounded shadow-sm uppercase transition-all">
                             <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg> Muat Turun
                         </button>`;
@@ -319,7 +328,7 @@
                 const dateStr = dateObj.toLocaleDateString('ms-MY', { day: 'numeric', month: 'short' });
                 const yearStr = dateObj.getFullYear();
                 
-                // Papar peranan dalam jadual
+                // Debugging Role - Paparkan role sebenar di sebelah nama program
                 const roleRaw = item.participant.role ? item.participant.role.toUpperCase() : 'PESERTA';
                 const roleBadge = (roleRaw !== 'PESERTA') 
                     ? `<span class="ml-2 px-1.5 py-0.5 rounded bg-amber-50 text-amber-600 border border-amber-100 text-[9px] font-bold uppercase tracking-wider">${roleRaw}</span>` 
@@ -353,7 +362,7 @@
             const participantIC = participant.ic;
             const courseName = program.name.toUpperCase();
             
-            // Logic Role untuk Penentuan Tajuk Sijil
+            // Logic Role
             const roleRaw = participant.role ? String(participant.role).trim().toLowerCase() : 'peserta';
             const isSpecial = ['penceramah', 'fasilitator', 'urusetia'].includes(roleRaw);
             
