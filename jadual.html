@@ -336,9 +336,20 @@
         function parseDateString(dateString) { const parts = dateString.split('-'); return new Date(parts[0], parts[1] - 1, parts[2]); }
         function formatTime(timeString) { if(!timeString) return ''; const [h, m] = timeString.split(':'); const hour = parseInt(h); return `${hour % 12 || 12}:${m} ${hour >= 12 ? 'ptg' : 'pagi'}`; }
 
+        // --- UPDATED LOGIC HERE (FIXED) ---
         function getProgramsForDate(date) {
             const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-            return allPrograms.filter(p => d >= parseDateString(p.startDate) && d <= (p.endDate ? parseDateString(p.endDate) : parseDateString(p.startDate)));
+            return allPrograms.filter(p => {
+                // 1. TAPIS STATUS: Jika batal/ditolak/gagal, sembunyikan.
+                if (p.status === 'Batal' || p.approvalStatus === 'Batal' || 
+                    p.approvalStatus === 'Ditolak' || p.approvalStatus === 'Gagal') {
+                    return false;
+                }
+                // 2. TAPIS TARIKH
+                const start = parseDateString(p.startDate);
+                const end = p.endDate ? parseDateString(p.endDate) : start;
+                return d >= start && d <= end;
+            });
         }
 
         function getBirthdaysForDate(date) {
@@ -398,7 +409,6 @@
                 birthdays.map(b => {
                     const encodedDob = btoa(b.dob);
                     
-                    // --- LOGIK BUTTON HARI JADI (DIKEMASKINI) ---
                     const today = new Date(); today.setHours(0,0,0,0);
                     const bDate = parseDateString(b.dob);
                     const thisYearBday = new Date(today.getFullYear(), bDate.getMonth(), bDate.getDate());
@@ -406,11 +416,10 @@
                     let ucapBtnState = "", kongsiBtnState = "", btnTitle = "";
                     let isEnable = false;
 
-                    // Logik: Kalau hari ini ATAU dah lepas = Enable. Kalau belum sampai = Disable.
                     if (today >= thisYearBday) {
                         isEnable = true;
                     } else {
-                        isEnable = false; // Belum sampai
+                        isEnable = false; 
                         btnTitle = "Akan Datang";
                     }
 
