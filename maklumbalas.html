@@ -5,12 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SPARKvoice – Suara Anda, Tanggungjawab Kami</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Poppins', sans-serif; background-color: #f3f4f6; }
         .glass-card { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); border: 1px solid #ffffff; }
         .brand-gradient { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); }
-        .hidden { display: none; }
+        .hidden { display: none !important; }
         
         .category-chip { transition: all 0.2s ease; cursor: pointer; border: 2px solid #f3f4f6; }
         .category-chip.selected { 
@@ -23,11 +23,15 @@
 
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .animate-fade-in { animation: fadeIn 0.5s ease-out forwards; }
+
+        /* Modal Animation */
+        @keyframes scaleUp { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        .modal-content { animation: scaleUp 0.3s ease-out forwards; }
     </style>
 </head>
 <body class="min-h-screen flex flex-col">
 
-    <header class="bg-white shadow-sm sticky top-0 z-50">
+    <header class="bg-white shadow-sm sticky top-0 z-40">
         <div class="max-w-4xl mx-auto py-4 px-6 flex justify-between items-center">
             <div class="flex items-center gap-3">
                 <div class="brand-gradient p-2 rounded-xl text-white shadow-lg">
@@ -166,6 +170,36 @@
         </main>
     </div>
 
+    <div id="success-modal" class="hidden fixed inset-0 z-[60] flex items-center justify-center px-4 bg-gray-900/50 backdrop-blur-sm">
+        <div class="modal-content bg-white rounded-[2rem] p-8 max-w-sm w-full text-center shadow-2xl relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-full h-24 brand-gradient opacity-10 rounded-b-[50%]"></div>
+            
+            <div class="relative z-10">
+                <div class="w-20 h-20 mx-auto bg-green-100 rounded-full flex items-center justify-center mb-6 shadow-inner animate-bounce">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-green-600" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                    </svg>
+                </div>
+                
+                <h3 class="text-2xl font-black text-gray-800 mb-2">Terima Kasih!</h3>
+                <p class="text-xs text-gray-500 font-medium mb-6 leading-relaxed">
+                    PPD Miri amat menghargai setiap perkongsian anda.<br>
+                    <span class="text-indigo-600 font-bold mt-2 block">"Teruskan Majukan PPD Miri"</span>
+                </p>
+
+                <button onclick="window.location.href='https://pahanmy.github.io/ppdmiri/'" class="w-full brand-gradient text-white font-bold py-3 rounded-xl shadow-lg hover:shadow-xl active:scale-95 transition-all text-sm uppercase tracking-wide">
+                    Kembali Ke Utama
+                </button>
+            </div>
+            
+            <div class="absolute bottom-4 right-4 text-pink-500 opacity-20">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clip-rule="evenodd" />
+                </svg>
+            </div>
+        </div>
+    </div>
+
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getFirestore, collection, query, where, getDocs, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
@@ -181,6 +215,7 @@
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
+        
         let userProfile = null;
         let icVerified = "";
         let selectedCategories = [];
@@ -202,8 +237,11 @@
         // IC Verification
         document.getElementById('auth-form').onsubmit = async (e) => {
             e.preventDefault();
-            const ic = document.getElementById('input-ic').value;
+            const ic = document.getElementById('input-ic').value.trim();
             const btn = document.getElementById('auth-btn');
+            
+            if(!ic) return alert("Sila masukkan No. Kad Pengenalan.");
+
             btn.disabled = true;
             btn.textContent = "MEMPROSES PENGESAHAN...";
 
@@ -214,19 +252,22 @@
                 if (!snap.empty) {
                     userProfile = snap.docs[0].data();
                     icVerified = ic;
+                    
                     document.getElementById('auth-screen').classList.add('hidden');
                     document.getElementById('main-content').classList.remove('hidden');
-                    document.getElementById('display-name').textContent = userProfile.name;
-                    document.getElementById('user-initial').textContent = userProfile.name.charAt(0);
-                    document.getElementById('contact-value').value = userProfile.phone || "";
+                    document.getElementById('display-name').textContent = userProfile.name || "Peserta";
+                    document.getElementById('user-initial').textContent = (userProfile.name || "?").charAt(0);
+                    toggleContactInput();
                 } else {
                     alert("No. IC tidak wujud dalam pangkalan data SPARK.");
                     btn.disabled = false;
-                    btn.textContent = "SAHKAN IDENTITI";
+                    btn.textContent = "Log Masuk Suara";
                 }
             } catch (err) {
-                alert("Ralat sistem. Sila cuba lagi.");
+                console.error("Auth Error:", err);
+                alert("Ralat pengesahan: " + err.message);
                 btn.disabled = false;
+                btn.textContent = "Log Masuk Suara";
             }
         };
 
@@ -239,8 +280,12 @@
 
             const btn = document.getElementById('submit-btn');
             const isAnon = document.getElementById('anon-check').checked;
+            
             btn.disabled = true;
-            btn.innerHTML = "SEDANG MENGHANTAR...";
+            btn.innerHTML = `
+                <svg class="animate-spin h-5 w-5 mr-3 text-white" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                SEDANG MENGHANTAR...
+            `;
 
             const imageFile = document.getElementById('fb-image').files[0];
             let imageUrl = "";
@@ -251,13 +296,13 @@
                     formData.append('image', imageFile);
                     const res = await fetch('https://api.imgbb.com/1/upload?key=a7c600ac733fe14649cacd8e65619c4b', { method: 'POST', body: formData });
                     const data = await res.json();
-                    if (data.success) imageUrl = data.data.url;
+                    if (data && data.success) imageUrl = data.data.url;
                 }
 
                 await addDoc(collection(db, `artifacts/${firebaseConfig.projectId}/public/data/spark_feedback`), {
-                    nama_paparan: isAnon ? "ANONIM" : userProfile.name,
+                    nama_paparan: isAnon ? "ANONIM" : (userProfile.name || "Peserta"),
                     admin_info: { 
-                        nama_sebenar: userProfile.name, 
+                        nama_sebenar: userProfile.name || "Tidak Diketahui", 
                         ic_pengirim: icVerified,
                         verified: true 
                     },
@@ -267,24 +312,43 @@
                     info_hubungi: document.getElementById('contact-value').value,
                     gambar: imageUrl,
                     timestamp: new Date(),
-                    status: "BARU"
+                    status: "BARU",
+                    platform: "WEB"
                 });
 
-                alert("Terima kasih! Suara anda telah selamat dihantar ke pengurusan PPD Miri.");
-                window.location.href = "https://pahanmy.github.io/ppdmiri/";
+                // BERJAYA: TUNJUK MODAL
+                document.getElementById('success-modal').classList.remove('hidden');
+
             } catch (err) {
-                alert("Gagal menghantar. Sila periksa sambungan internet.");
+                console.error("Submission Error:", err);
+                
+                let errorMsg = "Gagal menghantar.";
+                if (err.message.includes("Missing or insufficient permissions")) {
+                    errorMsg = "Ralat Kebenaran: Sila pastikan Rules Firebase anda telah dikemaskini (set 'allow create: if true' untuk spark_feedback).";
+                } else if (err.message.includes("Failed to fetch")) {
+                    errorMsg = "Masalah Internet atau Isu API Gambar.";
+                } else {
+                    errorMsg += " " + err.message;
+                }
+
+                alert(errorMsg);
                 btn.disabled = false;
-                btn.innerHTML = "Hantar Suara Anda";
+                btn.innerHTML = `
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" /></svg>
+                    Cuba Hantar Semula
+                `;
             }
         };
 
         window.toggleContactInput = function() {
             const method = document.querySelector('input[name="contact-method"]:checked').value;
             const input = document.getElementById('contact-value');
-            if (method === "WhatsApp") input.value = userProfile?.phone || "";
-            else if (method === "E-mel") input.value = userProfile?.email || "";
-            else input.value = "";
+            
+            if (userProfile) {
+                if (method === "WhatsApp") input.value = userProfile.phone || "";
+                else if (method === "E-mel") input.value = userProfile.email || "";
+                else input.value = "";
+            }
         };
     </script>
 </body>
