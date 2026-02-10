@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SPARK TV - Papan Info Digital</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Poppins', sans-serif; background-color: #f3f4f6; overflow: hidden; } /* Hide scrollbar for TV */
+        
+        /* Custom Scrollbar hiding */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1);
+        }
+
+        .today-highlight {
+            background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%);
+            color: white;
+            transform: scale(1.02);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            border: none;
+        }
+
+        .animate-pulse-slow {
+            animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .7; }
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col p-6 bg-gradient-to-br from-gray-100 to-gray-200">
+
+    <header class="flex justify-between items-end mb-6 pb-4 border-b-2 border-indigo-200">
+        <div>
+            <div class="flex items-center gap-3 mb-2">
+                <div class="bg-indigo-600 p-2 rounded-lg shadow-lg">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" class="text-white"><path d="M4 4H8V8H4V4Z" fill="currentColor"></path><path d="M4 16H8V20H4V16Z" fill="currentColor"></path><path d="M16 4H20V8H16V4Z" fill="currentColor"></path><path d="M10 4H14V6H10V4Z" fill="currentColor"></path><path d="M10 8H12V10H10V8Z" fill="currentColor"></path><path d="M12 12H14V14H12V12Z" fill="currentColor"></path></svg>
+                </div>
+                <h1 class="text-3xl font-extrabold text-indigo-800 tracking-wider">SPARK <span class="text-lg font-medium text-gray-500 block -mt-1">INFO DIGITAL</span></h1>
+            </div>
+        </div>
+        <div class="text-right">
+            <div id="clock-time" class="text-7xl font-bold text-gray-800 leading-none tracking-tight">00:00:00</div>
+            <div id="clock-date" class="text-2xl font-medium text-indigo-600 uppercase mt-1">ISNIN, 1 JANUARI 2025</div>
+        </div>
+    </header>
+
+    <main class="grid grid-cols-12 gap-8 flex-grow overflow-hidden h-full">
+        
+        <div class="col-span-5 flex flex-col h-full">
+            <div class="flex items-center gap-2 mb-4">
+                <span class="w-3 h-8 bg-indigo-600 rounded-full"></span>
+                <h2 class="text-2xl font-bold text-gray-700 uppercase">Agenda Hari Ini</h2>
+            </div>
+            
+            <div id="today-container" class="glass-panel rounded-2xl p-6 flex-grow overflow-y-auto no-scrollbar space-y-4">
+                <div class="flex flex-col items-center justify-center h-full text-gray-400">
+                    <p class="animate-pulse">Memuatkan data...</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-span-7 flex flex-col h-full">
+            <div class="flex items-center gap-2 mb-4">
+                <span class="w-3 h-8 bg-gray-400 rounded-full"></span>
+                <h2 class="text-2xl font-bold text-gray-700 uppercase">Minggu Ini</h2>
+            </div>
+
+            <div class="glass-panel rounded-2xl p-4 flex-grow overflow-hidden flex flex-col">
+                <div class="grid grid-cols-7 gap-2 mb-2 text-center">
+                    <div class="text-xs font-bold text-gray-400 uppercase">Ahad</div>
+                    <div class="text-xs font-bold text-gray-400 uppercase">Isnin</div>
+                    <div class="text-xs font-bold text-gray-400 uppercase">Selasa</div>
+                    <div class="text-xs font-bold text-gray-400 uppercase">Rabu</div>
+                    <div class="text-xs font-bold text-gray-400 uppercase">Khamis</div>
+                    <div class="text-xs font-bold text-gray-400 uppercase">Jumaat</div>
+                    <div class="text-xs font-bold text-gray-400 uppercase">Sabtu</div>
+                </div>
+                
+                <div id="weekly-grid" class="grid grid-cols-7 gap-3 flex-grow h-full">
+                    </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="mt-4 text-center">
+        <p class="text-sm text-gray-500">Paparan dikemaskini secara masa nyata | Sistem SPARK v2.5</p>
+    </footer>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // CONFIG (Sama seperti jadual.html)
+        const firebaseConfig = { apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM", authDomain: "myqrhadir.firebaseapp.com", projectId: "myqrhadir", storageBucket: "myqrhadir.appspot.com", messagingSenderId: "799691133747", appId: "1:799691133747:web:835a5e3e9413eace806446" };
+        
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        const appId = firebaseConfig.projectId;
+
+        let allPrograms = [];
+        let allBirthdays = [];
+        let allSalaryDates = [];
+
+        // STARTUP
+        onAuthStateChanged(auth, async (user) => {
+            if (user) initApp();
+            else await signInAnonymously(auth);
+        });
+
+        function initApp() {
+            startClock();
+            listenData();
+        }
+
+        // --- CLOCK FUNCTION ---
+        function startClock() {
+            const updateTime = () => {
+                const now = new Date();
+                
+                // Update Time
+                let h = now.getHours();
+                const m = String(now.getMinutes()).padStart(2, '0');
+                const s = String(now.getSeconds()).padStart(2, '0');
+                const ampm = h >= 12 ? 'PM' : 'AM';
+                h = h % 12; h = h ? h : 12; 
+                document.getElementById('clock-time').innerHTML = `${h}:${m}<span class="text-4xl text-gray-400 ml-2">${s}</span> <span class="text-2xl text-indigo-500">${ampm}</span>`;
+
+                // Update Date
+                const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+                document.getElementById('clock-date').textContent = now.toLocaleDateString('ms-MY', options).toUpperCase();
+            };
+            setInterval(updateTime, 1000);
+            updateTime();
+        }
+
+        // --- DATA LISTENERS ---
+        function listenData() {
+            // Programs
+            onSnapshot(query(collection(db, `artifacts/${appId}/public/data/spark_programs`), orderBy("startDate", "asc")), (snap) => {
+                allPrograms = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                refreshUI();
+            });
+            // Birthdays
+            onSnapshot(query(collection(db, `artifacts/${appId}/public/data/spark_birthdays`), orderBy("dob", "asc")), (snap) => {
+                allBirthdays = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                refreshUI();
+            });
+            // Salary
+            onSnapshot(query(collection(db, `artifacts/${appId}/public/data/spark_salary`), orderBy("date", "asc")), (snap) => {
+                allSalaryDates = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                refreshUI();
+            });
+        }
+
+        function refreshUI() {
+            renderTodayPanel();
+            renderWeeklyPanel();
+        }
+
+        // --- HELPER FUNCTIONS ---
+        function parseDateString(dateString) { const parts = dateString.split('-'); return new Date(parts[0], parts[1] - 1, parts[2]); }
+        function formatTime(timeString) { if(!timeString) return ''; const [h, m] = timeString.split(':'); const hour = parseInt(h); return `${hour % 12 || 12}:${m} ${hour >= 12 ? 'ptg' : 'pagi'}`; }
+        
+        // Filter logic (Same as original)
+        function getProgramsForDate(date) {
+            const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+            return allPrograms.filter(p => {
+                if (p.status === 'Batal' || p.approvalStatus === 'Batal' || p.approvalStatus === 'Ditolak' || p.approvalStatus === 'Gagal') return false;
+                const start = parseDateString(p.startDate);
+                const end = p.endDate ? parseDateString(p.endDate) : start;
+                return d >= start && d <= end;
+            });
+        }
+
+        // --- RENDER LEFT PANEL (TODAY) ---
+        function renderTodayPanel() {
+            const today = new Date();
+            const container = document.getElementById('today-container');
+            let html = '';
+
+            // 1. Gaji
+            const salary = allSalaryDates.find(s => s.date === `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`);
+            if (salary) {
+                html += `
+                <div class="bg-gradient-to-r from-green-500 to-emerald-600 rounded-xl p-5 text-white shadow-lg animate-pulse-slow">
+                    <div class="flex items-center gap-4">
+                        <div class="text-5xl">💰</div>
+                        <div>
+                            <h3 class="text-2xl font-bold uppercase tracking-wide">HARI GAJI!</h3>
+                            <p class="text-green-100">${salary.title}</p>
+                        </div>
+                    </div>
+                </div>`;
+            }
+
+            // 2. Birthday
+            const todaysBirthdays = allBirthdays.filter(b => b.dob && parseInt(b.dob.split('-')[1]) === today.getMonth() + 1 && parseInt(b.dob.split('-')[2]) === today.getDate());
+            if (todaysBirthdays.length > 0) {
+                todaysBirthdays.forEach(b => {
+                    html += `
+                    <div class="bg-gradient-to-r from-pink-500 to-rose-500 rounded-xl p-5 text-white shadow-lg relative overflow-hidden">
+                        <div class="absolute -right-4 -top-4 text-8xl opacity-20">🎂</div>
+                        <h4 class="text-xs uppercase font-bold text-pink-200 mb-1">Happy Birthday</h4>
+                        <h3 class="text-3xl font-bold truncate">${b.name}</h3>
+                    </div>`;
+                });
+            }
+
+            // 3. Programs
+            const todaysPrograms = getProgramsForDate(today);
+            if (todaysPrograms.length > 0) {
+                todaysPrograms.forEach(p => {
+                    html += `
+                    <div class="bg-white border-l-8 border-indigo-600 rounded-r-xl p-5 shadow-sm">
+                        <h3 class="text-xl font-bold text-gray-800 leading-tight mb-2 uppercase">${p.name}</h3>
+                        <div class="space-y-2">
+                            <div class="flex items-center gap-2 text-gray-600">
+                                <span class="bg-indigo-100 p-1 rounded text-indigo-600"><svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></span>
+                                <span class="font-semibold text-lg">${p.startTime ? formatTime(p.startTime) : 'Sepanjang Hari'} ${p.endTime ? '- ' + formatTime(p.endTime) : ''}</span>
+                            </div>
+                            <div class="flex items-center gap-2 text-gray-600">
+                                <span class="bg-red-100 p-1 rounded text-red-600"><svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg></span>
+                                <span class="uppercase truncate">${p.location || 'Lokasi tidak dinyatakan'}</span>
+                            </div>
+                             <div class="flex items-center gap-2 text-gray-500 text-sm mt-1">
+                                <span class="bg-gray-100 p-1 rounded">👤</span>
+                                <span class="capitalize">${p.penyelaras_name || '-'}</span>
+                            </div>
+                        </div>
+                    </div>`;
+                });
+            }
+
+            if (html === '') {
+                html = `
+                <div class="flex flex-col items-center justify-center h-full text-gray-400 border-2 border-dashed border-gray-300 rounded-xl">
+                    <svg class="w-16 h-16 mb-4 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                    <p class="text-lg font-medium">Tiada program hari ini.</p>
+                </div>`;
+            }
+            
+            container.innerHTML = html;
+        }
+
+        // --- RENDER RIGHT PANEL (WEEKLY) ---
+        function renderWeeklyPanel() {
+            const container = document.getElementById('weekly-grid');
+            container.innerHTML = '';
+            
+            const curr = new Date();
+            // Start from Sunday of current week
+            const first = curr.getDate() - curr.getDay(); 
+            
+            for (let i = 0; i < 7; i++) {
+                let day = new Date(curr.getFullYear(), curr.getMonth(), first + i);
+                let isToday = day.toDateString() === new Date().toDateString();
+                
+                const programs = getProgramsForDate(day);
+                const bdays = allBirthdays.filter(b => b.dob && parseInt(b.dob.split('-')[1]) === day.getMonth() + 1 && parseInt(b.dob.split('-')[2]) === day.getDate());
+                const salary = allSalaryDates.find(s => s.date === `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`);
+
+                let contentHtml = '';
+                
+                // Indicators
+                if (salary) contentHtml += `<div class="bg-green-100 text-green-700 text-[10px] font-bold px-1 rounded mb-1 text-center">💰 GAJI</div>`;
+                if (bdays.length > 0) contentHtml += `<div class="bg-pink-100 text-pink-700 text-[10px] font-bold px-1 rounded mb-1 text-center truncate">🎂 ${bdays.length} BDAY</div>`;
+                
+                if (programs.length > 0) {
+                    contentHtml += `<div class="space-y-1 mt-1 overflow-hidden">`;
+                    programs.slice(0, 4).forEach(p => {
+                        contentHtml += `<div class="bg-white/50 border border-gray-200 text-[10px] px-1 rounded text-gray-800 truncate leading-tight">${p.name}</div>`;
+                    });
+                    if(programs.length > 4) contentHtml += `<div class="text-[10px] text-gray-500 text-center">+${programs.length - 4} lagi</div>`;
+                    contentHtml += `</div>`;
+                } else if (!salary && bdays.length === 0) {
+                     contentHtml += `<div class="h-full flex items-center justify-center text-gray-300 text-xl">-</div>`;
+                }
+
+                // Card Structure
+                const card = document.createElement('div');
+                card.className = `rounded-xl p-2 flex flex-col h-full border transition-all ${isToday ? 'today-highlight border-indigo-500 ring-2 ring-indigo-200' : 'bg-white border-gray-200 text-gray-600'}`;
+                
+                card.innerHTML = `
+                    <div class="text-center border-b ${isToday ? 'border-indigo-400' : 'border-gray-100'} pb-1 mb-1">
+                        <span class="text-2xl font-bold block leading-none">${day.getDate()}</span>
+                        <span class="text-[10px] uppercase tracking-wider opacity-80">${day.toLocaleDateString('ms-MY', { month: 'short' })}</span>
+                    </div>
+                    <div class="flex-grow flex flex-col justify-start">
+                        ${contentHtml}
+                    </div>
+                `;
+                container.appendChild(card);
+            }
+        }
+    </script>
+</body>
+</html>
