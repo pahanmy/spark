@@ -3,62 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SPARK TV - Final Uppercase</title>
+    <title>SPARK TV - Live Control</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&display=swap" rel="stylesheet">
     <style>
-        /* --- TEMA GLOBAL --- */
-        body { 
-            font-family: 'Outfit', sans-serif; 
-            background-color: #0f172a; 
-            color: white; 
-            overflow: hidden; 
-        }
+        /* --- GLOBAL --- */
+        body { font-family: 'Outfit', sans-serif; background-color: #0f172a; color: white; overflow: hidden; }
+        .glass-panel { background: rgba(30, 41, 59, 0.75); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5); }
+        
+        /* --- GRID --- */
+        #calendar-grid { display: grid; gap: 1.5rem; height: 100%; transition: all 0.5s ease; }
+        .cal-day-card { background: rgba(51, 65, 85, 0.4); border-radius: 1rem; border: 1px solid rgba(255,255,255,0.1); display: flex; flex-direction: column; overflow: hidden; position: relative; }
+        .cal-day-card.is-today { background: linear-gradient(135deg, rgba(79, 70, 229, 0.3) 0%, rgba(30, 41, 59, 0.9) 100%); border: 2px solid #6366f1; }
 
-        /* Glassmorphism */
-        .glass-panel {
-            background: rgba(30, 41, 59, 0.75); 
-            backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-        }
-
-        /* --- GRID DINAMIK --- */
-        #calendar-grid {
-            display: grid;
-            gap: 1.5rem;
-            height: 100%;
-        }
-
-        .cal-day-card {
-            background: rgba(51, 65, 85, 0.4);
-            border-radius: 1rem;
-            border: 1px solid rgba(255,255,255,0.1);
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            position: relative;
-        }
-
-        .cal-day-card.is-today {
-            background: linear-gradient(135deg, rgba(79, 70, 229, 0.3) 0%, rgba(30, 41, 59, 0.9) 100%);
-            border: 2px solid #6366f1;
-        }
-
-        /* --- LIVE INDICATOR --- */
+        /* --- LIVE BADGE --- */
         .live-badge { animation: live-pulse 2s infinite; }
-        @keyframes live-pulse {
-            0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
-            70% { box-shadow: 0 0 0 10px rgba(34, 197, 94, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
-        }
+        @keyframes live-pulse { 0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(34, 197, 94, 0); } 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); } }
 
-        /* --- UTILITIES --- */
+        /* --- UTILS --- */
         #scroller-container { overflow: hidden; position: relative; mask-image: linear-gradient(to bottom, transparent, black 5%, black 95%, transparent); }
         .neon-text { text-shadow: 0 0 20px rgba(99, 102, 241, 0.6); }
         .no-scrollbar::-webkit-scrollbar { display: none; }
-        
-        /* Force Uppercase Utility */
         .force-caps { text-transform: uppercase !important; }
     </style>
 </head>
@@ -74,7 +39,6 @@
                 <p class="text-xs text-slate-400 uppercase tracking-[0.3em] mt-1 font-semibold">Dashboard Aktiviti Harian</p>
             </div>
         </div>
-        
         <div class="text-right">
             <div class="flex items-baseline justify-end gap-3">
                 <div id="clock-time" class="text-7xl font-bold text-white neon-text leading-none font-mono">00:00</div>
@@ -96,7 +60,6 @@
                     Agenda Hari Ini
                 </h2>
             </div>
-            
             <div id="scroller-container" class="flex-grow relative w-full h-full bg-slate-900/20">
                 <div id="scroller-content" class="p-6 space-y-6">
                     <div class="flex items-center justify-center h-full text-slate-500 animate-pulse">Memuatkan data...</div>
@@ -108,13 +71,11 @@
             <div class="p-6 bg-indigo-900/30 border-b border-white/10 flex justify-between items-center">
                 <h2 class="text-2xl font-bold text-white uppercase">Jadual Akan Datang</h2>
                 <div class="bg-indigo-600/20 border border-indigo-500/30 px-3 py-1 rounded-lg">
-                     <span class="text-xs text-indigo-200 uppercase font-bold tracking-wider">3 HARI TERDEKAT</span>
+                     <span id="grid-info" class="text-xs text-indigo-200 uppercase font-bold tracking-wider">MINGGU INI</span>
                 </div>
             </div>
-
             <div class="p-6 h-full overflow-hidden">
-                <div id="calendar-grid">
-                    </div>
+                <div id="calendar-grid"></div>
             </div>
         </div>
     </main>
@@ -130,17 +91,10 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, onSnapshot, query, orderBy, doc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // ==========================================
-        //  TETAPAN (SETTINGS)
-        // ==========================================
-        const CONFIG = {
-            gridColumns: 3,     // Tunjuk 3 kotak sebaris
-            gridRows: 1,        // 1 Baris sahaja
-            gridFontSize: 'text-xl', 
-            scrollSpeed: 0.5 
-        };
+        // DEFAULT CONFIG (Dipakai jika belum ada data dari controller)
+        let CONFIG = { gridColumns: 3, gridRows: 1, gridFontSize: 'text-xl', scrollSpeed: 0.5 };
 
         const firebaseConfig = { apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM", authDomain: "myqrhadir.firebaseapp.com", projectId: "myqrhadir", storageBucket: "myqrhadir.appspot.com", messagingSenderId: "799691133747", appId: "1:799691133747:web:835a5e3e9413eace806446" };
         const app = initializeApp(firebaseConfig);
@@ -151,19 +105,34 @@
         let allPrograms = [], allBirthdays = [], allSalaryDates = [];
         let scrollInterval;
 
-        // Apply Grid Settings
-        const gridEl = document.getElementById('calendar-grid');
-        gridEl.style.gridTemplateColumns = `repeat(${CONFIG.gridColumns}, 1fr)`;
-        gridEl.style.gridTemplateRows = `repeat(${CONFIG.gridRows}, 1fr)`;
-
         // QR Code
         const baseUrl = window.location.href.substring(0, window.location.href.lastIndexOf('/')) + '/index.html';
         document.getElementById('qr-image').src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(baseUrl)}`;
 
         onAuthStateChanged(auth, async (user) => {
-            if (user) { startClock(); listenData(); }
+            if (user) { startClock(); listenSettings(); listenData(); }
             else await signInAnonymously(auth);
         });
+
+        // LISTEN SETTINGS DARI TVOPTION.HTML
+        function listenSettings() {
+            const settingsRef = doc(db, `artifacts/${appId}/public/data/tv_settings`);
+            onSnapshot(settingsRef, (doc) => {
+                if (doc.exists()) {
+                    const data = doc.data();
+                    CONFIG = { ...CONFIG, ...data }; // Merge data
+                    applyGridSettings();
+                    refreshUI(); // Re-render dengan setting baru
+                }
+            });
+        }
+
+        function applyGridSettings() {
+            const gridEl = document.getElementById('calendar-grid');
+            gridEl.style.gridTemplateColumns = `repeat(${CONFIG.gridColumns}, 1fr)`;
+            gridEl.style.gridTemplateRows = `repeat(${CONFIG.gridRows}, 1fr)`;
+            document.getElementById('grid-info').textContent = `${CONFIG.gridColumns * CONFIG.gridRows} HARI TERDEKAT`;
+        }
 
         function startClock() {
             setInterval(() => {
@@ -190,7 +159,6 @@
 
         const parseDate = (str) => { const p = str.split('-'); return new Date(p[0], p[1]-1, p[2]); };
         const formatTime = (t) => { if(!t) return ''; const [h,m] = t.split(':'); const hr = parseInt(h); return `${hr%12||12}:${m}${hr>=12?'pm':'am'}`; };
-
         function getEvents(date) {
             const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
             const prog = allPrograms.filter(p => {
@@ -203,45 +171,23 @@
             return { prog, bday, sal };
         }
 
-        // --- LEFT PANEL: TODAY ---
         function renderTodayPanel() {
             const container = document.getElementById('scroller-content');
             const { prog, bday, sal } = getEvents(new Date());
             let html = '';
-
-            // 1. Gaji
             if (sal) html += `<div class="bg-gradient-to-r from-emerald-600 to-green-600 p-6 rounded-2xl shadow-xl border-l-8 border-green-300 mb-6"><h3 class="text-3xl font-extrabold text-white uppercase">💰 HARI GAJI</h3><p class="text-lg text-emerald-100 uppercase">${sal.title}</p></div>`;
-            
-            // 2. Birthday
-            if (bday.length > 0) {
-                const names = bday.map(b => b.name).join(', ');
-                html += `<div class="bg-gradient-to-r from-pink-600 to-rose-600 p-6 rounded-2xl shadow-xl border-l-8 border-pink-300 mb-6"><h3 class="text-2xl font-bold text-white uppercase mb-2">🎂 Happy Birthday</h3><p class="text-xl text-white font-semibold uppercase leading-tight">${names}</p></div>`;
-            }
+            if (bday.length > 0) html += `<div class="bg-gradient-to-r from-pink-600 to-rose-600 p-6 rounded-2xl shadow-xl border-l-8 border-pink-300 mb-6"><h3 class="text-2xl font-bold text-white uppercase mb-2">🎂 Happy Birthday</h3><p class="text-xl text-white font-semibold uppercase leading-tight">${bday.map(b => b.name).join(', ')}</p></div>`;
 
-            // 3. Program
             if (prog.length > 0) {
-                const now = new Date();
-                const currentTimeVal = now.getHours() * 60 + now.getMinutes();
-
+                const now = new Date(); const currentTimeVal = now.getHours() * 60 + now.getMinutes();
                 prog.forEach(p => {
                     let timeDisplay = "", isLive = false, statusBadge = "";
-
                     if (p.startTime) {
-                        const [sh, sm] = p.startTime.split(':');
-                        const startVal = parseInt(sh) * 60 + parseInt(sm);
+                        const [sh, sm] = p.startTime.split(':'); const startVal = parseInt(sh) * 60 + parseInt(sm);
                         let endVal = 23 * 60 + 59;
-                        if (p.endTime) {
-                            const [eh, em] = p.endTime.split(':');
-                            endVal = parseInt(eh) * 60 + parseInt(em);
-                            timeDisplay = `${formatTime(p.startTime)} - ${formatTime(p.endTime)}`;
-                        } else {
-                            timeDisplay = `${formatTime(p.startTime)} - SELESAI`;
-                        }
-
-                        if (currentTimeVal >= startVal && currentTimeVal <= endVal) {
-                            isLive = true;
-                            statusBadge = `<div class="absolute top-4 right-4 flex items-center gap-2 bg-green-500 text-white px-3 py-1 rounded-full text-xs font-bold uppercase live-badge z-10"><span class="w-2 h-2 bg-white rounded-full animate-pulse"></span> SEDANG BERLANGSUNG</div>`;
-                        }
+                        if (p.endTime) { const [eh, em] = p.endTime.split(':'); endVal = parseInt(eh) * 60 + parseInt(em); timeDisplay = `${formatTime(p.startTime)} - ${formatTime(p.endTime)}`; } 
+                        else { timeDisplay = `${formatTime(p.startTime)} - SELESAI`; }
+                        if (currentTimeVal >= startVal && currentTimeVal <= endVal) { isLive = true; statusBadge = `<div class="absolute top-4 right-4 flex items-center gap-2 bg-green-500 text-white px-3 py-1 rounded-full text-xs font-bold uppercase live-badge z-10"><span class="w-2 h-2 bg-white rounded-full animate-pulse"></span> SEDANG BERLANGSUNG</div>`; }
                     } else { timeDisplay = "SEPANJANG HARI"; }
 
                     html += `
@@ -249,65 +195,34 @@
                         ${statusBadge}
                         <h3 class="text-3xl font-extrabold ${isLive ? 'text-green-400' : 'text-indigo-200'} uppercase leading-tight w-4/5 mb-4">${p.name}</h3>
                         <div class="grid grid-cols-1 gap-4">
-                            <div class="flex items-center gap-4 bg-slate-900/50 p-3 rounded-xl border border-white/5">
-                                <span class="text-2xl">🕒</span><div><p class="text-xs text-slate-400 uppercase font-bold">Masa</p><p class="text-xl text-white font-mono font-semibold uppercase">${timeDisplay}</p></div>
-                            </div>
-                            <div class="flex items-center gap-4 bg-slate-900/50 p-3 rounded-xl border border-white/5">
-                                <span class="text-2xl">📍</span><div><p class="text-xs text-slate-400 uppercase font-bold">Lokasi</p><p class="text-xl text-white font-semibold truncate w-full uppercase">${p.location || '-'}</p></div>
-                            </div>
-                            <div class="flex items-center gap-4 bg-slate-900/50 p-3 rounded-xl border border-white/5">
-                                <span class="text-2xl">👤</span><div><p class="text-xs text-slate-400 uppercase font-bold">Penyelaras</p><p class="text-lg text-indigo-300 font-semibold truncate uppercase">${p.penyelaras_name || '-'}</p></div>
-                            </div>
+                            <div class="flex items-center gap-4 bg-slate-900/50 p-3 rounded-xl border border-white/5"><span class="text-2xl">🕒</span><div><p class="text-xs text-slate-400 uppercase font-bold">Masa</p><p class="text-xl text-white font-mono font-semibold uppercase">${timeDisplay}</p></div></div>
+                            <div class="flex items-center gap-4 bg-slate-900/50 p-3 rounded-xl border border-white/5"><span class="text-2xl">📍</span><div><p class="text-xs text-slate-400 uppercase font-bold">Lokasi</p><p class="text-xl text-white font-semibold truncate w-full uppercase">${p.location || '-'}</p></div></div>
+                            <div class="flex items-center gap-4 bg-slate-900/50 p-3 rounded-xl border border-white/5"><span class="text-2xl">👤</span><div><p class="text-xs text-slate-400 uppercase font-bold">Penyelaras</p><p class="text-lg text-indigo-300 font-semibold truncate uppercase">${p.penyelaras_name || '-'}</p></div></div>
                         </div>
                     </div>`;
                 });
-            } else if (!sal && bday.length === 0) {
-                html = `<div class="h-64 flex flex-col items-center justify-center text-slate-500 border-4 border-dashed border-slate-700 rounded-3xl"><p class="text-2xl uppercase">Tiada aktiviti hari ini</p></div>`;
-            }
-
-            container.innerHTML = html;
+            } else if (!sal && bday.length === 0) { html = `<div class="h-64 flex flex-col items-center justify-center text-slate-500 border-4 border-dashed border-slate-700 rounded-3xl"><p class="text-2xl uppercase">Tiada aktiviti hari ini</p></div>`; }
             
-            // Auto Scroll
+            container.innerHTML = html;
             if (scrollInterval) cancelAnimationFrame(scrollInterval);
             const wrapper = document.getElementById('scroller-container');
             if (container.scrollHeight > wrapper.clientHeight) {
                 container.innerHTML += `<div class="py-8"></div>` + html; 
                 let pos = 0;
-                function step() {
-                    pos -= CONFIG.scrollSpeed;
-                    if (Math.abs(pos) >= (container.scrollHeight / 2)) pos = 0;
-                    container.style.transform = `translateY(${pos}px)`;
-                    scrollInterval = requestAnimationFrame(step);
-                }
+                function step() { pos -= CONFIG.scrollSpeed; if (Math.abs(pos) >= (container.scrollHeight / 2)) pos = 0; container.style.transform = `translateY(${pos}px)`; scrollInterval = requestAnimationFrame(step); }
                 step();
             } else { container.style.transform = 'translateY(0)'; }
         }
 
-        // --- RIGHT PANEL: CALENDAR GRID (UPPERCASE) ---
         function renderCalendarGrid() {
-            const grid = document.getElementById('calendar-grid');
-            grid.innerHTML = '';
-            
-            const today = new Date();
-            const daysToShow = CONFIG.gridColumns * CONFIG.gridRows; 
-            
+            const grid = document.getElementById('calendar-grid'); grid.innerHTML = '';
+            const today = new Date(); const daysToShow = CONFIG.gridColumns * CONFIG.gridRows; 
             for (let i = 0; i < daysToShow; i++) {
                 const d = new Date(today); d.setDate(today.getDate() + i);
-                const { prog, bday, sal } = getEvents(d);
-                const isToday = i === 0;
-
+                const { prog, bday, sal } = getEvents(d); const isToday = i === 0;
                 let contentHtml = '';
-                
-                // Gaji (Nama & Icon)
                 if (sal) contentHtml += `<div class="bg-green-600 text-white text-xs px-2 py-1 rounded font-bold mb-2 text-center uppercase tracking-wide shadow-md truncate">💰 ${sal.title}</div>`;
-                
-                // Birthday (Nama & Icon)
-                if (bday.length > 0) {
-                     const bNames = bday.map(b => b.name).join(', ');
-                     contentHtml += `<div class="bg-pink-600 text-white text-xs px-2 py-1 rounded font-bold mb-2 text-center uppercase tracking-wide shadow-md truncate">🎂 HARI JADI: ${bNames}</div>`;
-                }
-
-                // Program List
+                if (bday.length > 0) contentHtml += `<div class="bg-pink-600 text-white text-xs px-2 py-1 rounded font-bold mb-2 text-center uppercase tracking-wide shadow-md truncate">🎂 HARI JADI: ${bday.map(b => b.name).join(', ')}</div>`;
                 if (prog.length > 0) {
                     contentHtml += `<div class="space-y-2 mt-2 flex-grow overflow-hidden">`;
                     prog.slice(0, 3).forEach(p => {
@@ -315,32 +230,15 @@
                         <div class="flex flex-col bg-slate-800/80 p-3 rounded-lg border border-slate-700">
                             <span class="font-mono text-yellow-400 text-xs font-bold mb-0.5">${p.startTime ? formatTime(p.startTime) : 'SEPANJANG HARI'}</span>
                             <span class="${CONFIG.gridFontSize} font-extrabold text-white leading-tight mb-1 uppercase truncate line-clamp-2">${p.name}</span>
-                            <div class="flex items-center gap-1 text-slate-400 text-xs uppercase truncate mb-1">
-                                <span class="text-red-400">📍</span> ${p.location || '-'}
-                            </div>
-                            <div class="flex items-center gap-1 text-indigo-300 text-xs uppercase font-bold truncate bg-slate-900/50 p-1 rounded">
-                                👤 ${p.penyelaras_name || '-'}
-                            </div>
+                            <div class="flex items-center gap-1 text-slate-400 text-xs uppercase truncate mb-1"><span class="text-red-400">📍</span> ${p.location || '-'}</div>
+                            <div class="flex items-center gap-1 text-indigo-300 text-xs uppercase font-bold truncate bg-slate-900/50 p-1 rounded">👤 ${p.penyelaras_name || '-'}</div>
                         </div>`;
                     });
                     if (prog.length > 3) contentHtml += `<div class="text-xs text-slate-500 text-center italic uppercase">+ ${prog.length - 3} LAGI...</div>`;
                     contentHtml += `</div>`;
-                } else if (!sal && bday.length === 0) {
-                     contentHtml += `<div class="flex-grow flex items-center justify-center"><span class="text-slate-700 text-4xl opacity-30 font-bold">-</span></div>`;
-                }
-
-                const card = document.createElement('div');
-                card.className = `cal-day-card p-4 ${isToday ? 'is-today' : ''}`;
-                card.innerHTML = `
-                    <div class="flex justify-between items-start border-b ${isToday ? 'border-indigo-500' : 'border-slate-700'} pb-2 mb-2 bg-slate-900/40 -mx-4 -mt-4 p-4">
-                        <div>
-                             <span class="block text-sm uppercase ${isToday ? 'text-yellow-400' : 'text-indigo-400'} font-extrabold tracking-widest">${d.toLocaleDateString('ms-MY', { weekday: 'long' })}</span>
-                             <span class="block text-xs uppercase text-slate-500 font-bold">${d.toLocaleDateString('ms-MY', { month: 'long', year: 'numeric' })}</span>
-                        </div>
-                        <span class="text-5xl font-black ${isToday ? 'text-white' : 'text-slate-600'} leading-none">${d.getDate()}</span>
-                    </div>
-                    <div class="px-1 flex flex-col h-full">${contentHtml}</div>
-                `;
+                } else if (!sal && bday.length === 0) { contentHtml += `<div class="flex-grow flex items-center justify-center"><span class="text-slate-700 text-4xl opacity-30 font-bold">-</span></div>`; }
+                const card = document.createElement('div'); card.className = `cal-day-card p-4 ${isToday ? 'is-today' : ''}`;
+                card.innerHTML = `<div class="flex justify-between items-start border-b ${isToday ? 'border-indigo-500' : 'border-slate-700'} pb-2 mb-2 bg-slate-900/40 -mx-4 -mt-4 p-4"><div><span class="block text-sm uppercase ${isToday ? 'text-yellow-400' : 'text-indigo-400'} font-extrabold tracking-widest">${d.toLocaleDateString('ms-MY', { weekday: 'long' })}</span><span class="block text-xs uppercase text-slate-500 font-bold">${d.toLocaleDateString('ms-MY', { month: 'long', year: 'numeric' })}</span></div><span class="text-5xl font-black ${isToday ? 'text-white' : 'text-slate-600'} leading-none">${d.getDate()}</span></div><div class="px-1 flex flex-col h-full">${contentHtml}</div>`;
                 grid.appendChild(card);
             }
         }
