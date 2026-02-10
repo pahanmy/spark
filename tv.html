@@ -3,123 +3,138 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SPARK FIDS - Airport Style</title>
+    <title>SPARK TV - Calendar Grid</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&display=swap" rel="stylesheet">
     <style>
+        /* --- TEMA GLOBAL --- */
         body { 
-            background-color: #000000; 
-            color: #fbbf24; /* Amber-400 typical airport color */
-            font-family: 'Share Tech Mono', monospace; 
+            font-family: 'Outfit', sans-serif; 
+            background-color: #0f172a; /* Slate 900 */
+            color: white;
+            overflow: hidden; 
+        }
+
+        /* Latar Belakang Kaca (Glassmorphism) */
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.65); 
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        /* --- KOTAK KALENDAR (KANAN) --- */
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr); /* 4 Lajur */
+            grid-template-rows: repeat(2, 1fr);    /* 2 Baris */
+            gap: 1rem;
+            height: 100%;
+        }
+
+        .cal-day-card {
+            background: rgba(51, 65, 85, 0.4);
+            border-radius: 0.75rem;
+            border: 1px solid rgba(255,255,255,0.05);
+            display: flex;
+            flex-direction: column;
             overflow: hidden;
+            transition: all 0.3s ease;
         }
 
-        /* Table Styling */
-        .fids-table { width: 100%; border-collapse: separate; border-spacing: 0 4px; }
+        .cal-day-card.is-today {
+            background: linear-gradient(135deg, rgba(79, 70, 229, 0.25) 0%, rgba(30, 41, 59, 0.9) 100%);
+            border: 1px solid #6366f1;
+            box-shadow: inset 0 0 20px rgba(99, 102, 241, 0.2);
+        }
+
+        /* --- LIST HARI INI (KIRI - AUTO SCROLL) --- */
+        #scroller-container { overflow: hidden; position: relative; mask-image: linear-gradient(to bottom, transparent, black 5%, black 95%, transparent); }
+        #scroller-content { position: absolute; width: 100%; }
+
+        /* --- UTILITIES --- */
+        .neon-text { text-shadow: 0 0 15px rgba(99, 102, 241, 0.5); }
+        .text-glow { text-shadow: 0 0 10px rgba(255, 255, 255, 0.3); }
         
-        .fids-header {
-            text-transform: uppercase;
-            color: #9ca3af; /* Gray-400 */
-            font-size: 1.2rem;
-            border-bottom: 2px solid #4b5563;
-            text-align: left;
-            padding: 10px 15px;
-        }
+        /* Hilangkan scrollbar */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
 
-        .fids-row {
-            background-color: #111827; /* Gray-900 */
-            transition: all 0.3s;
-        }
-
-        .fids-cell {
-            padding: 12px 15px;
-            font-size: 1.5rem; /* Large text */
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            border-bottom: 1px solid #1f2937;
-        }
-
-        /* Column Widths */
-        .col-date { width: 10%; color: #9ca3af; }
-        .col-time { width: 12%; color: #fbbf24; font-weight: bold; }
-        .col-prog { width: 35%; color: #ffffff; font-family: 'Roboto Mono', monospace; font-weight: 700; }
-        .col-loc  { width: 15%; color: #60a5fa; } /* Blue */
-        .col-pic  { width: 15%; color: #e5e7eb; font-size: 1.2rem; }
-        .col-stat { width: 13%; text-align: right; }
-
-        /* Status Styles */
-        .status-active { color: #4ade80; font-weight: bold; animation: blink 1.5s infinite; } /* Green Blink */
-        .status-scheduled { color: #fbbf24; } /* Amber */
-        .status-salary { color: #facc15; font-weight: bold; background: #3f6212; padding: 2px 8px; border-radius: 4px; }
-        .status-bday { color: #f472b6; } /* Pink */
-
-        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
-
-        /* Header Clock */
-        .header-bg { background: linear-gradient(to bottom, #1f2937, #111827); border-bottom: 4px solid #fbbf24; }
-        
-        /* Marquee Footer */
-        .ticker-wrap {
-            position: fixed; bottom: 0; width: 100%; overflow: hidden; height: 3rem;
-            background-color: #fbbf24; padding-left: 100%; box-sizing: border-box;
-        }
-        .ticker {
-            display: inline-block; height: 3rem; line-height: 3rem; white-space: nowrap;
-            padding-right: 100%; box-sizing: border-box; animation: ticker 25s linear infinite;
-            color: black; font-weight: bold; font-size: 1.5rem; font-family: sans-serif;
-        }
-        @keyframes ticker { 0% { transform: translate3d(0, 0, 0); } 100% { transform: translate3d(-100%, 0, 0); } }
-
-        /* Helper for text truncation with marquee effect inside cell if needed - simplified for airport look */
-        .truncate-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; display: block;}
+        /* Background Animation */
+        .blob { position: absolute; filter: blur(80px); opacity: 0.4; z-index: -1; animation: float 10s infinite alternate; }
+        @keyframes float { 0% { transform: translate(0, 0); } 100% { transform: translate(30px, 50px); } }
     </style>
 </head>
-<body class="flex flex-col h-screen">
+<body class="h-screen flex flex-col relative">
 
-    <header class="header-bg px-8 py-4 flex justify-between items-end h-[15vh]">
-        <div class="flex items-center gap-4">
-            <div class="bg-yellow-500 p-2 rounded text-black font-bold text-3xl tracking-tighter border-2 border-white">
-                SPARK
+    <div class="blob bg-indigo-600 w-96 h-96 top-0 left-0"></div>
+    <div class="blob bg-blue-600 w-96 h-96 bottom-0 right-0" style="animation-delay: -5s;"></div>
+
+    <header class="h-[14%] px-8 flex justify-between items-center z-20 border-b border-white/10 bg-slate-900/80 backdrop-blur-md">
+        <div class="flex items-center gap-5">
+            <div class="bg-indigo-600 p-3 rounded-xl shadow-lg shadow-indigo-500/30">
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" class="text-white"><path d="M4 4H8V8H4V4Z" fill="currentColor"></path><path d="M4 16H8V20H4V16Z" fill="currentColor"></path><path d="M16 4H20V8H16V4Z" fill="currentColor"></path><path d="M10 4H14V6H10V4Z" fill="currentColor"></path><path d="M10 8H12V10H10V8Z" fill="currentColor"></path><path d="M12 12H14V14H12V12Z" fill="currentColor"></path></svg>
             </div>
             <div>
-                <h1 class="text-4xl text-white font-bold tracking-widest uppercase" style="text-shadow: 0 0 10px rgba(255,255,255,0.5);">JADUAL PELEPASAN</h1>
-                <p class="text-sm text-gray-400 uppercase tracking-[0.3em]">Departure Schedule</p>
+                <h1 class="text-3xl font-extrabold tracking-tight text-white leading-none">SPARK <span class="text-indigo-400 font-light">TV</span></h1>
+                <p class="text-xs text-slate-400 uppercase tracking-[0.2em] mt-1">Sistem Jadual & Info Digital</p>
             </div>
         </div>
-        <div class="text-right">
-            <div id="clock-time" class="text-7xl font-bold text-yellow-400 leading-none" style="text-shadow: 0 0 10px rgba(251, 191, 36, 0.5);">00:00</div>
-            <div id="clock-date" class="text-xl text-gray-300 uppercase mt-1">ISNIN, 01 JAN 2025</div>
+        
+        <div class="text-right flex items-center gap-6">
+             <div class="text-right">
+                <div class="flex items-baseline justify-end gap-2">
+                    <div id="clock-time" class="text-6xl font-bold text-white neon-text leading-none font-mono">00:00</div>
+                    <div class="text-xl font-bold text-indigo-400" id="clock-ampm">AM</div>
+                </div>
+                <div id="clock-date" class="text-lg font-medium text-slate-300 uppercase tracking-wide mt-1">ISNIN, 1 JAN 2025</div>
+            </div>
         </div>
     </header>
 
-    <main class="flex-grow bg-black p-4 overflow-hidden h-[80vh] flex flex-col">
-        <div class="w-full">
-            <table class="fids-table">
-                <thead>
-                    <tr>
-                        <th class="fids-header col-date">TARIKH</th>
-                        <th class="fids-header col-time">MASA</th>
-                        <th class="fids-header col-prog">PROGRAM / AKTIVITI</th>
-                        <th class="fids-header col-loc">LOKASI</th>
-                        <th class="fids-header col-pic">PENYELARAS</th>
-                        <th class="fids-header col-stat">STATUS</th>
-                    </tr>
-                </thead>
-                <tbody id="fids-body">
-                    <tr><td colspan="6" class="text-center text-gray-500 py-10 text-2xl">MEMUATKAN DATA PENERBANGAN...</td></tr>
-                </tbody>
-            </table>
-        </div>
+    <main class="h-[86%] p-6 grid grid-cols-12 gap-6">
         
-        <div id="page-indicator" class="mt-auto text-right text-gray-500 text-sm p-2">
-            MUKA SURAT 1 DARI 1
+        <div class="col-span-12 lg:col-span-4 flex flex-col h-full glass-panel rounded-2xl overflow-hidden relative">
+            <div class="p-5 bg-indigo-900/20 border-b border-white/5 flex justify-between items-center z-10">
+                <h2 class="text-xl font-bold text-white uppercase flex items-center gap-2">
+                    <span class="relative flex h-3 w-3">
+                      <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                      <span class="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                    </span>
+                    Agenda Hari Ini
+                </h2>
+                <span class="text-[10px] bg-white/10 px-2 py-1 rounded text-slate-300">AUTO-SCROLL</span>
+            </div>
+            
+            <div id="scroller-container" class="flex-grow relative w-full h-full bg-slate-900/20">
+                <div id="scroller-content" class="p-5 space-y-4">
+                    <div class="flex flex-col items-center justify-center h-64 text-slate-500 animate-pulse">
+                        <p>Memuatkan data...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-span-12 lg:col-span-8 flex flex-col h-full glass-panel rounded-2xl overflow-hidden">
+            <div class="p-4 bg-indigo-900/20 border-b border-white/5 flex justify-between items-center">
+                <h2 class="text-xl font-bold text-white uppercase">Minggu Ini</h2>
+                <div class="flex items-center gap-2">
+                     <span class="w-2 h-2 rounded-full bg-indigo-500"></span>
+                     <span class="text-xs text-slate-400 uppercase">Hari Ini</span>
+                </div>
+            </div>
+
+            <div class="p-4 h-full">
+                <div id="calendar-grid" class="calendar-grid">
+                    </div>
+            </div>
         </div>
     </main>
 
-    <div class="ticker-wrap h-[5vh]">
-        <div class="ticker" id="news-ticker">
-            SELAMAT DATANG KE SPARK TV • SILA IMBAS QR CODE UNTUK MAKLUMAT LANJUT • PASTIKAN ANDA BERADA DI LOKASI 10 MINIT LEBIH AWAL •
+    <div class="absolute bottom-6 right-6 bg-white p-2 rounded-xl shadow-2xl z-50 flex items-center gap-3 animate-fade-in-up transform hover:scale-105 transition-transform">
+        <img id="qr-image" src="" class="w-16 h-16 bg-slate-100 rounded-lg" alt="QR">
+        <div class="pr-2">
+            <p class="text-[9px] text-slate-500 font-bold uppercase mb-0.5">Imbas Info</p>
+            <p class="text-sm text-indigo-900 font-extrabold uppercase leading-tight">Layari<br>Sistem</p>
         </div>
     </div>
 
@@ -135,10 +150,12 @@
         const auth = getAuth(app);
         const appId = firebaseConfig.projectId;
 
-        let combinedEvents = [];
-        let currentPage = 1;
-        const rowsPerPage = 7; // Adjust based on TV size (7-8 rows fits standard 1080p nicely)
-        let pageInterval;
+        let allPrograms = [], allBirthdays = [], allSalaryDates = [];
+        let scrollInterval;
+
+        // QR Code Logic
+        const baseUrl = window.location.href.substring(0, window.location.href.lastIndexOf('/')) + '/index.html';
+        document.getElementById('qr-image').src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(baseUrl)}`;
 
         onAuthStateChanged(auth, async (user) => {
             if (user) { startClock(); listenData(); }
@@ -148,194 +165,166 @@
         function startClock() {
             setInterval(() => {
                 const now = new Date();
-                const h = String(now.getHours()).padStart(2, '0');
-                const m = String(now.getMinutes()).padStart(2, '0');
-                // Blinking colon effect standard in airports
-                const colon = now.getSeconds() % 2 === 0 ? ':' : ' '; 
-                
-                document.getElementById('clock-time').innerHTML = `${h}${colon}${m}`;
-                document.getElementById('clock-date').textContent = now.toLocaleDateString('ms-MY', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }).toUpperCase();
+                let h = now.getHours(); const m = String(now.getMinutes()).padStart(2, '0');
+                const ampm = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12;
+                document.getElementById('clock-time').textContent = `${h}:${m}`;
+                document.getElementById('clock-ampm').textContent = ampm;
+                document.getElementById('clock-date').textContent = now.toLocaleDateString('ms-MY', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
             }, 1000);
         }
 
         function listenData() {
-            // Listen to all collections
-            const qP = query(collection(db, `artifacts/${appId}/public/data/spark_programs`), orderBy("startDate", "asc"));
-            const qB = query(collection(db, `artifacts/${appId}/public/data/spark_birthdays`), orderBy("dob", "asc"));
-            const qS = query(collection(db, `artifacts/${appId}/public/data/spark_salary`), orderBy("date", "asc"));
+            onSnapshot(query(collection(db, `artifacts/${appId}/public/data/spark_programs`), orderBy("startDate", "asc")), (snap) => { allPrograms = snap.docs.map(d => d.data()); refreshUI(); });
+            onSnapshot(query(collection(db, `artifacts/${appId}/public/data/spark_birthdays`), orderBy("dob", "asc")), (snap) => { allBirthdays = snap.docs.map(d => d.data()); refreshUI(); });
+            onSnapshot(query(collection(db, `artifacts/${appId}/public/data/spark_salary`), orderBy("date", "asc")), (snap) => { allSalaryDates = snap.docs.map(d => d.data()); refreshUI(); });
+        }
 
-            let progs = [], bdays = [], salaries = [];
-
-            // Helper to merge and render
-            const mergeAndRender = () => {
-                processData(progs, bdays, salaries);
-            };
-
-            onSnapshot(qP, (s) => { progs = s.docs.map(d => d.data()); mergeAndRender(); });
-            onSnapshot(qB, (s) => { bdays = s.docs.map(d => d.data()); mergeAndRender(); });
-            onSnapshot(qS, (s) => { salaries = s.docs.map(d => d.data()); mergeAndRender(); });
+        function refreshUI() {
+            renderTodayPanel();
+            renderCalendarGrid();
         }
 
         const parseDate = (str) => { const p = str.split('-'); return new Date(p[0], p[1]-1, p[2]); };
-        const formatTime = (t) => { if(!t) return ''; const [h,m] = t.split(':'); return `${h}${m}`; }; // Military time for Airport look (e.g. 1430)
+        const formatTime = (t) => { if(!t) return ''; const [h,m] = t.split(':'); const hr = parseInt(h); return `${hr%12||12}:${m}${hr>=12?'pm':'am'}`; };
 
-        function processData(progs, bdays, salaries) {
-            combinedEvents = [];
-            const today = new Date();
-            today.setHours(0,0,0,0);
-            const futureLimit = new Date(); 
-            futureLimit.setDate(today.getDate() + 30); // Show next 30 days of data
+        function getEvents(date) {
+            const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+            const prog = allPrograms.filter(p => {
+                if(['Batal','Ditolak','Gagal'].includes(p.status || p.approvalStatus)) return false;
+                const s = parseDate(p.startDate), e = p.endDate ? parseDate(p.endDate) : s;
+                return d >= s && d <= e;
+            });
+            const bday = allBirthdays.filter(b => b.dob && parseInt(b.dob.split('-')[1]) === d.getMonth()+1 && parseInt(b.dob.split('-')[2]) === d.getDate());
+            const sal = allSalaryDates.find(s => s.date === `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`);
+            return { prog, bday, sal };
+        }
 
-            // 1. Process Programs
-            progs.forEach(p => {
-                if(['Batal','Ditolak','Gagal'].includes(p.status)) return;
-                const pDate = parseDate(p.startDate);
-                if (pDate >= today && pDate <= futureLimit) {
-                    // Determine Status
-                    const now = new Date();
-                    let status = "DIJADUALKAN";
-                    let statusClass = "status-scheduled";
-                    
-                    // Check if happening NOW (Match date AND time)
-                    const isToday = pDate.toDateString() === now.toDateString();
-                    if (isToday) {
-                        const [sh, sm] = p.startTime ? p.startTime.split(':') : [0,0];
-                        const [eh, em] = p.endTime ? p.endTime.split(':') : [23,59];
-                        const sTime = new Date(now); sTime.setHours(sh, sm, 0);
-                        const eTime = new Date(now); eTime.setHours(eh, em, 0);
+        // --- PANEL KIRI: HARI INI (SCROLLABLE DETAIL) ---
+        function renderTodayPanel() {
+            const container = document.getElementById('scroller-content');
+            const { prog, bday, sal } = getEvents(new Date());
+            let html = '';
+
+            if (sal) html += `
+                <div class="bg-gradient-to-r from-green-600 to-green-700 p-5 rounded-xl shadow-lg border border-green-400 mb-4 transform hover:scale-[1.02] transition-transform">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="text-2xl font-extrabold text-white leading-none mb-1">HARI GAJI 💰</h3>
+                            <p class="text-green-100 font-medium">${sal.title}</p>
+                        </div>
+                    </div>
+                </div>`;
+            
+            if (bday.length > 0) {
+                html += `
+                <div class="bg-gradient-to-r from-pink-600 to-rose-600 p-5 rounded-xl shadow-lg border border-pink-400 mb-4">
+                    <div class="flex items-center gap-2 mb-3">
+                        <span class="text-2xl">🎂</span>
+                        <h3 class="text-lg font-bold text-white uppercase tracking-wide">Happy Birthday</h3>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                        ${bday.map(b => `<span class="bg-white/20 px-3 py-1.5 rounded-lg text-white font-bold text-lg shadow-sm">${b.name}</span>`).join('')}
+                    </div>
+                </div>`;
+            }
+
+            if (prog.length > 0) {
+                prog.forEach(p => {
+                    html += `
+                    <div class="bg-slate-800 border-l-4 border-indigo-500 rounded-r-xl p-5 shadow-lg relative mb-4">
+                        <h3 class="text-2xl font-bold text-indigo-100 uppercase leading-tight mb-3">${p.name}</h3>
                         
-                        if (now >= sTime && now <= eTime) {
-                            status = "SEDANG BERLANGSUNG";
-                            statusClass = "status-active";
-                        } else if (now > eTime) {
-                            status = "TAMAT";
-                            statusClass = "text-gray-600";
-                        } else {
-                            status = "AKAN DATANG"; // Later today
-                        }
-                    }
+                        <div class="space-y-3">
+                            <div class="flex items-center gap-3">
+                                <span class="bg-indigo-500/20 text-indigo-300 p-1.5 rounded text-xs font-mono">MASA</span>
+                                <span class="text-white font-semibold text-lg">${p.startTime ? formatTime(p.startTime) : 'Sepanjang Hari'}</span>
+                            </div>
+                            
+                            <div class="flex items-center gap-3">
+                                <span class="bg-red-500/20 text-red-300 p-1.5 rounded text-xs font-mono">LOKASI</span>
+                                <span class="text-slate-300 text-lg leading-tight">${p.location || '-'}</span>
+                            </div>
 
-                    if(status !== "TAMAT") { // Don't show ended events
-                        combinedEvents.push({
-                            dateObj: pDate,
-                            dateStr: pDate.toLocaleDateString('ms-MY', {day:'2-digit', month:'short'}).toUpperCase(),
-                            time: formatTime(p.startTime),
-                            name: p.name.toUpperCase(),
-                            location: (p.location || 'DALAM TALIAN').toUpperCase(),
-                            pic: (p.penyelaras_name || '-').toUpperCase(),
-                            status: status,
-                            statusClass: statusClass,
-                            type: 'program'
-                        });
-                    }
-                }
-            });
-
-            // 2. Process Salary
-            salaries.forEach(s => {
-                const sDate = parseDate(s.date);
-                if (sDate >= today && sDate <= futureLimit) {
-                    combinedEvents.push({
-                        dateObj: sDate,
-                        dateStr: sDate.toLocaleDateString('ms-MY', {day:'2-digit', month:'short'}).toUpperCase(),
-                        time: "",
-                        name: `HARI GAJI: ${s.title}`.toUpperCase(),
-                        location: "BANK",
-                        pic: "KEWANGAN",
-                        status: "PEMBAYARAN",
-                        statusClass: "status-salary",
-                        type: 'salary'
-                    });
-                }
-            });
-
-            // 3. Process Birthdays
-            bdays.forEach(b => {
-                if(!b.dob) return;
-                const [y, m, d] = b.dob.split('-');
-                // Create birthday date for CURRENT year
-                const bDateThisYear = new Date(today.getFullYear(), parseInt(m)-1, parseInt(d));
-                // If passed, move to next year (optional, but for "upcoming" logic usually just filter)
-                if (bDateThisYear < today) bDateThisYear.setFullYear(today.getFullYear() + 1);
-
-                if (bDateThisYear >= today && bDateThisYear <= futureLimit) {
-                     combinedEvents.push({
-                        dateObj: bDateThisYear,
-                        dateStr: bDateThisYear.toLocaleDateString('ms-MY', {day:'2-digit', month:'short'}).toUpperCase(),
-                        time: "",
-                        name: `HARI JADI: ${b.name}`.toUpperCase(),
-                        location: "-",
-                        pic: "-",
-                        status: "SAMBUTAN",
-                        statusClass: "status-bday",
-                        type: 'birthday'
-                    });
-                }
-            });
-
-            // SORT by Date then Time
-            combinedEvents.sort((a, b) => a.dateObj - b.dateObj);
-
-            renderTable();
-            startPageLoop();
-        }
-
-        function renderTable() {
-            const tbody = document.getElementById('fids-body');
-            tbody.innerHTML = '';
-
-            const totalPages = Math.ceil(combinedEvents.length / rowsPerPage) || 1;
-            if (currentPage > totalPages) currentPage = 1;
-            document.getElementById('page-indicator').textContent = `MUKA SURAT ${currentPage} DARI ${totalPages} • JUMLAH AKTIVITI: ${combinedEvents.length}`;
-
-            const start = (currentPage - 1) * rowsPerPage;
-            const end = start + rowsPerPage;
-            const pageData = combinedEvents.slice(start, end);
-
-            if (pageData.length === 0) {
-                 tbody.innerHTML = `<tr><td colspan="6" class="text-center text-gray-600 py-10 text-2xl font-mono">TIADA PENERBANGAN (PROGRAM) DIJADUALKAN</td></tr>`;
-                 return;
+                            <div class="pt-3 border-t border-white/5">
+                                <p class="text-xs text-slate-500 uppercase font-bold mb-1">Penyelaras</p>
+                                <p class="text-slate-300 font-medium text-lg">${p.penyelaras_name || 'Tidak Dinyatakan'}</p>
+                            </div>
+                        </div>
+                    </div>`;
+                });
+            } else if (!sal && bday.length === 0) {
+                html = `<div class="h-64 flex flex-col items-center justify-center text-slate-500 border-2 border-dashed border-slate-700 rounded-xl"><p class="text-xl">Tiada aktiviti hari ini</p></div>`;
             }
 
-            pageData.forEach(ev => {
-                // Formatting Row
-                let rowBg = "";
-                if (ev.type === 'salary') rowBg = "bg-green-900/20";
-                if (ev.type === 'birthday') rowBg = "bg-pink-900/10";
+            container.innerHTML = html;
+            
+            // Auto Scroll Logic
+            if (scrollInterval) cancelAnimationFrame(scrollInterval);
+            const wrapper = document.getElementById('scroller-container');
+            if (container.scrollHeight > wrapper.clientHeight) {
+                container.innerHTML += `<div class="py-8"></div>` + html; 
+                let pos = 0;
+                function step() {
+                    pos -= 0.5;
+                    if (Math.abs(pos) >= (container.scrollHeight / 2)) pos = 0;
+                    container.style.transform = `translateY(${pos}px)`;
+                    scrollInterval = requestAnimationFrame(step);
+                }
+                step();
+            } else { container.style.transform = 'translateY(0)'; }
+        }
+
+        // --- PANEL KANAN: GRID KALENDAR (STATIC) ---
+        function renderCalendarGrid() {
+            const grid = document.getElementById('calendar-grid');
+            grid.innerHTML = '';
+            
+            const today = new Date();
+            // Show 8 days (2 Rows x 4 Cols)
+            const daysToShow = 8; 
+            
+            for (let i = 0; i < daysToShow; i++) {
+                const d = new Date(today); d.setDate(today.getDate() + i);
+                const { prog, bday, sal } = getEvents(d);
+                const isToday = i === 0;
+
+                let contentHtml = '';
                 
-                const tr = document.createElement('tr');
-                tr.className = `fids-row ${rowBg}`;
-                tr.innerHTML = `
-                    <td class="fids-cell col-date">${ev.dateStr}</td>
-                    <td class="fids-cell col-time tracking-widest">${ev.time || '--:--'}</td>
-                    <td class="fids-cell col-prog"><span class="truncate-text">${ev.name}</span></td>
-                    <td class="fids-cell col-loc"><span class="truncate-text">${ev.location}</span></td>
-                    <td class="fids-cell col-pic"><span class="truncate-text">${ev.pic}</span></td>
-                    <td class="fids-cell col-stat"><span class="${ev.statusClass}">${ev.status}</span></td>
-                `;
-                tbody.appendChild(tr);
-            });
+                // Indikator Ringkas
+                if (sal) contentHtml += `<div class="bg-green-600 text-white text-[10px] px-1.5 py-0.5 rounded font-bold mb-1 text-center truncate">💰 GAJI</div>`;
+                if (bday.length > 0) contentHtml += `<div class="bg-pink-600 text-white text-[10px] px-1.5 py-0.5 rounded font-bold mb-1 text-center truncate">🎂 ${bday.length} BDAY</div>`;
 
-            // Fill empty rows to maintain height if last page has few items
-            const emptyRows = rowsPerPage - pageData.length;
-            for(let i=0; i<emptyRows; i++) {
-                const tr = document.createElement('tr');
-                tr.className = `fids-row`;
-                tr.innerHTML = `<td class="fids-cell" colspan="6">&nbsp;</td>`;
-                tbody.appendChild(tr);
-            }
-        }
-
-        function startPageLoop() {
-            if (pageInterval) clearInterval(pageInterval);
-            pageInterval = setInterval(() => {
-                const totalPages = Math.ceil(combinedEvents.length / rowsPerPage);
-                if (totalPages > 1) {
-                    currentPage++;
-                    if (currentPage > totalPages) currentPage = 1;
-                    renderTable();
+                if (prog.length > 0) {
+                    contentHtml += `<div class="space-y-1 mt-1 flex-grow overflow-hidden">`;
+                    // Show max 3 items to fit in box
+                    prog.slice(0, 3).forEach(p => {
+                        contentHtml += `
+                        <div class="flex items-center gap-1 text-[11px] leading-tight text-slate-300">
+                            <span class="text-yellow-500 text-[9px] font-mono whitespace-nowrap">${p.startTime ? formatTime(p.startTime).replace(' ','').toLowerCase() : '•'}</span>
+                            <span class="truncate font-medium">${p.name}</span>
+                        </div>`;
+                    });
+                    if (prog.length > 3) contentHtml += `<div class="text-[9px] text-slate-500 text-center mt-1 italic">+ ${prog.length - 3} lagi...</div>`;
+                    contentHtml += `</div>`;
+                } else if (!sal && bday.length === 0) {
+                     contentHtml += `<div class="flex-grow flex items-center justify-center"><span class="text-slate-700 text-2xl opacity-50">-</span></div>`;
                 }
-            }, 10000); // Swap page every 10 seconds
+
+                // Header Kotak (Tarikh)
+                const dateHeader = `
+                    <div class="flex justify-between items-end border-b ${isToday ? 'border-indigo-500' : 'border-slate-700'} pb-1 mb-1">
+                        <span class="text-xl font-bold ${isToday ? 'text-white' : 'text-slate-400'}">${d.getDate()}</span>
+                        <div class="text-right">
+                             <span class="block text-[9px] uppercase text-slate-500 font-bold">${d.toLocaleDateString('ms-MY', { month: 'short' })}</span>
+                             <span class="block text-[10px] uppercase ${isToday ? 'text-yellow-400' : 'text-indigo-400'} font-bold">${d.toLocaleDateString('ms-MY', { weekday: 'short' })}</span>
+                        </div>
+                    </div>`;
+
+                const card = document.createElement('div');
+                card.className = `cal-day-card p-2.5 ${isToday ? 'is-today' : ''}`;
+                card.innerHTML = dateHeader + contentHtml;
+                grid.appendChild(card);
+            }
         }
     </script>
 </body>
