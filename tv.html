@@ -3,101 +3,181 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SPARK TV - Final Display</title>
+    <title>SPARK TV - Adaptive</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&display=swap" rel="stylesheet">
     <style>
-        /* --- GLOBAL --- */
-        body { font-family: 'Outfit', sans-serif; background-color: #0f172a; color: white; overflow: hidden; }
-        .glass-panel { background: rgba(30, 41, 59, 0.75); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5); }
-        
-        /* --- GRID --- */
-        #calendar-grid { display: grid; gap: 1.5rem; height: 100%; transition: all 0.5s ease; }
-        .cal-day-card { background: rgba(51, 65, 85, 0.4); border-radius: 1rem; border: 1px solid rgba(255,255,255,0.1); display: flex; flex-direction: column; overflow: hidden; position: relative; }
-        .cal-day-card.is-today { background: linear-gradient(135deg, rgba(79, 70, 229, 0.3) 0%, rgba(30, 41, 59, 0.9) 100%); border: 2px solid #6366f1; }
+        /* --- GLOBAL & RESET --- */
+        :root {
+            --primary-bg: #0f172a;
+            --glass-bg: rgba(30, 41, 59, 0.7);
+            --glass-border: rgba(255, 255, 255, 0.1);
+        }
+        body { 
+            font-family: 'Outfit', sans-serif; 
+            background-color: var(--primary-bg); 
+            color: white; 
+            overflow: hidden; 
+            /* TV SAFE ZONE: Elak tepi terpotong */
+            padding: 2vh 2vw; 
+            height: 100vh;
+            width: 100vw;
+            box-sizing: border-box;
+        }
 
-        /* --- MARQUEE (TEKS BERGERAK) --- */
+        /* --- LAYOUT UTAMA --- */
+        .main-layout {
+            display: flex;
+            gap: 1.5rem;
+            height: 88%; /* Baki lepas tolak header */
+            width: 100%;
+        }
+
+        /* Panel Kiri (Fixed Width, tapi responsive) */
+        .panel-left {
+            flex: 0 0 35%; /* Kekal 35% lebar */
+            display: flex;
+            flex-direction: column;
+            min-width: 300px;
+        }
+
+        /* Panel Kanan (Fill remaining space) */
+        .panel-right {
+            flex: 1; /* Ambil semua ruang baki */
+            display: flex;
+            flex-direction: column;
+            min-width: 0; /* Penting untuk Grid berfungsi dalam Flex */
+        }
+
+        /* --- GLASS CARD DESIGN --- */
+        .glass-panel {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 1.5rem;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            height: 100%;
+        }
+
+        /* --- GRID CALENDAR (ADAPTIVE) --- */
+        #calendar-grid {
+            display: grid;
+            gap: 1rem;
+            height: 100%;
+            width: 100%;
+            /* Grid akan dikawal oleh JS (Settings), tapi default fit */
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: 1fr; 
+        }
+
+        .cal-day-card {
+            background: rgba(51, 65, 85, 0.4);
+            border-radius: 1rem;
+            border: 1px solid rgba(255,255,255,0.08);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+            transition: transform 0.3s;
+        }
+        
+        /* Highlight Hari Ini */
+        .cal-day-card.is-today {
+            background: linear-gradient(135deg, rgba(79, 70, 229, 0.25) 0%, rgba(30, 41, 59, 0.95) 100%);
+            border: 2px solid #818cf8;
+            box-shadow: 0 0 20px rgba(99, 102, 241, 0.15);
+        }
+
+        /* --- MARQUEE (TEKS BERGERAK - LEBIH SMOOTH) --- */
         .marquee-wrapper {
             overflow: hidden;
             white-space: nowrap;
             position: relative;
-            mask-image: linear-gradient(to right, transparent, black 5%, black 95%, transparent);
+            mask-image: linear-gradient(to right, transparent, black 2%, black 98%, transparent);
         }
         .marquee-content {
             display: inline-block;
             padding-left: 0;
-            animation: marquee 15s linear infinite; /* Kelajuan gerak nama program */
+            animation: marquee 12s linear infinite;
         }
         @keyframes marquee { 0% { transform: translateX(0); } 100% { transform: translateX(-100%); } }
 
-        /* --- LIVE BADGE --- */
-        .live-badge { animation: live-pulse 2s infinite; }
-        @keyframes live-pulse { 0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(34, 197, 94, 0); } 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); } }
-
+        /* --- SCROLLING LIST --- */
+        #scroller-container { overflow: hidden; position: relative; flex-grow: 1; }
+        
         /* --- UTILS --- */
-        #scroller-container { overflow: hidden; position: relative; mask-image: linear-gradient(to bottom, transparent, black 5%, black 95%, transparent); }
-        .neon-text { text-shadow: 0 0 20px rgba(99, 102, 241, 0.6); }
+        .neon-text { text-shadow: 0 0 15px rgba(99, 102, 241, 0.6); }
         .no-scrollbar::-webkit-scrollbar { display: none; }
+        
+        /* Header Tinggi Tetap */
+        header { height: 10%; margin-bottom: 2%; }
     </style>
 </head>
-<body class="h-screen flex flex-col relative bg-slate-900">
+<body>
 
-    <header class="h-[15%] px-8 flex justify-between items-center z-20 border-b border-white/10 bg-slate-900/90 backdrop-blur-md">
-        <div class="flex items-center gap-6">
-            <div class="bg-indigo-600 p-3 rounded-2xl shadow-xl shadow-indigo-500/20">
-                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" class="text-white"><path d="M4 4H8V8H4V4Z" fill="currentColor"></path><path d="M4 16H8V20H4V16Z" fill="currentColor"></path><path d="M16 4H20V8H16V4Z" fill="currentColor"></path><path d="M10 4H14V6H10V4Z" fill="currentColor"></path><path d="M10 8H12V10H10V8Z" fill="currentColor"></path><path d="M12 12H14V14H12V12Z" fill="currentColor"></path></svg>
+    <header class="flex justify-between items-center px-4">
+        <div class="flex items-center gap-4">
+            <div class="bg-indigo-600 p-2.5 rounded-xl shadow-lg shadow-indigo-500/30">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" class="text-white"><path d="M4 4H8V8H4V4Z" fill="currentColor"></path><path d="M4 16H8V20H4V16Z" fill="currentColor"></path><path d="M16 4H20V8H16V4Z" fill="currentColor"></path><path d="M10 4H14V6H10V4Z" fill="currentColor"></path><path d="M10 8H12V10H10V8Z" fill="currentColor"></path><path d="M12 12H14V14H12V12Z" fill="currentColor"></path></svg>
             </div>
             <div>
-                <h1 class="text-4xl font-extrabold tracking-tight text-white leading-none">SPARK <span class="text-indigo-400 font-light">TV</span></h1>
-                <p class="text-xs text-slate-400 uppercase tracking-[0.3em] mt-1 font-semibold">Dashboard Aktiviti Harian</p>
+                <h1 class="text-3xl font-extrabold tracking-tight text-white leading-none">SPARK <span class="text-indigo-400 font-light">TV</span></h1>
+                <p class="text-[10px] text-slate-400 uppercase tracking-[0.3em] font-semibold mt-0.5">Sistem Info Digital</p>
             </div>
         </div>
+        
         <div class="text-right">
-            <div class="flex items-baseline justify-end gap-3">
-                <div id="clock-time" class="text-7xl font-bold text-white neon-text leading-none font-mono">00:00</div>
-                <div class="text-2xl font-bold text-indigo-400" id="clock-ampm">AM</div>
+            <div class="flex items-baseline justify-end gap-2">
+                <div id="clock-time" class="text-6xl font-bold text-white neon-text leading-none font-mono">00:00</div>
+                <div class="text-xl font-bold text-indigo-400" id="clock-ampm">AM</div>
             </div>
-            <div id="clock-date" class="text-xl font-medium text-slate-300 uppercase tracking-widest mt-1">ISNIN, 1 JAN 2025</div>
+            <div id="clock-date" class="text-sm font-medium text-slate-300 uppercase tracking-widest mt-1">ISNIN, 1 JAN 2025</div>
         </div>
     </header>
 
-    <main class="h-[85%] p-6 grid grid-cols-12 gap-6">
+    <div class="main-layout">
         
-        <div class="col-span-12 lg:col-span-4 flex flex-col h-full glass-panel rounded-3xl overflow-hidden relative">
-            <div class="p-6 bg-indigo-900/30 border-b border-white/10 flex justify-between items-center z-10">
-                <h2 class="text-2xl font-bold text-white uppercase flex items-center gap-3">
-                    <span class="relative flex h-4 w-4">
+        <aside class="panel-left glass-panel">
+            <div class="p-5 bg-indigo-900/30 border-b border-white/10 flex justify-between items-center z-10 shrink-0">
+                <h2 class="text-xl font-bold text-white uppercase flex items-center gap-3">
+                    <span class="relative flex h-3 w-3">
                       <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                      <span class="relative inline-flex rounded-full h-4 w-4 bg-green-500"></span>
+                      <span class="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
                     </span>
-                    Agenda Hari Ini
+                    Hari Ini
                 </h2>
             </div>
-            <div id="scroller-container" class="flex-grow relative w-full h-full bg-slate-900/20">
-                <div id="scroller-content" class="p-6 space-y-6">
-                    <div class="flex items-center justify-center h-full text-slate-500 animate-pulse">Memuatkan data...</div>
+            
+            <div id="scroller-container" class="bg-slate-900/20 w-full relative">
+                <div id="scroller-content" class="p-4 space-y-4 absolute w-full">
+                    <div class="flex items-center justify-center h-40 text-slate-500 animate-pulse text-sm">Memuatkan data...</div>
                 </div>
             </div>
-        </div>
+        </aside>
 
-        <div class="col-span-12 lg:col-span-8 flex flex-col h-full glass-panel rounded-3xl overflow-hidden">
-            <div class="p-6 bg-indigo-900/30 border-b border-white/10 flex justify-between items-center">
-                <h2 class="text-2xl font-bold text-white uppercase">Jadual Akan Datang</h2>
+        <main class="panel-right glass-panel">
+            <div class="p-5 bg-indigo-900/30 border-b border-white/10 flex justify-between items-center shrink-0">
+                <h2 class="text-xl font-bold text-white uppercase">Jadual Akan Datang</h2>
                 <div class="bg-indigo-600/20 border border-indigo-500/30 px-3 py-1 rounded-lg">
-                     <span id="grid-info" class="text-xs text-indigo-200 uppercase font-bold tracking-wider">MINGGU INI</span>
+                     <span id="grid-info" class="text-[10px] text-indigo-200 uppercase font-bold tracking-wider">MINGGU INI</span>
                 </div>
             </div>
-            <div class="p-6 h-full overflow-hidden">
-                <div id="calendar-grid"></div>
-            </div>
-        </div>
-    </main>
 
-    <div class="absolute bottom-8 right-8 bg-white p-3 rounded-2xl shadow-2xl z-50 flex items-center gap-4 animate-fade-in-up">
-        <img id="qr-image" src="" class="w-16 h-16 bg-slate-100 rounded-lg" alt="QR">
-        <div class="pr-2">
-            <p class="text-[10px] text-slate-500 font-bold uppercase mb-0.5">Imbas Info</p>
-            <p class="text-sm text-indigo-900 font-extrabold uppercase leading-tight">Sistem<br>Hadir</p>
+            <div class="p-4 h-full w-full overflow-hidden">
+                <div id="calendar-grid">
+                    </div>
+            </div>
+        </main>
+
+    </div>
+
+    <div class="absolute bottom-6 right-6 bg-white p-2 rounded-xl shadow-2xl z-50 flex items-center gap-3 animate-fade-in-up opacity-90 hover:opacity-100 transition-opacity">
+        <img id="qr-image" src="" class="w-14 h-14 bg-slate-100 rounded-lg" alt="QR">
+        <div class="pr-2 hidden sm:block"> <p class="text-[9px] text-slate-500 font-bold uppercase mb-0.5">Info Lanjut</p>
+            <p class="text-xs text-indigo-900 font-extrabold uppercase leading-tight">Imbas<br>Di Sini</p>
         </div>
     </div>
 
@@ -126,7 +206,6 @@
             else await signInAnonymously(auth);
         });
 
-        // PEMBETULAN: Tambah '/main' di sini juga
         function listenSettings() {
             const settingsRef = doc(db, `artifacts/${appId}/public/data/tv_settings/main`);
             onSnapshot(settingsRef, (doc) => {
@@ -139,8 +218,8 @@
 
         function applyGridSettings() {
             const gridEl = document.getElementById('calendar-grid');
-            gridEl.style.gridTemplateColumns = `repeat(${CONFIG.gridColumns}, 1fr)`;
-            gridEl.style.gridTemplateRows = `repeat(${CONFIG.gridRows}, 1fr)`;
+            gridEl.style.gridTemplateColumns = `repeat(${CONFIG.gridColumns}, minmax(0, 1fr))`; // minmax menghalang overflow
+            gridEl.style.gridTemplateRows = `repeat(${CONFIG.gridRows}, minmax(0, 1fr))`;
             document.getElementById('grid-info').textContent = `${CONFIG.gridColumns * CONFIG.gridRows} HARI TERDEKAT`;
         }
 
@@ -182,8 +261,9 @@
             const container = document.getElementById('scroller-content');
             const { prog, bday, sal } = getEvents(new Date());
             let html = '';
-            if (sal) html += `<div class="bg-gradient-to-r from-emerald-600 to-green-600 p-6 rounded-2xl shadow-xl border-l-8 border-green-300 mb-6"><h3 class="text-3xl font-extrabold text-white uppercase">💰 HARI GAJI</h3><p class="text-lg text-emerald-100 uppercase">${sal.title}</p></div>`;
-            if (bday.length > 0) html += `<div class="bg-gradient-to-r from-pink-600 to-rose-600 p-6 rounded-2xl shadow-xl border-l-8 border-pink-300 mb-6"><h3 class="text-2xl font-bold text-white uppercase mb-2">🎂 Happy Birthday</h3><p class="text-xl text-white font-semibold uppercase leading-tight">${bday.map(b => b.name).join(', ')}</p></div>`;
+            
+            if (sal) html += `<div class="bg-gradient-to-r from-emerald-600 to-green-600 p-4 rounded-xl shadow-lg border-l-4 border-green-300 mb-4 shrink-0"><h3 class="text-2xl font-extrabold text-white uppercase">💰 HARI GAJI</h3><p class="text-sm text-emerald-100 uppercase">${sal.title}</p></div>`;
+            if (bday.length > 0) html += `<div class="bg-gradient-to-r from-pink-600 to-rose-600 p-4 rounded-xl shadow-lg border-l-4 border-pink-300 mb-4 shrink-0"><h3 class="text-xl font-bold text-white uppercase mb-1">🎂 Happy Birthday</h3><p class="text-lg text-white font-semibold uppercase leading-tight">${bday.map(b => b.name).join(', ')}</p></div>`;
 
             if (prog.length > 0) {
                 const now = new Date(); const currentTimeVal = now.getHours() * 60 + now.getMinutes();
@@ -194,34 +274,43 @@
                         let endVal = 23 * 60 + 59;
                         if (p.endTime) { const [eh, em] = p.endTime.split(':'); endVal = parseInt(eh) * 60 + parseInt(em); timeDisplay = `${formatTime(p.startTime)} - ${formatTime(p.endTime)}`; } 
                         else { timeDisplay = `${formatTime(p.startTime)} - SELESAI`; }
-                        if (currentTimeVal >= startVal && currentTimeVal <= endVal) { isLive = true; statusBadge = `<div class="absolute top-4 right-4 flex items-center gap-2 bg-green-500 text-white px-3 py-1 rounded-full text-xs font-bold uppercase live-badge z-10"><span class="w-2 h-2 bg-white rounded-full animate-pulse"></span> SEDANG BERLANGSUNG</div>`; }
+                        if (currentTimeVal >= startVal && currentTimeVal <= endVal) { isLive = true; statusBadge = `<div class="absolute top-3 right-3 flex items-center gap-1 bg-green-500 text-white px-2 py-0.5 rounded-full text-[10px] font-bold uppercase animate-pulse z-10">SEDANG BERLANGSUNG</div>`; }
                     } else { timeDisplay = "SEPANJANG HARI"; }
 
                     html += `
-                    <div class="bg-slate-800 border-2 ${isLive ? 'border-green-500 shadow-[0_0_30px_rgba(34,197,94,0.3)]' : 'border-slate-600'} rounded-2xl p-6 shadow-xl relative overflow-hidden mb-5 transition-all">
+                    <div class="bg-slate-800 border ${isLive ? 'border-green-500 shadow-[0_0_20px_rgba(34,197,94,0.2)]' : 'border-slate-600'} rounded-xl p-4 shadow-md relative overflow-hidden mb-3 shrink-0">
                         ${statusBadge}
-                        <h3 class="text-3xl font-extrabold ${isLive ? 'text-green-400' : 'text-indigo-200'} uppercase leading-tight w-4/5 mb-4">${p.name}</h3>
-                        <div class="grid grid-cols-1 gap-4">
-                            <div class="flex items-center gap-4 bg-slate-900/50 p-3 rounded-xl border border-white/5"><span class="text-2xl">🕒</span><div><p class="text-xs text-slate-400 uppercase font-bold">Masa</p><p class="text-xl text-white font-mono font-semibold uppercase">${timeDisplay}</p></div></div>
-                            <div class="flex items-center gap-4 bg-slate-900/50 p-3 rounded-xl border border-white/5"><span class="text-2xl">📍</span><div><p class="text-xs text-slate-400 uppercase font-bold">Lokasi</p><p class="text-xl text-white font-semibold truncate w-full uppercase">${p.location || '-'}</p></div></div>
-                            <div class="flex items-center gap-4 bg-slate-900/50 p-3 rounded-xl border border-white/5"><span class="text-2xl">👤</span><div><p class="text-xs text-slate-400 uppercase font-bold">Penyelaras</p><p class="text-lg text-indigo-300 font-semibold truncate uppercase">${p.penyelaras_name || '-'}</p></div></div>
+                        <h3 class="text-2xl font-extrabold ${isLive ? 'text-green-400' : 'text-indigo-200'} uppercase leading-none w-4/5 mb-3">${p.name}</h3>
+                        <div class="space-y-2">
+                            <div class="flex items-center gap-3 bg-slate-900/50 p-2 rounded-lg border border-white/5"><span class="text-xl">🕒</span><div><p class="text-[10px] text-slate-400 uppercase font-bold leading-none mb-0.5">Masa</p><p class="text-lg text-white font-mono font-semibold uppercase leading-none">${timeDisplay}</p></div></div>
+                            <div class="flex items-center gap-3 bg-slate-900/50 p-2 rounded-lg border border-white/5"><span class="text-xl">📍</span><div><p class="text-[10px] text-slate-400 uppercase font-bold leading-none mb-0.5">Lokasi</p><p class="text-lg text-white font-semibold truncate w-full uppercase leading-none">${p.location || '-'}</p></div></div>
+                            <div class="flex items-center gap-3 bg-slate-900/50 p-2 rounded-lg border border-white/5"><span class="text-xl">👤</span><div><p class="text-[10px] text-slate-400 uppercase font-bold leading-none mb-0.5">Penyelaras</p><p class="text-base text-indigo-300 font-semibold truncate uppercase leading-none">${p.penyelaras_name || '-'}</p></div></div>
                         </div>
                     </div>`;
                 });
-            } else if (!sal && bday.length === 0) { html = `<div class="h-64 flex flex-col items-center justify-center text-slate-500 border-4 border-dashed border-slate-700 rounded-3xl"><p class="text-2xl uppercase">Tiada aktiviti hari ini</p></div>`; }
+            } else if (!sal && bday.length === 0) { html = `<div class="h-40 flex flex-col items-center justify-center text-slate-500 border-2 border-dashed border-slate-700 rounded-xl"><p class="text-lg uppercase">Tiada aktiviti hari ini</p></div>`; }
             
             container.innerHTML = html;
+            
+            // Auto Scroll Logic - Diperbaiki untuk TV
             if (scrollInterval) cancelAnimationFrame(scrollInterval);
             const wrapper = document.getElementById('scroller-container');
-            if (container.scrollHeight > wrapper.clientHeight) {
-                container.innerHTML += `<div class="py-8"></div>` + html; 
+            const content = document.getElementById('scroller-content');
+            
+            // Hanya scroll jika content lebih panjang dari container
+            if (content.offsetHeight > wrapper.offsetHeight) {
+                container.innerHTML += `<div class="py-4"></div>` + html; // Duplicate for smooth loop
                 let pos = 0;
-                function step() { pos -= CONFIG.scrollSpeed; if (Math.abs(pos) >= (container.scrollHeight / 2)) pos = 0; container.style.transform = `translateY(${pos}px)`; scrollInterval = requestAnimationFrame(step); }
+                function step() { 
+                    pos -= CONFIG.scrollSpeed; 
+                    if (Math.abs(pos) >= (content.offsetHeight + 16)) pos = 0; // +16 for padding
+                    container.style.transform = `translateY(${pos}px)`; 
+                    scrollInterval = requestAnimationFrame(step); 
+                }
                 step();
             } else { container.style.transform = 'translateY(0)'; }
         }
 
-        // --- RENDER GRID (WITH MARQUEE) ---
         function renderCalendarGrid() {
             const grid = document.getElementById('calendar-grid'); grid.innerHTML = '';
             const today = new Date(); const daysToShow = CONFIG.gridColumns * CONFIG.gridRows; 
@@ -229,30 +318,41 @@
                 const d = new Date(today); d.setDate(today.getDate() + i);
                 const { prog, bday, sal } = getEvents(d); const isToday = i === 0;
                 let contentHtml = '';
-                if (sal) contentHtml += `<div class="bg-green-600 text-white text-xs px-2 py-1 rounded font-bold mb-2 text-center uppercase tracking-wide shadow-md truncate">💰 ${sal.title}</div>`;
-                if (bday.length > 0) contentHtml += `<div class="bg-pink-600 text-white text-xs px-2 py-1 rounded font-bold mb-2 text-center uppercase tracking-wide shadow-md truncate">🎂 ${bday.map(b => b.name).join(', ')}</div>`;
+                
+                if (sal) contentHtml += `<div class="bg-green-600 text-white text-[10px] px-1.5 py-0.5 rounded font-bold mb-1.5 text-center uppercase tracking-wide shadow-md truncate">💰 ${sal.title}</div>`;
+                if (bday.length > 0) contentHtml += `<div class="bg-pink-600 text-white text-[10px] px-1.5 py-0.5 rounded font-bold mb-1.5 text-center uppercase tracking-wide shadow-md truncate">🎂 ${bday.map(b => b.name).join(', ')}</div>`;
                 
                 if (prog.length > 0) {
-                    contentHtml += `<div class="space-y-2 mt-2 flex-grow overflow-hidden">`;
+                    contentHtml += `<div class="space-y-1.5 mt-1 flex-grow overflow-hidden flex flex-col">`;
                     prog.slice(0, 3).forEach(p => {
                         contentHtml += `
-                        <div class="flex flex-col bg-slate-800/80 p-3 rounded-lg border border-slate-700">
-                            <span class="font-mono text-yellow-400 text-xs font-bold mb-0.5">${p.startTime ? formatTime(p.startTime) : 'SEPANJANG HARI'}</span>
-                            
-                            <div class="marquee-wrapper w-full">
+                        <div class="flex flex-col bg-slate-800/80 p-2 rounded-lg border border-slate-700 shrink-0">
+                            <span class="font-mono text-yellow-400 text-[10px] font-bold mb-0.5">${p.startTime ? formatTime(p.startTime) : 'SEPANJANG HARI'}</span>
+                            <div class="marquee-wrapper w-full mb-0.5">
                                 <span class="marquee-content ${CONFIG.gridFontSize} font-extrabold text-white leading-tight uppercase">
-                                    ${p.name} &nbsp;&nbsp;&nbsp;&nbsp; </span>
+                                    ${p.name} &nbsp;&nbsp;&nbsp;&nbsp;
+                                </span>
                             </div>
-
-                            <div class="flex items-center gap-1 text-slate-400 text-xs uppercase truncate mb-1"><span class="text-red-400">📍</span> ${p.location || '-'}</div>
-                            <div class="flex items-center gap-1 text-indigo-300 text-xs uppercase font-bold truncate bg-slate-900/50 p-1 rounded">👤 ${p.penyelaras_name || '-'}</div>
+                            <div class="flex items-center gap-1 text-slate-400 text-[10px] uppercase truncate"><span class="text-red-400">📍</span> ${p.location || '-'}</div>
+                            <div class="flex items-center gap-1 text-indigo-300 text-[10px] uppercase font-bold truncate mt-0.5">👤 ${p.penyelaras_name || '-'}</div>
                         </div>`;
                     });
-                    if (prog.length > 3) contentHtml += `<div class="text-xs text-slate-500 text-center italic uppercase">+ ${prog.length - 3} LAGI...</div>`;
+                    if (prog.length > 3) contentHtml += `<div class="text-[10px] text-slate-500 text-center italic uppercase mt-auto">+ ${prog.length - 3} LAGI...</div>`;
                     contentHtml += `</div>`;
                 } else if (!sal && bday.length === 0) { contentHtml += `<div class="flex-grow flex items-center justify-center"><span class="text-slate-700 text-4xl opacity-30 font-bold">-</span></div>`; }
-                const card = document.createElement('div'); card.className = `cal-day-card p-4 ${isToday ? 'is-today' : ''}`;
-                card.innerHTML = `<div class="flex justify-between items-start border-b ${isToday ? 'border-indigo-500' : 'border-slate-700'} pb-2 mb-2 bg-slate-900/40 -mx-4 -mt-4 p-4"><div><span class="block text-sm uppercase ${isToday ? 'text-yellow-400' : 'text-indigo-400'} font-extrabold tracking-widest">${d.toLocaleDateString('ms-MY', { weekday: 'long' })}</span><span class="block text-xs uppercase text-slate-500 font-bold">${d.toLocaleDateString('ms-MY', { month: 'long', year: 'numeric' })}</span></div><span class="text-5xl font-black ${isToday ? 'text-white' : 'text-slate-600'} leading-none">${d.getDate()}</span></div><div class="px-1 flex flex-col h-full">${contentHtml}</div>`;
+                
+                const card = document.createElement('div'); card.className = `cal-day-card p-3 ${isToday ? 'is-today' : ''}`;
+                // HEADER TARIKH LEBIH COMPACT
+                card.innerHTML = `
+                    <div class="flex justify-between items-center border-b ${isToday ? 'border-indigo-500' : 'border-slate-700'} pb-1 mb-1 bg-slate-900/40 -mx-3 -mt-3 p-3 shrink-0">
+                        <div class="leading-none">
+                             <span class="block text-xs uppercase ${isToday ? 'text-yellow-400' : 'text-indigo-400'} font-extrabold tracking-widest">${d.toLocaleDateString('ms-MY', { weekday: 'short' })}</span>
+                             <span class="block text-[10px] uppercase text-slate-500 font-bold">${d.toLocaleDateString('ms-MY', { month: 'short' })}</span>
+                        </div>
+                        <span class="text-4xl font-black ${isToday ? 'text-white' : 'text-slate-600'} leading-none">${d.getDate()}</span>
+                    </div>
+                    <div class="px-0 flex flex-col h-full overflow-hidden">${contentHtml}</div>
+                `;
                 grid.appendChild(card);
             }
         }
