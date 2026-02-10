@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SPARK TV - Live Control</title>
+    <title>SPARK TV - Final Display</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&display=swap" rel="stylesheet">
     <style>
@@ -16,6 +16,20 @@
         .cal-day-card { background: rgba(51, 65, 85, 0.4); border-radius: 1rem; border: 1px solid rgba(255,255,255,0.1); display: flex; flex-direction: column; overflow: hidden; position: relative; }
         .cal-day-card.is-today { background: linear-gradient(135deg, rgba(79, 70, 229, 0.3) 0%, rgba(30, 41, 59, 0.9) 100%); border: 2px solid #6366f1; }
 
+        /* --- MARQUEE (TEKS BERGERAK) --- */
+        .marquee-wrapper {
+            overflow: hidden;
+            white-space: nowrap;
+            position: relative;
+            mask-image: linear-gradient(to right, transparent, black 5%, black 95%, transparent);
+        }
+        .marquee-content {
+            display: inline-block;
+            padding-left: 0;
+            animation: marquee 15s linear infinite; /* Kelajuan gerak nama program */
+        }
+        @keyframes marquee { 0% { transform: translateX(0); } 100% { transform: translateX(-100%); } }
+
         /* --- LIVE BADGE --- */
         .live-badge { animation: live-pulse 2s infinite; }
         @keyframes live-pulse { 0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(34, 197, 94, 0); } 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); } }
@@ -24,7 +38,6 @@
         #scroller-container { overflow: hidden; position: relative; mask-image: linear-gradient(to bottom, transparent, black 5%, black 95%, transparent); }
         .neon-text { text-shadow: 0 0 20px rgba(99, 102, 241, 0.6); }
         .no-scrollbar::-webkit-scrollbar { display: none; }
-        .force-caps { text-transform: uppercase !important; }
     </style>
 </head>
 <body class="h-screen flex flex-col relative bg-slate-900">
@@ -93,7 +106,7 @@
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, onSnapshot, query, orderBy, doc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // DEFAULT CONFIG (Dipakai jika belum ada data dari controller)
+        // DEFAULT CONFIG
         let CONFIG = { gridColumns: 3, gridRows: 1, gridFontSize: 'text-xl', scrollSpeed: 0.5 };
 
         const firebaseConfig = { apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM", authDomain: "myqrhadir.firebaseapp.com", projectId: "myqrhadir", storageBucket: "myqrhadir.appspot.com", messagingSenderId: "799691133747", appId: "1:799691133747:web:835a5e3e9413eace806446" };
@@ -105,7 +118,6 @@
         let allPrograms = [], allBirthdays = [], allSalaryDates = [];
         let scrollInterval;
 
-        // QR Code
         const baseUrl = window.location.href.substring(0, window.location.href.lastIndexOf('/')) + '/index.html';
         document.getElementById('qr-image').src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(baseUrl)}`;
 
@@ -114,15 +126,13 @@
             else await signInAnonymously(auth);
         });
 
-        // LISTEN SETTINGS DARI TVOPTION.HTML
+        // PEMBETULAN: Tambah '/main' di sini juga
         function listenSettings() {
-            const settingsRef = doc(db, `artifacts/${appId}/public/data/tv_settings`);
+            const settingsRef = doc(db, `artifacts/${appId}/public/data/tv_settings/main`);
             onSnapshot(settingsRef, (doc) => {
                 if (doc.exists()) {
-                    const data = doc.data();
-                    CONFIG = { ...CONFIG, ...data }; // Merge data
-                    applyGridSettings();
-                    refreshUI(); // Re-render dengan setting baru
+                    CONFIG = { ...CONFIG, ...doc.data() };
+                    applyGridSettings(); refreshUI();
                 }
             });
         }
@@ -152,10 +162,7 @@
             onSnapshot(query(collection(db, `artifacts/${appId}/public/data/spark_salary`), orderBy("date", "asc")), (snap) => { allSalaryDates = snap.docs.map(d => d.data()); refreshUI(); });
         }
 
-        function refreshUI() {
-            renderTodayPanel();
-            renderCalendarGrid();
-        }
+        function refreshUI() { renderTodayPanel(); renderCalendarGrid(); }
 
         const parseDate = (str) => { const p = str.split('-'); return new Date(p[0], p[1]-1, p[2]); };
         const formatTime = (t) => { if(!t) return ''; const [h,m] = t.split(':'); const hr = parseInt(h); return `${hr%12||12}:${m}${hr>=12?'pm':'am'}`; };
@@ -214,6 +221,7 @@
             } else { container.style.transform = 'translateY(0)'; }
         }
 
+        // --- RENDER GRID (WITH MARQUEE) ---
         function renderCalendarGrid() {
             const grid = document.getElementById('calendar-grid'); grid.innerHTML = '';
             const today = new Date(); const daysToShow = CONFIG.gridColumns * CONFIG.gridRows; 
@@ -222,14 +230,20 @@
                 const { prog, bday, sal } = getEvents(d); const isToday = i === 0;
                 let contentHtml = '';
                 if (sal) contentHtml += `<div class="bg-green-600 text-white text-xs px-2 py-1 rounded font-bold mb-2 text-center uppercase tracking-wide shadow-md truncate">💰 ${sal.title}</div>`;
-                if (bday.length > 0) contentHtml += `<div class="bg-pink-600 text-white text-xs px-2 py-1 rounded font-bold mb-2 text-center uppercase tracking-wide shadow-md truncate">🎂 HARI JADI: ${bday.map(b => b.name).join(', ')}</div>`;
+                if (bday.length > 0) contentHtml += `<div class="bg-pink-600 text-white text-xs px-2 py-1 rounded font-bold mb-2 text-center uppercase tracking-wide shadow-md truncate">🎂 ${bday.map(b => b.name).join(', ')}</div>`;
+                
                 if (prog.length > 0) {
                     contentHtml += `<div class="space-y-2 mt-2 flex-grow overflow-hidden">`;
                     prog.slice(0, 3).forEach(p => {
                         contentHtml += `
                         <div class="flex flex-col bg-slate-800/80 p-3 rounded-lg border border-slate-700">
                             <span class="font-mono text-yellow-400 text-xs font-bold mb-0.5">${p.startTime ? formatTime(p.startTime) : 'SEPANJANG HARI'}</span>
-                            <span class="${CONFIG.gridFontSize} font-extrabold text-white leading-tight mb-1 uppercase truncate line-clamp-2">${p.name}</span>
+                            
+                            <div class="marquee-wrapper w-full">
+                                <span class="marquee-content ${CONFIG.gridFontSize} font-extrabold text-white leading-tight uppercase">
+                                    ${p.name} &nbsp;&nbsp;&nbsp;&nbsp; </span>
+                            </div>
+
                             <div class="flex items-center gap-1 text-slate-400 text-xs uppercase truncate mb-1"><span class="text-red-400">📍</span> ${p.location || '-'}</div>
                             <div class="flex items-center gap-1 text-indigo-300 text-xs uppercase font-bold truncate bg-slate-900/50 p-1 rounded">👤 ${p.penyelaras_name || '-'}</div>
                         </div>`;
