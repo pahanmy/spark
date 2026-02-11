@@ -21,10 +21,18 @@
         #calendar-grid { display: grid; gap: 1rem; height: 100%; width: 100%; grid-template-columns: repeat(3, 1fr); grid-template-rows: 1fr; }
         .cal-day-card { background: rgba(51, 65, 85, 0.4); border-radius: 1rem; border: 1px solid rgba(255,255,255,0.08); display: flex; flex-direction: column; overflow: hidden; position: relative; }
         
-        /* --- MARQUEE (SLOW) --- */
-        .marquee-wrapper { overflow: hidden; white-space: nowrap; position: relative; mask-image: linear-gradient(to right, transparent, black 5%, black 95%, transparent); }
-        .marquee-content { display: inline-block; padding-left: 0; animation: marquee 25s linear infinite; }
-        @keyframes marquee { 0% { transform: translateX(0); } 100% { transform: translateX(-100%); } }
+        /* --- MARQUEE (TEKS BERGERAK) --- */
+        /* Kita guna mask-image supaya teks pudar di kiri kanan */
+        .marquee-wrapper { overflow: hidden; white-space: nowrap; position: relative; mask-image: linear-gradient(to right, transparent, black 5%, black 95%, transparent); display: flex; align-items: center; }
+        .marquee-content { display: inline-block; padding-left: 0; animation: marquee 15s linear infinite; white-space: nowrap; }
+        /* Jika teks pendek, jangan gerak */
+        .marquee-wrapper:not(:hover) .marquee-content { min-width: 100%; }
+        
+        @keyframes marquee { 
+            0% { transform: translateX(0); } 
+            15% { transform: translateX(0); } /* Pause sekejap di awal */
+            100% { transform: translateX(-100%); } 
+        }
 
         /* --- UTILS --- */
         #scroller-container { overflow: hidden; position: relative; flex-grow: 1; }
@@ -121,7 +129,7 @@
         let scrollInterval;
         
         // QR Code Setup
-        const baseUrl = window.location.href.substring(0, window.location.href.lastIndexOf('/')) + '/jadualuser.html'; // Point to user calendar
+        const baseUrl = window.location.href.substring(0, window.location.href.lastIndexOf('/')) + '/jadualuser.html'; 
         document.getElementById('qr-image').src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(baseUrl)}`;
 
         onAuthStateChanged(auth, async (user) => { if (user) { startClock(); listenSettings(); listenData(); } else await signInAnonymously(auth); });
@@ -150,22 +158,10 @@
         }
 
         function listenData() {
-            // 1. Program Rasmi
-            onSnapshot(query(collection(db, `artifacts/${appId}/public/data/spark_programs`), orderBy("startDate", "asc")), (snap) => { 
-                allPrograms = snap.docs.map(d => d.data()); refreshUI(); 
-            });
-            // 2. Birthday
-            onSnapshot(query(collection(db, `artifacts/${appId}/public/data/spark_birthdays`), orderBy("dob", "asc")), (snap) => { 
-                allBirthdays = snap.docs.map(d => d.data()); refreshUI(); 
-            });
-            // 3. Gaji
-            onSnapshot(query(collection(db, `artifacts/${appId}/public/data/spark_salary`), orderBy("date", "asc")), (snap) => { 
-                allSalaryDates = snap.docs.map(d => d.data()); refreshUI(); 
-            });
-            // 4. Planner (Umum) - NEW
-            onSnapshot(query(collection(db, `artifacts/${appId}/public/data/spark_planner`), where("isPublic", "==", true)), (snap) => {
-                allPlanner = snap.docs.map(d => d.data()); refreshUI();
-            });
+            onSnapshot(query(collection(db, `artifacts/${appId}/public/data/spark_programs`), orderBy("startDate", "asc")), (snap) => { allPrograms = snap.docs.map(d => d.data()); refreshUI(); });
+            onSnapshot(query(collection(db, `artifacts/${appId}/public/data/spark_birthdays`), orderBy("dob", "asc")), (snap) => { allBirthdays = snap.docs.map(d => d.data()); refreshUI(); });
+            onSnapshot(query(collection(db, `artifacts/${appId}/public/data/spark_salary`), orderBy("date", "asc")), (snap) => { allSalaryDates = snap.docs.map(d => d.data()); refreshUI(); });
+            onSnapshot(query(collection(db, `artifacts/${appId}/public/data/spark_planner`), where("isPublic", "==", true)), (snap) => { allPlanner = snap.docs.map(d => d.data()); refreshUI(); });
         }
         
         function refreshUI() { renderTodayPanel(); renderCalendarGrid(); }
@@ -176,29 +172,21 @@
         function getEvents(date) {
             const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
             
-            // Filter Rasmi
             const prog = allPrograms.filter(p => {
                 if(['Batal','Ditolak','Gagal'].includes(p.status || p.approvalStatus)) return false;
                 const s = parseDate(p.startDate), e = p.endDate ? parseDate(p.endDate) : s;
                 return d >= s && d <= e;
-            }).map(item => ({ ...item, type: 'rasmi' })); // Tag as rasmi
+            }).map(item => ({ ...item, type: 'rasmi' }));
 
-            // Filter Umum (Planner)
             const plan = allPlanner.filter(p => {
                 const s = parseDate(p.startDate), e = (p.endDate && !p.isOneDay) ? parseDate(p.endDate) : s;
                 return d >= s && d <= e;
-            }).map(item => ({ ...item, type: 'umum', name: item.title, penyelaras_name: item.participants })); // Normalize fields
+            }).map(item => ({ ...item, type: 'umum', name: item.title, penyelaras_name: item.participants }));
 
-            // Filter Birthday
             const bday = allBirthdays.filter(b => b.dob && parseInt(b.dob.split('-')[1]) === d.getMonth()+1 && parseInt(b.dob.split('-')[2]) === d.getDate());
-            
-            // Filter Salary
             const sal = allSalaryDates.find(s => s.date === `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`);
             
-            // Combine Program & Planner
-            const combinedEvents = [...prog, ...plan].sort((a,b) => {
-                return (a.startTime || '00:00').localeCompare(b.startTime || '00:00');
-            });
+            const combinedEvents = [...prog, ...plan].sort((a,b) => (a.startTime || '00:00').localeCompare(b.startTime || '00:00'));
 
             return { events: combinedEvents, bday, sal };
         }
@@ -208,36 +196,16 @@
             const { events, bday, sal } = getEvents(new Date());
             let html = '';
             
-            // 1. Gaji (Amber/Gold Theme)
-            if (sal) html += `
-                <div class="bg-gradient-to-r from-amber-600 to-yellow-600 p-4 rounded-xl shadow-lg border-l-4 border-yellow-300 mb-4 shrink-0">
-                    <h3 class="text-2xl font-extrabold text-white uppercase flex items-center gap-2">💰 HARI GAJI</h3>
-                    <div class="marquee-wrapper w-full mt-1">
-                        <span class="marquee-content text-sm text-yellow-100 uppercase font-bold">${sal.title} &nbsp;&nbsp;&nbsp;&nbsp;</span>
-                    </div>
-                </div>`;
-            
-            // 2. Birthday (Pink Theme)
-            if (bday.length > 0) html += `
-                <div class="bg-gradient-to-r from-pink-600 to-rose-600 p-4 rounded-xl shadow-lg border-l-4 border-pink-300 mb-4 shrink-0">
-                    <h3 class="text-xl font-bold text-white uppercase mb-1 flex items-center gap-2">🎂 Happy Birthday</h3>
-                    <div class="marquee-wrapper w-full">
-                        <span class="marquee-content text-lg text-white font-semibold uppercase leading-tight">${bday.map(b => b.name).join(', ')} &nbsp;&nbsp;&nbsp;&nbsp;</span>
-                    </div>
-                </div>`;
+            if (sal) html += `<div class="bg-gradient-to-r from-amber-600 to-yellow-600 p-4 rounded-xl shadow-lg border-l-4 border-yellow-300 mb-4 shrink-0"><h3 class="text-2xl font-extrabold text-white uppercase flex items-center gap-2">💰 HARI GAJI</h3><div class="marquee-wrapper w-full mt-1"><span class="marquee-content text-sm text-yellow-100 uppercase font-bold">${sal.title} &nbsp;&nbsp;&nbsp;&nbsp;</span></div></div>`;
+            if (bday.length > 0) html += `<div class="bg-gradient-to-r from-pink-600 to-rose-600 p-4 rounded-xl shadow-lg border-l-4 border-pink-300 mb-4 shrink-0"><h3 class="text-xl font-bold text-white uppercase mb-1 flex items-center gap-2">🎂 Happy Birthday</h3><div class="marquee-wrapper w-full"><span class="marquee-content text-lg text-white font-semibold uppercase leading-tight">${bday.map(b => b.name).join(', ')} &nbsp;&nbsp;&nbsp;&nbsp;</span></div></div>`;
 
-            // 3. Events (Rasmi & Umum)
             if (events.length > 0) {
                 const now = new Date(); const currentTimeVal = now.getHours() * 60 + now.getMinutes();
                 events.forEach(p => {
                     let timeDisplay = "", isLive = false, statusBadge = "";
                     let borderColor = p.type === 'rasmi' ? 'border-indigo-500' : 'border-emerald-500';
-                    let bgColor = p.type === 'rasmi' ? 'bg-slate-800' : 'bg-slate-800'; // Keep base dark, use accents
                     let titleColor = p.type === 'rasmi' ? 'text-indigo-200' : 'text-emerald-200';
-                    let iconColor = p.type === 'rasmi' ? 'text-indigo-400' : 'text-emerald-400';
-                    let typeBadge = p.type === 'rasmi' 
-                        ? `<span class="bg-indigo-900 text-indigo-300 text-[9px] px-1.5 py-0.5 rounded uppercase font-bold border border-indigo-700">Rasmi</span>`
-                        : `<span class="bg-emerald-900 text-emerald-300 text-[9px] px-1.5 py-0.5 rounded uppercase font-bold border border-emerald-700">Umum</span>`;
+                    let typeBadge = p.type === 'rasmi' ? `<span class="bg-indigo-900 text-indigo-300 text-[9px] px-1.5 py-0.5 rounded uppercase font-bold border border-indigo-700">Rasmi</span>` : `<span class="bg-emerald-900 text-emerald-300 text-[9px] px-1.5 py-0.5 rounded uppercase font-bold border border-emerald-700">Umum</span>`;
 
                     if (p.startTime) {
                         const [sh, sm] = p.startTime.split(':'); const startVal = parseInt(sh) * 60 + parseInt(sm);
@@ -248,16 +216,34 @@
                     } else { timeDisplay = "SEPANJANG HARI"; }
 
                     html += `
-                    <div class="${bgColor} border-l-4 ${borderColor} rounded-r-xl p-4 shadow-md relative overflow-hidden mb-3 shrink-0">
+                    <div class="bg-slate-800 border-l-4 ${borderColor} rounded-r-xl p-4 shadow-md relative overflow-hidden mb-3 shrink-0">
                         ${statusBadge}
-                        <div class="flex items-center gap-2 mb-2">
-                            ${typeBadge}
+                        <div class="flex items-center gap-2 mb-2">${typeBadge}</div>
+                        <div class="marquee-wrapper w-4/5 mb-3">
+                            <h3 class="marquee-content text-2xl font-extrabold ${isLive ? 'text-green-400' : titleColor} uppercase leading-none">${p.name} &nbsp;&nbsp;&nbsp;</h3>
                         </div>
-                        <h3 class="text-2xl font-extrabold ${isLive ? 'text-green-400' : titleColor} uppercase leading-none w-4/5 mb-3">${p.name}</h3>
                         <div class="space-y-2">
                             <div class="flex items-center gap-3 bg-slate-900/50 p-2 rounded-lg border border-white/5"><span class="text-xl">🕒</span><div><p class="text-[10px] text-slate-400 uppercase font-bold leading-none mb-0.5">Masa</p><p class="text-lg text-white font-mono font-semibold uppercase leading-none">${timeDisplay}</p></div></div>
-                            <div class="flex items-center gap-3 bg-slate-900/50 p-2 rounded-lg border border-white/5"><span class="text-xl">📍</span><div><p class="text-[10px] text-slate-400 uppercase font-bold leading-none mb-0.5">Lokasi</p><p class="text-lg text-white font-semibold truncate w-full uppercase leading-none">${p.location || '-'}</p></div></div>
-                            <div class="flex items-center gap-3 bg-slate-900/50 p-2 rounded-lg border border-white/5"><span class="text-xl">👤</span><div><p class="text-[10px] text-slate-400 uppercase font-bold leading-none mb-0.5">${p.type === 'rasmi' ? 'Penyelaras' : 'Terlibat'}</p><p class="text-base ${iconColor} font-semibold truncate uppercase leading-none">${p.penyelaras_name || '-'}</p></div></div>
+                            
+                            <div class="flex items-center gap-3 bg-slate-900/50 p-2 rounded-lg border border-white/5">
+                                <span class="text-xl">📍</span>
+                                <div class="overflow-hidden w-full">
+                                    <p class="text-[10px] text-slate-400 uppercase font-bold leading-none mb-0.5">Lokasi</p>
+                                    <div class="marquee-wrapper w-full">
+                                        <p class="marquee-content text-lg text-white font-semibold uppercase leading-none">${p.location || '-'} &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                             <div class="flex items-center gap-3 bg-slate-900/50 p-2 rounded-lg border border-white/5">
+                                <span class="text-xl">👤</span>
+                                <div class="overflow-hidden w-full">
+                                    <p class="text-[10px] text-slate-400 uppercase font-bold leading-none mb-0.5">${p.type === 'rasmi' ? 'Penyelaras' : 'Terlibat'}</p>
+                                    <div class="marquee-wrapper w-full">
+                                        <p class="marquee-content text-base ${p.type === 'rasmi' ? 'text-indigo-400' : 'text-emerald-400'} font-semibold uppercase leading-none">${p.penyelaras_name || '-'} &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</p>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>`;
                 });
@@ -268,7 +254,6 @@
             if (scrollInterval) cancelAnimationFrame(scrollInterval);
             const wrapper = document.getElementById('scroller-container');
             const content = document.getElementById('scroller-content');
-            
             if (content.offsetHeight > wrapper.offsetHeight) {
                 container.innerHTML += `<div class="py-4"></div>` + html; 
                 let pos = 0;
@@ -282,6 +267,7 @@
             } else { container.style.transform = 'translateY(0)'; }
         }
 
+        // --- GRID RENDERING WITH FULL SCROLLING TEXT ---
         function renderCalendarGrid() {
             const grid = document.getElementById('calendar-grid'); grid.innerHTML = '';
             const today = new Date(); const daysToShow = CONFIG.gridColumns * CONFIG.gridRows; 
@@ -292,7 +278,6 @@
                 const { events, bday, sal } = getEvents(d); 
                 let contentHtml = '';
                 
-                // Gaji Badge (Amber)
                 if (sal) {
                     contentHtml += `
                     <div class="bg-amber-600 text-white p-2 rounded-lg shadow-md mb-2 shrink-0 border border-amber-400">
@@ -301,7 +286,6 @@
                     </div>`;
                 }
 
-                // Birthday Badge (Pink)
                 if (bday.length > 0) {
                      contentHtml += `
                      <div class="bg-pink-600 text-white p-2 rounded-lg shadow-md mb-2 shrink-0 border border-pink-400">
@@ -310,9 +294,9 @@
                      </div>`;
                 }
                 
-                // Events (Mixed)
                 if (events.length > 0) {
                     contentHtml += `<div class="space-y-1.5 mt-1 flex-grow overflow-hidden flex flex-col">`;
+                    // Hanya tunjuk 3 acara terawal, tapi dengan teks penuh bergerak
                     events.slice(0, 3).forEach(p => {
                         const isRasmi = p.type === 'rasmi';
                         const cardBg = isRasmi ? 'bg-indigo-900/40 border-indigo-500/30' : 'bg-emerald-900/40 border-emerald-500/30';
@@ -324,12 +308,26 @@
                                 <span class="font-mono text-slate-400 text-[10px] font-bold">${p.startTime ? formatTime(p.startTime) : 'SEPANJANG HARI'}</span>
                                 <div class="${dotColor} w-1.5 h-1.5 rounded-full"></div>
                             </div>
+                            
                             <div class="marquee-wrapper w-full mb-0.5">
                                 <span class="marquee-content ${CONFIG.gridFontSize} font-extrabold text-white leading-tight uppercase">
                                     ${p.name} &nbsp;&nbsp;&nbsp;&nbsp;
                                 </span>
                             </div>
-                            <div class="flex items-center gap-1 text-slate-400 text-[10px] uppercase truncate"><span class="text-slate-500">📍</span> ${p.location || '-'}</div>
+
+                            <div class="flex items-center gap-1 text-slate-400 text-[10px] uppercase w-full overflow-hidden">
+                                <span class="text-slate-500 shrink-0">📍</span> 
+                                <div class="marquee-wrapper w-full">
+                                    <span class="marquee-content">${p.location || '-'} &nbsp;&nbsp;&nbsp;&nbsp;</span>
+                                </div>
+                            </div>
+
+                            <div class="flex items-center gap-1 text-slate-400 text-[10px] uppercase w-full overflow-hidden mt-0.5">
+                                <span class="text-slate-500 shrink-0">👤</span> 
+                                <div class="marquee-wrapper w-full">
+                                    <span class="marquee-content font-bold ${isRasmi ? 'text-indigo-300' : 'text-emerald-300'}">${p.penyelaras_name || '-'} &nbsp;&nbsp;&nbsp;&nbsp;</span>
+                                </div>
+                            </div>
                         </div>`;
                     });
                     if (events.length > 3) contentHtml += `<div class="text-[10px] text-slate-500 text-center italic uppercase mt-auto">+ ${events.length - 3} LAGI...</div>`;
