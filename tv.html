@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SPARK TV - Compact</title>
+    <title>SPARK TV - Auto Carousel</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&display=swap" rel="stylesheet">
     <style>
@@ -38,39 +38,52 @@
         .scroller-container { overflow: hidden; position: relative; flex-grow: 1; mask-image: linear-gradient(to bottom, transparent, black 5%, black 95%, transparent); }
         .scroller-content { position: absolute; width: 100%; }
 
-        /* --- STATIC GRID (RIGHT) --- */
-        .static-container { 
-            overflow-y: auto; flex-grow: 1; padding: 1rem;
-            scrollbar-width: none; -ms-overflow-style: none;
+        /* --- CAROUSEL (RIGHT) --- */
+        .carousel-container {
+            flex-grow: 1; padding: 1.5rem;
+            display: flex; flex-direction: column;
+            opacity: 1; transition: opacity 0.5s ease-in-out; /* Animasi Fade */
         }
-        .static-container::-webkit-scrollbar { display: none; }
+        .carousel-container.fade-out { opacity: 0; }
         
-        .cards-grid {
+        /* Grid Dalam Hari (Jika ada banyak program satu hari, susun grid) */
+        .day-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr); /* 2 Kolum */
-            gap: 0.75rem; /* Jarak lebih rapat */
+            gap: 0.75rem; 
             align-content: start;
+            height: 100%;
+            overflow-y: auto;
         }
+        /* Hide scrollbar */
+        .day-grid::-webkit-scrollbar { display: none; }
 
         /* --- TEXT EFFECTS --- */
         .neon-text { text-shadow: 0 0 25px rgba(99, 102, 241, 0.6); }
         
         /* --- COMPACT CARD STYLES --- */
         .card-base {
-            position: relative; border-radius: 0.75rem; padding: 0.75rem; /* Padding kecil */
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1);
-            height: 100%; display: flex; flex-direction: column; justify-content: center;
+            position: relative; border-radius: 0.75rem; padding: 0.75rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1);
         }
         .card-rasmi { background: linear-gradient(145deg, rgba(30, 58, 138, 0.9), rgba(23, 37, 84, 0.95)); border-left: 4px solid #60a5fa; }
         .card-umum { background: linear-gradient(145deg, rgba(6, 78, 59, 0.9), rgba(2, 44, 34, 0.95)); border-left: 4px solid #34d399; }
 
-        /* --- DATE HEADER COMPACT --- */
+        /* --- DATE HEADER --- */
         .date-header-bar {
             grid-column: span 2;
             background: linear-gradient(90deg, #4f46e5 0%, rgba(79, 70, 229, 0) 100%);
-            padding: 0.4rem 0.75rem; /* Lebih nipis */
-            border-radius: 0.5rem; margin-top: 0.75rem; margin-bottom: 0.25rem;
-            border-left: 4px solid white; display: flex; align-items: center; gap: 0.75rem;
+            padding: 0.5rem 1rem; border-radius: 0.5rem; margin-bottom: 1rem;
+            border-left: 4px solid white; display: flex; align-items: center; gap: 1rem;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+        
+        /* Progress Bar 10 saat */
+        .progress-bar {
+            height: 3px; background: rgba(255,255,255,0.2); width: 100%; position: absolute; bottom: 0; left: 0;
+        }
+        .progress-fill {
+            height: 100%; background: #6366f1; width: 0%; transition: width 10s linear;
         }
     </style>
 </head>
@@ -113,11 +126,11 @@
             </div>
         </aside>
 
-        <main class="panel-right glass-panel">
+        <main class="panel-right glass-panel relative">
             <div class="p-4 bg-slate-900/40 border-b border-white/10 flex justify-between items-center shrink-0 z-10">
                 <div class="flex items-center gap-3">
                     <h2 class="text-lg font-bold text-white uppercase">Akan Datang</h2>
-                    <span class="bg-indigo-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded border border-indigo-400">2 HARI</span>
+                    <span id="page-indicator" class="bg-indigo-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded border border-indigo-400">AUTO</span>
                 </div>
                 <div class="flex gap-2">
                     <div class="flex items-center gap-1.5 bg-slate-800/80 px-2 py-1 rounded border border-slate-600">
@@ -129,10 +142,10 @@
                 </div>
             </div>
             
-            <div class="static-container">
-                <div id="right-content" class="cards-grid">
-                    </div>
-            </div>
+            <div id="carousel-view" class="carousel-container">
+                </div>
+
+            <div class="progress-bar"><div id="progress-fill" class="progress-fill"></div></div>
         </main>
     </div>
 
@@ -158,6 +171,9 @@
 
         let allPrograms = [], allBirthdays = [], allSalaryDates = [], allPlanner = [];
         let leftScrollInterval;
+        let rightCarouselInterval;
+        let upcomingDaysData = []; // Simpan data hari-hari yang ada program
+        let currentDayIndex = 0;
         
         const baseUrl = window.location.href.substring(0, window.location.href.lastIndexOf('/')) + '/jadualuser.html'; 
         document.getElementById('qr-image').src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(baseUrl)}`;
@@ -188,7 +204,10 @@
             onSnapshot(query(collection(db, `artifacts/${appId}/public/data/spark_planner`), where("isPublic", "==", true)), (snap) => { allPlanner = snap.docs.map(d => d.data()); refreshUI(); });
         }
         
-        function refreshUI() { renderLeftPanel(); renderRightPanel(); }
+        function refreshUI() { 
+            renderLeftPanel(); 
+            prepareRightPanelData(); // Proses data dulu
+        }
 
         const parseDate = (str) => { const p = str.split('-'); return new Date(p[0], p[1]-1, p[2]); };
         const formatTime = (t) => { if(!t) return ''; const [h,m] = t.split(':'); const hr = parseInt(h); return `${hr%12||12}:${m}${hr>=12?'pm':'am'}`; };
@@ -210,13 +229,11 @@
             return { events: combinedEvents, bday, sal };
         }
 
-        // --- PANEL KIRI (STANDARD) ---
         function renderLeftPanel() {
             const container = document.getElementById('left-content');
             const wrapper = document.getElementById('left-scroller');
             const { events, bday, sal } = getEvents(new Date());
             
-            // Kiri guna layout standard (sedikit besar) supaya orang fokus
             let html = '';
             if (sal) html += `<div class="bg-gradient-to-r from-amber-600 to-yellow-600 p-3 rounded-lg border-l-4 border-yellow-300 shadow-lg text-white mb-2"><p class="text-[10px] font-bold text-yellow-100 uppercase mb-0.5">INFO GAJI</p><p class="text-xl font-black uppercase leading-none">${sal.title}</p></div>`;
             if (bday.length > 0) html += `<div class="bg-gradient-to-r from-pink-600 to-rose-600 p-3 rounded-lg border-l-4 border-pink-300 shadow-lg text-white mb-2"><p class="text-[10px] font-bold text-pink-100 uppercase mb-0.5">HAPPY BIRTHDAY</p><p class="text-lg font-bold uppercase leading-tight">${bday.map(b => b.name).join(', ')}</p></div>`;
@@ -249,61 +266,121 @@
             initScroll(wrapper, container);
         }
 
-        // --- PANEL KANAN (COMPACT & SMALL) ---
-        function renderRightPanel() {
-            const container = document.getElementById('right-content');
-            let html = '';
+        // --- CAROUSEL LOGIC START ---
+        
+        function prepareRightPanelData() {
+            // Reset Data
+            upcomingDaysData = [];
             const today = new Date();
             
-            for (let i = 1; i <= 2; i++) {
-                const d = new Date(today); 
-                d.setDate(today.getDate() + i); 
-                const { events, bday, sal } = getEvents(d);
-
-                if (events.length > 0 || bday.length > 0 || sal) {
-                    // Header Tarikh Nipis
-                    html += `
-                    <div class="date-header-bar">
-                        <div class="bg-white text-indigo-800 px-1.5 py-0.5 rounded font-black text-lg leading-none min-w-[30px] text-center">${d.getDate()}</div>
-                        <div class="flex items-baseline gap-2">
-                            <span class="text-white font-bold uppercase text-sm leading-none">${d.toLocaleDateString('ms-MY', { weekday: 'long' })}</span>
-                            <span class="text-indigo-200 text-[10px] uppercase font-bold leading-none">${d.toLocaleDateString('ms-MY', { month: 'short' })}</span>
-                        </div>
-                    </div>`;
-
-                    if (sal) html += `<div class="card-base bg-gradient-to-r from-amber-600 to-yellow-600 border-yellow-400 text-white col-span-2 p-2"><div class="flex items-center gap-2"><span class="text-xl">💰</span><span class="text-sm font-bold uppercase truncate">${sal.title}</span></div></div>`;
-                    if (bday.length > 0) html += `<div class="card-base bg-gradient-to-r from-pink-600 to-rose-600 border-pink-400 text-white col-span-2 p-2"><div class="flex items-center gap-2"><span class="text-xl">🎂</span><span class="text-sm font-bold uppercase truncate">${bday.map(b => b.name).join(', ')}</span></div></div>`;
-
-                    events.forEach(p => {
-                        const cardClass = p.type === 'rasmi' ? 'card-rasmi' : 'card-umum';
-                        const labelBg = p.type === 'rasmi' ? 'bg-blue-900 text-blue-200' : 'bg-emerald-900 text-emerald-200';
-                        
-                        // COMPACT CARD STRUCTURE
-                        html += `
-                        <div class="card-base ${cardClass}">
-                            <div class="flex justify-between items-center mb-1">
-                                <span class="${labelBg} text-[8px] px-1.5 py-0.5 rounded font-bold uppercase border border-white/10">${p.type}</span>
-                                <span class="text-[9px] font-mono font-bold text-white/70">${p.startTime ? formatTime(p.startTime) : 'HARI'}</span>
-                            </div>
-                            
-                            <h3 class="text-xs font-bold text-white uppercase leading-tight mb-2 line-clamp-2 h-[2.4em] overflow-hidden">
-                                ${p.name}
-                            </h3>
-
-                            <div class="mt-auto space-y-0.5">
-                                <div class="flex items-center gap-1.5 text-[9px] text-slate-300 font-bold uppercase truncate">
-                                    <span>📍</span> <span class="truncate">${p.location || '-'}</span>
-                                </div>
-                                <div class="flex items-center gap-1.5 text-[9px] text-indigo-200 font-bold uppercase truncate">
-                                    <span>👤</span> <span class="truncate">${p.penyelaras_name || '-'}</span>
-                                </div>
-                            </div>
-                        </div>`;
-                    });
+            // Kumpul data 7 hari ke depan
+            for (let i = 1; i <= 7; i++) {
+                const d = new Date(today);
+                d.setDate(today.getDate() + i);
+                const data = getEvents(d);
+                
+                // Jika hari itu ada sebarang aktiviti, simpan
+                if (data.events.length > 0 || data.bday.length > 0 || data.sal) {
+                    upcomingDaysData.push({ date: d, data: data });
                 }
             }
+
+            // Mula Carousel jika ada data, jika tiada, papar kosong
+            if (upcomingDaysData.length > 0) {
+                // Reset index
+                if (currentDayIndex >= upcomingDaysData.length) currentDayIndex = 0;
+                startCarousel();
+            } else {
+                document.getElementById('carousel-view').innerHTML = `<div class="flex flex-col items-center justify-center h-full text-slate-500"><p class="text-xs uppercase font-bold">Tiada aktiviti minggu ini</p></div>`;
+                document.getElementById('page-indicator').textContent = "0/0";
+            }
+        }
+
+        function startCarousel() {
+            if (rightCarouselInterval) clearInterval(rightCarouselInterval);
             
-            if (html === '') html = `<div class="col-span-2 flex flex-col items-center justify-center h-32 text-slate-500"><p class="text-xs uppercase font-bold">Tiada aktiviti</p></div>`;
+            // Render terus frame pertama
+            renderCarouselFrame();
+
+            // Set interval 10 saat
+            rightCarouselInterval = setInterval(() => {
+                nextSlide();
+            }, 10000); // 10000ms = 10 saat
+        }
+
+        function nextSlide() {
+            const container = document.getElementById('carousel-view');
+            const progress = document.getElementById('progress-fill');
+            
+            // 1. Fade Out
+            container.classList.add('fade-out');
+            progress.style.transition = 'none'; // Reset progress bar
+            progress.style.width = '0%';
+
+            setTimeout(() => {
+                // 2. Ubah Data
+                currentDayIndex++;
+                if (currentDayIndex >= upcomingDaysData.length) currentDayIndex = 0;
+                
+                // 3. Render Baru
+                renderCarouselFrame();
+                
+                // 4. Fade In
+                container.classList.remove('fade-out');
+            }, 500); // Tunggu animasi fade out habis (0.5s)
+        }
+
+        function renderCarouselFrame() {
+            const container = document.getElementById('carousel-view');
+            const dayItem = upcomingDaysData[currentDayIndex];
+            const d = dayItem.date;
+            const { events, bday, sal } = dayItem.data;
+
+            // Update Indicator
+            document.getElementById('page-indicator').textContent = `${currentDayIndex + 1}/${upcomingDaysData.length}`;
+            
+            // Reset Animation Progress Bar
+            const progress = document.getElementById('progress-fill');
+            // Sedikit delay supaya browser register transition reset
+            requestAnimationFrame(() => {
+                progress.style.transition = 'width 10s linear';
+                progress.style.width = '100%';
+            });
+
+            let html = `<div class="day-grid">`;
+            
+            // Header Hari (Full Width)
+            html += `
+            <div class="date-header-bar col-span-2">
+                <div class="bg-white text-indigo-800 px-2 py-0.5 rounded font-black text-xl leading-none min-w-[35px] text-center">${d.getDate()}</div>
+                <div class="flex flex-col">
+                    <span class="text-white font-black uppercase text-xl leading-none tracking-wide">${d.toLocaleDateString('ms-MY', { weekday: 'long' })}</span>
+                    <span class="text-indigo-200 text-xs uppercase font-bold leading-none mt-0.5">${d.toLocaleDateString('ms-MY', { month: 'long', year: 'numeric' })}</span>
+                </div>
+            </div>`;
+
+            if (sal) html += `<div class="card-base bg-gradient-to-r from-amber-600 to-yellow-600 border-yellow-400 text-white col-span-2 p-2"><div class="flex items-center gap-2"><span class="text-xl">💰</span><span class="text-sm font-bold uppercase truncate">${sal.title}</span></div></div>`;
+            if (bday.length > 0) html += `<div class="card-base bg-gradient-to-r from-pink-600 to-rose-600 border-pink-400 text-white col-span-2 p-2"><div class="flex items-center gap-2"><span class="text-xl">🎂</span><span class="text-sm font-bold uppercase truncate">${bday.map(b => b.name).join(', ')}</span></div></div>`;
+
+            events.forEach(p => {
+                const cardClass = p.type === 'rasmi' ? 'card-rasmi' : 'card-umum';
+                const labelBg = p.type === 'rasmi' ? 'bg-blue-900 text-blue-200' : 'bg-emerald-900 text-emerald-200';
+                
+                html += `
+                <div class="card-base ${cardClass}">
+                    <div class="flex justify-between items-center mb-1">
+                        <span class="${labelBg} text-[8px] px-1.5 py-0.5 rounded font-bold uppercase border border-white/10">${p.type}</span>
+                        <span class="text-[9px] font-mono font-bold text-white/70">${p.startTime ? formatTime(p.startTime) : 'HARI'}</span>
+                    </div>
+                    <h3 class="text-xs font-bold text-white uppercase leading-tight mb-2 line-clamp-2 h-[2.4em] overflow-hidden">${p.name}</h3>
+                    <div class="mt-auto space-y-0.5">
+                        <div class="flex items-center gap-1.5 text-[9px] text-slate-300 font-bold uppercase truncate"><span>📍</span> <span class="truncate">${p.location || '-'}</span></div>
+                        <div class="flex items-center gap-1.5 text-[9px] text-indigo-200 font-bold uppercase truncate"><span>👤</span> <span class="truncate">${p.penyelaras_name || '-'}</span></div>
+                    </div>
+                </div>`;
+            });
+
+            html += `</div>`;
             container.innerHTML = html;
         }
 
