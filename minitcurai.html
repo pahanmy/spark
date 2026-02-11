@@ -166,7 +166,18 @@
                     <div class="bg-sky-50 p-4 rounded-xl border border-sky-100 mb-4">
                         <h3 class="text-xs font-bold text-sky-700 uppercase mb-3 border-b border-sky-200 pb-2">Maklumat Mesyuarat</h3>
                         <div class="input-group"><label class="input-label">Tajuk Program</label><textarea id="in-tajuk" rows="2" class="spark-input font-bold uppercase" placeholder="Tajuk..."></textarea></div>
-                        <div class="grid grid-cols-2 gap-3"><div class="input-group"><label class="input-label">Tarikh</label><input type="date" id="in-tarikh" class="spark-input font-semibold"></div><div class="input-group"><label class="input-label">Masa</label><input type="time" id="in-masa" class="spark-input font-semibold"></div></div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="input-group">
+                                <label class="input-label">Tarikh Program</label>
+                                <div class="flex gap-1 items-center">
+                                    <input type="date" id="in-tarikh" class="spark-input font-semibold w-full">
+                                    <span class="text-gray-400 font-bold">-</span>
+                                    <input type="date" id="in-tarikh-akhir" class="spark-input font-semibold w-full" title="Biarkan kosong jika sehari">
+                                </div>
+                                <p class="text-[8px] text-gray-400 mt-1 italic">*Isi petak kedua jika lebih 1 hari.</p>
+                            </div>
+                            <div class="input-group"><label class="input-label">Masa</label><input type="time" id="in-masa" class="spark-input font-semibold"></div>
+                        </div>
                         <div class="input-group"><label class="input-label">Tempat</label><input type="text" id="in-tempat" class="spark-input" placeholder="Contoh: Bilik Gerakan"></div>
                         <div class="input-group"><label class="input-label">Pengerusi / Anjuran</label><input type="text" id="in-anjuran" class="spark-input" placeholder="Contoh: PPD Miri"></div>
                     </div>
@@ -358,6 +369,7 @@
             const ind = document.getElementById('save-indicator');
             const dataToSave = {
                 ic: window.currentUserIc, tajuk: document.getElementById('in-tajuk').value, tarikh: document.getElementById('in-tarikh').value,
+                tarikhAkhir: document.getElementById('in-tarikh-akhir').value,
                 masa: document.getElementById('in-masa').value, tempat: document.getElementById('in-tempat').value, anjuran: document.getElementById('in-anjuran').value,
                 nama: document.getElementById('in-nama').value, jawatan: document.getElementById('in-jawatan').value, speakers: window.speakersData,
                 signatureUrl: document.getElementById('out-sig-img').src, showSignature: document.getElementById('chk-signature').checked,
@@ -395,6 +407,7 @@
             window.currentDocId = id; window.isSessionActive = true; 
             document.getElementById('start-section').classList.add('hidden'); document.getElementById('reset-btn-container').classList.remove('hidden');
             document.getElementById('in-tajuk').value = data.tajuk; document.getElementById('in-tarikh').value = data.tarikh;
+            document.getElementById('in-tarikh-akhir').value = data.tarikhAkhir || "";
             document.getElementById('in-masa').value = data.masa; document.getElementById('in-tempat').value = data.tempat;
             document.getElementById('in-anjuran').value = data.anjuran; document.getElementById('in-nama').value = data.nama;
             document.getElementById('in-jawatan').value = data.jawatan; window.speakersData = data.speakers || [];
@@ -707,11 +720,35 @@
         window.updatePointStatusType = function(i, pi, v) { window.speakersData[i].points[pi].status = v; renderFormFromData(); triggerAutoSave(); updatePreview(); }
         window.updatePointWho = function(i, pi, v) { window.speakersData[i].points[pi].who = v; triggerAutoSave(); updatePreview(); }
         window.removeSubPoint = function(i, pi, si) { window.speakersData[i].points[pi].subs.splice(si, 1); renderFormFromData(); triggerAutoSave(); updatePreview(); }
-        window.clearForm = function(r) { if(confirm("Reset?")) { window.currentDocId = ""; if(r) { document.getElementById('in-tajuk').value = ""; document.getElementById('in-tempat').value = ""; document.getElementById('in-anjuran').value = ""; } window.speakersData = []; addSpeaker(true); updatePreview(); document.getElementById('start-section').classList.remove('hidden'); document.getElementById('reset-btn-container').classList.add('hidden'); document.getElementById('save-indicator').className = ""; document.getElementById('save-indicator').innerHTML = "Menunggu Mula"; document.getElementById('session-status').innerText = "Mod Lihat (Tidak Disimpan)"; document.getElementById('session-status').className = "text-[9px] text-gray-400 bg-gray-100 px-2 py-1 rounded"; } }
+        window.clearForm = function(r) { if(confirm("Reset?")) { window.currentDocId = ""; if(r) { document.getElementById('in-tajuk').value = ""; document.getElementById('in-tarikh-akhir').value = ""; document.getElementById('in-tempat').value = ""; document.getElementById('in-anjuran').value = ""; } window.speakersData = []; addSpeaker(true); updatePreview(); document.getElementById('start-section').classList.remove('hidden'); document.getElementById('reset-btn-container').classList.add('hidden'); document.getElementById('save-indicator').className = ""; document.getElementById('save-indicator').innerHTML = "Menunggu Mula"; document.getElementById('session-status').innerText = "Mod Lihat (Tidak Disimpan)"; document.getElementById('session-status').className = "text-[9px] text-gray-400 bg-gray-100 px-2 py-1 rounded"; } }
 
         window.updatePreview = function() {
             ['tajuk', 'tempat', 'anjuran', 'nama', 'jawatan'].forEach(id => document.getElementById(`out-${id}`).textContent = document.getElementById(`in-${id}`).value.toUpperCase());
-            const d = document.getElementById('in-tarikh').value; if(d) { const dojb = new Date(d); document.getElementById('out-tarikh').textContent = dojb.toLocaleDateString('ms-MY', {day:'numeric',month:'long',year:'numeric'}).toUpperCase(); document.getElementById('out-tarikh-laporan').textContent = `TARIKH: ${dojb.toLocaleDateString('ms-MY', {day:'numeric',month:'long',year:'numeric'}).toUpperCase()}`; } else { document.getElementById('out-tarikh-laporan').textContent = "TARIKH:"; }
+            
+            // --- UPDATED DATE LOGIC FOR RANGE ---
+            const d1 = document.getElementById('in-tarikh').value;
+            const d2 = document.getElementById('in-tarikh-akhir').value;
+            const outDate = document.getElementById('out-tarikh');
+            const outDateReport = document.getElementById('out-tarikh-laporan');
+
+            if(d1) {
+                const date1 = new Date(d1);
+                let dateStr = date1.toLocaleDateString('ms-MY', {day:'numeric', month:'long', year:'numeric'}).toUpperCase();
+
+                if (d2 && d2 !== d1) {
+                    const date2 = new Date(d2);
+                    const dateStr2 = date2.toLocaleDateString('ms-MY', {day:'numeric', month:'long', year:'numeric'}).toUpperCase();
+                    dateStr = `${dateStr} - ${dateStr2}`;
+                }
+
+                outDate.textContent = dateStr;
+                outDateReport.textContent = `TARIKH: ${dateStr}`;
+            } else {
+                outDate.textContent = "";
+                outDateReport.textContent = "TARIKH:";
+            }
+            // ------------------------------------
+
             const t = document.getElementById('in-masa').value; if(t) { let [h,m]=t.split(':'); let s=h>=12?"PETANG":"PAGI"; if(h>12)h-=12; if(h==='00')h=12; document.getElementById('out-masa').textContent = `${h}.${m} ${s}`; }
             
             if(document.getElementById('chk-verified').checked) {
