@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SPARK TV - Dashboard</title>
+    <title>SPARK TV - Full Motion</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&display=swap" rel="stylesheet">
     <style>
@@ -17,31 +17,16 @@
         .panel-right { flex: 1; display: flex; flex-direction: column; min-width: 0; }
         .glass-panel { background: var(--glass-bg); backdrop-filter: blur(20px); border: 1px solid var(--glass-border); border-radius: 1.5rem; box-shadow: 0 10px 40px rgba(0,0,0,0.5); display: flex; flex-direction: column; overflow: hidden; height: 100%; }
 
-        /* --- GRID --- */
-        #calendar-grid { display: grid; gap: 1rem; height: 100%; width: 100%; grid-template-columns: repeat(3, 1fr); grid-template-rows: 1fr; }
-        .cal-day-card { background: rgba(51, 65, 85, 0.4); border-radius: 1rem; border: 1px solid rgba(255,255,255,0.08); display: flex; flex-direction: column; overflow: hidden; position: relative; }
-        
-        /* --- MARQUEE (TEKS BERGERAK) --- */
-        /* Kita guna mask-image supaya teks pudar di kiri kanan */
+        /* --- MARQUEE TEXT (HORIZONTAL) --- */
         .marquee-wrapper { overflow: hidden; white-space: nowrap; position: relative; mask-image: linear-gradient(to right, transparent, black 5%, black 95%, transparent); display: flex; align-items: center; }
         .marquee-content { display: inline-block; padding-left: 0; animation: marquee 15s linear infinite; white-space: nowrap; }
-        /* Jika teks pendek, jangan gerak */
-        .marquee-wrapper:not(:hover) .marquee-content { min-width: 100%; }
-        
-        @keyframes marquee { 
-            0% { transform: translateX(0); } 
-            15% { transform: translateX(0); } /* Pause sekejap di awal */
-            100% { transform: translateX(-100%); } 
-        }
+        @keyframes marquee { 0% { transform: translateX(0); } 15% { transform: translateX(0); } 100% { transform: translateX(-100%); } }
 
-        /* --- UTILS --- */
-        #scroller-container { overflow: hidden; position: relative; flex-grow: 1; }
+        /* --- VERTICAL SCROLLERS --- */
+        .scroller-container { overflow: hidden; position: relative; flex-grow: 1; mask-image: linear-gradient(to bottom, transparent, black 5%, black 90%, transparent); }
+        .scroller-content { position: absolute; width: 100%; }
+
         .neon-text { text-shadow: 0 0 15px rgba(99, 102, 241, 0.6); }
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        
-        /* --- CATEGORY BADGES --- */
-        .badge-rasmi { background-color: rgba(79, 70, 229, 0.2); border: 1px solid rgba(99, 102, 241, 0.4); color: #c7d2fe; }
-        .badge-umum { background-color: rgba(16, 185, 129, 0.2); border: 1px solid rgba(52, 211, 153, 0.4); color: #d1fae5; }
     </style>
 </head>
 <body>
@@ -76,15 +61,15 @@
                     Agenda Hari Ini
                 </h2>
             </div>
-            <div id="scroller-container" class="bg-slate-900/20 w-full relative">
-                <div id="scroller-content" class="p-4 space-y-4 absolute w-full">
-                    <div class="flex items-center justify-center h-40 text-slate-500 animate-pulse text-sm">Memuatkan data...</div>
+            <div id="left-scroller" class="scroller-container bg-slate-900/20 w-full">
+                <div id="left-content" class="scroller-content p-4 space-y-4">
+                    <div class="flex items-center justify-center h-40 text-slate-500 animate-pulse text-sm">Memuatkan...</div>
                 </div>
             </div>
         </aside>
 
         <main class="panel-right glass-panel">
-            <div class="p-5 bg-indigo-900/30 border-b border-white/10 flex justify-between items-center shrink-0">
+            <div class="p-5 bg-indigo-900/30 border-b border-white/10 flex justify-between items-center shrink-0 z-10">
                 <h2 class="text-xl font-bold text-white uppercase">Jadual Akan Datang</h2>
                 <div class="flex gap-2">
                     <div class="flex items-center gap-1 bg-slate-800/50 px-2 py-1 rounded border border-slate-600">
@@ -94,12 +79,14 @@
                         <div class="w-2 h-2 rounded-full bg-emerald-500"></div><span class="text-[9px] uppercase font-bold text-slate-300">Umum</span>
                     </div>
                     <div class="bg-indigo-600/20 border border-indigo-500/30 px-3 py-1 rounded-lg">
-                        <span id="grid-info" class="text-[10px] text-indigo-200 uppercase font-bold tracking-wider">BERMULA ESOK</span>
+                        <span class="text-[10px] text-indigo-200 uppercase font-bold tracking-wider">7 HARI KE DEPAN</span>
                    </div>
                 </div>
             </div>
-            <div class="p-4 h-full w-full overflow-hidden">
-                <div id="calendar-grid"></div>
+            
+            <div id="right-scroller" class="scroller-container p-4">
+                <div id="right-content" class="scroller-content space-y-3">
+                    </div>
             </div>
         </main>
     </div>
@@ -117,18 +104,16 @@
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, onSnapshot, query, orderBy, doc, where } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        let CONFIG = { gridColumns: 3, gridRows: 1, gridFontSize: 'text-xl', scrollSpeed: 0.5 };
+        let CONFIG = { scrollSpeed: 0.5 }; // Kelajuan Scroll
         const firebaseConfig = { apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM", authDomain: "myqrhadir.firebaseapp.com", projectId: "myqrhadir", storageBucket: "myqrhadir.appspot.com", messagingSenderId: "799691133747", appId: "1:799691133747:web:835a5e3e9413eace806446" };
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         const auth = getAuth(app);
         const appId = firebaseConfig.projectId;
 
-        // Data containers
         let allPrograms = [], allBirthdays = [], allSalaryDates = [], allPlanner = [];
-        let scrollInterval;
+        let leftScrollInterval, rightScrollInterval;
         
-        // QR Code Setup
         const baseUrl = window.location.href.substring(0, window.location.href.lastIndexOf('/')) + '/jadualuser.html'; 
         document.getElementById('qr-image').src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(baseUrl)}`;
 
@@ -136,14 +121,12 @@
 
         function listenSettings() {
             onSnapshot(doc(db, `artifacts/${appId}/public/data/tv_settings/main`), (doc) => {
-                if (doc.exists()) { CONFIG = { ...CONFIG, ...doc.data() }; applyGridSettings(); refreshUI(); }
+                if (doc.exists()) { 
+                    const data = doc.data();
+                    if(data.scrollSpeed) CONFIG.scrollSpeed = data.scrollSpeed;
+                    refreshUI(); 
+                }
             });
-        }
-        function applyGridSettings() {
-            const gridEl = document.getElementById('calendar-grid');
-            gridEl.style.gridTemplateColumns = `repeat(${CONFIG.gridColumns}, minmax(0, 1fr))`;
-            gridEl.style.gridTemplateRows = `repeat(${CONFIG.gridRows}, minmax(0, 1fr))`;
-            document.getElementById('grid-info').textContent = `${CONFIG.gridColumns * CONFIG.gridRows} HARI TERDEKAT`;
         }
         function startClock() {
             setInterval(() => {
@@ -153,7 +136,7 @@
                 document.getElementById('clock-time').textContent = `${h}:${m}`;
                 document.getElementById('clock-ampm').textContent = ampm;
                 document.getElementById('clock-date').textContent = now.toLocaleDateString('ms-MY', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-                if(now.getSeconds() === 0) renderTodayPanel(); 
+                if(now.getSeconds() === 0) renderLeftPanel(); 
             }, 1000);
         }
 
@@ -164,7 +147,7 @@
             onSnapshot(query(collection(db, `artifacts/${appId}/public/data/spark_planner`), where("isPublic", "==", true)), (snap) => { allPlanner = snap.docs.map(d => d.data()); refreshUI(); });
         }
         
-        function refreshUI() { renderTodayPanel(); renderCalendarGrid(); }
+        function refreshUI() { renderLeftPanel(); renderRightPanel(); }
 
         const parseDate = (str) => { const p = str.split('-'); return new Date(p[0], p[1]-1, p[2]); };
         const formatTime = (t) => { if(!t) return ''; const [h,m] = t.split(':'); const hr = parseInt(h); return `${hr%12||12}:${m}${hr>=12?'pm':'am'}`; };
@@ -191,161 +174,134 @@
             return { events: combinedEvents, bday, sal };
         }
 
-        function renderTodayPanel() {
-            const container = document.getElementById('scroller-content');
+        // --- LEFT PANEL SCROLLER (TODAY) ---
+        function renderLeftPanel() {
+            const container = document.getElementById('left-content');
+            const wrapper = document.getElementById('left-scroller');
             const { events, bday, sal } = getEvents(new Date());
-            let html = '';
             
-            if (sal) html += `<div class="bg-gradient-to-r from-amber-600 to-yellow-600 p-4 rounded-xl shadow-lg border-l-4 border-yellow-300 mb-4 shrink-0"><h3 class="text-2xl font-extrabold text-white uppercase flex items-center gap-2">💰 HARI GAJI</h3><div class="marquee-wrapper w-full mt-1"><span class="marquee-content text-sm text-yellow-100 uppercase font-bold">${sal.title} &nbsp;&nbsp;&nbsp;&nbsp;</span></div></div>`;
-            if (bday.length > 0) html += `<div class="bg-gradient-to-r from-pink-600 to-rose-600 p-4 rounded-xl shadow-lg border-l-4 border-pink-300 mb-4 shrink-0"><h3 class="text-xl font-bold text-white uppercase mb-1 flex items-center gap-2">🎂 Happy Birthday</h3><div class="marquee-wrapper w-full"><span class="marquee-content text-lg text-white font-semibold uppercase leading-tight">${bday.map(b => b.name).join(', ')} &nbsp;&nbsp;&nbsp;&nbsp;</span></div></div>`;
-
-            if (events.length > 0) {
-                const now = new Date(); const currentTimeVal = now.getHours() * 60 + now.getMinutes();
-                events.forEach(p => {
-                    let timeDisplay = "", isLive = false, statusBadge = "";
-                    let borderColor = p.type === 'rasmi' ? 'border-indigo-500' : 'border-emerald-500';
-                    let titleColor = p.type === 'rasmi' ? 'text-indigo-200' : 'text-emerald-200';
-                    let typeBadge = p.type === 'rasmi' ? `<span class="bg-indigo-900 text-indigo-300 text-[9px] px-1.5 py-0.5 rounded uppercase font-bold border border-indigo-700">Rasmi</span>` : `<span class="bg-emerald-900 text-emerald-300 text-[9px] px-1.5 py-0.5 rounded uppercase font-bold border border-emerald-700">Umum</span>`;
-
-                    if (p.startTime) {
-                        const [sh, sm] = p.startTime.split(':'); const startVal = parseInt(sh) * 60 + parseInt(sm);
-                        let endVal = 23 * 60 + 59;
-                        if (p.endTime) { const [eh, em] = p.endTime.split(':'); endVal = parseInt(eh) * 60 + parseInt(em); timeDisplay = `${formatTime(p.startTime)} - ${formatTime(p.endTime)}`; } 
-                        else { timeDisplay = `${formatTime(p.startTime)} - SELESAI`; }
-                        if (currentTimeVal >= startVal && currentTimeVal <= endVal) { isLive = true; statusBadge = `<div class="absolute top-3 right-3 flex items-center gap-1 bg-green-500 text-white px-2 py-0.5 rounded-full text-[10px] font-bold uppercase animate-pulse z-10">SEDANG BERLANGSUNG</div>`; }
-                    } else { timeDisplay = "SEPANJANG HARI"; }
-
-                    html += `
-                    <div class="bg-slate-800 border-l-4 ${borderColor} rounded-r-xl p-4 shadow-md relative overflow-hidden mb-3 shrink-0">
-                        ${statusBadge}
-                        <div class="flex items-center gap-2 mb-2">${typeBadge}</div>
-                        <div class="marquee-wrapper w-4/5 mb-3">
-                            <h3 class="marquee-content text-2xl font-extrabold ${isLive ? 'text-green-400' : titleColor} uppercase leading-none">${p.name} &nbsp;&nbsp;&nbsp;</h3>
-                        </div>
-                        <div class="space-y-2">
-                            <div class="flex items-center gap-3 bg-slate-900/50 p-2 rounded-lg border border-white/5"><span class="text-xl">🕒</span><div><p class="text-[10px] text-slate-400 uppercase font-bold leading-none mb-0.5">Masa</p><p class="text-lg text-white font-mono font-semibold uppercase leading-none">${timeDisplay}</p></div></div>
-                            
-                            <div class="flex items-center gap-3 bg-slate-900/50 p-2 rounded-lg border border-white/5">
-                                <span class="text-xl">📍</span>
-                                <div class="overflow-hidden w-full">
-                                    <p class="text-[10px] text-slate-400 uppercase font-bold leading-none mb-0.5">Lokasi</p>
-                                    <div class="marquee-wrapper w-full">
-                                        <p class="marquee-content text-lg text-white font-semibold uppercase leading-none">${p.location || '-'} &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</p>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                             <div class="flex items-center gap-3 bg-slate-900/50 p-2 rounded-lg border border-white/5">
-                                <span class="text-xl">👤</span>
-                                <div class="overflow-hidden w-full">
-                                    <p class="text-[10px] text-slate-400 uppercase font-bold leading-none mb-0.5">${p.type === 'rasmi' ? 'Penyelaras' : 'Terlibat'}</p>
-                                    <div class="marquee-wrapper w-full">
-                                        <p class="marquee-content text-base ${p.type === 'rasmi' ? 'text-indigo-400' : 'text-emerald-400'} font-semibold uppercase leading-none">${p.penyelaras_name || '-'} &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>`;
-                });
-            } else if (!sal && bday.length === 0) { html = `<div class="h-40 flex flex-col items-center justify-center text-slate-500 border-2 border-dashed border-slate-700 rounded-xl"><p class="text-lg uppercase">Tiada aktiviti hari ini</p></div>`; }
+            let html = buildEventHtml(events, bday, sal, true); // true = isToday
+            if (html === '') html = `<div class="h-40 flex flex-col items-center justify-center text-slate-500 border-2 border-dashed border-slate-700 rounded-xl"><p class="text-lg uppercase">Tiada aktiviti hari ini</p></div>`;
             
             container.innerHTML = html;
+            initScroll(wrapper, container, 'left');
+        }
+
+        // --- RIGHT PANEL SCROLLER (UPCOMING) ---
+        function renderRightPanel() {
+            const container = document.getElementById('right-content');
+            const wrapper = document.getElementById('right-scroller');
+            let html = '';
             
-            if (scrollInterval) cancelAnimationFrame(scrollInterval);
-            const wrapper = document.getElementById('scroller-container');
-            const content = document.getElementById('scroller-content');
+            const today = new Date();
+            // Loop 7 hari ke depan (atau lebih)
+            for (let i = 1; i <= 7; i++) {
+                const d = new Date(today); 
+                d.setDate(today.getDate() + i); 
+                const { events, bday, sal } = getEvents(d);
+
+                if (events.length > 0 || bday.length > 0 || sal) {
+                    // Header Tarikh
+                    html += `
+                    <div class="flex items-center gap-4 py-2 mt-2">
+                        <div class="bg-indigo-900/50 px-3 py-1 rounded-lg border border-indigo-500/30 text-center min-w-[60px]">
+                            <span class="block text-[10px] text-indigo-300 font-bold uppercase">${d.toLocaleDateString('ms-MY', { weekday: 'short' })}</span>
+                            <span class="block text-xl font-bold text-white leading-none">${d.getDate()}</span>
+                        </div>
+                        <div class="h-[1px] bg-slate-700 flex-grow"></div>
+                    </div>`;
+                    
+                    // Guna fungsi sama untuk generate kad, tapi tanpa 'live' indicator
+                    html += buildEventHtml(events, bday, sal, false);
+                }
+            }
+            
+            if (html === '') html = `<div class="flex flex-col items-center justify-center h-full text-slate-600"><p class="uppercase font-bold">Tiada aktiviti minggu ini</p></div>`;
+            
+            container.innerHTML = html;
+            initScroll(wrapper, container, 'right');
+        }
+
+        // --- HELPER HTML BUILDER ---
+        function buildEventHtml(events, bday, sal, isToday) {
+            let html = '';
+            const now = new Date(); const currentTimeVal = now.getHours() * 60 + now.getMinutes();
+
+            if (sal) html += `<div class="bg-amber-600/90 p-3 rounded-lg shadow-lg border-l-4 border-yellow-300 mb-2 shrink-0 flex items-center gap-3"><span class="text-2xl">💰</span><div class="marquee-wrapper w-full"><span class="marquee-content text-white font-bold uppercase text-lg">HARI GAJI: ${sal.title} &nbsp;&nbsp;&nbsp;&nbsp;</span></div></div>`;
+            
+            if (bday.length > 0) html += `<div class="bg-pink-600/90 p-3 rounded-lg shadow-lg border-l-4 border-pink-300 mb-2 shrink-0 flex items-center gap-3"><span class="text-2xl">🎂</span><div class="marquee-wrapper w-full"><span class="marquee-content text-white font-bold uppercase text-lg">BIRTHDAY: ${bday.map(b => b.name).join(', ')} &nbsp;&nbsp;&nbsp;&nbsp;</span></div></div>`;
+
+            events.forEach(p => {
+                let isLive = false, statusBadge = "";
+                let borderColor = p.type === 'rasmi' ? 'border-indigo-500' : 'border-emerald-500';
+                let cardBg = p.type === 'rasmi' ? 'bg-slate-800' : 'bg-slate-800'; // Base background
+                let accentColor = p.type === 'rasmi' ? 'text-indigo-200' : 'text-emerald-200';
+                
+                // Live Logic (Hanya untuk hari ini)
+                if (isToday && p.startTime) {
+                    const [sh, sm] = p.startTime.split(':'); const startVal = parseInt(sh) * 60 + parseInt(sm);
+                    let endVal = 23 * 60 + 59;
+                    if (p.endTime) { const [eh, em] = p.endTime.split(':'); endVal = parseInt(eh) * 60 + parseInt(em); }
+                    if (currentTimeVal >= startVal && currentTimeVal <= endVal) { 
+                        isLive = true; 
+                        statusBadge = `<span class="absolute top-2 right-2 bg-green-500 text-white text-[9px] px-2 py-0.5 rounded-full font-bold animate-pulse">LIVE</span>`; 
+                        borderColor = 'border-green-500'; 
+                    }
+                }
+
+                html += `
+                <div class="${cardBg} border-l-4 ${borderColor} rounded-r-lg p-3 shadow-md relative overflow-hidden mb-2 shrink-0">
+                    ${statusBadge}
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="text-[9px] px-1.5 py-0.5 rounded uppercase font-bold border ${p.type === 'rasmi' ? 'bg-indigo-900 text-indigo-300 border-indigo-700' : 'bg-emerald-900 text-emerald-300 border-emerald-700'}">${p.type.toUpperCase()}</span>
+                        <span class="text-[10px] font-mono text-slate-400 font-bold">🕒 ${p.startTime ? formatTime(p.startTime) : 'SEPANJANG HARI'}</span>
+                    </div>
+                    
+                    <div class="marquee-wrapper w-[85%] mb-1">
+                        <h3 class="marquee-content text-lg font-extrabold ${isLive ? 'text-green-400' : accentColor} uppercase leading-none">${p.name} &nbsp;&nbsp;&nbsp;</h3>
+                    </div>
+                    
+                    <div class="flex items-center gap-4 text-[10px] text-slate-400 uppercase">
+                         <div class="flex items-center gap-1 overflow-hidden max-w-[50%]">
+                            <span>📍</span> 
+                            <div class="marquee-wrapper w-full"><span class="marquee-content">${p.location || '-'} &nbsp;&nbsp;&nbsp;</span></div>
+                         </div>
+                         <div class="flex items-center gap-1 overflow-hidden max-w-[50%]">
+                            <span>👤</span> 
+                            <div class="marquee-wrapper w-full"><span class="marquee-content font-bold text-slate-300">${p.penyelaras_name || '-'} &nbsp;&nbsp;&nbsp;</span></div>
+                         </div>
+                    </div>
+                </div>`;
+            });
+            return html;
+        }
+
+        // --- UNIVERSAL SCROLL LOGIC ---
+        function initScroll(wrapper, content, side) {
+            // Reset existing interval
+            if (side === 'left' && leftScrollInterval) cancelAnimationFrame(leftScrollInterval);
+            if (side === 'right' && rightScrollInterval) cancelAnimationFrame(rightScrollInterval);
+
+            // Clone content if needed for smooth loop
             if (content.offsetHeight > wrapper.offsetHeight) {
-                container.innerHTML += `<div class="py-4"></div>` + html; 
+                const originalHtml = content.innerHTML;
+                content.innerHTML = originalHtml + `<div class="py-8"></div>` + originalHtml; // Add spacer + duplicate
+
                 let pos = 0;
                 function step() { 
                     pos -= CONFIG.scrollSpeed; 
-                    if (Math.abs(pos) >= (content.offsetHeight + 16)) pos = 0; 
-                    container.style.transform = `translateY(${pos}px)`; 
-                    scrollInterval = requestAnimationFrame(step); 
+                    // Reset bila dah scroll separuh (content asal)
+                    if (Math.abs(pos) >= (content.offsetHeight / 2)) {
+                        pos = 0;
+                    } 
+                    content.style.transform = `translateY(${pos}px)`; 
+                    
+                    if (side === 'left') leftScrollInterval = requestAnimationFrame(step);
+                    else rightScrollInterval = requestAnimationFrame(step);
                 }
                 step();
-            } else { container.style.transform = 'translateY(0)'; }
-        }
-
-        // --- GRID RENDERING WITH FULL SCROLLING TEXT ---
-        function renderCalendarGrid() {
-            const grid = document.getElementById('calendar-grid'); grid.innerHTML = '';
-            const today = new Date(); const daysToShow = CONFIG.gridColumns * CONFIG.gridRows; 
-            for (let i = 0; i < daysToShow; i++) {
-                const d = new Date(today); 
-                d.setDate(today.getDate() + i + 1); 
-
-                const { events, bday, sal } = getEvents(d); 
-                let contentHtml = '';
-                
-                if (sal) {
-                    contentHtml += `
-                    <div class="bg-amber-600 text-white p-2 rounded-lg shadow-md mb-2 shrink-0 border border-amber-400">
-                        <div class="text-[9px] font-bold uppercase opacity-80 mb-0.5">💰 GAJI</div>
-                        <div class="marquee-wrapper w-full"><span class="marquee-content text-xs font-extrabold uppercase">${sal.title} &nbsp;&nbsp;&nbsp;&nbsp;</span></div>
-                    </div>`;
-                }
-
-                if (bday.length > 0) {
-                     contentHtml += `
-                     <div class="bg-pink-600 text-white p-2 rounded-lg shadow-md mb-2 shrink-0 border border-pink-400">
-                        <div class="text-[9px] font-bold uppercase opacity-80 mb-0.5">🎂 BIRTHDAY</div>
-                        <div class="marquee-wrapper w-full"><span class="marquee-content text-xs font-extrabold uppercase">${bday.map(b => b.name).join(', ')} &nbsp;&nbsp;&nbsp;&nbsp;</span></div>
-                     </div>`;
-                }
-                
-                if (events.length > 0) {
-                    contentHtml += `<div class="space-y-1.5 mt-1 flex-grow overflow-hidden flex flex-col">`;
-                    // Hanya tunjuk 3 acara terawal, tapi dengan teks penuh bergerak
-                    events.slice(0, 3).forEach(p => {
-                        const isRasmi = p.type === 'rasmi';
-                        const cardBg = isRasmi ? 'bg-indigo-900/40 border-indigo-500/30' : 'bg-emerald-900/40 border-emerald-500/30';
-                        const dotColor = isRasmi ? 'bg-indigo-400' : 'bg-emerald-400';
-
-                        contentHtml += `
-                        <div class="flex flex-col ${cardBg} p-2 rounded-lg border shrink-0">
-                            <div class="flex justify-between items-center mb-0.5">
-                                <span class="font-mono text-slate-400 text-[10px] font-bold">${p.startTime ? formatTime(p.startTime) : 'SEPANJANG HARI'}</span>
-                                <div class="${dotColor} w-1.5 h-1.5 rounded-full"></div>
-                            </div>
-                            
-                            <div class="marquee-wrapper w-full mb-0.5">
-                                <span class="marquee-content ${CONFIG.gridFontSize} font-extrabold text-white leading-tight uppercase">
-                                    ${p.name} &nbsp;&nbsp;&nbsp;&nbsp;
-                                </span>
-                            </div>
-
-                            <div class="flex items-center gap-1 text-slate-400 text-[10px] uppercase w-full overflow-hidden">
-                                <span class="text-slate-500 shrink-0">📍</span> 
-                                <div class="marquee-wrapper w-full">
-                                    <span class="marquee-content">${p.location || '-'} &nbsp;&nbsp;&nbsp;&nbsp;</span>
-                                </div>
-                            </div>
-
-                            <div class="flex items-center gap-1 text-slate-400 text-[10px] uppercase w-full overflow-hidden mt-0.5">
-                                <span class="text-slate-500 shrink-0">👤</span> 
-                                <div class="marquee-wrapper w-full">
-                                    <span class="marquee-content font-bold ${isRasmi ? 'text-indigo-300' : 'text-emerald-300'}">${p.penyelaras_name || '-'} &nbsp;&nbsp;&nbsp;&nbsp;</span>
-                                </div>
-                            </div>
-                        </div>`;
-                    });
-                    if (events.length > 3) contentHtml += `<div class="text-[10px] text-slate-500 text-center italic uppercase mt-auto">+ ${events.length - 3} LAGI...</div>`;
-                    contentHtml += `</div>`;
-                } else if (!sal && bday.length === 0) { contentHtml += `<div class="flex-grow flex items-center justify-center"><span class="text-slate-700 text-4xl opacity-30 font-bold">-</span></div>`; }
-                
-                const card = document.createElement('div'); card.className = `cal-day-card p-3`;
-                card.innerHTML = `
-                    <div class="flex justify-between items-center border-b border-slate-700 pb-1 mb-1 bg-slate-900/40 -mx-3 -mt-3 p-3 shrink-0">
-                        <div class="leading-none">
-                             <span class="block text-xs uppercase text-indigo-400 font-extrabold tracking-widest">${d.toLocaleDateString('ms-MY', { weekday: 'short' })}</span>
-                             <span class="block text-[10px] uppercase text-slate-500 font-bold">${d.toLocaleDateString('ms-MY', { month: 'short' })}</span>
-                        </div>
-                        <span class="text-4xl font-black text-slate-600 leading-none">${d.getDate()}</span>
-                    </div>
-                    <div class="px-0 flex flex-col h-full overflow-hidden">${contentHtml}</div>
-                `;
-                grid.appendChild(card);
+            } else {
+                content.style.transform = 'translateY(0)';
             }
         }
     </script>
