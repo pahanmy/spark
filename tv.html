@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SPARK TV - Auto Carousel</title>
+    <title>SPARK TV - 7 Days Compact</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&display=swap" rel="stylesheet">
     <style>
@@ -34,40 +34,42 @@
         .panel-left { flex: 0 0 30%; display: flex; flex-direction: column; min-width: 300px; }
         .panel-right { flex: 1; display: flex; flex-direction: column; min-width: 0; }
 
-        /* --- SCROLLERS (LEFT) --- */
+        /* --- SCROLLERS --- */
         .scroller-container { overflow: hidden; position: relative; flex-grow: 1; mask-image: linear-gradient(to bottom, transparent, black 5%, black 95%, transparent); }
         .scroller-content { position: absolute; width: 100%; }
 
-        /* --- CAROUSEL (RIGHT) --- */
+        /* --- CAROUSEL CONTAINER --- */
         .carousel-container {
             flex-grow: 1; padding: 1.5rem;
             display: flex; flex-direction: column;
-            opacity: 1; transition: opacity 0.5s ease-in-out; /* Animasi Fade */
+            opacity: 1; transition: opacity 0.5s ease-in-out;
         }
         .carousel-container.fade-out { opacity: 0; }
         
-        /* Grid Dalam Hari (Jika ada banyak program satu hari, susun grid) */
+        /* GRID SUSUNAN KAD */
         .day-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr); /* 2 Kolum */
             gap: 0.75rem; 
             align-content: start;
-            height: 100%;
-            overflow-y: auto;
+            height: 100%; overflow-y: hidden;
         }
-        /* Hide scrollbar */
-        .day-grid::-webkit-scrollbar { display: none; }
 
-        /* --- TEXT EFFECTS --- */
-        .neon-text { text-shadow: 0 0 25px rgba(99, 102, 241, 0.6); }
-        
-        /* --- COMPACT CARD STYLES --- */
+        /* --- CARD STYLES --- */
         .card-base {
             position: relative; border-radius: 0.75rem; padding: 0.75rem;
             box-shadow: 0 4px 6px rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1);
+            display: flex; flex-direction: column; justify-content: space-between;
+            min-height: 90px; /* Tinggi minimum supaya seragam */
         }
+
+        /* Jenis Kad */
         .card-rasmi { background: linear-gradient(145deg, rgba(30, 58, 138, 0.9), rgba(23, 37, 84, 0.95)); border-left: 4px solid #60a5fa; }
         .card-umum { background: linear-gradient(145deg, rgba(6, 78, 59, 0.9), rgba(2, 44, 34, 0.95)); border-left: 4px solid #34d399; }
+        
+        /* Kad Special (Gaji & Birthday) - Kini saiz sama */
+        .card-gaji { background: linear-gradient(145deg, #b45309, #78350f); border-left: 4px solid #fcd34d; }
+        .card-bday { background: linear-gradient(145deg, #be185d, #831843); border-left: 4px solid #f472b6; }
 
         /* --- DATE HEADER --- */
         .date-header-bar {
@@ -78,13 +80,9 @@
             box-shadow: 0 4px 10px rgba(0,0,0,0.3);
         }
         
-        /* Progress Bar 10 saat */
-        .progress-bar {
-            height: 3px; background: rgba(255,255,255,0.2); width: 100%; position: absolute; bottom: 0; left: 0;
-        }
-        .progress-fill {
-            height: 100%; background: #6366f1; width: 0%; transition: width 10s linear;
-        }
+        .progress-bar { height: 3px; background: rgba(255,255,255,0.1); width: 100%; position: absolute; bottom: 0; left: 0; }
+        .progress-fill { height: 100%; background: #6366f1; width: 0%; transition: width 10s linear; }
+        .neon-text { text-shadow: 0 0 25px rgba(99, 102, 241, 0.6); }
     </style>
 </head>
 <body>
@@ -130,7 +128,7 @@
             <div class="p-4 bg-slate-900/40 border-b border-white/10 flex justify-between items-center shrink-0 z-10">
                 <div class="flex items-center gap-3">
                     <h2 class="text-lg font-bold text-white uppercase">Akan Datang</h2>
-                    <span id="page-indicator" class="bg-indigo-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded border border-indigo-400">AUTO</span>
+                    <span id="page-indicator" class="bg-indigo-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded border border-indigo-400">7 HARI</span>
                 </div>
                 <div class="flex gap-2">
                     <div class="flex items-center gap-1.5 bg-slate-800/80 px-2 py-1 rounded border border-slate-600">
@@ -172,7 +170,7 @@
         let allPrograms = [], allBirthdays = [], allSalaryDates = [], allPlanner = [];
         let leftScrollInterval;
         let rightCarouselInterval;
-        let upcomingDaysData = []; // Simpan data hari-hari yang ada program
+        let upcomingDaysData = []; 
         let currentDayIndex = 0;
         
         const baseUrl = window.location.href.substring(0, window.location.href.lastIndexOf('/')) + '/jadualuser.html'; 
@@ -204,10 +202,7 @@
             onSnapshot(query(collection(db, `artifacts/${appId}/public/data/spark_planner`), where("isPublic", "==", true)), (snap) => { allPlanner = snap.docs.map(d => d.data()); refreshUI(); });
         }
         
-        function refreshUI() { 
-            renderLeftPanel(); 
-            prepareRightPanelData(); // Proses data dulu
-        }
+        function refreshUI() { renderLeftPanel(); prepareRightPanelData(); }
 
         const parseDate = (str) => { const p = str.split('-'); return new Date(p[0], p[1]-1, p[2]); };
         const formatTime = (t) => { if(!t) return ''; const [h,m] = t.split(':'); const hr = parseInt(h); return `${hr%12||12}:${m}${hr>=12?'pm':'am'}`; };
@@ -266,28 +261,21 @@
             initScroll(wrapper, container);
         }
 
-        // --- CAROUSEL LOGIC START ---
-        
+        // --- CAROUSEL LOGIC ---
         function prepareRightPanelData() {
-            // Reset Data
             upcomingDaysData = [];
             const today = new Date();
-            
-            // Kumpul data 7 hari ke depan
+            // Loop 7 Hari
             for (let i = 1; i <= 7; i++) {
                 const d = new Date(today);
                 d.setDate(today.getDate() + i);
                 const data = getEvents(d);
-                
-                // Jika hari itu ada sebarang aktiviti, simpan
                 if (data.events.length > 0 || data.bday.length > 0 || data.sal) {
                     upcomingDaysData.push({ date: d, data: data });
                 }
             }
 
-            // Mula Carousel jika ada data, jika tiada, papar kosong
             if (upcomingDaysData.length > 0) {
-                // Reset index
                 if (currentDayIndex >= upcomingDaysData.length) currentDayIndex = 0;
                 startCarousel();
             } else {
@@ -298,36 +286,22 @@
 
         function startCarousel() {
             if (rightCarouselInterval) clearInterval(rightCarouselInterval);
-            
-            // Render terus frame pertama
             renderCarouselFrame();
-
-            // Set interval 10 saat
-            rightCarouselInterval = setInterval(() => {
-                nextSlide();
-            }, 10000); // 10000ms = 10 saat
+            rightCarouselInterval = setInterval(() => { nextSlide(); }, 10000); 
         }
 
         function nextSlide() {
             const container = document.getElementById('carousel-view');
             const progress = document.getElementById('progress-fill');
-            
-            // 1. Fade Out
             container.classList.add('fade-out');
-            progress.style.transition = 'none'; // Reset progress bar
-            progress.style.width = '0%';
+            progress.style.transition = 'none'; progress.style.width = '0%';
 
             setTimeout(() => {
-                // 2. Ubah Data
                 currentDayIndex++;
                 if (currentDayIndex >= upcomingDaysData.length) currentDayIndex = 0;
-                
-                // 3. Render Baru
                 renderCarouselFrame();
-                
-                // 4. Fade In
                 container.classList.remove('fade-out');
-            }, 500); // Tunggu animasi fade out habis (0.5s)
+            }, 500); 
         }
 
         function renderCarouselFrame() {
@@ -336,20 +310,14 @@
             const d = dayItem.date;
             const { events, bday, sal } = dayItem.data;
 
-            // Update Indicator
             document.getElementById('page-indicator').textContent = `${currentDayIndex + 1}/${upcomingDaysData.length}`;
             
-            // Reset Animation Progress Bar
             const progress = document.getElementById('progress-fill');
-            // Sedikit delay supaya browser register transition reset
-            requestAnimationFrame(() => {
-                progress.style.transition = 'width 10s linear';
-                progress.style.width = '100%';
-            });
+            requestAnimationFrame(() => { progress.style.transition = 'width 10s linear'; progress.style.width = '100%'; });
 
             let html = `<div class="day-grid">`;
             
-            // Header Hari (Full Width)
+            // Header Hari
             html += `
             <div class="date-header-bar col-span-2">
                 <div class="bg-white text-indigo-800 px-2 py-0.5 rounded font-black text-xl leading-none min-w-[35px] text-center">${d.getDate()}</div>
@@ -359,9 +327,37 @@
                 </div>
             </div>`;
 
-            if (sal) html += `<div class="card-base bg-gradient-to-r from-amber-600 to-yellow-600 border-yellow-400 text-white col-span-2 p-2"><div class="flex items-center gap-2"><span class="text-xl">💰</span><span class="text-sm font-bold uppercase truncate">${sal.title}</span></div></div>`;
-            if (bday.length > 0) html += `<div class="card-base bg-gradient-to-r from-pink-600 to-rose-600 border-pink-400 text-white col-span-2 p-2"><div class="flex items-center gap-2"><span class="text-xl">🎂</span><span class="text-sm font-bold uppercase truncate">${bday.map(b => b.name).join(', ')}</span></div></div>`;
+            // KAD GAJI (Compact)
+            if (sal) {
+                html += `
+                <div class="card-base card-gaji">
+                    <div class="flex justify-between items-center mb-1">
+                        <span class="bg-yellow-900 text-yellow-200 text-[8px] px-1.5 py-0.5 rounded font-bold uppercase border border-white/10">KEWANGAN</span>
+                        <span class="text-[9px] font-mono font-bold text-white/70">AUTO</span>
+                    </div>
+                    <h3 class="text-xs font-bold text-white uppercase leading-tight mb-2">💰 ${sal.title}</h3>
+                    <div class="mt-auto flex items-center gap-1.5 text-[9px] text-yellow-100 font-bold uppercase truncate">
+                        <span>🏛️</span> <span class="truncate">JABATAN KEWANGAN</span>
+                    </div>
+                </div>`;
+            }
 
+            // KAD BIRTHDAY (Compact)
+            if (bday.length > 0) {
+                html += `
+                <div class="card-base card-bday">
+                    <div class="flex justify-between items-center mb-1">
+                        <span class="bg-pink-900 text-pink-200 text-[8px] px-1.5 py-0.5 rounded font-bold uppercase border border-white/10">SAMBUTAN</span>
+                        <span class="text-[9px] font-mono font-bold text-white/70">ALL DAY</span>
+                    </div>
+                    <h3 class="text-xs font-bold text-white uppercase leading-tight mb-2 line-clamp-2">🎂 ${bday.map(b => b.name).join(', ')}</h3>
+                    <div class="mt-auto flex items-center gap-1.5 text-[9px] text-pink-100 font-bold uppercase truncate">
+                        <span>🎉</span> <span class="truncate">WARGA SPARK</span>
+                    </div>
+                </div>`;
+            }
+
+            // KAD PROGRAM (Compact)
             events.forEach(p => {
                 const cardClass = p.type === 'rasmi' ? 'card-rasmi' : 'card-umum';
                 const labelBg = p.type === 'rasmi' ? 'bg-blue-900 text-blue-200' : 'bg-emerald-900 text-emerald-200';
