@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SPARK Curai – V9 (AI Strict Formal)</title>
+    <title>SPARK Curai – V10 (Word Export & Smart Break)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
@@ -13,8 +13,9 @@
     <style>
         body { font-family: 'Poppins', sans-serif; background-color: #f0f9ff; }
         
-        /* A4 Paper */
+        /* A4 Paper & Page Break Logic */
         #pdf-wrapper { width: 210mm; margin: 0 auto; background: white; transition: all 0.3s ease; }
+        
         .a4-paper { 
             width: 210mm; 
             min-height: 297mm; 
@@ -27,6 +28,36 @@
             display: flex;
             flex-direction: column;
         }
+
+        /* VISUAL PAGE BREAK INDICATOR (SCREEN ONLY) */
+        @media screen {
+            .a4-paper {
+                /* Garisan merah putus-putus setiap 297mm untuk tunjuk page break */
+                background-image: linear-gradient(to bottom, transparent 99.8%, red 99.8%, red 100%);
+                background-size: 100% 297mm; 
+                background-repeat: repeat-y;
+            }
+            /* Label "Page Break" kecil di tepi */
+            .a4-paper::after {
+                content: "PAGE BREAK LIMIT";
+                position: absolute;
+                top: 296mm;
+                right: 0;
+                font-size: 8px;
+                color: red;
+                font-weight: bold;
+                background: rgba(255,255,255,0.8);
+                padding: 2px;
+                pointer-events: none;
+            }
+        }
+
+        /* SMART PAGE BREAKS (PREVENT CUT-OFF) */
+        .speaker-section, .minit-table tr, .preview-item, .preview-image-container, table {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+        }
+
         .barcode-container { position: absolute; top: 20mm; right: 20mm; z-index: 50; text-align: right; }
 
         /* Tables & Content */
@@ -60,24 +91,24 @@
         
         /* Preview Structure */
         .preview-list { list-style: none; padding: 0; margin: 0; }
-        .preview-item { margin-bottom: 10px; display: flex; align-items: flex-start; }
+        .preview-item { margin-bottom: 10px; display: flex; align-items: flex-start; break-inside: avoid; }
         .preview-num { font-weight: normal; min-width: 25px; }
         .preview-text { flex-grow: 1; text-align: justify; }
         
         /* Level 2 (Sub) */
         .sub-list { margin-top: 5px; }
-        .sub-item { display: flex; align-items: flex-start; margin-bottom: 4px; }
+        .sub-item { display: flex; align-items: flex-start; margin-bottom: 4px; break-inside: avoid; }
         .sub-num { font-weight: normal; min-width: 35px; font-size: 0.95em; }
         .sub-text-wrapper { flex-grow: 1; }
         .sub-text { font-size: 0.95em; }
 
         /* Level 3 (Sub-Sub) */
         .sub-sub-list { margin-top: 3px; margin-left: 0; }
-        .sub-sub-item { display: flex; align-items: flex-start; margin-bottom: 3px; }
+        .sub-sub-item { display: flex; align-items: flex-start; margin-bottom: 3px; break-inside: avoid; }
         .sub-sub-num { font-weight: normal; min-width: 40px; font-size: 0.9em; font-style: italic; color: #444; }
         .sub-sub-text { font-size: 0.9em; font-style: italic; }
 
-        .speaker-section { margin-bottom: 20px; border-bottom: 1px dashed #ddd; padding-bottom: 10px; }
+        .speaker-section { margin-bottom: 20px; border-bottom: 1px dashed #ddd; padding-bottom: 10px; break-inside: avoid; }
         .speaker-section:last-child { border-bottom: none; }
         
         .speaker-title { font-weight: bold; margin-bottom: 5px; font-size: 10pt; color: #334155; background-color: #f1f5f9; padding: 2px 6px; border-radius: 4px; display: inline-block; text-transform: none !important; }
@@ -114,7 +145,11 @@
             display: block; 
         } 
 
-        @media print { .no-print { display: none !important; } .a4-paper { box-shadow: none; margin: 0; } }
+        @media print { 
+            .no-print { display: none !important; } 
+            .a4-paper { box-shadow: none; margin: 0; background-image: none !important; } 
+            .a4-paper::after { display: none; }
+        }
         .modal-backdrop { background-color: rgba(0,0,0,0.5); backdrop-filter: blur(2px); }
     </style>
 </head>
@@ -142,8 +177,11 @@
                 <button onclick="showCreditModal()" class="text-xs font-bold text-indigo-600 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 px-3 py-2 rounded-lg flex items-center gap-1 transition-colors mr-2">💡 Kredit Idea</button>
                 <button onclick="window.location.href='user.html'" class="text-gray-500 hover:text-sky-600 text-sm font-semibold px-3 flex items-center gap-1 transition-colors">Kembali</button>
                 <div class="h-6 w-px bg-gray-300 mx-1"></div>
-                <button id="btn-share" onclick="shareRecord()" class="hidden bg-green-500 hover:bg-green-600 text-white text-xs font-bold py-2 px-4 rounded-lg shadow-md flex items-center gap-2 uppercase transition-all"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" /></svg> Kongsi</button>
-                <button onclick="saveAndGeneratePDF()" id="btn-final-save" class="bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white text-xs font-bold py-2 px-6 rounded-lg shadow-md flex items-center gap-2 uppercase transition-all"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg> Selesai & Jana PDF</button>
+                <button onclick="exportToWord()" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-2 px-4 rounded-lg shadow-md flex items-center gap-2 uppercase transition-all mr-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg> Export Word
+                </button>
+                <button id="btn-share" onclick="shareRecord()" class="hidden bg-green-500 hover:bg-green-600 text-white text-xs font-bold py-2 px-4 rounded-lg shadow-md flex items-center gap-2 uppercase transition-all mr-2"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" /></svg> Kongsi</button>
+                <button onclick="saveAndGeneratePDF()" id="btn-final-save" class="bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white text-xs font-bold py-2 px-6 rounded-lg shadow-md flex items-center gap-2 uppercase transition-all"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg> Selesai & PDF</button>
             </div>
         </div>
     </header>
@@ -452,6 +490,40 @@
         window.updateSettings = function(type, val) { const c = document.getElementById('out-content'); const p = document.getElementById('main-report'); if(type === 'fontSize') { c.style.fontSize = val + 'pt'; document.getElementById('lbl-fontSize').innerText = val + 'pt'; } else if (type === 'lineHeight') { c.style.lineHeight = val; document.getElementById('lbl-lineHeight').innerText = val; } else if (type === 'padding') { p.style.padding = `${val}mm 20mm`; document.getElementById('lbl-padding').innerText = val + 'mm'; } }
         window.shareRecord = function() { if(!window.currentDocId) { alert("Simpan dulu."); return; } const link = window.location.href.replace('sparkcurai.html', `viewminit.html?id=${window.currentDocId}`); window.open(`https://wa.me/?text=${encodeURIComponent("Salam, berikut pautan Minit Curai: " + link)}`, '_blank'); }
         window.autoResize = function(el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }
+
+        // --- EXPORT TO DOC FUNCTION ---
+        window.exportToWord = function() {
+            if(!window.isSessionActive && !window.currentDocId) { alert("Sila simpan minit dahulu."); return; }
+            
+            const content = document.getElementById('main-report').cloneNode(true);
+            
+            // Cleanup for Word
+            content.style.boxShadow = "none";
+            content.style.width = "100%";
+            content.style.margin = "0";
+            
+            const barcode = content.querySelector('.barcode-container');
+            if(barcode) barcode.remove();
+
+            // Word Header/Footer wrapper
+            const header = "<html xmlns:o='urn:schemas-microsoft-com:office:office' " +
+                "xmlns:w='urn:schemas-microsoft-com:office:word' " +
+                "xmlns='http://www.w3.org/TR/REC-html40'>" +
+                "<head><meta charset='utf-8'><title>Export HTML to Word Document with JavaScript</title></head><body>";
+            
+            const footer = "</body></html>";
+            const sourceHTML = header + content.innerHTML + footer;
+            
+            const source = 'data:application/vnd.ms-word;charset=utf-8,' + encodeURIComponent(sourceHTML);
+            const fileDownload = document.createElement("a");
+            document.body.appendChild(fileDownload);
+            fileDownload.href = source;
+            
+            const t = document.getElementById('in-tajuk').value.substring(0, 15).replace(/[^a-zA-Z0-9]/g, '_');
+            fileDownload.download = `MINIT_${t}.doc`;
+            fileDownload.click();
+            document.body.removeChild(fileDownload);
+        }
 
         // --- NEW: TOGGLE DATE RANGE FUNCTION ---
         window.toggleDateRange = function() {
