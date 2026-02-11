@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SPARK Curai – V14 (Perfect Margins)</title>
+    <title>SPARK Curai – V15 (Error Free)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
@@ -19,7 +19,6 @@
         .a4-paper { 
             width: 210mm; 
             min-height: 297mm; 
-            /* Padding ini untuk paparan skrin supaya nampak macam kertas */
             padding: 25.4mm 25.4mm; 
             background: white; 
             box-shadow: 0 10px 30px rgba(0,0,0,0.1); 
@@ -28,15 +27,14 @@
             font-family: 'Arial', sans-serif; 
             display: flex;
             flex-direction: column;
-            box-sizing: border-box; /* Penting: Padding termasuk dalam width */
+            box-sizing: border-box; 
         }
 
-        /* --- PDF EXPORT MODE (CRITICAL FIX) --- */
-        /* Class ini ditambah masa generate PDF sahaja */
+        /* --- PDF EXPORT MODE --- */
         .a4-paper.export-mode {
-            width: 100% !important; /* Ikut lebar PDF container */
+            width: 100% !important; 
             max-width: none !important;
-            padding: 0 !important; /* BUANG padding CSS, guna PDF margin */
+            padding: 0 !important; 
             margin: 0 !important;
             box-shadow: none !important;
             border: none !important;
@@ -63,7 +61,6 @@
         }
 
         /* --- SMART PAGE BREAKS --- */
-        /* Pastikan elemen ini tidak putus di tengah page */
         .preview-item, 
         .sub-item, 
         .sub-sub-item, 
@@ -372,7 +369,7 @@
         const app = initializeApp(firebaseConfig); const db = getFirestore(app); const auth = getAuth(app); const appId = firebaseConfig.projectId;
         const SECRET_G = "Z3NrX3hUbHQxRjVIYjRIdmRtejliS3Z5V0dkeWIzRllJcHdSazhrbWRxVlkySTdmTDlOZVdMMGs="; 
         
-        // --- IMGBB CONFIG ---
+        // --- IMGBB CONFIG (UPDATED) ---
         const IMGBB_API_KEY = "a7c600ac733fe14649cacd8e65619c4b"; 
 
         function getKey(encoded) { try { return atob(encoded); } catch (e) { return ""; } }
@@ -389,8 +386,13 @@
                 window.currentUserIc = urlParams.get('ic') || localStorage.getItem('user_ic');
                 if (window.currentUserIc) {
                     await fetchUserData(window.currentUserIc);
-                    setDefaults();
-                    addSpeaker(true); loadHistory(); window.renderBarcode();
+                    // FIX: Guna window.setDefaults
+                    window.setDefaults();
+                    // FIX: Guna window.addSpeaker
+                    window.addSpeaker(true); 
+                    // FIX: Guna window.loadHistory
+                    window.loadHistory(); 
+                    window.renderBarcode();
                 } else { alert("Sila log masuk semula."); window.location.href = 'index.html'; }
             });
         };
@@ -436,12 +438,13 @@
             clearTimeout(saveTimeout); saveTimeout = setTimeout(async () => { await saveToFirebase(true); }, 2000);
         }
 
-        // --- SAFE SAVE FUNCTION ---
+        // --- SAFE SAVE FUNCTION (FIXED NULL ERROR) ---
         window.saveToFirebase = async function(silent = false) {
             const ind = document.getElementById('save-indicator');
             const isRange = document.getElementById('chk-date-range').checked;
             const endDate = isRange ? document.getElementById('in-tarikh-akhir').value : "";
 
+            // Safely get settings values
             const fontSizeEl = document.getElementById('lbl-fontSize');
             const lineHeightEl = document.getElementById('lbl-lineHeight');
             const paddingEl = document.getElementById('lbl-padding');
@@ -523,7 +526,7 @@
         window.deleteRecord = async function(id) { if(!confirm("Padam?")) return; try { await deleteDoc(doc(db, `artifacts/${appId}/public/data/spark_minit_curai`, id)); loadHistory(); if(window.currentDocId === id) clearForm(true); } catch(e) { alert("Ralat."); } }
         window.switchTab = function(tName) { ['editor', 'history', 'settings'].forEach(t => { document.getElementById(`view-${t}`).classList.add('hidden'); document.getElementById(`tab-${t}`).className = 'nav-tab inactive flex-1 text-center'; }); document.getElementById(`view-${tName}`).classList.remove('hidden'); document.getElementById(`view-${tName}`).classList.add('block'); document.getElementById(`tab-${tName}`).className = 'nav-tab active flex-1 text-center'; }
         
-        // --- SAFE UPDATE SETTINGS ---
+        // --- SAFE UPDATE SETTINGS (FIXED NULL ERROR) ---
         window.updateSettings = function(type, val) { 
             const c = document.getElementById('out-content'); 
             const p = document.getElementById('main-report'); 
@@ -537,6 +540,8 @@
                 const lbl = document.getElementById('lbl-lineHeight');
                 if(lbl) lbl.innerText = val; 
             } else if (type === 'padding') { 
+                // Only change padding for SCREEN view. PDF handles its own.
+                // But we update the visual feedback
                 p.style.padding = `${val}mm ${val}mm`; 
                 const lbl = document.getElementById('lbl-padding');
                 if(lbl) lbl.innerText = val + 'mm'; 
@@ -560,6 +565,7 @@
             const barcode = content.querySelector('.barcode-container');
             if(barcode) barcode.remove();
 
+            // Word Header/Footer wrapper
             const header = "<html xmlns:o='urn:schemas-microsoft-com:office:office' " +
                 "xmlns:w='urn:schemas-microsoft-com:office:word' " +
                 "xmlns='http://www.w3.org/TR/REC-html40'>" +
@@ -579,6 +585,7 @@
             document.body.removeChild(fileDownload);
         }
 
+        // --- NEW: TOGGLE DATE RANGE FUNCTION ---
         window.toggleDateRange = function() {
             const chk = document.getElementById('chk-date-range');
             const endContainer = document.getElementById('date-end-container');
@@ -591,6 +598,7 @@
             updatePreview();
         }
 
+        // --- AI LOGIC ---
         window.askAI = async function(btn, type, sIndex, pIndex, subIndex = null) {
             if(!window.isSparkPro) { alert("🔒 AKSES TERHAD\n\nFungsi AI eksklusif untuk SPARK PRO."); return; }
             const originalText = btn.innerHTML; let inputId = (type === 'point') ? `input-point-${sIndex}-${pIndex}` : `input-sub-${sIndex}-${pIndex}-${subIndex}`;
@@ -599,6 +607,7 @@
             btn.innerHTML = `...`; btn.disabled = true;
             const GROQ_API_KEY = getKey(SECRET_G);
             try {
+                // SYSTEM PROMPT UPDATED FOR STRICT FORMAL MALAY MINUTES
                 const systemPrompt = "Bertindak sebagai pencatat minit profesional. Tukar input pengguna menjadi ayat minit mesyuarat rasmi Bahasa Melayu yang padat, formal, dan gramatis. Gunakan gaya bahasa pentadbiran kerajaan Malaysia. Mulakan ayat dengan frasa tegas seperti 'Pengerusi memaklumkan', 'Mesyuarat memutuskan', 'Pihak pengurusan menegaskan', atau 'Ahli mesyuarat bersetuju'. HANYA berikan output teks minit sahaja tanpa sebarang penjelasan, mukadimah, atau tanda petik.";
 
                 const r = await fetch("https://api.groq.com/openai/v1/chat/completions", { method: "POST", headers: { "Authorization": `Bearer ${GROQ_API_KEY}`, "Content-Type": "application/json" }, body: JSON.stringify({ messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userText }], model: "llama-3.3-70b-versatile", temperature: 0.5 }) });
@@ -608,6 +617,7 @@
             } catch (e) { alert("AI Gagal."); } finally { btn.innerHTML = originalText; btn.disabled = false; }
         }
 
+        // --- HTML RENDER WITH DRAG HANDLES ---
         window.renderFormFromData = function() { 
             const container = document.getElementById('speakers-container');
             container.innerHTML = ''; 
@@ -664,6 +674,7 @@
             document.getElementById('speakers-container').appendChild(w);
         }
 
+        // --- NEW: Handle Image Upload ---
         window.addImagePoint = function(i) {
             const input = document.createElement('input');
             input.type = 'file';
