@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SPARK Curai – V10 (Word Export & Smart Break)</title>
+    <title>SPARK Curai – V11 (Smart PDF Margins)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
@@ -13,12 +13,13 @@
     <style>
         body { font-family: 'Poppins', sans-serif; background-color: #f0f9ff; }
         
-        /* A4 Paper & Page Break Logic */
+        /* A4 Paper Styling for SCREEN VIEW */
         #pdf-wrapper { width: 210mm; margin: 0 auto; background: white; transition: all 0.3s ease; }
         
         .a4-paper { 
             width: 210mm; 
             min-height: 297mm; 
+            /* Padding skrin sahaja. PDF akan guna margin sendiri */
             padding: 20mm 20mm; 
             background: white; 
             box-shadow: 0 10px 30px rgba(0,0,0,0.1); 
@@ -29,36 +30,44 @@
             flex-direction: column;
         }
 
-        /* VISUAL PAGE BREAK INDICATOR (SCREEN ONLY) */
+        /* GARISAN MERAH (HANYA DI SKRIN UNTUK PANDUAN) */
         @media screen {
             .a4-paper {
-                /* Garisan merah putus-putus setiap 297mm untuk tunjuk page break */
                 background-image: linear-gradient(to bottom, transparent 99.8%, red 99.8%, red 100%);
-                background-size: 100% 297mm; 
+                background-size: 100% 290mm; /* Anggaran tinggi A4 tolak margin */
                 background-repeat: repeat-y;
             }
-            /* Label "Page Break" kecil di tepi */
-            .a4-paper::after {
-                content: "PAGE BREAK LIMIT";
-                position: absolute;
-                top: 296mm;
-                right: 0;
-                font-size: 8px;
-                color: red;
-                font-weight: bold;
-                background: rgba(255,255,255,0.8);
-                padding: 2px;
-                pointer-events: none;
+        }
+
+        /* PRINT / PDF CSS */
+        @media print {
+            .no-print { display: none !important; }
+            body { background: white; }
+            #pdf-wrapper { width: 100%; margin: 0; }
+            .a4-paper {
+                width: 100%;
+                height: auto;
+                box-shadow: none;
+                margin: 0;
+                padding: 0 !important; /* Reset padding sebab html2pdf margin akan ambil alih */
+                background-image: none !important; /* Buang garisan merah */
             }
+            .a4-paper::after { display: none; }
         }
 
-        /* SMART PAGE BREAKS (PREVENT CUT-OFF) */
-        .speaker-section, .minit-table tr, .preview-item, .preview-image-container, table {
-            page-break-inside: avoid !important;
+        /* SMART BREAKS: Pastikan poin tidak terpotong */
+        .preview-item, .sub-item, .speaker-title, .minit-table, .preview-image-container {
+            page-break-inside: avoid !important; /* Jangan potong tengah-tengah */
             break-inside: avoid !important;
+            margin-bottom: 2px; /* Jarak sikit */
         }
 
-        .barcode-container { position: absolute; top: 20mm; right: 20mm; z-index: 50; text-align: right; }
+        /* Jika tajuk seksyen duduk di hujung, tolak ke page baru sekali dengan isinya */
+        .speaker-section {
+            break-inside: auto; /* Biarkan section pecah, tapi item di dalam (preview-item) yang avoid break */
+        }
+
+        .barcode-container { position: absolute; top: 0; right: 0; z-index: 50; text-align: right; }
 
         /* Tables & Content */
         .minit-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 10pt !important; line-height: 1.4 !important; }
@@ -74,7 +83,7 @@
         .content-table th { background-color: #f3f4f6; font-weight: bold; text-transform: uppercase; text-align: center; }
 
         /* Image Handling */
-        .preview-image-container { text-align: center; margin: 10px 0; page-break-inside: avoid; }
+        .preview-image-container { text-align: center; margin: 10px 0; }
         .preview-image { max-width: 90%; max-height: 400px; height: auto; border: 1px solid #ddd; padding: 4px; background: white; margin-bottom: 5px; }
         .image-caption { font-size: 9pt; color: #555; font-style: italic; text-align: center; display: block; }
 
@@ -91,24 +100,24 @@
         
         /* Preview Structure */
         .preview-list { list-style: none; padding: 0; margin: 0; }
-        .preview-item { margin-bottom: 10px; display: flex; align-items: flex-start; break-inside: avoid; }
+        .preview-item { margin-bottom: 10px; display: flex; align-items: flex-start; }
         .preview-num { font-weight: normal; min-width: 25px; }
         .preview-text { flex-grow: 1; text-align: justify; }
         
         /* Level 2 (Sub) */
         .sub-list { margin-top: 5px; }
-        .sub-item { display: flex; align-items: flex-start; margin-bottom: 4px; break-inside: avoid; }
+        .sub-item { display: flex; align-items: flex-start; margin-bottom: 4px; }
         .sub-num { font-weight: normal; min-width: 35px; font-size: 0.95em; }
         .sub-text-wrapper { flex-grow: 1; }
         .sub-text { font-size: 0.95em; }
 
         /* Level 3 (Sub-Sub) */
         .sub-sub-list { margin-top: 3px; margin-left: 0; }
-        .sub-sub-item { display: flex; align-items: flex-start; margin-bottom: 3px; break-inside: avoid; }
+        .sub-sub-item { display: flex; align-items: flex-start; margin-bottom: 3px; }
         .sub-sub-num { font-weight: normal; min-width: 40px; font-size: 0.9em; font-style: italic; color: #444; }
         .sub-sub-text { font-size: 0.9em; font-style: italic; }
 
-        .speaker-section { margin-bottom: 20px; border-bottom: 1px dashed #ddd; padding-bottom: 10px; break-inside: avoid; }
+        .speaker-section { margin-bottom: 20px; border-bottom: 1px dashed #ddd; padding-bottom: 10px; }
         .speaker-section:last-child { border-bottom: none; }
         
         .speaker-title { font-weight: bold; margin-bottom: 5px; font-size: 10pt; color: #334155; background-color: #f1f5f9; padding: 2px 6px; border-radius: 4px; display: inline-block; text-transform: none !important; }
@@ -144,12 +153,6 @@
             height: 100%; 
             display: block; 
         } 
-
-        @media print { 
-            .no-print { display: none !important; } 
-            .a4-paper { box-shadow: none; margin: 0; background-image: none !important; } 
-            .a4-paper::after { display: none; }
-        }
         .modal-backdrop { background-color: rgba(0,0,0,0.5); backdrop-filter: blur(2px); }
     </style>
 </head>
@@ -287,7 +290,6 @@
                 <h3 class="text-sm font-bold text-gray-700 uppercase mb-4 flex items-center gap-2"><svg class="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg> Konfigurasi Dokumen</h3>
                 <div class="bg-white p-4 rounded-xl border border-gray-200 mb-3 shadow-sm"><label class="text-[10px] font-bold text-gray-500 uppercase block mb-2">Saiz Tulisan (Isi)</label><input type="range" min="9" max="14" step="0.5" value="11" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-sky-600" oninput="updateSettings('fontSize', this.value)"><div class="flex justify-between text-[9px] text-gray-400 mt-1"><span>Kecil</span><span id="lbl-fontSize">11pt</span><span>Besar</span></div></div>
                 <div class="bg-white p-4 rounded-xl border border-gray-200 mb-3 shadow-sm"><label class="text-[10px] font-bold text-gray-500 uppercase block mb-2">Jarak Baris</label><input type="range" min="1.0" max="2.0" step="0.1" value="1.5" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-sky-600" oninput="updateSettings('lineHeight', this.value)"><div class="flex justify-between text-[9px] text-gray-400 mt-1"><span>Rapat</span><span id="lbl-lineHeight">1.5</span><span>Jarang</span></div></div>
-                <div class="bg-white p-4 rounded-xl border border-gray-200 mb-3 shadow-sm"><label class="text-[10px] font-bold text-gray-500 uppercase block mb-2">Ruang Tepi</label><input type="range" min="10" max="30" step="5" value="20" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-sky-600" oninput="updateSettings('padding', this.value)"><div class="flex justify-between text-[9px] text-gray-400 mt-1"><span>Sempit</span><span id="lbl-padding">20mm</span><span>Luas</span></div></div>
             </div>
         </div>
 
@@ -937,7 +939,20 @@
 
         window.setDefaults = function() { const n = new Date(); document.getElementById('in-tarikh').value = n.toISOString().split('T')[0]; document.getElementById('in-masa').value = n.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }); }
         window.renderBarcode = function() { const s = `SPARK-${Math.floor(Math.random()*1000000)}`; JsBarcode("#barcode", s, { format: "CODE128", width: 1, height: 15, displayValue: true, fontSize: 8, margin: 0, textMargin: 1 }); }
-        window.downloadPDF = function() { const el = document.getElementById('pdf-wrapper'); let t = document.getElementById('in-tajuk').value.substring(0, 20).replace(/[^a-zA-Z0-9]/g, '_'); html2pdf().set({ margin: 0, filename: `CURAI_${t}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } }).from(el).save(); }
+        window.downloadPDF = function() { 
+            const el = document.getElementById('pdf-wrapper'); 
+            let t = document.getElementById('in-tajuk').value.substring(0, 20).replace(/[^a-zA-Z0-9]/g, '_'); 
+            html2pdf()
+                .set({ 
+                    margin: [20, 20, 25, 20], // Top, Left, Bottom, Right (mm) - Pastikan ada ruang bawah
+                    filename: `CURAI_${t}.pdf`, 
+                    image: { type: 'jpeg', quality: 0.98 }, 
+                    html2canvas: { scale: 2, useCORS: true }, 
+                    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+                    pagebreak: { mode: ['css', 'legacy'] } 
+                })
+                .from(el).save(); 
+        }
         
         function initSignaturePad() { 
             sigCanvas = document.getElementById('signature-pad'); if (!sigCanvas) return; 
