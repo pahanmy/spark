@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SPARK Curai – V11 (Smart PDF Margins)</title>
+    <title>SPARK Curai – V12 (Final Fix)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
@@ -13,14 +13,13 @@
     <style>
         body { font-family: 'Poppins', sans-serif; background-color: #f0f9ff; }
         
-        /* A4 Paper Styling for SCREEN VIEW */
+        /* A4 Paper Styling */
         #pdf-wrapper { width: 210mm; margin: 0 auto; background: white; transition: all 0.3s ease; }
         
         .a4-paper { 
             width: 210mm; 
             min-height: 297mm; 
-            /* Padding skrin sahaja. PDF akan guna margin sendiri */
-            padding: 20mm 20mm; 
+            padding: 25.4mm 25.4mm; /* Padding visual di skrin */
             background: white; 
             box-shadow: 0 10px 30px rgba(0,0,0,0.1); 
             color: black; 
@@ -30,16 +29,13 @@
             flex-direction: column;
         }
 
-        /* GARISAN MERAH (HANYA DI SKRIN UNTUK PANDUAN) */
-        @media screen {
-            .a4-paper {
-                background-image: linear-gradient(to bottom, transparent 99.8%, red 99.8%, red 100%);
-                background-size: 100% 290mm; /* Anggaran tinggi A4 tolak margin */
-                background-repeat: repeat-y;
-            }
+        /* CLASS KHAS UNTUK GARIS MERAH (Hanya ada bila class ini ditambah) */
+        .show-guides {
+            background-image: linear-gradient(to bottom, transparent 99.8%, red 99.8%, red 100%);
+            background-size: 100% 297mm; /* Tepat saiz A4 */
+            background-repeat: repeat-y;
         }
 
-        /* PRINT / PDF CSS */
         @media print {
             .no-print { display: none !important; }
             body { background: white; }
@@ -49,25 +45,24 @@
                 height: auto;
                 box-shadow: none;
                 margin: 0;
-                padding: 0 !important; /* Reset padding sebab html2pdf margin akan ambil alih */
-                background-image: none !important; /* Buang garisan merah */
+                padding: 0 !important; 
+                background-image: none !important; /* Safety double check */
             }
-            .a4-paper::after { display: none; }
         }
 
-        /* SMART BREAKS: Pastikan poin tidak terpotong */
-        .preview-item, .sub-item, .speaker-title, .minit-table, .preview-image-container {
-            page-break-inside: avoid !important; /* Jangan potong tengah-tengah */
+        /* CRITICAL CSS FOR PAGE BREAKS */
+        /* Ini memastikan elemen tidak putus di tengah */
+        .preview-item, 
+        .sub-item, 
+        .sub-sub-item,
+        .speaker-title, 
+        .minit-table tr, 
+        .preview-image-container {
+            page-break-inside: avoid !important;
             break-inside: avoid !important;
-            margin-bottom: 2px; /* Jarak sikit */
         }
 
-        /* Jika tajuk seksyen duduk di hujung, tolak ke page baru sekali dengan isinya */
-        .speaker-section {
-            break-inside: auto; /* Biarkan section pecah, tapi item di dalam (preview-item) yang avoid break */
-        }
-
-        .barcode-container { position: absolute; top: 0; right: 0; z-index: 50; text-align: right; }
+        .barcode-container { position: absolute; top: 10mm; right: 0; z-index: 50; text-align: right; }
 
         /* Tables & Content */
         .minit-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 10pt !important; line-height: 1.4 !important; }
@@ -78,7 +73,7 @@
         .single-line-name { white-space: nowrap; overflow: visible; width: 100%; display: block; }
 
         /* Content Table (User Created) */
-        .content-table { width: 100%; border-collapse: collapse; margin: 5px 0 15px 0; font-size: 0.9em; }
+        .content-table { width: 100%; border-collapse: collapse; margin: 5px 0 15px 0; font-size: 0.9em; page-break-inside: avoid; }
         .content-table th, .content-table td { border: 1px solid #333; padding: 5px; text-align: left; vertical-align: middle; }
         .content-table th { background-color: #f3f4f6; font-weight: bold; text-transform: uppercase; text-align: center; }
 
@@ -295,7 +290,7 @@
 
         <div class="w-full lg:w-2/3 bg-gray-100 overflow-auto flex justify-center p-8 custom-scrollbar">
             <div id="pdf-wrapper">
-                <div class="a4-paper transform scale-100 origin-top" id="main-report">
+                <div class="a4-paper transform scale-100 origin-top show-guides" id="main-report">
                     <div class="barcode-container"><svg id="barcode"></svg></div>
                     <div class="text-center border-b-2 border-black pb-4 mb-6 mt-6">
                         <h2 class="text-xl font-bold uppercase tracking-wider mb-2 text-black">MINIT CURAI</h2>
@@ -939,19 +934,31 @@
 
         window.setDefaults = function() { const n = new Date(); document.getElementById('in-tarikh').value = n.toISOString().split('T')[0]; document.getElementById('in-masa').value = n.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }); }
         window.renderBarcode = function() { const s = `SPARK-${Math.floor(Math.random()*1000000)}`; JsBarcode("#barcode", s, { format: "CODE128", width: 1, height: 15, displayValue: true, fontSize: 8, margin: 0, textMargin: 1 }); }
+        
+        // --- UPDATED PDF GENERATION (FIXED MARGINS & BREAKS) ---
         window.downloadPDF = function() { 
-            const el = document.getElementById('pdf-wrapper'); 
+            const el = document.getElementById('main-report');
+            
+            // Remove red guides explicitly
+            el.classList.remove('show-guides');
+            
             let t = document.getElementById('in-tajuk').value.substring(0, 20).replace(/[^a-zA-Z0-9]/g, '_'); 
+            
             html2pdf()
                 .set({ 
-                    margin: [20, 20, 25, 20], // Top, Left, Bottom, Right (mm) - Pastikan ada ruang bawah
+                    margin: [25.4, 25.4, 25.4, 25.4], // 1 Inch (25.4mm) All Around - Standard Formal
                     filename: `CURAI_${t}.pdf`, 
                     image: { type: 'jpeg', quality: 0.98 }, 
                     html2canvas: { scale: 2, useCORS: true }, 
                     jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-                    pagebreak: { mode: ['css', 'legacy'] } 
+                    pagebreak: { mode: 'css', avoid: ['.preview-item', '.sub-item', '.sub-sub-item', 'tr', '.speaker-title'] }
                 })
-                .from(el).save(); 
+                .from(el)
+                .save()
+                .then(() => {
+                    // Add guides back for screen view
+                    el.classList.add('show-guides');
+                }); 
         }
         
         function initSignaturePad() { 
