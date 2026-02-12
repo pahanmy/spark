@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SPARK – Analisis Admin Lengkap (V6.0)</title>
+    <title>SPARK – Analisis Admin V7.0</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -25,8 +25,8 @@
                     <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
                 </div>
                 <div>
-                    <h1 class="text-xl font-bold text-gray-900 leading-none">SPARK ANALYTICS V6.0</h1>
-                    <p class="text-xs text-gray-500 font-medium tracking-wide mt-0.5">Analisis Data Raya & Impak Sistem</p>
+                    <h1 class="text-xl font-bold text-gray-900 leading-none">SPARK ANALYTICS V7.0</h1>
+                    <p class="text-xs text-gray-500 font-medium tracking-wide mt-0.5">Analisis Pencapaian & Impak</p>
                 </div>
             </div>
             <div class="flex gap-3">
@@ -40,7 +40,7 @@
         
         <div id="loading-overlay" class="fixed inset-0 bg-white/90 z-50 flex flex-col items-center justify-center">
             <div class="animate-spin rounded-full h-12 w-12 border-4 border-indigo-600 border-t-transparent"></div>
-            <p class="mt-4 text-indigo-800 font-bold animate-pulse text-sm uppercase">Sedang Memproses Semua Data...</p>
+            <p class="mt-4 text-indigo-800 font-bold animate-pulse text-sm uppercase">Sedang Memproses Data...</p>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -133,6 +133,25 @@
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="card p-6 lg:col-span-2 border-l-4 border-purple-500">
+                <h3 class="text-lg font-bold text-gray-900 uppercase mb-4">Kekerapan Penganjuran Program</h3>
+                <div class="chart-wrapper"><canvas id="programFreqChart"></canvas></div>
+            </div>
+            
+            <div class="card p-6 border-l-4 border-yellow-500">
+                <h3 class="text-lg font-bold text-gray-900 uppercase mb-2">Pencapaian Kehadiran</h3>
+                <p class="text-xs text-gray-500 mb-4">Prestasi program berdasarkan % kuota.</p>
+                <div class="chart-wrapper" style="height: 250px;"><canvas id="achievementChart"></canvas></div>
+                <div class="mt-4 grid grid-cols-2 gap-2 text-center text-[10px]">
+                    <div class="bg-green-100 text-green-800 p-1 rounded">Penuh: 100%</div>
+                    <div class="bg-blue-100 text-blue-800 p-1 rounded">Tinggi: >60%</div>
+                    <div class="bg-yellow-100 text-yellow-800 p-1 rounded">Sederhana: 40-59%</div>
+                    <div class="bg-red-100 text-red-800 p-1 rounded">Rendah: <40%</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div class="card p-6 lg:col-span-2"><h3 class="text-lg font-bold text-gray-900 uppercase mb-2">Waktu Puncak Program</h3><div class="chart-wrapper"><canvas id="timeAnalysisChart"></canvas></div></div>
             <div class="card p-6 flex flex-col gap-6">
                 <div><h3 class="text-sm font-bold text-gray-900 uppercase mb-2">Mod Program</h3><div class="chart-wrapper" style="height: 150px;"><canvas id="modeChart"></canvas></div></div>
@@ -145,15 +164,10 @@
             <div class="card p-6"><h3 class="text-lg font-bold text-gray-900 uppercase mb-2">Keaktifan Sektor</h3><div class="chart-wrapper"><canvas id="sectorChart"></canvas></div></div>
         </div>
 
-        <div class="card p-6 border-t-4 border-purple-500">
-            <h3 class="text-lg font-bold text-gray-900 uppercase mb-4">Kekerapan Penganjuran Program (Bulanan)</h3>
-            <div class="chart-wrapper"><canvas id="programFreqChart"></canvas></div>
-        </div>
-
     </main>
 
     <footer class="text-center py-8 text-gray-400 text-xs bg-white mt-8 border-t">
-        <p>SPARK Analytics V6.0 - Masterpiece Data Analysis</p>
+        <p>SPARK Analytics V7.0 - Data Raya & Impak Menyeluruh</p>
     </footer>
 
     <script type="module">
@@ -211,6 +225,9 @@
             let organizerStats = {}; 
             let modeOnline = 0, modePhysical = 0;
 
+            // Achievement Stats
+            let achFull = 0, achHigh = 0, achMid = 0, achLow = 0;
+
             // Speed Vars
             let allTimeGaps = [];
             let peakThroughput = 0;
@@ -219,7 +236,7 @@
             const currentYear = new Date().getFullYear();
             const currentMonthIndex = new Date().getMonth();
 
-            // 1. DATE MAP (MOMENTUM LOGIC)
+            // 1. DATE MAP
             let userEarliestDate = {}; 
             users.forEach(u => {
                 const ic = String(u.ic).replace(/[^0-9]/g, '');
@@ -293,6 +310,21 @@
                 const attendanceCount = (p.attendance && Array.isArray(p.attendance)) ? p.attendance.length : 0;
                 totalAttendance += attendanceCount;
                 
+                // ACHIEVEMENT ANALYSIS LOGIC
+                const quota = parseInt(p.quota || 0);
+                if (quota > 0) {
+                    const percent = (attendanceCount / quota) * 100;
+                    if (percent >= 100) achFull++;
+                    else if (percent >= 60) achHigh++;
+                    else if (percent >= 40) achMid++;
+                    else achLow++;
+                } else {
+                    // No quota? Maybe assume low or skip. Let's put in Mid for now or ignore. 
+                    // Better to put in High if attendance > 50, but let's stick to quota logic.
+                    // If no quota, we can't calculate %. Let's ignore or count as 'Mid' (Neutral).
+                    if (attendanceCount > 0) achMid++; 
+                }
+
                 if (attendanceCount > 0) {
                      p.attendance.forEach(att => {
                         let useDate = att.timestamp ? (att.timestamp.toDate ? att.timestamp.toDate() : new Date(att.timestamp)) : new Date(p.startDate);
@@ -400,6 +432,20 @@
 
             const progFreqKeys = sortMonthKeys(progCountPerMonth);
             renderChart('programFreqChart', { type: 'bar', data: { labels: progFreqKeys, datasets: [{ label: 'Bilangan Program', data: progFreqKeys.map(k => progCountPerMonth[k]), backgroundColor: '#a855f7', borderRadius: 4 }] } });
+
+            // NEW CHART: ACHIEVEMENT
+            renderChart('achievementChart', {
+                type: 'doughnut',
+                data: {
+                    labels: ['Penuh (100%)', 'Tinggi (>60%)', 'Sederhana (40-59%)', 'Rendah (<40%)'],
+                    datasets: [{
+                        data: [achFull, achHigh, achMid, achLow],
+                        backgroundColor: ['#10b981', '#3b82f6', '#f59e0b', '#ef4444'],
+                        borderWidth: 0
+                    }]
+                },
+                options: { cutout: '65%' }
+            });
         }
 
         function renderChart(id, config) {
