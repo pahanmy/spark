@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SPARK – Analisis Admin V7.0</title>
+    <title>SPARK – Analisis Admin V7.1</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -25,8 +25,8 @@
                     <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
                 </div>
                 <div>
-                    <h1 class="text-xl font-bold text-gray-900 leading-none">SPARK ANALYTICS V7.0</h1>
-                    <p class="text-xs text-gray-500 font-medium tracking-wide mt-0.5">Analisis Pencapaian & Impak</p>
+                    <h1 class="text-xl font-bold text-gray-900 leading-none">SPARK ANALYTICS V7.1</h1>
+                    <p class="text-xs text-gray-500 font-medium tracking-wide mt-0.5">Analisis KPI & Penanda Aras</p>
                 </div>
             </div>
             <div class="flex gap-3">
@@ -138,15 +138,19 @@
                 <div class="chart-wrapper"><canvas id="programFreqChart"></canvas></div>
             </div>
             
-            <div class="card p-6 border-l-4 border-yellow-500">
-                <h3 class="text-lg font-bold text-gray-900 uppercase mb-2">Pencapaian Kehadiran</h3>
-                <p class="text-xs text-gray-500 mb-4">Prestasi program berdasarkan % kuota.</p>
+            <div class="card p-6 border-l-4 border-green-500 bg-green-50/10">
+                <h3 class="text-lg font-bold text-gray-900 uppercase mb-2">Penanda Aras Kehadiran</h3>
+                <p class="text-xs text-gray-500 mb-4">Program yang mencapai KPI >50% kehadiran.</p>
                 <div class="chart-wrapper" style="height: 250px;"><canvas id="achievementChart"></canvas></div>
-                <div class="mt-4 grid grid-cols-2 gap-2 text-center text-[10px]">
-                    <div class="bg-green-100 text-green-800 p-1 rounded">Penuh: 100%</div>
-                    <div class="bg-blue-100 text-blue-800 p-1 rounded">Tinggi: >60%</div>
-                    <div class="bg-yellow-100 text-yellow-800 p-1 rounded">Sederhana: 40-59%</div>
-                    <div class="bg-red-100 text-red-800 p-1 rounded">Rendah: <40%</div>
+                <div class="mt-4 flex justify-center gap-4 text-center">
+                    <div class="bg-white border border-green-200 px-3 py-2 rounded-lg shadow-sm">
+                        <p class="text-[10px] font-bold text-green-600 uppercase">Melebihi 50%</p>
+                        <p class="text-lg font-bold text-green-800" id="kpi-success">0</p>
+                    </div>
+                    <div class="bg-white border border-red-200 px-3 py-2 rounded-lg shadow-sm">
+                        <p class="text-[10px] font-bold text-red-600 uppercase">Bawah 50%</p>
+                        <p class="text-lg font-bold text-red-800" id="kpi-fail">0</p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -167,7 +171,7 @@
     </main>
 
     <footer class="text-center py-8 text-gray-400 text-xs bg-white mt-8 border-t">
-        <p>SPARK Analytics V7.0 - Data Raya & Impak Menyeluruh</p>
+        <p>SPARK Analytics V7.1 - KPI Monitoring Dashboard</p>
     </footer>
 
     <script type="module">
@@ -225,8 +229,8 @@
             let organizerStats = {}; 
             let modeOnline = 0, modePhysical = 0;
 
-            // Achievement Stats
-            let achFull = 0, achHigh = 0, achMid = 0, achLow = 0;
+            // Achievement Stats (KPI)
+            let achAbove50 = 0, achBelow50 = 0;
 
             // Speed Vars
             let allTimeGaps = [];
@@ -310,19 +314,16 @@
                 const attendanceCount = (p.attendance && Array.isArray(p.attendance)) ? p.attendance.length : 0;
                 totalAttendance += attendanceCount;
                 
-                // ACHIEVEMENT ANALYSIS LOGIC
+                // ACHIEVEMENT ANALYSIS LOGIC (KPI > 50%)
                 const quota = parseInt(p.quota || 0);
                 if (quota > 0) {
                     const percent = (attendanceCount / quota) * 100;
-                    if (percent >= 100) achFull++;
-                    else if (percent >= 60) achHigh++;
-                    else if (percent >= 40) achMid++;
-                    else achLow++;
+                    if (percent > 50) achAbove50++;
+                    else achBelow50++;
                 } else {
-                    // No quota? Maybe assume low or skip. Let's put in Mid for now or ignore. 
-                    // Better to put in High if attendance > 50, but let's stick to quota logic.
-                    // If no quota, we can't calculate %. Let's ignore or count as 'Mid' (Neutral).
-                    if (attendanceCount > 0) achMid++; 
+                    // Jika tiada kuota, tapi ada kehadiran (>10), kita anggap berjaya
+                    if (attendanceCount > 10) achAbove50++;
+                    else achBelow50++;
                 }
 
                 if (attendanceCount > 0) {
@@ -369,6 +370,10 @@
             document.getElementById('avg-scan-time').textContent = `${avgScanTime}s`;
             document.getElementById('max-throughput').textContent = `${peakThroughput} org/min`;
             document.getElementById('fastest-gap').textContent = `${minGap}s`;
+
+            // Update KPI
+            document.getElementById('kpi-success').textContent = achAbove50;
+            document.getElementById('kpi-fail').textContent = achBelow50;
 
             let org1 = 0, org2_9 = 0, org10plus = 0;
             Object.values(organizerStats).forEach(org => {
@@ -433,14 +438,14 @@
             const progFreqKeys = sortMonthKeys(progCountPerMonth);
             renderChart('programFreqChart', { type: 'bar', data: { labels: progFreqKeys, datasets: [{ label: 'Bilangan Program', data: progFreqKeys.map(k => progCountPerMonth[k]), backgroundColor: '#a855f7', borderRadius: 4 }] } });
 
-            // NEW CHART: ACHIEVEMENT
+            // NEW CHART: ACHIEVEMENT (BINARY)
             renderChart('achievementChart', {
                 type: 'doughnut',
                 data: {
-                    labels: ['Penuh (100%)', 'Tinggi (>60%)', 'Sederhana (40-59%)', 'Rendah (<40%)'],
+                    labels: ['Melebihi 50%', 'Kurang 50%'],
                     datasets: [{
-                        data: [achFull, achHigh, achMid, achLow],
-                        backgroundColor: ['#10b981', '#3b82f6', '#f59e0b', '#ef4444'],
+                        data: [achAbove50, achBelow50],
+                        backgroundColor: ['#10b981', '#ef4444'], // Green vs Red
                         borderWidth: 0
                     }]
                 },
