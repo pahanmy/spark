@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SPARK – Analisis Admin V5.0</title>
+    <title>SPARK – Analisis Admin V5.1</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -25,7 +25,7 @@
                     <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
                 </div>
                 <div>
-                    <h1 class="text-xl font-bold text-gray-900 leading-none">SPARK ANALYTICS V5.0</h1>
+                    <h1 class="text-xl font-bold text-gray-900 leading-none">SPARK ANALYTICS V5.1</h1>
                     <p class="text-xs text-gray-500 font-medium tracking-wide mt-0.5">Analisis Prestasi & Kelajuan Sistem</p>
                 </div>
             </div>
@@ -126,6 +126,17 @@
             </div>
         </div>
 
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="card p-6 lg:col-span-2">
+                <h3 class="text-lg font-bold text-gray-900 uppercase mb-2">Waktu Puncak Program</h3>
+                <div class="chart-wrapper"><canvas id="timeAnalysisChart"></canvas></div>
+            </div>
+             <div class="card p-6">
+                <h3 class="text-sm font-bold text-gray-900 uppercase mb-2">Hari Paling Sibuk</h3>
+                <div class="chart-wrapper"><canvas id="dayChart"></canvas></div>
+            </div>
+        </div>
+
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div class="card p-6"><h3 class="text-lg font-bold text-gray-900 uppercase mb-2">Trend Kehadiran</h3><div class="chart-wrapper"><canvas id="usageTrendChart"></canvas></div></div>
             <div class="card p-6"><h3 class="text-lg font-bold text-gray-900 uppercase mb-2">Keaktifan Sektor</h3><div class="chart-wrapper"><canvas id="sectorChart"></canvas></div></div>
@@ -177,7 +188,7 @@
     </main>
 
     <footer class="text-center py-8 text-gray-400 text-xs bg-white mt-8 border-t">
-        <p>SPARK Analytics V5.0 - Prestasi Sistem Dioptimumkan</p>
+        <p>SPARK Analytics V5.1 - Prestasi Sistem Dioptimumkan</p>
     </footer>
 
     <script type="module">
@@ -315,36 +326,29 @@
                     });
 
                     // --- SPEED ANALYSIS LOGIC ---
-                    // Only analyze programs with substantial attendance to get real "flow" data
                     if (attendanceCount > 10) {
-                        // Sort attendance by timestamp
                         const sortedAtt = p.attendance.map(a => a.timestamp ? (a.timestamp.toDate ? a.timestamp.toDate() : new Date(a.timestamp)) : null).filter(d => d !== null).sort((a,b) => a - b);
                         
                         if (sortedAtt.length > 1) {
-                            // Calculate throughput per minute
                             let throughputMap = {};
                             sortedAtt.forEach(d => {
                                 const key = `${d.getHours()}:${d.getMinutes()}`;
                                 throughputMap[key] = (throughputMap[key] || 0) + 1;
                             });
                             
-                            // Find peak minute for this program
                             let progPeak = 0;
                             Object.values(throughputMap).forEach(v => {
                                 if(v > progPeak) progPeak = v;
                             });
                             if (progPeak > peakThroughput) peakThroughput = progPeak;
 
-                            // Calculate time gaps (seconds)
                             for (let i = 0; i < sortedAtt.length - 1; i++) {
-                                const diff = (sortedAtt[i+1] - sortedAtt[i]) / 1000; // in seconds
-                                // Only count "active scanning" gaps (e.g., < 2 minutes). Ignore huge gaps where no one scanned.
+                                const diff = (sortedAtt[i+1] - sortedAtt[i]) / 1000;
                                 if (diff > 0 && diff < 120) {
                                     allTimeGaps.push(diff);
                                 }
                             }
 
-                            // Store busiest program for chart
                             if (sortedAtt.length > busiestProgramAttendance.length) {
                                 busiestProgramAttendance = Object.keys(throughputMap).sort().map(k => ({time: k, count: throughputMap[k]}));
                             }
@@ -364,14 +368,10 @@
             });
 
             // --- PROCESS SPEED STATS ---
-            // Calculate Average Scan Time based on Peak Throughput (Inverse)
-            // If peak is 60 people/min, avg time = 1 sec.
             let avgScanTime = 0;
             if (peakThroughput > 0) {
                 avgScanTime = (60 / peakThroughput).toFixed(1);
             }
-            
-            // Fastest Gap (Filter out 0)
             const minGap = allTimeGaps.length > 0 ? Math.min(...allTimeGaps.filter(g => g > 0.5)).toFixed(1) : "0";
 
             document.getElementById('avg-scan-time').textContent = `${avgScanTime} Saat`;
@@ -418,17 +418,14 @@
                 return (parseInt(yA) - parseInt(yB)) || (monthNames.indexOf(mA) - monthNames.indexOf(mB));
             });
 
-            // 1. Growth
             const growthKeys = sortMonthKeys(newUsersPerMonth);
             const newUsersData = growthKeys.map(k => newUsersPerMonth[k]);
             let cumulativeUsers = 0;
             const cumulativeData = newUsersData.map(val => { cumulativeUsers += val; return cumulativeUsers; });
             renderChart('growthComboChart', { type: 'bar', data: { labels: growthKeys, datasets: [{ label: 'Jumlah Terkumpul', data: cumulativeData, type: 'line', borderColor: '#10b981', borderWidth: 2, yAxisID: 'y1', pointRadius: 0 }, { label: 'Pendaftaran Baharu', data: newUsersData, backgroundColor: '#6366f1', borderRadius: 4, yAxisID: 'y' }] }, options: { scales: { y: { beginAtZero: true, position: 'left' }, y1: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false } } } } });
 
-            // 2. Organizer Pie
             renderChart('organizerPieChart', { type: 'doughnut', data: { labels: ['Novis (1 Prog)', 'Aktif (2-9 Prog)', 'Super User (10+ Prog)'], datasets: [{ data: [org1, org2_9, org10plus], backgroundColor: ['#e5e7eb', '#818cf8', '#4338ca'], borderWidth: 0 }] }, options: { cutout: '65%' } });
 
-            // 3. Speed Chart (New)
             renderChart('speedChart', {
                 type: 'line',
                 data: {
@@ -444,7 +441,6 @@
                 }
             });
 
-            // Standard Charts
             renderChart('categoryChart', { type: 'doughnut', data: { labels: ['Warga Pendidikan', 'Murid', 'Awam'], datasets: [{ data: [catPPD, catMurid, catAwam], backgroundColor: ['#3b82f6', '#f97316', '#9ca3af'], borderWidth: 0 }] }, options: { cutout: '65%' } });
             renderChart('genderChart', { type: 'pie', data: { labels: ['Lelaki', 'Perempuan'], datasets: [{ data: [male, female], backgroundColor: ['#3b82f6', '#ec4899'], borderWidth: 0 }] } });
             
@@ -461,7 +457,9 @@
         }
 
         function renderChart(id, config) {
-            const ctx = document.getElementById(id).getContext('2d');
+            const canvas = document.getElementById(id);
+            if (!canvas) return; // Fail-safe
+            const ctx = canvas.getContext('2d');
             if (charts[id]) charts[id].destroy();
             const defaults = { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { font: { family: 'Poppins', size: 10 } } } } };
             const finalConfig = { type: config.type, data: config.data, options: { ...defaults, ...config.options } };
