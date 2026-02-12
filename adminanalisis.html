@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SPARK – Analisis Admin V4.1</title>
+    <title>SPARK – Analisis Admin V4.2</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -25,7 +25,7 @@
                     <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
                 </div>
                 <div>
-                    <h1 class="text-xl font-bold text-gray-900 leading-none">SPARK ANALYTICS V4.1</h1>
+                    <h1 class="text-xl font-bold text-gray-900 leading-none">SPARK ANALYTICS V4.2</h1>
                     <p class="text-xs text-gray-500 font-medium tracking-wide mt-0.5">Analisis Pintar & Sejarah Data</p>
                 </div>
             </div>
@@ -153,10 +153,18 @@
             </div>
         </div>
 
+        <div class="card p-6 border-t-4 border-purple-500">
+            <h3 class="text-lg font-bold text-gray-900 uppercase mb-4">Statistik Penganjuran Program (Bulanan)</h3>
+            <p class="text-xs text-gray-500 mb-4">Jumlah program yang telah dilaksanakan mengikut bulan.</p>
+            <div class="chart-wrapper">
+                <canvas id="programFreqChart"></canvas>
+            </div>
+        </div>
+
     </main>
 
     <footer class="text-center py-8 text-gray-400 text-xs bg-white mt-8 border-t">
-        <p>SPARK Analytics V4.1 - Logik Sejarah Data Dipertingkat</p>
+        <p>SPARK Analytics V4.2 - Data dikemaskini secara masa nyata.</p>
     </footer>
 
     <script type="module">
@@ -194,18 +202,19 @@
                 document.getElementById('loading-overlay').classList.add('hidden');
             } catch (err) {
                 console.error(err);
-                alert("Ralat memuatkan data.");
+                alert("Ralat memuatkan data. Sila semak sambungan internet.");
                 document.getElementById('loading-overlay').classList.add('hidden');
             }
         }
 
         function processAnalytics(users, programs) {
             
-            // --- VARIABLES & PRE-PROCESSING FOR DATES ---
+            // --- VARIABLES ---
             let male = 0, female = 0;
             let catMurid = 0, catPPD = 0, catAwam = 0;
             let newUsersPerMonth = {};
             let usageFreqPerMonth = {};
+            let progCountPerMonth = {}; // New variable for Program Frequency
             let sectorCounts = {};
             let startTimeCounts = {}; 
             let dayCounts = { 'Ahad':0, 'Isnin':0, 'Selasa':0, 'Rabu':0, 'Khamis':0, 'Jumaat':0, 'Sabtu':0 };
@@ -215,11 +224,9 @@
             const currentYear = new Date().getFullYear();
             const currentMonthIndex = new Date().getMonth();
 
-            // 1. MEMBUAT PETA TARIKH 'JOIN' (Fix Momentum Issue)
-            // Kita akan cari tarikh paling awal user wujud: sama ada dari 'createdAt' atau dari kehadiran program pertama mereka.
-            let userEarliestDate = {}; // ic -> Date Object
+            // 1. MEMBUAT PETA TARIKH 'JOIN'
+            let userEarliestDate = {}; 
 
-            // Step 1A: Check registered createdAt
             users.forEach(u => {
                 const ic = String(u.ic).replace(/[^0-9]/g, '');
                 if (u.createdAt) {
@@ -227,13 +234,11 @@
                 }
             });
 
-            // Step 1B: Backfill from Program Attendance (Critical for old users)
             programs.forEach(p => {
                 if (p.attendance && Array.isArray(p.attendance)) {
                     const progDate = new Date(p.startDate);
                     p.attendance.forEach(att => {
                         const ic = String(att.ic).replace(/[^0-9]/g, '');
-                        // Jika user belum ada tarikh, atau tarikh program ini lebih awal dari rekod sedia ada
                         if (!userEarliestDate[ic] || progDate < userEarliestDate[ic]) {
                             userEarliestDate[ic] = progDate;
                         }
@@ -251,28 +256,21 @@
                 if (ic.length >= 12) {
                     const lastDigit = parseInt(ic.slice(-1));
                     if (lastDigit % 2 === 0) female++; else male++;
-                } else male++; // default
+                } else male++;
 
-                // Category (Fix: Sekolah included in Pendidikan)
+                // Category
                 const sectorRaw = (u.sector || "").toUpperCase();
                 const unitRaw = (u.unit || "").toUpperCase();
-                const stationRaw = (u.station || "").toUpperCase(); // Ada user isi nama sekolah di station/org
-
-                // Keywords for Education Staff
+                const stationRaw = (u.station || "").toUpperCase();
                 const eduKeywords = ["SEKTOR", "PPD", "PEJABAT PENDIDIKAN", "SK ", "SMK", "SJK", "KOLEJ", "SEKOLAH", "GURU", "AKP"];
-                
                 const isEduStaff = eduKeywords.some(kw => sectorRaw.includes(kw) || stationRaw.includes(kw));
 
                 if (isEduStaff) {
-                    catPPD++; // Warga Pendidikan (PPD & Sekolah)
-                    
-                    // Sector Breakdown (Clean up labels)
+                    catPPD++;
                     let label = sectorRaw.replace("SEKTOR ", "").trim();
                     if(label === "" || label === "-") label = "SEKOLAH / LAIN";
                     sectorCounts[label] = (sectorCounts[label] || 0) + 1;
-
                 } else {
-                    // Check if Student
                     let isStudent = false;
                     if (ic.length >= 12) {
                         const yearPrefix = parseInt(ic.substring(0, 2));
@@ -284,10 +282,8 @@
                     if (!isStudent) catAwam++;
                 }
 
-                // Growth Analysis (Using Calculated Earliest Date)
-                let joinDate = userEarliestDate[ic] || new Date(); // Fallback to now if totally new
-                
-                // Safety check for invalid dates
+                // Growth Analysis
+                let joinDate = userEarliestDate[ic] || new Date(); 
                 if (isNaN(joinDate.getTime())) joinDate = new Date();
 
                 if (joinDate.getMonth() === currentMonthIndex && joinDate.getFullYear() === currentYear) {
@@ -302,6 +298,17 @@
             let totalAttendance = 0;
 
             programs.forEach(p => {
+                // Program Frequency Per Month (NEW LOGIC)
+                const startDate = new Date(p.startDate);
+                if (!isNaN(startDate)) {
+                    const progKey = `${monthNames[startDate.getMonth()]} ${startDate.getFullYear()}`;
+                    progCountPerMonth[progKey] = (progCountPerMonth[progKey] || 0) + 1;
+                    
+                    // Day Analysis
+                    const dayName = dayNames[startDate.getDay()];
+                    dayCounts[dayName]++;
+                }
+
                 // Time
                 if (p.startTime) {
                     const hour = p.startTime.split(':')[0];
@@ -315,13 +322,6 @@
                     modeOnline++;
                 } else {
                     modePhysical++;
-                }
-
-                // Day
-                const startDate = new Date(p.startDate);
-                if (!isNaN(startDate)) {
-                    const dayName = dayNames[startDate.getDay()];
-                    dayCounts[dayName]++;
                 }
 
                 // Attendance Stats
@@ -351,14 +351,13 @@
 
             // --- 5. RENDER CHARTS ---
             
-            // Helper Sort
             const sortMonthKeys = (obj) => Object.keys(obj).sort((a,b) => {
                 const [mA, yA] = a.split(' ');
                 const [mB, yB] = b.split(' ');
                 return (parseInt(yA) - parseInt(yB)) || (monthNames.indexOf(mA) - monthNames.indexOf(mB));
             });
 
-            // Chart A: Growth Combo (Fixed Momentum)
+            // Chart A: Growth Combo
             const growthKeys = sortMonthKeys(newUsersPerMonth);
             const newUsersData = growthKeys.map(k => newUsersPerMonth[k]);
             let cumulativeUsers = 0;
@@ -369,31 +368,11 @@
                 data: {
                     labels: growthKeys,
                     datasets: [
-                        {
-                            label: 'Jumlah Terkumpul',
-                            data: cumulativeData,
-                            type: 'line',
-                            borderColor: '#10b981',
-                            borderWidth: 2,
-                            yAxisID: 'y1',
-                            tension: 0.4,
-                            pointRadius: 0
-                        },
-                        {
-                            label: 'Pendaftaran Baharu',
-                            data: newUsersData,
-                            backgroundColor: '#6366f1',
-                            borderRadius: 4,
-                            yAxisID: 'y'
-                        }
+                        { label: 'Jumlah Terkumpul', data: cumulativeData, type: 'line', borderColor: '#10b981', borderWidth: 2, yAxisID: 'y1', tension: 0.4, pointRadius: 0 },
+                        { label: 'Pendaftaran Baharu', data: newUsersData, backgroundColor: '#6366f1', borderRadius: 4, yAxisID: 'y' }
                     ]
                 },
-                options: {
-                    scales: {
-                        y: { beginAtZero: true, type: 'linear', position: 'left' },
-                        y1: { beginAtZero: true, type: 'linear', position: 'right', grid: { drawOnChartArea: false } }
-                    }
-                }
+                options: { scales: { y: { beginAtZero: true, position: 'left' }, y1: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false } } } }
             });
 
             // Chart B: Usage Trend
@@ -403,14 +382,7 @@
                 type: 'line',
                 data: {
                     labels: useKeys,
-                    datasets: [{
-                        label: 'Jumlah Kehadiran',
-                        data: useValues,
-                        borderColor: '#f59e0b',
-                        backgroundColor: 'rgba(245, 158, 11, 0.1)',
-                        fill: true,
-                        tension: 0.3
-                    }]
+                    datasets: [{ label: 'Jumlah Kehadiran', data: useValues, borderColor: '#f59e0b', backgroundColor: 'rgba(245, 158, 11, 0.1)', fill: true, tension: 0.3 }]
                 }
             });
 
@@ -421,12 +393,7 @@
                 type: 'bar',
                 data: {
                     labels: timeKeys,
-                    datasets: [{
-                        label: 'Bil. Program Bermula',
-                        data: timeValues,
-                        backgroundColor: '#8b5cf6',
-                        borderRadius: 4
-                    }]
+                    datasets: [{ label: 'Bil. Program Bermula', data: timeValues, backgroundColor: '#8b5cf6', borderRadius: 4 }]
                 }
             });
 
@@ -435,11 +402,7 @@
                 type: 'doughnut',
                 data: {
                     labels: ['Warga Pendidikan', 'Murid', 'Awam'],
-                    datasets: [{
-                        data: [catPPD, catMurid, catAwam],
-                        backgroundColor: ['#3b82f6', '#f97316', '#9ca3af'],
-                        borderWidth: 0
-                    }]
+                    datasets: [{ data: [catPPD, catMurid, catAwam], backgroundColor: ['#3b82f6', '#f97316', '#9ca3af'], borderWidth: 0 }]
                 },
                 options: { cutout: '65%' }
             });
@@ -449,11 +412,7 @@
                 type: 'pie',
                 data: {
                     labels: ['Lelaki', 'Perempuan'],
-                    datasets: [{
-                        data: [male, female],
-                        backgroundColor: ['#3b82f6', '#ec4899'],
-                        borderWidth: 0
-                    }]
+                    datasets: [{ data: [male, female], backgroundColor: ['#3b82f6', '#ec4899'], borderWidth: 0 }]
                 }
             });
 
@@ -462,11 +421,7 @@
                 type: 'pie',
                 data: {
                     labels: ['Bersemuka', 'Dalam Talian'],
-                    datasets: [{
-                        data: [modePhysical, modeOnline],
-                        backgroundColor: ['#ef4444', '#06b6d4'],
-                        borderWidth: 0
-                    }]
+                    datasets: [{ data: [modePhysical, modeOnline], backgroundColor: ['#ef4444', '#06b6d4'], borderWidth: 0 }]
                 },
                 options: { plugins: { legend: { position: 'right' } } }
             });
@@ -494,14 +449,25 @@
                 type: 'bar',
                 data: {
                     labels: sortedSectors.map(s => s[0]),
-                    datasets: [{
-                        label: 'Bil. Staf',
-                        data: sortedSectors.map(s => s[1]),
-                        backgroundColor: '#3b82f6',
-                        borderRadius: 4
-                    }]
+                    datasets: [{ label: 'Bil. Staf', data: sortedSectors.map(s => s[1]), backgroundColor: '#3b82f6', borderRadius: 4 }]
                 },
                 options: { indexAxis: 'y' }
+            });
+
+            // Chart I: Program Frequency (NEW)
+            const progFreqKeys = sortMonthKeys(progCountPerMonth);
+            const progFreqValues = progFreqKeys.map(k => progCountPerMonth[k]);
+            renderChart('programFreqChart', {
+                type: 'bar',
+                data: {
+                    labels: progFreqKeys,
+                    datasets: [{
+                        label: 'Bilangan Program',
+                        data: progFreqValues,
+                        backgroundColor: '#a855f7', // Purple-500
+                        borderRadius: 4
+                    }]
+                }
             });
         }
 
