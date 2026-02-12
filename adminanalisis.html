@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SPARK – Analisis Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Poppins', sans-serif; background-color: #f8f9fa; }
+        .card { background-color: white; border-radius: 1rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); transition: transform 0.2s; }
+        .card:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
+        .chart-container { position: relative; height: 300px; width: 100%; }
+        .stat-icon { background: rgba(79, 70, 229, 0.1); color: #4f46e5; padding: 0.75rem; border-radius: 0.75rem; }
+    </style>
+</head>
+<body class="bg-gray-50 flex flex-col min-h-screen">
+
+    <header class="bg-white shadow-sm sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="bg-indigo-600 p-2 rounded-lg">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="text-white"><path d="M4 4H8V8H4V4Z" fill="currentColor"></path><path d="M16 4H20V8H16V4Z" fill="currentColor"></path><path d="M12 12H14V14H12V12Z" fill="currentColor"></path><path d="M4 16H8V20H4V16Z" fill="currentColor"></path><path d="M16 16H20V20H16V16Z" fill="currentColor"></path></svg>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold text-indigo-600 tracking-tight">SPARK ANALYTICS</h1>
+                    <p class="text-xs text-gray-500 uppercase tracking-wider">Papan Pemuka Analisis Data</p>
+                </div>
+            </div>
+            <div class="flex gap-2">
+                 <button onclick="window.location.href='index.html'" class="text-xs font-bold text-gray-500 hover:text-indigo-600 uppercase border border-gray-200 px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors">
+                    Halaman Utama
+                </button>
+                <button onclick="refreshData()" class="flex items-center gap-2 bg-indigo-50 text-indigo-700 text-xs font-bold px-3 py-2 rounded-lg hover:bg-indigo-100 transition-colors uppercase">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                    Muat Semula
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-grow w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+
+        <div id="loading-overlay" class="fixed inset-0 bg-white/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center">
+            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
+            <p class="text-sm font-bold text-indigo-600 animate-pulse uppercase">Sedang Menganalisis Data...</p>
+        </div>
+
+        <div class="flex justify-between items-end border-b border-gray-200 pb-4">
+            <div>
+                <h2 class="text-2xl font-extrabold text-gray-900">Ringkasan Eksekutif</h2>
+                <p class="text-sm text-gray-500">Analisis prestasi sistem setakat <span id="current-date" class="font-bold"></span>.</p>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div class="card p-6 flex items-center justify-between">
+                <div>
+                    <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Jumlah Pengguna</p>
+                    <h3 class="text-3xl font-extrabold text-gray-900 mt-1" id="total-users">0</h3>
+                    <p class="text-[10px] text-green-600 font-bold mt-1 flex items-center gap-1">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg>
+                        <span id="new-users-month">0</span> Baru Bulan Ini
+                    </p>
+                </div>
+                <div class="stat-icon bg-blue-50 text-blue-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                </div>
+            </div>
+
+            <div class="card p-6 flex items-center justify-between">
+                <div>
+                    <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Program Dijana</p>
+                    <h3 class="text-3xl font-extrabold text-gray-900 mt-1" id="total-programs">0</h3>
+                    <p class="text-[10px] text-indigo-600 font-bold mt-1" id="active-programs-text">0 Sedang Aktif</p>
+                </div>
+                <div class="stat-icon bg-indigo-50 text-indigo-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
+                </div>
+            </div>
+
+            <div class="card p-6 flex items-center justify-between">
+                <div>
+                    <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Kehadiran Direkod</p>
+                    <h3 class="text-3xl font-extrabold text-gray-900 mt-1" id="total-attendance">0</h3>
+                    <p class="text-[10px] text-gray-500 mt-1">Sepanjang Masa</p>
+                </div>
+                <div class="stat-icon bg-green-50 text-green-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                </div>
+            </div>
+
+            <div class="card p-6 flex items-center justify-between">
+                <div>
+                    <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Ahli Spark Pro</p>
+                    <h3 class="text-3xl font-extrabold text-gray-900 mt-1" id="total-pro">0</h3>
+                    <p class="text-[10px] text-orange-600 font-bold mt-1" id="pro-percentage">0% daripada Total</p>
+                </div>
+                <div class="stat-icon bg-orange-50 text-orange-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div class="card p-6">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-lg font-bold text-gray-800 uppercase">Trend Pendaftaran Pengguna</h3>
+                    <span class="text-xs font-bold bg-blue-100 text-blue-700 px-2 py-1 rounded">Bulanan</span>
+                </div>
+                <div class="chart-container">
+                    <canvas id="userGrowthChart"></canvas>
+                </div>
+            </div>
+
+            <div class="card p-6">
+                 <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-lg font-bold text-gray-800 uppercase">Statistik Penganjuran Program</h3>
+                    <span class="text-xs font-bold bg-indigo-100 text-indigo-700 px-2 py-1 rounded">Bulanan</span>
+                </div>
+                <div class="chart-container">
+                    <canvas id="programChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div class="card p-6 lg:col-span-2">
+                 <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-lg font-bold text-gray-800 uppercase">Taburan Pengguna Mengikut Sektor</h3>
+                    <button onclick="downloadSectorData()" class="text-xs text-indigo-600 font-bold hover:underline">Unduh Data</button>
+                </div>
+                <div class="chart-container" style="height: 350px;">
+                    <canvas id="sectorChart"></canvas>
+                </div>
+            </div>
+
+            <div class="card p-6">
+                <h3 class="text-lg font-bold text-gray-800 uppercase mb-2">Kadar Penuh Program</h3>
+                <p class="text-xs text-gray-500 mb-6">Peratusan program yang mencapai 100% kuota kehadiran.</p>
+                <div class="chart-container" style="height: 250px;">
+                    <canvas id="effectivenessChart"></canvas>
+                </div>
+                <div class="mt-4 text-center">
+                    <p class="text-xs text-gray-400">Analisis berdasarkan kuota yang ditetapkan.</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card overflow-hidden">
+             <div class="px-6 py-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
+                <h3 class="text-sm font-bold text-gray-700 uppercase">5 Program Paling Ramai Kehadiran</h3>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-white">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Program</th>
+                            <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Tarikh</th>
+                            <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Penyelaras</th>
+                            <th class="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Jumlah Hadir</th>
+                        </tr>
+                    </thead>
+                    <tbody id="top-programs-body" class="bg-white divide-y divide-gray-200">
+                        </tbody>
+                </table>
+            </div>
+        </div>
+
+    </main>
+
+    <footer class="text-center py-6 mt-8 border-t border-gray-200 bg-white">
+        <p class="text-xs text-gray-500 font-semibold">SPARK ANALYTICS MODULE</p>
+        <p class="text-[10px] text-gray-400 mt-1">Data dijana secara masa nyata dari pangkalan data Firebase.</p>
+    </footer>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, collection, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Firebase Config (Sama seperti fail lain)
+        const firebaseConfig = {
+            apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM",
+            authDomain: "myqrhadir.firebaseapp.com",
+            projectId: "myqrhadir",
+            storageBucket: "myqrhadir.appspot.com",
+            messagingSenderId: "799691133747",
+            appId: "1:799691133747:web:835a5e3e9413eace806446"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const appId = firebaseConfig.projectId;
+
+        // Chart Instances
+        let userChart, progChart, secChart, effChart;
+        let sectorDataForExport = {};
+
+        // Helper: Format Tarikh
+        const monthNames = ["Jan", "Feb", "Mac", "Apr", "Mei", "Jun", "Jul", "Ogo", "Sep", "Okt", "Nov", "Dis"];
+
+        async function fetchAnalyticsData() {
+            try {
+                // 1. Fetch Users
+                const usersRef = collection(db, `artifacts/${appId}/public/data/spark_participants`);
+                const usersSnap = await getDocs(usersRef);
+                const users = usersSnap.docs.map(doc => doc.data());
+
+                // 2. Fetch Programs
+                const programsRef = collection(db, `artifacts/${appId}/public/data/spark_programs`);
+                const programsSnap = await getDocs(programsRef);
+                const programs = programsSnap.docs.map(doc => doc.data());
+
+                processAndRender(users, programs);
+                
+                document.getElementById('loading-overlay').classList.add('hidden');
+
+            } catch (error) {
+                console.error("Ralat mengambil data:", error);
+                alert("Gagal memuatkan data analisis. Sila semak sambungan internet atau kebenaran akaun.");
+                document.getElementById('loading-overlay').classList.add('hidden');
+            }
+        }
+
+        function processAndRender(users, programs) {
+            // --- 1. KAD STATISTIK ---
+            
+            // Total Users
+            document.getElementById('total-users').textContent = users.length;
+            
+            // New Users this month
+            const currentMonth = new Date().getMonth();
+            const currentYear = new Date().getFullYear();
+            const newUsersCount = users.filter(u => {
+                if(!u.createdAt) return false;
+                const d = u.createdAt.toDate ? u.createdAt.toDate() : new Date(u.createdAt);
+                return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+            }).length;
+            document.getElementById('new-users-month').textContent = `+${newUsersCount}`;
+
+            // Spark Pro Stats
+            const proUsers = users.filter(u => u.isPro === true).length;
+            document.getElementById('total-pro').textContent = proUsers;
+            const proPercent = users.length > 0 ? ((proUsers / users.length) * 100).toFixed(1) : 0;
+            document.getElementById('pro-percentage').textContent = `${proPercent}% daripada Total`;
+
+            // Program Stats
+            document.getElementById('total-programs').textContent = programs.length;
+            const activePrograms = programs.filter(p => new Date(p.endDate) >= new Date()).length;
+            document.getElementById('active-programs-text').textContent = `${activePrograms} Sedang Aktif`;
+
+            // Attendance Stats
+            let totalAttendance = 0;
+            let fullCapacityPrograms = 0;
+            
+            programs.forEach(p => {
+                const count = p.attendance ? p.attendance.length : 0;
+                totalAttendance += count;
+                const quota = parseInt(p.quota || 0);
+                if(quota > 0 && count >= quota) fullCapacityPrograms++;
+            });
+            document.getElementById('total-attendance').textContent = totalAttendance.toLocaleString();
+
+
+            // --- 2. CHART DATA PROCESSING ---
+
+            // A. User Growth (Line Chart)
+            const userGrowthData = {};
+            users.forEach(u => {
+                let d = new Date(); // Default to now if missing
+                if (u.createdAt) d = u.createdAt.toDate ? u.createdAt.toDate() : new Date(u.createdAt);
+                
+                const key = `${monthNames[d.getMonth()]} ${d.getFullYear()}`;
+                userGrowthData[key] = (userGrowthData[key] || 0) + 1;
+            });
+            // Sort Chronologically (Basic Implementation)
+            // Note: For perfect sorting across years, needs more logic, but this works for basic view
+            
+            renderUserGrowthChart(userGrowthData);
+
+
+            // B. Program Frequency (Bar Chart)
+            const programFreqData = {};
+            programs.forEach(p => {
+                const d = new Date(p.startDate);
+                const key = `${monthNames[d.getMonth()]} ${d.getFullYear()}`;
+                programFreqData[key] = (programFreqData[key] || 0) + 1;
+            });
+            renderProgramChart(programFreqData);
+
+
+            // C. Sector Distribution (Doughnut)
+            const sectorCounts = {};
+            users.forEach(u => {
+                const sector = u.sector || "Lain-lain / Tidak Dinyatakan";
+                const cleanSector = sector.replace("SEKTOR ", ""); // Shorten label
+                sectorCounts[cleanSector] = (sectorCounts[cleanSector] || 0) + 1;
+            });
+            sectorDataForExport = sectorCounts; // Store for export
+            renderSectorChart(sectorCounts);
+
+
+            // D. Effectiveness (Pie)
+            renderEffectivenessChart(fullCapacityPrograms, programs.length - fullCapacityPrograms);
+            
+            // --- 3. TOP PROGRAMS TABLE ---
+            const sortedPrograms = [...programs].sort((a, b) => {
+                const attA = a.attendance ? a.attendance.length : 0;
+                const attB = b.attendance ? b.attendance.length : 0;
+                return attB - attA;
+            }).slice(0, 5);
+            
+            const tableBody = document.getElementById('top-programs-body');
+            tableBody.innerHTML = '';
+            
+            sortedPrograms.forEach(p => {
+                const attCount = p.attendance ? p.attendance.length : 0;
+                const dateStr = new Date(p.startDate).toLocaleDateString('ms-MY', { day: 'numeric', month: 'short' });
+                const row = `
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-6 py-4 text-xs font-medium text-gray-900 uppercase truncate max-w-[200px]">${p.name}</td>
+                        <td class="px-6 py-4 text-xs text-gray-500">${dateStr}</td>
+                        <td class="px-6 py-4 text-xs text-gray-500 uppercase">${p.penyelaras_name || '-'}</td>
+                        <td class="px-6 py-4 text-center">
+                            <span class="px-2 py-1 inline-flex text-xs leading-5 font-bold rounded-full bg-green-100 text-green-800">
+                                ${attCount}
+                            </span>
+                        </td>
+                    </tr>
+                `;
+                tableBody.innerHTML += row;
+            });
+        }
+
+        // --- CHART RENDERING FUNCTIONS ---
+
+        function renderUserGrowthChart(dataObj) {
+            const ctx = document.getElementById('userGrowthChart').getContext('2d');
+            // Basic sort keys by assumption of recent year, simple alphanumeric sort often fails for months
+            // Improving Key Sort:
+            const keys = Object.keys(dataObj).sort((a,b) => {
+                const partsA = a.split(' '); const partsB = b.split(' ');
+                const monthA = monthNames.indexOf(partsA[0]); const monthB = monthNames.indexOf(partsB[0]);
+                return (parseInt(partsA[1]) - parseInt(partsB[1])) || (monthA - monthB);
+            });
+            
+            // Cumulative Sum Logic (Pertumbuhan)
+            let cumulative = 0;
+            const dataValues = keys.map(k => {
+                cumulative += dataObj[k];
+                return cumulative;
+            });
+
+            if (userChart) userChart.destroy();
+            userChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: keys,
+                    datasets: [{
+                        label: 'Jumlah Pengguna Terkumpul',
+                        data: dataValues,
+                        borderColor: '#2563eb',
+                        backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true, grid: { borderDash: [2, 4] } }, x: { grid: { display: false } } }
+                }
+            });
+        }
+
+        function renderProgramChart(dataObj) {
+            const ctx = document.getElementById('programChart').getContext('2d');
+             const keys = Object.keys(dataObj).sort((a,b) => {
+                const partsA = a.split(' '); const partsB = b.split(' ');
+                const monthA = monthNames.indexOf(partsA[0]); const monthB = monthNames.indexOf(partsB[0]);
+                return (parseInt(partsA[1]) - parseInt(partsB[1])) || (monthA - monthB);
+            });
+            const values = keys.map(k => dataObj[k]);
+
+            if (progChart) progChart.destroy();
+            progChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: keys,
+                    datasets: [{
+                        label: 'Bil. Program',
+                        data: values,
+                        backgroundColor: '#4f46e5',
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true, grid: { borderDash: [2, 4] } }, x: { grid: { display: false } } }
+                }
+            });
+        }
+
+        function renderSectorChart(dataObj) {
+            const ctx = document.getElementById('sectorChart').getContext('2d');
+            const keys = Object.keys(dataObj);
+            const values = Object.values(dataObj);
+            const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6'];
+
+            if (secChart) secChart.destroy();
+            secChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: keys,
+                    datasets: [{
+                        data: values,
+                        backgroundColor: colors,
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { 
+                        legend: { position: 'right', labels: { font: { size: 10 }, boxWidth: 10 } } 
+                    },
+                    cutout: '70%'
+                }
+            });
+        }
+
+        function renderEffectivenessChart(full, notFull) {
+            const ctx = document.getElementById('effectivenessChart').getContext('2d');
+            if (effChart) effChart.destroy();
+            effChart = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: ['Penuh (Kuota Dicapai)', 'Belum Penuh'],
+                    datasets: [{
+                        data: [full, notFull],
+                        backgroundColor: ['#10b981', '#e5e7eb'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom' } }
+                }
+            });
+        }
+
+        window.refreshData = function() {
+            document.getElementById('loading-overlay').classList.remove('hidden');
+            fetchAnalyticsData();
+        }
+
+        window.downloadSectorData = function() {
+            let csvContent = "data:text/csv;charset=utf-8,SEKTOR,JUMLAH PENGGUNA\n";
+            for (const [key, value] of Object.entries(sectorDataForExport)) {
+                csvContent += `${key},${value}\n`;
+            }
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "analisis_sektor_spark.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // Init
+        document.getElementById('current-date').textContent = new Date().toLocaleDateString('ms-MY', { day: 'numeric', month: 'long', year: 'numeric' });
+        fetchAnalyticsData();
+
+    </script>
+</body>
+</html>
