@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SPARK Go – Rekod Pergerakan</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Poppins', sans-serif; background-color: #f0fdf4; } /* Light Green theme for Go */
+        .card { background-color: white; border-radius: 0.75rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
+        .btn { transition: all 0.2s; }
+        .btn:hover:not(:disabled) { transform: translateY(-2px); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        
+        .input-group { position: relative; }
+        .input-group svg { position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: #9ca3af; pointer-events: none; }
+        .input-group input, .input-group select { padding-left: 2.75rem; }
+
+        @keyframes pulse-green { 0% { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(22, 163, 74, 0); } 100% { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0); } }
+        .pulse-btn { animation: pulse-green 2s infinite; }
+        
+        /* Custom Scrollbar for dropdowns */
+        .custom-scroll::-webkit-scrollbar { width: 6px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 4px; }
+    </style>
+</head>
+<body class="flex flex-col min-h-screen">
+
+    <header class="bg-white shadow-sm sticky top-0 z-40">
+        <div class="max-w-screen-2xl mx-auto py-4 px-4 sm:px-6 lg:px-8 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="bg-green-600 p-2 rounded-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-bold text-green-700 tracking-tight">SPARK <span class="text-gray-800">Go</span></h1>
+                    <p class="text-xs text-gray-500 font-medium uppercase tracking-wide">Sistem Rekod Pergerakan Pegawai</p>
+                </div>
+            </div>
+            <button onclick="window.location.href='index.html'" class="text-gray-500 hover:text-green-600 font-medium text-sm flex items-center gap-1 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" /></svg>
+                Kembali
+            </button>
+        </div>
+    </header>
+
+    <main class="flex-grow w-full max-w-5xl mx-auto py-8 px-4 sm:px-6">
+        
+        <div id="auth-section" class="card p-6 mb-6 border-l-4 border-green-600">
+            <h2 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                <span class="bg-green-100 text-green-700 w-8 h-8 flex items-center justify-center rounded-full text-sm">1</span>
+                Maklumat Pegawai Pengesah
+            </h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">No. Kad Pengenalan</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="applicant-ic" maxlength="12" placeholder="Cth: 880101131234" class="block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+                        <button onclick="verifyApplicant()" id="btn-verify" class="bg-gray-800 text-white px-4 py-2 rounded-lg hover:bg-black font-semibold text-sm transition-colors">Semak</button>
+                    </div>
+                    <p id="auth-error" class="text-red-500 text-xs mt-1 hidden"></p>
+                </div>
+
+                <div id="applicant-info" class="hidden bg-green-50 p-4 rounded-lg border border-green-200">
+                    <div class="flex items-start gap-3">
+                        <div class="bg-white p-2 rounded-full shadow-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        </div>
+                        <div>
+                            <p class="text-xs text-green-600 font-bold uppercase tracking-wider">Identiti Disahkan</p>
+                            <h3 id="applicant-name" class="font-bold text-gray-800 text-lg leading-tight"></h3>
+                            <p id="applicant-dept" class="text-sm text-gray-600 mt-0.5"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="form-section" class="card p-8 opacity-50 pointer-events-none transition-all duration-300">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-lg font-bold text-gray-800 flex items-center gap-2">
+                    <span class="bg-green-100 text-green-700 w-8 h-8 flex items-center justify-center rounded-full text-sm">2</span>
+                    Butiran Pergerakan
+                </h2>
+                <div class="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-xs font-bold uppercase border border-blue-100">
+                    Auto-Hadir
+                </div>
+            </div>
+
+            <form onsubmit="submitMovement(event)" class="space-y-6">
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Jenis Lawatan / Pergerakan</label>
+                        <div class="input-group">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd" /></svg>
+                            <select id="visit-type" required class="block w-full border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500 shadow-sm bg-white">
+                                <option value="">-- Sila Pilih --</option>
+                                <option value="KUNJUNG BANTU">KUNJUNG BANTU</option>
+                                <option value="BIMBINGAN & PEMENTORAN">BIMBINGAN & PEMENTORAN</option>
+                                <option value="LAWATAN RASMI">LAWATAN RASMI / KERJA</option>
+                                <option value="PEMANTAUAN">PEMANTAUAN</option>
+                                <option value="MESYUARAT LUAR">MESYUARAT LUAR</option>
+                                <option value="LAIN-LAIN">LAIN-LAIN</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Alasan / Tujuan Spesifik</label>
+                        <div class="input-group">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" /></svg>
+                            <input type="text" id="visit-reason" required placeholder="Cth: Audit Aset Alih / Perjumpaan GB" class="block w-full border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500 shadow-sm">
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Lokasi / Destinasi (Sekolah/PPD)</label>
+                    <div class="input-group">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd" /></svg>
+                        <select id="destination-select" required class="block w-full border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500 shadow-sm bg-white">
+                            <option value="">Memuatkan senarai sekolah...</option>
+                        </select>
+                    </div>
+                    <div class="mt-2 text-xs text-gray-500">
+                        *Jika lokasi tiada dalam senarai, pilih "LAIN-LAIN" dan nyatakan di tujuan.
+                    </div>
+                </div>
+
+                <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                    <h3 class="text-sm font-bold text-gray-700 mb-3 uppercase">Tempoh Pergerakan</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-xs text-gray-500 uppercase font-semibold mb-1">Tarikh</label>
+                            <input type="date" id="move-date" required class="block w-full border-gray-300 rounded-md text-sm focus:ring-green-500 focus:border-green-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-500 uppercase font-semibold mb-1">Masa Keluar (Pergi)</label>
+                            <input type="time" id="start-time" required class="block w-full border-gray-300 rounded-md text-sm focus:ring-green-500 focus:border-green-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-500 uppercase font-semibold mb-1">Jangkaan Balik</label>
+                            <input type="time" id="end-time" required class="block w-full border-gray-300 rounded-md text-sm focus:ring-green-500 focus:border-green-500">
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Ahli Rombongan (Tag Rakan)</label>
+                    <div class="relative">
+                        <div class="flex gap-2 mb-2">
+                             <div class="relative flex-grow">
+                                <span class="absolute inset-y-0 left-0 flex items-center pl-3">
+                                    <svg class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" /></svg>
+                                </span>
+                                <input type="text" id="search-member" placeholder="Cari nama pegawai (Taip 3 huruf...)" class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-green-500 focus:border-green-500 sm:text-sm">
+                             </div>
+                        </div>
+                        
+                        <div id="search-results" class="absolute z-10 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none sm:text-sm hidden custom-scroll">
+                        </div>
+                    </div>
+
+                    <div class="mt-3 p-4 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 min-h-[80px]">
+                        <p class="text-xs text-gray-400 mb-2 font-semibold uppercase">Senarai Ahli:</p>
+                        <div id="members-list" class="flex flex-wrap gap-2">
+                            <span id="default-member-badge" class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800 border border-green-200">
+                                <svg class="mr-1.5 h-4 w-4 text-green-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd" /></svg>
+                                <span id="applicant-badge-name">Anda</span>
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="mt-2 flex justify-between items-center">
+                        <p class="text-xs text-gray-500 italic">Ahli yang ditag akan direkodkan sebagai HADIR secara automatik.</p>
+                        <div class="text-sm font-bold text-gray-700">
+                            Jumlah Kuota: <span id="quota-display" class="text-green-600 text-lg">1</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="pt-4 border-t border-gray-100">
+                    <button type="submit" id="btn-submit" class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-bold text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 uppercase tracking-wide transition-all shadow-green-200 shadow-lg">
+                        Rekod Pergerakan
+                    </button>
+                </div>
+
+            </form>
+        </div>
+    </main>
+
+    <div id="success-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 hidden backdrop-blur-sm">
+        <div class="bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full text-center transform scale-100 transition-transform">
+            <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-4 animate-bounce">
+                <svg class="h-8 w-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+            </div>
+            <h3 class="text-xl font-bold text-gray-900 mb-2">Pergerakan Direkod!</h3>
+            <p class="text-sm text-gray-500 mb-6">Rekod pergerakan dan kehadiran ahli rombongan telah berjaya disimpan dalam sistem.</p>
+            <div class="space-y-3">
+                 <button onclick="window.location.reload()" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 focus:outline-none sm:text-sm">
+                    Rekod Baru
+                </button>
+                <button onclick="window.location.href='index.html'" class="w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none sm:text-sm">
+                    Kembali ke Halaman Utama
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, collection, query, where, getDocs, orderBy, addDoc, serverTimestamp, runTransaction } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM",
+            authDomain: "myqrhadir.firebaseapp.com",
+            projectId: "myqrhadir",
+            storageBucket: "myqrhadir.appspot.com",
+            messagingSenderId: "799691133747",
+            appId: "1:799691133747:web:835a5e3e9413eace806446"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        const appId = firebaseConfig.projectId;
+
+        let currentApplicant = null;
+        let taggedMembers = []; // Array to store {name, ic, station}
+        let allUsersCache = []; // To store searchable users
+
+        // --- AUTH & INIT ---
+        onAuthStateChanged(auth, async (user) => {
+            if (!user) {
+                try { await signInAnonymously(auth); } 
+                catch (error) { console.error("Auth Error:", error); }
+            }
+            // Pre-load data
+            loadSchools();
+            preloadUsers();
+            
+            // Set default date
+            document.getElementById('move-date').value = new Date().toISOString().split('T')[0];
+            document.getElementById('start-time').value = "08:00";
+            document.getElementById('end-time').value = "17:00";
+        });
+
+        // --- 1. VERIFY APPLICANT ---
+        window.verifyApplicant = async function() {
+            const icInput = document.getElementById('applicant-ic');
+            const errorMsg = document.getElementById('auth-error');
+            const btn = document.getElementById('btn-verify');
+            
+            const ic = icInput.value.trim();
+            if (ic.length < 6) {
+                errorMsg.textContent = "Sila masukkan No. IC yang sah.";
+                errorMsg.classList.remove('hidden');
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = "Checking...";
+            errorMsg.classList.add('hidden');
+
+            try {
+                const q = query(collection(db, `artifacts/${appId}/public/data/spark_participants`), where("ic", "==", ic));
+                const snap = await getDocs(q);
+
+                if (!snap.empty) {
+                    const data = snap.docs[0].data();
+                    currentApplicant = { id: snap.docs[0].id, ...data };
+                    
+                    // Update UI
+                    document.getElementById('applicant-name').textContent = data.name.toUpperCase();
+                    document.getElementById('applicant-badge-name').textContent = data.name.toUpperCase().split(' ')[0]; // Short name for badge
+                    document.getElementById('applicant-dept').textContent = data.station || "-";
+                    
+                    document.getElementById('applicant-info').classList.remove('hidden');
+                    document.getElementById('form-section').classList.remove('opacity-50', 'pointer-events-none');
+                    icInput.disabled = true;
+                    btn.classList.add('hidden');
+                } else {
+                    errorMsg.textContent = "Rekod tidak dijumpai. Sila daftar di Halaman Utama dahulu.";
+                    errorMsg.classList.remove('hidden');
+                }
+            } catch (err) {
+                console.error(err);
+                errorMsg.textContent = "Ralat sistem. Sila cuba lagi.";
+                errorMsg.classList.remove('hidden');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = "Semak";
+            }
+        }
+
+        // --- 2. LOAD SCHOOLS ---
+        async function loadSchools() {
+            const select = document.getElementById('destination-select');
+            try {
+                const q = query(collection(db, `artifacts/${appId}/public/data/spark_schools`), orderBy("name", "asc"));
+                const snap = await getDocs(q);
+                
+                select.innerHTML = '<option value="">-- Sila Pilih Destinasi --</option>';
+                snap.forEach(doc => {
+                    const s = doc.data();
+                    const opt = document.createElement('option');
+                    opt.value = s.name;
+                    opt.textContent = s.name;
+                    select.appendChild(opt);
+                });
+                // Add Generic Option
+                const optOther = document.createElement('option');
+                optOther.value = "LAIN-LAIN";
+                optOther.textContent = "LAIN-LAIN (NYATAKAN DI TUJUAN)";
+                select.appendChild(optOther);
+
+            } catch (e) {
+                console.error("Schools Error:", e);
+                select.innerHTML = '<option value="">Gagal memuatkan senarai.</option>';
+            }
+        }
+
+        // --- 3. USER SEARCH & TAGGING ---
+        async function preloadUsers() {
+            // Optimistic loading: Get a batch or rely on search index. 
+            // For simplicity in this demo, we fetch basic details. 
+            // In production with 10k+ users, use server-side search or firestore limit/startAt.
+            try {
+                const q = query(collection(db, `artifacts/${appId}/public/data/spark_participants`), orderBy("name"));
+                const snap = await getDocs(q); // Warning: Reads all docs. Optimize if needed.
+                snap.forEach(doc => {
+                    const d = doc.data();
+                    if(d.name && d.ic) allUsersCache.push({ name: d.name.toUpperCase(), ic: d.ic, station: d.station });
+                });
+            } catch(e) { console.log("User preload skipped or failed", e); }
+        }
+
+        const searchInput = document.getElementById('search-member');
+        const searchResults = document.getElementById('search-results');
+
+        searchInput.addEventListener('input', (e) => {
+            const val = e.target.value.toUpperCase();
+            searchResults.innerHTML = '';
+            
+            if (val.length < 3) {
+                searchResults.classList.add('hidden');
+                return;
+            }
+
+            const matches = allUsersCache.filter(u => u.name.includes(val) && u.ic !== currentApplicant.ic && !taggedMembers.some(tm => tm.ic === u.ic)).slice(0, 10);
+            
+            if (matches.length > 0) {
+                searchResults.classList.remove('hidden');
+                matches.forEach(user => {
+                    const div = document.createElement('div');
+                    div.className = "cursor-pointer select-none relative py-2 pl-3 pr-9 hover:bg-green-50 text-gray-900";
+                    div.innerHTML = `
+                        <div class="flex items-center">
+                            <span class="font-normal block truncate text-xs font-bold">${user.name}</span>
+                        </div>
+                        <span class="text-[10px] text-gray-500 block truncate">${user.station || '-'}</span>
+                    `;
+                    div.onclick = () => addMember(user);
+                    searchResults.appendChild(div);
+                });
+            } else {
+                searchResults.classList.add('hidden');
+            }
+        });
+
+        // Hide dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!searchInput.contains(e.target) && !searchResults.contains(e.target)) {
+                searchResults.classList.add('hidden');
+            }
+        });
+
+        function addMember(user) {
+            taggedMembers.push(user);
+            renderMembers();
+            searchInput.value = '';
+            searchResults.classList.add('hidden');
+        }
+
+        window.removeMember = function(ic) {
+            taggedMembers = taggedMembers.filter(m => m.ic !== ic);
+            renderMembers();
+        }
+
+        function renderMembers() {
+            const container = document.getElementById('members-list');
+            // Clear current tags except the default one (Applicant)
+            const badges = container.querySelectorAll('.member-tag');
+            badges.forEach(b => b.remove());
+
+            taggedMembers.forEach(user => {
+                const tag = document.createElement('span');
+                tag.className = "member-tag inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800 border border-blue-200";
+                tag.innerHTML = `
+                    <span>${user.name}</span>
+                    <button type="button" onclick="removeMember('${user.ic}')" class="flex-shrink-0 ml-1.5 h-4 w-4 rounded-full inline-flex items-center justify-center text-blue-400 hover:bg-blue-200 hover:text-blue-500 focus:outline-none focus:bg-blue-500 focus:text-white">
+                        <span class="sr-only">Remove</span>
+                        <svg class="h-2 w-2" stroke="currentColor" fill="none" viewBox="0 0 8 8"><path stroke-linecap="round" stroke-width="1.5" d="M1 1l6 6m0-6L1 7" /></svg>
+                    </button>
+                `;
+                container.appendChild(tag);
+            });
+
+            // Update Quota Count (1 Applicant + Tagged)
+            document.getElementById('quota-display').textContent = 1 + taggedMembers.length;
+        }
+
+        // --- 4. SUBMIT FORM ---
+        window.submitMovement = async function(e) {
+            e.preventDefault();
+            const btn = document.getElementById('btn-submit');
+            
+            if (!currentApplicant) { alert("Sila sahkan identiti dahulu."); return; }
+            
+            btn.disabled = true;
+            btn.textContent = "MENYIMPAN...";
+            
+            const visitType = document.getElementById('visit-type').value;
+            const reason = document.getElementById('visit-reason').value.toUpperCase();
+            const destination = document.getElementById('destination-select').value;
+            const date = document.getElementById('move-date').value;
+            const startTime = document.getElementById('start-time').value;
+            const endTime = document.getElementById('end-time').value;
+            
+            const programKey = `GO-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+            
+            // Construct Name
+            const programName = `SPARK GO: ${visitType} - ${destination}`;
+
+            // Build Attendance Array (Applicant + Tagged)
+            // Format needs to match standard SPARK attendance object for dashboard compatibility
+            const timestamp = new Date().toISOString();
+            
+            const attendanceList = [];
+            
+            // 1. Add Applicant
+            attendanceList.push({
+                ic: currentApplicant.ic,
+                name: currentApplicant.name,
+                org: currentApplicant.station || "",
+                timestamp: timestamp,
+                status: 'Hadir',
+                method: 'SPARK GO'
+            });
+
+            // 2. Add Tagged Members
+            taggedMembers.forEach(m => {
+                attendanceList.push({
+                    ic: m.ic,
+                    name: m.name,
+                    org: m.station || "",
+                    timestamp: timestamp,
+                    status: 'Hadir',
+                    method: 'SPARK GO (TAG)'
+                });
+            });
+
+            const newProgram = {
+                key: programKey,
+                name: programName,
+                location: destination,
+                description: reason, // Store reason in description
+                startDate: date,
+                endDate: date, // Single day movement usually
+                startTime: startTime,
+                endTime: endTime,
+                quota: attendanceList.length,
+                penyelaras_ic: currentApplicant.ic,
+                penyelaras_name: currentApplicant.name,
+                createdAt: serverTimestamp(),
+                status: 'Selesai', // Auto-completed as it is a record
+                type: 'movement', // Marker for dashboard if needed
+                attendance: attendanceList, // Pre-filled attendance
+                
+                // Set unused fields to defaults to prevent dashboard errors
+                method: 'bersemuka',
+                bookingNeeded: false,
+                surveyNeeded: false,
+                evaluationNeeded: false,
+                referenceNeeded: false,
+                eCertificateNeeded: false
+            };
+
+            try {
+                 await addDoc(collection(db, `artifacts/${appId}/public/data/spark_programs`), newProgram);
+                 document.getElementById('success-modal').classList.remove('hidden');
+            } catch (err) {
+                console.error("Submit Error:", err);
+                alert("Gagal menyimpan rekod. Sila cuba lagi.");
+                btn.disabled = false;
+                btn.textContent = "Rekod Pergerakan";
+            }
+        }
+
+    </script>
+</body>
+</html>
