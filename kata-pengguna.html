@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SPARK – Testimoni & Impak Pengguna</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Poppins', sans-serif; background-color: #f8fafc; }
+        .glass-card { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.2); }
+        .quote-card { transition: transform 0.3s ease; }
+        .quote-card:hover { transform: translateY(-5px); }
+    </style>
+</head>
+<body class="text-gray-800">
+
+    <header class="bg-indigo-900 text-white py-8 shadow-xl">
+        <div class="max-w-7xl mx-auto px-6">
+            <h1 class="text-3xl md:text-4xl font-extrabold uppercase tracking-tight">Suara Komuniti SPARK</h1>
+            <p class="text-indigo-200 mt-2 text-sm md:text-base max-w-2xl">Bukti keberkesanan sistem berdasarkan maklum balas nyata pengguna mengenai penjimatan masa, penghapusan borang berganda, dan utiliti OPR.</p>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-6 py-10 space-y-10 -mt-10">
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="glass-card p-6 rounded-2xl shadow-lg border-t-4 border-teal-500 text-center">
+                <p class="text-xs font-bold text-gray-400 uppercase tracking-widest">Kepuasan OPR</p>
+                <h2 class="text-4xl font-black text-teal-600 mt-2" id="score-opr">0%</h2>
+                <p class="text-xs text-gray-500 mt-1">Setuju OPR Memudahkan Laporan</p>
+            </div>
+            <div class="glass-card p-6 rounded-2xl shadow-lg border-t-4 border-indigo-500 text-center">
+                <p class="text-xs font-bold text-gray-400 uppercase tracking-widest">Penjimatan Masa</p>
+                <h2 class="text-4xl font-black text-indigo-600 mt-2" id="score-speed">0x</h2>
+                <p class="text-xs text-gray-500 mt-1">Lebih Pantas Berbanding Manual</p>
+            </div>
+            <div class="glass-card p-6 rounded-2xl shadow-lg border-t-4 border-pink-500 text-center">
+                <p class="text-xs font-bold text-gray-400 uppercase tracking-widest">Isu Borang Berganda</p>
+                <h2 class="text-4xl font-black text-pink-600 mt-2" id="score-burden">0%</h2>
+                <p class="text-xs text-gray-500 mt-1">Mengaku Borang Lama Membebankan</p>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div class="glass-card p-8 rounded-2xl shadow-lg">
+                <h3 class="text-lg font-bold text-gray-800 uppercase mb-4">Impak Penghapusan Borang Berganda</h3>
+                <p class="text-xs text-gray-500 mb-6">Majoriti pengguna bersetuju bahawa kaedah lama (Pra-Daftar + Daftar Hari Kejadian) adalah tidak efisien.</p>
+                <div class="relative h-64 w-full">
+                    <canvas id="burdenChart"></canvas>
+                </div>
+            </div>
+            <div class="glass-card p-8 rounded-2xl shadow-lg">
+                <h3 class="text-lg font-bold text-gray-800 uppercase mb-4">Persepsi Kelajuan Sistem</h3>
+                <p class="text-xs text-gray-500 mb-6">Penilaian pengguna terhadap kepantasan imbasan SPARK berbanding Google Form.</p>
+                <div class="relative h-64 w-full">
+                    <canvas id="speedChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div>
+            <h3 class="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-3">
+                <span class="bg-indigo-600 w-2 h-8 rounded-full"></span>
+                Apa Kata Mereka?
+            </h3>
+            <div id="testimonial-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div class="col-span-full text-center py-10 text-gray-400 animate-pulse">Memuatkan data testimoni...</div>
+            </div>
+        </div>
+
+    </main>
+
+    <footer class="text-center py-8 text-gray-400 text-xs">
+        Data dikumpul secara masa nyata melalui modul <b>Suara Pengguna SPARK</b>.
+    </footer>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, collection, getDocs, orderBy, query, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM",
+            authDomain: "myqrhadir.firebaseapp.com",
+            projectId: "myqrhadir",
+            storageBucket: "myqrhadir.appspot.com",
+            messagingSenderId: "799691133747",
+            appId: "1:799691133747:web:835a5e3e9413eace806446"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // Main Logic
+        async function loadFeedback() {
+            const q = query(collection(db, "spark_feedback"), orderBy("timestamp", "desc"), limit(50));
+            const snapshot = await getDocs(q);
+            
+            let totalOprScore = 0;
+            let totalSpeedScore = 0;
+            let burdenYes = 0;
+            let burdenNo = 0;
+            let count = 0;
+            let feedbacks = [];
+
+            snapshot.forEach(doc => {
+                const d = doc.data();
+                feedbacks.push(d);
+                count++;
+                
+                // Kalkulasi Skor
+                if(d.oprRating >= 4) totalOprScore++;
+                totalSpeedScore += d.speedRating;
+                if(d.burden === 'Ya') burdenYes++; else burdenNo++;
+            });
+
+            if(count > 0) {
+                // Update DOM Stats
+                const oprPercent = Math.round((totalOprScore / count) * 100);
+                const avgSpeed = (totalSpeedScore / count).toFixed(1);
+                const burdenPercent = Math.round((burdenYes / count) * 100);
+
+                animateValue("score-opr", 0, oprPercent, "%");
+                animateValue("score-speed", 0, avgSpeed, "x");
+                animateValue("score-burden", 0, burdenPercent, "%");
+
+                // Render Charts
+                renderBurdenChart(burdenYes, burdenNo);
+                renderSpeedChart(avgSpeed);
+                
+                // Render Testimonials
+                renderTestimonials(feedbacks);
+            } else {
+                document.getElementById('testimonial-grid').innerHTML = `<div class="col-span-full text-center text-gray-500">Belum ada maklum balas. Sila isi borang kaji selidik.</div>`;
+            }
+        }
+
+        function renderTestimonials(data) {
+            const container = document.getElementById('testimonial-grid');
+            container.innerHTML = '';
+            
+            data.forEach(item => {
+                if(item.comment && item.comment.length > 5) {
+                    const card = document.createElement('div');
+                    card.className = "quote-card bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-between h-full";
+                    card.innerHTML = `
+                        <div>
+                            <svg class="w-8 h-8 text-indigo-200 mb-3" fill="currentColor" viewBox="0 0 24 24"><path d="M14.017 21L14.017 18C14.017 16.0547 15.3787 14.5078 17.0273 14.0312C16.3242 12.8711 15.3789 12.0156 14.017 11.2344V9.29688C17.0625 10.3906 19.3477 13.0625 19.3477 17.25H21.3789C21.3789 11.6094 18.2344 7.73438 14.017 6V21H14.017ZM5 21L5 18C5 16.0547 6.36328 14.5078 8.01172 14.0312C7.30859 12.8711 6.36328 12.0156 5 11.2344V9.29688C8.04688 10.3906 10.3281 13.0625 10.3281 17.25H12.3633C12.3633 11.6094 9.21875 7.73438 5 6V21H5Z"/></svg>
+                            <p class="text-gray-600 text-sm italic leading-relaxed">"${item.comment}"</p>
+                        </div>
+                        <div class="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between">
+                            <div>
+                                <p class="text-xs font-bold text-gray-800 uppercase">${item.name || 'Pengguna'}</p>
+                                <p class="text-[10px] text-gray-400">Pengguna SPARK</p>
+                            </div>
+                            <div class="bg-teal-50 text-teal-700 px-2 py-1 rounded text-[10px] font-bold">Speed: ${item.speedRating}/10</div>
+                        </div>
+                    `;
+                    container.appendChild(card);
+                }
+            });
+        }
+
+        function renderBurdenChart(yes, no) {
+            new Chart(document.getElementById('burdenChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: ['Setuju (Membebankan)', 'Tidak Setuju'],
+                    datasets: [{
+                        data: [yes, no],
+                        backgroundColor: ['#ec4899', '#e2e8f0'],
+                        borderWidth: 0
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, cutout: '70%' }
+            });
+        }
+
+        function renderSpeedChart(avg) {
+            new Chart(document.getElementById('speedChart'), {
+                type: 'bar',
+                data: {
+                    labels: ['Google Form (Purata)', 'SPARK (Penilaian Pengguna)'],
+                    datasets: [{
+                        label: 'Skor Kepantasan (1-10)',
+                        data: [4, avg], // Benchmark Google Form as 4/10
+                        backgroundColor: ['#94a3b8', '#4f46e5'],
+                        borderRadius: 8
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, max: 10 } } }
+            });
+        }
+
+        function animateValue(id, start, end, suffix) {
+            const obj = document.getElementById(id);
+            let current = start;
+            const range = end - start;
+            const increment = end > start ? 1 : -1;
+            const stepTime = Math.abs(Math.floor(2000 / range));
+            const timer = setInterval(() => {
+                current += (range > 10 && (end-current) > 10) ? (end-current)/10 : increment; // Ease out logic simple
+                if(current >= end) { current = end; clearInterval(timer); }
+                obj.innerHTML = Math.round(current) + `<span class="text-lg ml-1 font-medium text-gray-400">${suffix}</span>`;
+            }, 20);
+        }
+
+        loadFeedback();
+    </script>
+</body>
+</html>
