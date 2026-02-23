@@ -95,7 +95,7 @@
                         <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
                             <div class="flex-1 min-w-0 w-full">
                                 <div class="flex items-center gap-2 mb-2">
-                                    <span class="bg-brand-light text-brand text-[10px] font-bold px-2.5 py-1 rounded-md uppercase tracking-widest">Maklumat Lawatan</span>
+                                    <span id="dashboard-visit-count" class="bg-brand-light text-brand text-[10px] font-bold px-2.5 py-1 rounded-md uppercase tracking-widest">Maklumat Lawatan</span>
                                 </div>
                                 <h2 id="dashboard-program-name" class="text-2xl sm:text-3xl font-bold text-slate-800 leading-tight break-words"></h2>
                             </div>
@@ -132,11 +132,18 @@
                                     <p id="dashboard-visit-type" class="text-sm font-bold text-slate-700">-</p>
                                 </div>
                             </div>
-                            <div>
+                            
+                            <div class="pt-3 border-t border-slate-200">
+                                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Pegawai Turut Serta (Rombongan)</p>
+                                <div id="dashboard-accompanying" class="flex flex-wrap gap-2">-</div>
+                            </div>
+
+                            <div class="pt-3 border-t border-slate-200">
                                 <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Pegawai Sasaran / Ingin Dijumpai</p>
                                 <div id="dashboard-target-list" class="flex flex-wrap gap-2">-</div>
                             </div>
-                            <div>
+
+                            <div class="pt-3 border-t border-slate-200">
                                 <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Tujuan / Aktiviti Spesifik</p>
                                 <p id="dashboard-description" class="text-sm text-slate-600 leading-relaxed bg-white p-3 rounded-lg border border-slate-100">-</p>
                             </div>
@@ -380,11 +387,25 @@
                     document.getElementById('dashboard-date').textContent = formatDateRange(currentLoadedProgram.startDate, currentLoadedProgram.endDate).toUpperCase();
                     document.getElementById('dashboard-time').textContent = formatTimeRange(currentLoadedProgram.startTime, currentLoadedProgram.endTime).toUpperCase();
                     
-                    // PAPARKAN MAKLUMAT TAMBAHAN (Fokus, Jenis, Tujuan, Sasaran)
+                    const visitBadge = document.getElementById('dashboard-visit-count');
+                    if (currentLoadedProgram.visitNumber) {
+                        visitBadge.textContent = `SIRI LAWATAN KE-${currentLoadedProgram.visitNumber}`;
+                    } else {
+                        visitBadge.textContent = `MAKLUMAT LAWATAN`;
+                    }
+
                     document.getElementById('dashboard-focus').textContent = currentLoadedProgram.focusArea || '-';
                     document.getElementById('dashboard-visit-type').textContent = currentLoadedProgram.visitType || '-';
                     document.getElementById('dashboard-description').textContent = currentLoadedProgram.description || '-';
                     
+                    const accompanyingList = document.getElementById('dashboard-accompanying');
+                    const accompanying = currentLoadedProgram.accompanyingOfficers || [];
+                    if(accompanying.length > 0) {
+                        accompanyingList.innerHTML = accompanying.map(a => `<span class="bg-white text-slate-600 border border-slate-200 text-[10px] font-bold px-3 py-1.5 rounded-lg uppercase shadow-sm">${a}</span>`).join('');
+                    } else {
+                        accompanyingList.innerHTML = `<span class="text-sm font-semibold text-slate-500">Tiada (Bergerak Sendirian)</span>`;
+                    }
+
                     const targetList = document.getElementById('dashboard-target-list');
                     const meetWith = currentLoadedProgram.meetWith || [];
                     if(meetWith.length > 0) {
@@ -403,7 +424,7 @@
                     }
                     
                     renderDateTabsAndAttendance();
-                    renderFindings(); // Render Rumusan Penemuan
+                    renderFindings(); 
 
                     const baseUrl = window.location.origin + window.location.pathname.replace('spark-go-program.html', '');
                     currentCheckinUrl = `${baseUrl}participant.html?kod=${currentLoadedProgram.id}`;
@@ -424,8 +445,6 @@
             });
         }
         
-        // --- LOGIK RUMUSAN PENEMUAN & MUAT NAIK GAMBAR ---
-
         window.showAddFindingModal = function() {
             document.getElementById('finding-text').value = '';
             document.getElementById('finding-image').value = '';
@@ -433,7 +452,6 @@
             document.getElementById('add-finding-modal').classList.remove('hidden');
         };
 
-        // Pratonton Gambar sebelum muat naik
         document.getElementById('finding-image').addEventListener('change', function(e) {
             const file = e.target.files[0];
             if(file) {
@@ -462,16 +480,13 @@
             let imageUrl = null;
 
             try {
-                // Proses Muat Naik API ImgBB
                 if (fileInput.files.length > 0) {
                     btn.innerHTML = `<svg class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Memuat Naik Gambar...`;
                     const file = fileInput.files[0];
                     const formData = new FormData();
                     formData.append('image', file);
                     
-                    // NOTA: Ganti dengan API Key ImgBB anda. Ini adalah Key Ujian generic.
                     const IMGBB_API_KEY = "e6b8c94e43e74ff1f32a6889eb22c710"; 
-                    
                     const imgRes = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, {
                         method: 'POST',
                         body: formData
@@ -529,8 +544,6 @@
                 </div>
             `).join('');
         }
-
-        // --- TAMAT LOGIK RUMUSAN PENEMUAN ---
 
         function renderDateTabsAndAttendance() {
             const tabsContainer = document.getElementById('attendance-date-tabs');
