@@ -378,7 +378,7 @@
             }
         }
 
-        // --- ANALYTICS LOGIC (UPDATED: SHOW ALL INVENTORY) ---
+        // --- ANALYTICS LOGIC ---
         function initAnalyticsYear() {
             const yearSelect = document.getElementById('analytics-year');
             const currentYear = new Date().getFullYear();
@@ -391,7 +391,6 @@
             const selectedYear = parseInt(yearSelect.value) || new Date().getFullYear();
             const tbody = document.getElementById('analytics-table-body');
             
-            // 1. Sediakan objek untuk SEMUA peralatan dari inventori
             let equipStats = {};
             
             if(inventoryData.coe) {
@@ -405,35 +404,40 @@
                 });
             }
             
-            // 2. Kira kekerapan dari tempahan (Booking)
             allBookingsCache.forEach(b => {
                 if (b.approvalStatus === 'Gagal' || b.approvalStatus === 'Ditolak' || b.approvalStatus === 'Batal' || b.status === 'BATAL') return;
                 if (!b.start) return;
                 
                 const start = b.start.toDate();
                 if (start.getFullYear() === selectedYear) {
-                    const month = start.getMonth(); // 0-11
+                    const month = start.getMonth(); 
                     
                     if (b.equipment && Array.isArray(b.equipment)) {
                         b.equipment.forEach(e => {
-                            if (e !== 'Tiada Peralatan') {
-                                // Jika peralatan wujud dalam tempahan tetapi tidak ada dalam inventori semasa (telah dipadam)
-                                if (!equipStats[e]) {
+                            let eqName = e;
+                            if (eqName === '86') eqName = '86" HUAWEI SMARTBOARD';
+                            if (eqName === '65') eqName = '65" INTERACTIVE SMARTBOARD WITH STAND';
+
+                            if (eqName !== 'Tiada Peralatan') {
+                                if (!equipStats[eqName]) {
                                     let inferredRoom = b.room === 'Hab STEM' ? 'hab_stem' : 'coe';
-                                    equipStats[e] = { room: inferredRoom, counts: [0,0,0,0,0,0,0,0,0,0,0,0], total: 0 };
+                                    equipStats[eqName] = { room: inferredRoom, counts: [0,0,0,0,0,0,0,0,0,0,0,0], total: 0 };
                                 }
-                                equipStats[e].counts[month]++;
-                                equipStats[e].total++;
+                                equipStats[eqName].counts[month]++;
+                                equipStats[eqName].total++;
                             }
                         });
                     }
                 }
             });
             
-            // 3. Susun berdasarkan jumlah tertinggi ke terendah
             let sortedEquips = Object.keys(equipStats).map(name => {
                 return { name: name, ...equipStats[name] };
-            }).sort((a, b) => b.total - a.total);
+            }).sort((a, b) => {
+                if (a.room === 'coe' && b.room !== 'coe') return -1;
+                if (a.room !== 'coe' && b.room === 'coe') return 1;
+                return b.total - a.total;
+            });
             
             tbody.innerHTML = '';
             
@@ -449,7 +453,6 @@
                 const tr = document.createElement('tr');
                 tr.className = "hover:bg-gray-50 transition border-b border-gray-100";
                 
-                // Beza Warna Label (Badge) ikut Bilik
                 let badge = '';
                 if(eq.room === 'coe') {
                     badge = `<span class="bg-purple-100 text-purple-700 border border-purple-200 text-[10px] px-2 py-0.5 rounded font-bold ml-2">CoE</span>`;
@@ -471,7 +474,6 @@
                 tbody.appendChild(tr);
             });
 
-            // Tambah baris jumlah keseluruhan
             let totalRow = `<tr class="bg-indigo-100 font-bold text-indigo-900 border-t-2 border-indigo-200">
                 <td class="px-4 py-4 text-right uppercase text-xs tracking-wider border-r border-indigo-200">Jumlah Tempahan Semua</td>`;
             monthlyTotals.forEach(mt => {
@@ -495,6 +497,7 @@
             onSnapshot(q, (snapshot) => {
                 let bookings = [];
                 let stats = { pending: 0, approved: 0, rejected: 0 };
+                let equipCounts = {}; 
 
                 snapshot.forEach(doc => {
                     const d = doc.data();
@@ -508,6 +511,18 @@
                         if (d.approvalStatus === 'Menunggu Kelulusan' || !d.approvalStatus) stats.pending++;
                         else if (d.approvalStatus === 'Lulus') stats.approved++;
                         else if (d.approvalStatus === 'Gagal' || d.approvalStatus === 'Ditolak') stats.rejected++;
+                        
+                        if(d.equipment && Array.isArray(d.equipment)) {
+                            d.equipment.forEach(e => {
+                                let eqName = e;
+                                if (eqName === '86') eqName = '86" HUAWEI SMARTBOARD';
+                                if (eqName === '65') eqName = '65" INTERACTIVE SMARTBOARD WITH STAND';
+                                
+                                if(eqName !== 'Tiada Peralatan') {
+                                    equipCounts[eqName] = (equipCounts[eqName] || 0) + 1;
+                                }
+                            });
+                        }
                     }
                 });
 
@@ -517,7 +532,10 @@
                 document.getElementById('count-approved').textContent = stats.approved;
                 document.getElementById('count-rejected').textContent = stats.rejected;
                 
-                // Refresh views
+                const sorted = Object.entries(equipCounts).sort((a,b) => b[1] - a[1]);
+                document.getElementById('top-equip').textContent = sorted.length > 0 ? `${sorted[0][0]} (${sorted[0][1]})` : '-';
+                document.getElementById('total-all').textContent = bookings.length;
+                
                 renderAdminCalendar(); 
                 if(document.getElementById('btn-analytics').classList.contains('active')) renderAnalytics();
 
@@ -537,6 +555,20 @@
                     return statusMatch && yearMatch && monthMatch;
                 });
 
+                // --- LOGIK SUSUNAN (SORT) ---
+                filtered.sort((a, b) => {
+                    let timeA = a.createdAt ? a.createdAt.toMillis() : 0;
+                    let timeB = b.createdAt ? b.createdAt.toMillis() : 0;
+                    
+                    // Jika tab "Menunggu Kelulusan", susun LAMA ke BARU (Oldest first)
+                    if (statusFilter === 'Menunggu Kelulusan') {
+                        return timeA - timeB; 
+                    } else {
+                        // Jika tab lain, susun BARU ke LAMA (Newest first)
+                        return timeB - timeA; 
+                    }
+                });
+
                 renderList(filtered, container);
             });
         }
@@ -554,24 +586,53 @@
                 const dateStr = start.toLocaleDateString('ms-MY', { day: 'numeric', month: 'short', year: 'numeric' });
                 const timeStr = `${start.toLocaleTimeString('ms-MY', {hour:'2-digit', minute:'2-digit'})} - ${end.toLocaleTimeString('ms-MY', {hour:'2-digit', minute:'2-digit'})}`;
                 
+                // --- KIRAAN HARI MENUNGGU ---
+                const createdDate = b.createdAt ? b.createdAt.toDate() : new Date();
+                const createdDateStr = createdDate.toLocaleDateString('ms-MY', { day: 'numeric', month: 'short', year: 'numeric' });
+                
+                // Normalise waktu kepada tengah malam (00:00:00) untuk pengiraan hari genap
+                const todayMidnight = new Date();
+                todayMidnight.setHours(0, 0, 0, 0);
+                const createdMidnight = new Date(createdDate);
+                createdMidnight.setHours(0, 0, 0, 0);
+                
+                const diffTime = Math.abs(todayMidnight - createdMidnight);
+                const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                
+                let daysPendingBadge = '';
+                if(b.approvalStatus === 'Menunggu Kelulusan' || !b.approvalStatus) {
+                    if(diffDays === 0) {
+                        daysPendingBadge = `<span class="bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded mt-1 inline-block border border-blue-200 shadow-sm">Hari Ini</span>`;
+                    } else {
+                        daysPendingBadge = `<span class="bg-red-100 text-red-700 text-[10px] font-bold px-2 py-0.5 rounded mt-1 inline-block border border-red-200 shadow-sm">Menunggu ${diffDays} Hari</span>`;
+                    }
+                }
+
                 const phone = b.bookedBy_phone ? b.bookedBy_phone.replace(/\D/g, '') : '';
                 const waPrefix = phone.length >= 9 ? (phone.startsWith('60') ? phone : `60${phone.startsWith('0') ? phone.slice(1) : phone}`) : '';
 
                 const roomType = b.room === 'Hab STEM' ? 'hab_stem' : 'coe';
-                const currentEquipStr = encodeURIComponent(JSON.stringify(b.equipment || []));
+                
+                let processedEquip = (b.equipment || []).map(e => {
+                    if (e === '86') return '86" HUAWEI SMARTBOARD';
+                    if (e === '65') return '65" INTERACTIVE SMARTBOARD WITH STAND';
+                    return e;
+                });
+                
+                const currentEquipStr = encodeURIComponent(JSON.stringify(processedEquip));
                 const safeProgName = b.programName ? b.programName.replace(/'/g, "\\'") : '';
 
-                let statusBadge = `<span class="bg-yellow-100 text-yellow-800 text-xs font-bold px-2 py-1 rounded">MENUNGGU</span>`;
+                let statusBadge = `<span class="bg-yellow-100 text-yellow-800 text-xs font-bold px-2 py-1 rounded shadow-sm">MENUNGGU</span>`;
                 let borderClass = 'border-l-4 border-l-yellow-400';
                 
                 if(b.approvalStatus === 'Lulus') {
-                    statusBadge = `<span class="bg-green-100 text-green-800 text-xs font-bold px-2 py-1 rounded">LULUS</span>`;
+                    statusBadge = `<span class="bg-green-100 text-green-800 text-xs font-bold px-2 py-1 rounded shadow-sm">LULUS</span>`;
                     borderClass = 'border-l-4 border-l-green-500';
                 } else if (b.approvalStatus === 'Gagal' || b.approvalStatus === 'Ditolak') {
-                    statusBadge = `<span class="bg-red-100 text-red-800 text-xs font-bold px-2 py-1 rounded">DITOLAK</span>`;
+                    statusBadge = `<span class="bg-red-100 text-red-800 text-xs font-bold px-2 py-1 rounded shadow-sm">DITOLAK</span>`;
                     borderClass = 'border-l-4 border-l-red-500 opacity-75';
                 } else if (b.approvalStatus === 'Batal' || b.status === 'BATAL') {
-                    statusBadge = `<span class="bg-gray-100 text-gray-600 text-xs font-bold px-2 py-1 rounded">DIBATALKAN</span>`;
+                    statusBadge = `<span class="bg-gray-100 text-gray-600 text-xs font-bold px-2 py-1 rounded shadow-sm">DIBATALKAN</span>`;
                     borderClass = 'border-l-4 border-l-gray-400 opacity-60 bg-gray-50';
                 }
 
@@ -581,10 +642,10 @@
                 }
 
                 let equipHtml = '';
-                let isEquipMissing = !b.equipment || b.equipment.length === 0;
+                let isEquipMissing = !processedEquip || processedEquip.length === 0;
 
                 if (!isEquipMissing) {
-                    equipHtml = `<div class="flex flex-wrap gap-1 mt-2">${b.equipment.map(e => `<span class="text-[10px] bg-white border border-gray-200 px-1.5 py-0.5 rounded text-gray-700 shadow-sm">${e}</span>`).join('')}</div>`;
+                    equipHtml = `<div class="flex flex-wrap gap-1 mt-2">${processedEquip.map(e => `<span class="text-[10px] bg-white border border-gray-200 px-1.5 py-0.5 rounded text-gray-700 shadow-sm">${e}</span>`).join('')}</div>`;
                 } else {
                     equipHtml = `<div class="mt-2 p-2 bg-red-50 border border-red-200 rounded text-red-600 text-[10px] font-bold flex items-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg> Peralatan belum direkod. Sila kemaskini jika perlu.</div>`;
                 }
@@ -594,13 +655,13 @@
                     actions = `
                         <div class="flex gap-2 mt-4 pt-3 border-t border-gray-100">
                             <button onclick="checkAndApprove('${b.id}', '${waPrefix}', '${safeProgName}', '${dateStr}', '${b.room}', ${isEquipMissing}, '${roomType}', '${currentEquipStr}')" class="flex-1 bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-2 rounded shadow-sm transition">LULUSKAN</button>
-                            <button onclick="openRejectModal('${b.id}', '${waPrefix}')" class="flex-1 bg-white border border-red-200 text-red-600 text-xs font-bold py-2 rounded hover:bg-red-50 transition">TOLAK</button>
+                            <button onclick="openRejectModal('${b.id}', '${waPrefix}')" class="flex-1 bg-white border border-red-200 text-red-600 text-xs font-bold py-2 rounded hover:bg-red-50 transition shadow-sm">TOLAK</button>
                         </div>
                     `;
                 } else if (b.approvalStatus === 'Lulus' && waPrefix) {
-                    actions = `<button onclick="sendWhatsApp('${waPrefix}', 'Lulus', '${safeProgName}', '${dateStr}', '${b.room}', '')" class="mt-3 w-full bg-green-50 text-green-700 border border-green-200 text-xs font-bold py-2 rounded hover:bg-green-100 transition">Kirim Info WhatsApp</button>`;
+                    actions = `<button onclick="sendWhatsApp('${waPrefix}', 'Lulus', '${safeProgName}', '${dateStr}', '${b.room}', '')" class="mt-3 w-full bg-green-50 text-green-700 border border-green-200 text-xs font-bold py-2 rounded hover:bg-green-100 transition shadow-sm">Kirim Info WhatsApp</button>`;
                 } else if ((b.approvalStatus === 'Gagal' || b.approvalStatus === 'Ditolak') && waPrefix) {
-                    actions = `<button onclick="sendWhatsApp('${waPrefix}', 'Gagal', '${safeProgName}', '${dateStr}', '${b.room}', '${b.approvalReason || ''}')" class="mt-3 w-full bg-red-50 text-red-700 border border-red-200 text-xs font-bold py-2 rounded hover:bg-red-100 transition">Kirim Info WhatsApp</button>`;
+                    actions = `<button onclick="sendWhatsApp('${waPrefix}', 'Gagal', '${safeProgName}', '${dateStr}', '${b.room}', '${b.approvalReason || ''}')" class="mt-3 w-full bg-red-50 text-red-700 border border-red-200 text-xs font-bold py-2 rounded hover:bg-red-100 transition shadow-sm">Kirim Info WhatsApp</button>`;
                 }
 
                 const item = document.createElement('div');
@@ -608,7 +669,16 @@
                 item.innerHTML = `
                     <div class="flex justify-between items-start">
                         <div class="pr-2 w-full">
-                            <div class="flex justify-between items-center">${statusBadge} <span class="text-xs font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded">${b.room}</span></div>
+                            <div class="flex justify-between items-start">
+                                <div class="flex flex-wrap items-center gap-1">
+                                    ${statusBadge} 
+                                    <span class="text-xs font-bold text-gray-500 bg-gray-100 border border-gray-200 px-2 py-0.5 rounded">${b.room}</span>
+                                </div>
+                                <div class="text-right">
+                                    <p class="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Tarikh Mohon: ${createdDateStr}</p>
+                                    ${daysPendingBadge}
+                                </div>
+                            </div>
                             <h4 class="font-bold text-gray-800 uppercase mt-2.5 leading-tight">${b.programName}</h4>
                             <p class="text-xs text-gray-500 mt-1 font-medium">${b.bookedBy_name} <span class="text-indigo-500">(${b.bookedBy_phone || 'Tiada No'})</span></p>
                             <p class="text-xs text-gray-500 font-medium flex items-center gap-1 mt-0.5"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>${dateStr} &bull; ${timeStr}</p>
@@ -627,7 +697,7 @@
                         ${equipHtml}
                     </div>
 
-                    ${b.approvalReason ? `<p class="text-[11px] text-red-600 mt-3 font-medium bg-red-50 p-2 rounded border border-red-100"><b>Sebab Ditolak:</b> ${b.approvalReason}</p>` : ''}
+                    ${b.approvalReason ? `<p class="text-[11px] text-red-600 mt-3 font-medium bg-red-50 p-2 rounded border border-red-100 shadow-sm"><b>Sebab Ditolak:</b> ${b.approvalReason}</p>` : ''}
                     ${actions}
                 `;
                 container.appendChild(item);
@@ -663,8 +733,11 @@
                     const isChecked = currentEquip.includes(item.name);
                     const div = document.createElement('div');
                     div.className = "flex items-center gap-2 p-2 border rounded hover:bg-gray-50";
+                    
+                    const safeValue = item.name.replace(/"/g, '&quot;');
+                    
                     div.innerHTML = `
-                        <input type="checkbox" value="${item.name}" class="equip-checkbox rounded text-indigo-600 w-4 h-4" ${isChecked ? 'checked' : ''}>
+                        <input type="checkbox" value="${safeValue}" class="equip-checkbox rounded text-indigo-600 w-4 h-4" ${isChecked ? 'checked' : ''}>
                         <span class="text-sm text-gray-700">${item.name}</span>
                     `;
                     container.appendChild(div);
@@ -777,7 +850,6 @@
                     }
                 }
                 
-                // Segarkan tab analisis jika ia sedang aktif
                 if(document.getElementById('btn-analytics').classList.contains('active')) {
                     renderAnalytics();
                 }
