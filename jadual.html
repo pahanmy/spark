@@ -462,9 +462,20 @@
                 
                 if (official.length > 0) {
                     eventHtml += official.map(p => {
-                        if(isEventCanceled(p)) {
+                        const isCanceled = isEventCanceled(p);
+                        let currentStatus = p.approvalStatus;
+                        
+                        const locStr = (p.location || '').toLowerCase();
+                        const modeStr = (p.mode || '').toLowerCase();
+                        const isOnline = locStr.includes('dalam talian') || locStr.includes('atas talian') || locStr.includes('online') || modeStr.includes('dalam talian');
+                        
+                        if (!isCanceled && (isOnline || !currentStatus)) {
+                            currentStatus = 'Lulus';
+                        }
+
+                        if(isCanceled) {
                             return `<div class="bg-red-50 text-red-500 text-[10px] rounded px-1 truncate mb-0.5 line-through font-medium border border-red-200" title="Batal/Gagal: ${p.name}">${p.name.toUpperCase()}</div>`;
-                        } else if (p.approvalStatus === 'Menunggu Kelulusan') {
+                        } else if (currentStatus === 'Menunggu Kelulusan') {
                             return `<div class="bg-yellow-50 text-yellow-700 text-[10px] rounded px-1 truncate mb-0.5 font-medium border border-yellow-200" title="Menunggu: ${p.name}">${p.name.toUpperCase()}</div>`;
                         }
                         return `<div class="bg-indigo-100 text-indigo-800 text-[10px] rounded px-1 truncate mb-0.5 font-medium border border-indigo-200" title="${p.name}">${p.name.toUpperCase()}</div>`;
@@ -584,7 +595,18 @@
                     const isMyProgram = (currentUserIc && p.penyelaras_ic === currentUserIc);
                     
                     const isCanceled = isEventCanceled(p);
-                    const isPending = p.approvalStatus === 'Menunggu Kelulusan';
+                    let currentStatus = p.approvalStatus;
+
+                    // Semak jika Program Dalam Talian ATAU tiada status yang ditetapkan
+                    const locStr = (p.location || '').toLowerCase();
+                    const modeStr = (p.mode || '').toLowerCase();
+                    const isOnline = locStr.includes('dalam talian') || locStr.includes('atas talian') || locStr.includes('online') || modeStr.includes('dalam talian');
+                    
+                    if (!isCanceled && (isOnline || !currentStatus)) {
+                        currentStatus = 'Lulus';
+                    }
+
+                    const isPending = currentStatus === 'Menunggu Kelulusan';
                     
                     let actionHtml = '';
                     let cardClass = 'bg-white border-l-4 border-indigo-500 shadow-sm';
@@ -597,7 +619,6 @@
                         statusBadge = `<span class="bg-red-200 text-red-800 border border-red-300 text-[10px] font-bold px-2 py-0.5 rounded ml-2 shadow-sm">BATAL / GAGAL</span>`;
                         actionHtml = `<div class="mt-2 pt-2 border-t border-red-200 text-[10px] text-red-600 font-bold uppercase italic text-center">Program Dibatalkan / Gagal</div>`;
                         
-                        // Perubahan untuk sembunyikan 'Sebab' dan minta pengesahan IC Penyelaras
                         if (p.approvalReason) {
                             const safeReason = p.approvalReason.replace(/'/g, "\\'").replace(/"/g, "&quot;");
                             actionHtml += `<button onclick="promptReasonVerification('${p.penyelaras_ic}', '${safeReason}')" class="mt-2 w-full bg-red-100 hover:bg-red-200 text-red-700 border border-red-300 py-1.5 rounded-lg text-[10px] font-bold uppercase shadow-sm transition-colors">Lihat Sebab</button>`;
@@ -606,7 +627,7 @@
                         cardClass = 'bg-yellow-50 border-l-4 border-yellow-400 shadow-sm';
                         titleClass = 'text-yellow-800';
                         statusBadge = `<span class="bg-yellow-200 text-yellow-800 border border-yellow-300 text-[10px] font-bold px-2 py-0.5 rounded ml-2 shadow-sm">MENUNGGU KELULUSAN</span>`;
-                    } else if (p.approvalStatus === 'Lulus') {
+                    } else if (currentStatus === 'Lulus') {
                         statusBadge = `<span class="bg-green-100 text-green-700 border border-green-200 text-[10px] font-bold px-2 py-0.5 rounded ml-2 shadow-sm">LULUS</span>`;
                     }
 
@@ -649,7 +670,7 @@
                  activities.map(a => {
                     const dataString = encodeURIComponent(JSON.stringify(a));
                     return `
-                    <div class="bg-emerald-50 border-l-4 border-emerald-500 shadow-sm rounded-r-xl p-4 text-gray-800 hover:shadow-md transition">
+                    <div class="bg-emerald-50 border-l-4 border-emerald-50 shadow-sm rounded-r-xl p-4 text-gray-800 hover:shadow-md transition">
                         <p class="font-bold text-sm text-emerald-800 uppercase leading-tight">${a.title.toUpperCase()}</p>
                         <div class="text-xs text-gray-600 mt-2 space-y-1.5">
                              <p class="flex items-center gap-2"><span class="w-4 text-center">📍</span> <span class="font-medium">${a.location.toUpperCase()}</span></p>
@@ -658,7 +679,7 @@
                         </div>
                         <div class="mt-3 flex gap-2">
                             <button onclick="openActivityModal('${dataString}')" class="flex-1 bg-white hover:bg-emerald-100 text-emerald-700 text-[10px] font-bold py-2 px-2 rounded-lg border border-emerald-200 uppercase shadow-sm transition">Info Lanjut</button>
-                            <button onclick="tagMe('planner', '${a.id}', '')" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold py-2 px-2 rounded-lg shadow-sm uppercase transition">Tag ke Kalendar Saya</button>
+                            <button onclick="tagMe('planner', '${a.id}', '')" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold py-2 px-2 rounded-lg shadow-sm uppercase transition">Tag ke Kalendar</button>
                         </div>
                     </div>`
                 }).join('') + '</div>';
@@ -693,7 +714,7 @@
                         <div class="mt-3 pt-3 border-t ${isCanceled ? 'border-red-200' : 'border-blue-200'}">
                             <p class="text-[10px] font-bold ${isCanceled ? 'text-red-600' : 'text-blue-700'} uppercase mb-1.5">Pegawai Bergerak:</p>
                             <div class="flex flex-wrap gap-1">${attendeesList}</div>
-                            ${!isCanceled ? `<button onclick="tagMe('movement', '${m.id}', '${dataString}')" class="mt-3 w-full bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold py-2 rounded-lg shadow-sm uppercase transition">Tag ke Kalendar Saya</button>` : ''}
+                            ${!isCanceled ? `<button onclick="tagMe('movement', '${m.id}', '${dataString}')" class="mt-3 w-full bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold py-2 rounded-lg shadow-sm uppercase transition">Tag ke Kalendar</button>` : ''}
                         </div>
                     </div>`;
                 }).join('') + '</div>';
@@ -744,14 +765,16 @@
             document.getElementById(modalId).classList.add('hidden');
         }
 
-        // FUNGSI TAG AKTIVITI (BARU)
+        // FUNGSI TAG AKTIVITI (MEMERLUKAN INPUT IC)
         window.tagMe = async function(type, docId, dataString) {
-            const currentUserIc = new URLSearchParams(window.location.search).get('ic') || localStorage.getItem('user_ic');
+            // Minta pengguna masukkan IC jika ingin menambah tag
+            const inputIc = prompt("Sila masukkan No. Kad Pengenalan (IC) anda (tanpa sengkang) untuk tag aktiviti ini ke kalendar anda:");
             
-            if (!currentUserIc) {
-                alert("Akses Ditolak: Sila pastikan anda mengakses kalendar ini dari papan pemuka (user.html) anda untuk menggunakan fungsi Tag.");
-                return;
+            if (!inputIc || inputIc.trim() === "") {
+                return; // Batalkan jika pengguna klik Cancel atau tidak memasukkan apa-apa
             }
+            
+            const cleanIc = inputIc.replace(/[^0-9]/g, ''); // Buang semua aksara kecuali nombor
 
             const btn = event.currentTarget;
             const originalText = btn.innerHTML;
@@ -760,17 +783,15 @@
 
             try {
                 if (type === 'planner') {
-                    // Update taggedIcs array dalam spark_planner sedia ada
                     const docRef = doc(db, `artifacts/${appId}/public/data/spark_planner`, docId);
                     await updateDoc(docRef, {
-                        taggedIcs: arrayUnion(currentUserIc)
+                        taggedIcs: arrayUnion(cleanIc)
                     });
                     alert("Berjaya ditag! Aktiviti Umum ini akan dipaparkan di 'Aktiviti Saya' pada papan pemuka anda.");
                 } else if (type === 'movement') {
-                    // Salin (Duplicate) rekod ke spark_planner peribadi supaya muncul di Papan Pemuka
                     const data = JSON.parse(decodeURIComponent(dataString));
                     const newPlan = {
-                        ic: currentUserIc,
+                        ic: cleanIc,
                         title: "[SPARK GO] " + data.name.toUpperCase(),
                         startDate: data.startDate,
                         startTime: data.startTime || "",
@@ -790,7 +811,7 @@
                 setTimeout(() => { btn.innerHTML = originalText; btn.disabled = false; }, 3000);
             } catch (error) {
                 console.error("Error tagging:", error);
-                alert("Gagal menambah tag. Sila cuba lagi.");
+                alert("Gagal menambah tag. Sila pastikan IC yang dimasukkan adalah sah.");
                 btn.innerHTML = originalText;
                 btn.disabled = false;
             }
@@ -863,7 +884,7 @@
         window.handleReasonVerification = () => {
             const inputIc = document.getElementById('reason-ic-input').value.trim();
             const correctIc = document.getElementById('verify-reason-pic').value;
-            // Jika dokumen tiada penyelaras IC, benarkan bacaan (terutama untuk rekod yang korup/lama)
+            // Jika dokumen tiada penyelaras IC, benarkan bacaan
             if (inputIc === correctIc || correctIc === "" || correctIc === "undefined") {
                 document.getElementById('reason-auth-section').classList.add('hidden');
                 document.getElementById('actual-reason-text').textContent = document.getElementById('verify-reason-text').value;
