@@ -111,11 +111,11 @@
                         <div class="flex gap-2 overflow-x-auto custom-scroll pb-2">
                             <div class="flex items-center gap-2 bg-indigo-50 px-2 py-1 rounded border border-indigo-100 min-w-max">
                                 <p id="summary-programs" class="text-sm font-bold text-indigo-700">0</p>
-                                <p class="text-[10px] uppercase text-indigo-500 font-semibold">Rasmi</p>
+                                <p class="text-[10px] uppercase text-indigo-500 font-semibold">Rasmi Aktif</p>
                             </div>
                             <div class="flex items-center gap-2 bg-blue-50 px-2 py-1 rounded border border-blue-100 min-w-max">
                                 <p id="summary-movement" class="text-sm font-bold text-blue-700">0</p>
-                                <p class="text-[10px] uppercase text-blue-500 font-semibold">Pergerakan</p>
+                                <p class="text-[10px] uppercase text-blue-500 font-semibold">Pergerakan Aktif</p>
                             </div>
                             <div class="flex items-center gap-2 bg-emerald-50 px-2 py-1 rounded border border-emerald-100 min-w-max">
                                 <p id="summary-planner" class="text-sm font-bold text-emerald-700">0</p>
@@ -287,6 +287,7 @@
             content.innerHTML = `<div class="border-2 border-dashed border-gray-300 rounded-xl p-5 text-center text-gray-500 h-full flex flex-col justify-center items-center"><p class="text-sm font-semibold">Tiada Program Hari Ini</p></div>`;
         }
         
+        // --- LISTENERS ---
         function listenForProgramChanges() {
             const q = query(collection(db, `artifacts/${appId}/public/data/spark_programs`), orderBy("startDate", "asc"));
             onSnapshot(q, (snap) => {
@@ -330,11 +331,15 @@
             }
         }
         
+        // --- UTILITY UNTUK SEMAK STATUS BATAL ---
+        function isEventCanceled(ev) {
+            return ev.status === 'Batal' || ev.status === 'BATAL' || ev.approvalStatus === 'Batal' || ev.approvalStatus === 'Gagal' || ev.approvalStatus === 'Ditolak';
+        }
+
         // --- LOGIK TAPISAN DATA (GETTERS) ---
         function getOfficialProgramsForDate(date) {
             const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
             return allPrograms.filter(p => {
-                if (p.status === 'Batal' || p.approvalStatus === 'Batal' || p.approvalStatus === 'Ditolak' || p.approvalStatus === 'Gagal') return false;
                 if (p.type === 'movement') return false; // Asingkan SPARK Go
                 const start = parseDateString(p.startDate);
                 const end = p.endDate ? parseDateString(p.endDate) : start;
@@ -345,7 +350,6 @@
         function getMovementsForDate(date) {
             const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
             return allPrograms.filter(p => {
-                if (p.status === 'Batal' || p.approvalStatus === 'Batal') return false;
                 if (p.type !== 'movement') return false; // Ambil SPARK Go sahaja
                 const start = parseDateString(p.startDate);
                 const end = p.endDate ? parseDateString(p.endDate) : start;
@@ -380,7 +384,7 @@
             const firstDay = new Date(year, month, 1).getDay();
             const daysInMonth = new Date(year, month + 1, 0).getDate();
 
-            // Statistik
+            // Statistik (Hanya kira yang aktif/tidak dibatalkan)
             let countOfficial = 0, countMovement = 0, countPlanner = 0;
 
             for (let i = 0; i < firstDay; i++) calendarGrid.insertAdjacentHTML('beforeend', '<div class="border rounded-md bg-gray-50"></div>');
@@ -395,8 +399,12 @@
                 const birthdays = getBirthdaysForDate(date);
                 const salary = getSalaryForDate(date);
                 
-                if (official.length > 0) countOfficial += official.length;
-                if (movements.length > 0) countMovement += movements.length;
+                // Kira untuk Badge Statistik Atas
+                const activeOfficial = official.filter(p => !isEventCanceled(p));
+                const activeMovements = movements.filter(p => !isEventCanceled(p));
+                
+                if (activeOfficial.length > 0) countOfficial += activeOfficial.length;
+                if (activeMovements.length > 0) countMovement += activeMovements.length;
                 if (planners.length > 0) countPlanner += planners.length;
 
                 const isToday = new Date().toDateString() === date.toDateString();
@@ -405,34 +413,48 @@
                 let eventHtml = '';
                 let indicatorsHtml = '';
 
-                // CSS Kelas Bergantung pada jenis event terbanyak (hierarki)
+                // Tentukan warna latar kotak mengikut keutamaan (Utamakan yg aktif)
                 if (salary) dayClasses += ' has-salary';
-                else if (official.length > 0 && (planners.length > 0 || movements.length > 0)) dayClasses += ' mixed-events';
-                else if (official.length > 0) dayClasses += ' has-events';
+                else if (activeOfficial.length > 0 && (planners.length > 0 || activeMovements.length > 0)) dayClasses += ' mixed-events';
+                else if (activeOfficial.length > 0) dayClasses += ' has-events';
                 else if (planners.length > 0) dayClasses += ' has-planner';
-                else if (movements.length > 0) dayClasses += ' has-movement';
+                else if (activeMovements.length > 0) dayClasses += ' has-movement';
                 else if (birthdays.length > 0) dayClasses += ' has-birthdays';
+                else if (official.length > 0 || movements.length > 0) dayClasses += ' bg-gray-50 opacity-80 cursor-pointer hover:bg-gray-100'; // Hanya ada event batal
                 
                 if (isToday) dayClasses += ' is-today';
 
-                // Indicators (Dots atas)
+                // Penunjuk (Dots atas) - Hanya tunjuk jumlah yang Aktif
                 if (salary) indicatorsHtml += `<div class="absolute top-1 left-1 text-lg">💰</div>`;
-                if (official.length > 0) indicatorsHtml += `<div class="absolute top-1 right-1 bg-indigo-500 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full shadow">${official.length}</div>`;
+                if (activeOfficial.length > 0) indicatorsHtml += `<div class="absolute top-1 right-1 bg-indigo-500 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full shadow">${activeOfficial.length}</div>`;
                 
-                // Block Elements (Bawah nombor hari)
+                // Elemen Kotak Dalam Kalendar
                 if (salary) eventHtml += `<div class="bg-green-100 text-green-800 text-[10px] rounded px-1 truncate mb-0.5 font-bold border border-green-200">💰 GAJI</div>`;
                 
                 if (official.length > 0) {
-                    eventHtml += official.map(p => `<div class="bg-indigo-100 text-indigo-800 text-[10px] rounded px-1 truncate mb-0.5 font-medium" title="${p.name}">${p.name.toUpperCase()}</div>`).join('');
+                    eventHtml += official.map(p => {
+                        if(isEventCanceled(p)) {
+                            return `<div class="bg-gray-100 text-gray-400 text-[10px] rounded px-1 truncate mb-0.5 line-through font-medium border border-gray-200" title="Dibatalkan: ${p.name}">${p.name.toUpperCase()}</div>`;
+                        }
+                        return `<div class="bg-indigo-100 text-indigo-800 text-[10px] rounded px-1 truncate mb-0.5 font-medium border border-indigo-200" title="${p.name}">${p.name.toUpperCase()}</div>`;
+                    }).join('');
                 }
+                
                 if (movements.length > 0) {
-                    eventHtml += movements.map(p => `<div class="bg-blue-100 text-blue-800 text-[10px] rounded px-1 truncate mb-0.5 font-medium" title="${p.name}">🚗 ${p.name.toUpperCase()}</div>`).join('');
+                    eventHtml += movements.map(p => {
+                        if(isEventCanceled(p)) {
+                             return `<div class="bg-gray-100 text-gray-400 text-[10px] rounded px-1 truncate mb-0.5 line-through font-medium border border-gray-200" title="Dibatalkan: ${p.name}">🚗 ${p.name.toUpperCase()}</div>`;
+                        }
+                        return `<div class="bg-blue-100 text-blue-800 text-[10px] rounded px-1 truncate mb-0.5 font-medium border border-blue-200" title="${p.name}">🚗 ${p.name.toUpperCase()}</div>`;
+                    }).join('');
                 }
+
                 if (planners.length > 0) {
-                    eventHtml += planners.map(p => `<div class="bg-emerald-100 text-emerald-800 text-[10px] rounded px-1 truncate mb-0.5 font-medium" title="${p.title}">${p.title.toUpperCase()}</div>`).join('');
+                    eventHtml += planners.map(p => `<div class="bg-emerald-100 text-emerald-800 text-[10px] rounded px-1 truncate mb-0.5 font-medium border border-emerald-200" title="${p.title}">${p.title.toUpperCase()}</div>`).join('');
                 }
+
                 if (birthdays.length > 0) {
-                    eventHtml += birthdays.map(b => `<div class="bg-pink-100 text-pink-800 text-[10px] rounded px-1 truncate mb-0.5">🎂 ${b.name.split(' ')[0].toUpperCase()}</div>`).join('');
+                    eventHtml += birthdays.map(b => `<div class="bg-pink-100 text-pink-800 text-[10px] rounded px-1 truncate mb-0.5 border border-pink-200">🎂 ${b.name.split(' ')[0].toUpperCase()}</div>`).join('');
                 }
 
                 calendarGrid.insertAdjacentHTML('beforeend', `
@@ -444,13 +466,15 @@
                 `);
             }
             
-            // Update Stats
+            // Kemaskini Stat
             document.getElementById('summary-programs').textContent = countOfficial;
             document.getElementById('summary-movement').textContent = countMovement;
             document.getElementById('summary-planner').textContent = countPlanner;
 
             calendarGrid.querySelectorAll('.calendar-day').forEach(el => {
-                el.addEventListener('click', (e) => displayProgramsForDate(parseDateString(e.currentTarget.dataset.date), e.currentTarget));
+                if(el.dataset.date) {
+                    el.addEventListener('click', (e) => displayProgramsForDate(parseDateString(e.currentTarget.dataset.date), e.currentTarget));
+                }
             });
         }
 
@@ -473,12 +497,14 @@
             
             const content = document.getElementById('program-list-content');
             const term = document.getElementById('search-input').value.toLowerCase();
-            let html = '';
+            
+            const currentUserIc = new URLSearchParams(window.location.search).get('ic') || localStorage.getItem('user_ic') || '';
+            let fullHtml = '';
 
-            // 1. GAJI
+            // 1. GAJI 
             const salary = getSalaryForDate(date);
             if (salary) {
-                html += `
+                fullHtml += `
                     <div onclick="openSalaryModal('${salary.title}', '${salary.date}')" class="bg-green-50 border border-green-200 rounded-xl p-4 text-gray-800 mb-4 shadow-sm flex items-center justify-between cursor-pointer hover:bg-green-100 transition-colors">
                         <div class="flex items-center gap-3">
                             <div class="bg-green-100 p-2 rounded-full text-2xl">💰</div>
@@ -491,7 +517,7 @@
             // 2. BIRTHDAYS
             const birthdays = getBirthdaysForDate(date);
             if (birthdays.length > 0) {
-                html += `<h4 class="text-sm font-bold text-pink-600 uppercase mb-2">Hari Jadi</h4><div class="space-y-3 mb-4">` + 
+                fullHtml += `<h4 class="text-sm font-bold text-pink-600 uppercase mb-2">Sambutan Hari Jadi</h4><div class="space-y-3 mb-4">` + 
                 birthdays.map(b => {
                     const encodedDob = btoa(b.dob);
                     const today = new Date(); today.setHours(0,0,0,0);
@@ -502,59 +528,89 @@
                     let isEnable = today >= thisYearBday;
 
                     if(isEnable) {
-                        ucapBtnState = `<a href="birthday.html?name=${encodeURIComponent(b.name)}&dob=${encodedDob}" target="_blank" class="btn bg-pink-500 hover:bg-pink-600 text-white font-semibold py-2 px-3 rounded-lg text-xs uppercase text-center">Ucap</a>`;
-                        kongsiBtnState = `<button onclick="openShareModal('${b.name}', '${encodedDob}')" class="btn bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-3 rounded-lg text-xs uppercase">Kongsi</button>`;
+                        ucapBtnState = `<a href="birthday.html?name=${encodeURIComponent(b.name)}&dob=${encodedDob}" target="_blank" class="btn bg-pink-500 hover:bg-pink-600 text-white font-semibold py-2 px-3 rounded-lg text-xs uppercase text-center shadow-sm">Ucap</a>`;
+                        kongsiBtnState = `<button onclick="openShareModal('${b.name}', '${encodedDob}')" class="btn bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-3 rounded-lg text-xs uppercase shadow-sm">Kongsi</button>`;
                     } else {
                         ucapBtnState = `<button disabled class="btn bg-gray-300 text-white font-semibold py-2 px-3 rounded-lg text-xs uppercase cursor-not-allowed">Ucap</button>`;
                         kongsiBtnState = `<button disabled class="btn bg-gray-300 text-white font-semibold py-2 px-3 rounded-lg text-xs uppercase cursor-not-allowed">Kongsi</button>`;
                     }
 
                     return `
-                    <div class="bg-pink-50 border border-pink-200 rounded-xl p-4 text-gray-800 flex flex-col">
-                        <div class="flex items-center gap-3 mb-2"><span class="text-2xl">🎂</span><div><p class="font-bold text-md text-pink-700">${b.name.toUpperCase()}</p></div></div>
-                        <div class="grid grid-cols-3 gap-2">
-                            ${ucapBtnState}
-                            ${kongsiBtnState}
-                            <a href="birthdaynote.html?name=${encodeURIComponent(b.name)}&dob=${encodedDob}" target="_blank" class="btn bg-blue-500 text-white py-2 rounded text-xs text-center uppercase font-bold hover:bg-blue-600">Baca</a>
+                    <div class="bg-pink-50 border border-pink-200 rounded-xl p-3 text-gray-800 flex items-center justify-between shadow-sm">
+                        <div class="flex items-center gap-3 overflow-hidden">
+                            <span class="text-xl">🎂</span>
+                            <div class="truncate"><p class="font-bold text-sm text-pink-700 truncate">${b.name.toUpperCase()}</p></div>
                         </div>
-                    </div>`;
-                }).join('') + '</div><hr class="my-4">';
+                         <div class="flex gap-2 shrink-0">
+                            ${ucapBtnState}
+                            <a href="birthdaynote.html?name=${encodeURIComponent(b.name)}&dob=${encodedDob}" target="_blank" class="btn bg-blue-500 text-white py-2 px-3 rounded-lg text-xs text-center uppercase font-bold hover:bg-blue-600 shadow-sm">Baca</a>
+                         </div>
+                    </div>`
+                }).join('') + '</div><hr class="my-4 border-gray-200">';
             }
 
             // 3. OFFICIAL PROGRAMS
             const official = getOfficialProgramsForDate(date).filter(p => p.name.toLowerCase().includes(term));
             if (official.length > 0) {
-                 html += `<h4 class="text-sm font-bold text-indigo-600 uppercase mb-2">Program Rasmi PPD</h4><div class="space-y-4 mb-4">` + 
+                 fullHtml += `<h4 class="text-sm font-bold text-indigo-600 uppercase mb-2 mt-2">Program Rasmi PPD</h4><div class="space-y-3 mb-4">` + 
                  official.map(p => {
                     const isPast = (p.endDate ? parseDateString(p.endDate) : parseDateString(p.startDate)) < new Date().setHours(0,0,0,0);
+                    const isMyProgram = (currentUserIc && p.penyelaras_ic === currentUserIc);
+                    const isCanceled = isEventCanceled(p);
+                    
+                    let actionHtml = '';
+                    let cardClass = isCanceled ? 'bg-gray-50 border-gray-200 opacity-60' : 'bg-white border-l-4 border-indigo-500 shadow-sm';
+                    let titleClass = isCanceled ? 'text-gray-500 line-through' : (isPast ? 'text-gray-500' : 'text-indigo-700');
+                    let statusBadge = isCanceled ? `<span class="bg-gray-200 text-gray-600 border border-gray-300 text-[10px] font-bold px-2 py-0.5 rounded ml-2 shadow-sm">BATAL / GAGAL</span>` : '';
+
+                    if (isCanceled) {
+                        actionHtml = `<div class="mt-2 text-[10px] text-red-500 font-bold uppercase italic">Telah Dibatalkan</div>`;
+                    } else if (isMyProgram) {
+                        actionHtml = `
+                        <a href="program.html?kod=${p.id}" class="mt-3 flex items-center justify-center w-full bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2 px-2 rounded-lg border border-indigo-600 uppercase transition-colors shadow-sm">
+                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                            Urus Laporan
+                        </a>`;
+                    } else {
+                        actionHtml = `
+                        <div class="mt-3 flex gap-2">
+                             <button onclick="promptIcVerification('${p.id}', '${p.penyelaras_ic}')" class="flex-1 bg-white border border-indigo-200 text-indigo-600 font-semibold py-2 rounded-lg text-[10px] uppercase hover:bg-indigo-50 transition shadow-sm">
+                                Akses Penyelaras
+                            </button>
+                        </div>`;
+                    }
+
                     return `
-                    <div class="bg-white border border-gray-200 border-l-4 border-l-indigo-500 rounded-xl p-4 text-gray-800 shadow-sm">
-                        <p class="font-bold text-md ${isPast ? 'text-gray-500' : 'text-indigo-700'}">${p.name.toUpperCase()}</p>
-                        <div class="mt-2 text-sm text-gray-500 border-l-2 border-indigo-100 pl-3 space-y-1">
-                            <p>📍 ${p.location.toUpperCase()}</p>
-                            <p>👤 ${p.penyelaras_name ? p.penyelaras_name.toUpperCase() : 'N/A'}</p>
-                            <p>🕒 ${p.startTime && p.endTime ? `${formatTime(p.startTime)} - ${formatTime(p.endTime)}` : 'MASA N/A'}</p>
+                    <div class="rounded-xl p-4 text-gray-800 border ${cardClass}">
+                        <div class="flex items-start justify-between">
+                            <p class="font-bold text-sm uppercase leading-tight ${titleClass}">${p.name.toUpperCase()}</p>
+                            ${statusBadge}
                         </div>
-                        <button onclick="promptIcVerification('${p.id}', '${p.penyelaras_ic}')" class="mt-4 w-full bg-indigo-600 text-white font-semibold py-2 rounded-lg text-xs uppercase ${isPast ? 'bg-gray-400 cursor-not-allowed' : 'hover:bg-indigo-700'}" ${isPast ? 'disabled' : ''}>${isPast ? 'TAMAT' : 'PENGESAHAN PENYELARAS'}</button>
-                    </div>`;
+                        <div class="text-xs text-gray-600 mt-2 space-y-1.5 ${isCanceled ? 'opacity-70' : ''}">
+                             <p class="flex items-center gap-2"><span class="w-4 text-center">📍</span> <span class="font-medium">${p.location.toUpperCase()}</span></p>
+                             <p class="flex items-center gap-2"><span class="w-4 text-center">👤</span> <span>${p.penyelaras_name ? p.penyelaras_name.toUpperCase() : 'PENYELARAS'}</span></p>
+                             <p class="flex items-center gap-2"><span class="w-4 text-center">🕒</span> <span>${p.startTime && p.endTime ? `${formatTime(p.startTime)} - ${formatTime(p.endTime)}` : 'MASA N/A'}</span></p>
+                        </div>
+                        ${actionHtml}
+                    </div>`
                 }).join('') + '</div>';
             }
 
             // 4. PLANNER ACTIVITIES (UMUM)
             const activities = getPlannerForDate(date).filter(p => p.title.toLowerCase().includes(term));
             if (activities.length > 0) {
-                 html += `<h4 class="text-sm font-bold text-emerald-600 uppercase mb-2 mt-4">Aktiviti Umum</h4><div class="space-y-3 mb-4">` + 
+                 fullHtml += `<h4 class="text-sm font-bold text-emerald-600 uppercase mb-2 mt-4">Aktiviti Umum</h4><div class="space-y-3 mb-4">` + 
                  activities.map(a => {
                     const dataString = encodeURIComponent(JSON.stringify(a));
                     return `
-                    <div class="bg-emerald-50 border-l-4 border-emerald-500 shadow-sm rounded-r-lg p-3 text-gray-800">
+                    <div class="bg-emerald-50 border-l-4 border-emerald-500 shadow-sm rounded-r-xl p-4 text-gray-800 hover:shadow-md transition">
                         <p class="font-bold text-sm text-emerald-800 uppercase leading-tight">${a.title.toUpperCase()}</p>
-                        <div class="text-xs text-gray-600 mt-2 space-y-1">
-                             <p class="flex items-center gap-1">📍 ${a.location.toUpperCase()}</p>
-                             <p class="flex items-center gap-1">🕒 ${a.startTime} - ${a.endTime || '...'}</p>
-                             <p class="flex items-start gap-1 mt-1.5 pt-1.5 border-t border-emerald-200"><span class="font-bold text-emerald-700">Terlibat:</span> ${a.participants ? a.participants.toUpperCase() : "Tiada Maklumat"}</p>
+                        <div class="text-xs text-gray-600 mt-2 space-y-1.5">
+                             <p class="flex items-center gap-2"><span class="w-4 text-center">📍</span> <span class="font-medium">${a.location.toUpperCase()}</span></p>
+                             <p class="flex items-center gap-2"><span class="w-4 text-center">🕒</span> <span>${a.startTime} - ${a.endTime || '...'}</span></p>
+                             <p class="flex items-start gap-2 mt-2 pt-2 border-t border-emerald-200"><span class="font-bold text-emerald-700 w-16 shrink-0">Terlibat:</span> <span>${a.participants ? a.participants.toUpperCase() : "-"}</span></p>
                         </div>
-                        <button onclick="openActivityModal('${dataString}')" class="mt-2 w-full bg-white hover:bg-emerald-100 text-emerald-700 text-xs font-bold py-1.5 px-2 rounded border border-emerald-200 uppercase">Info Lanjut</button>
+                        <button onclick="openActivityModal('${dataString}')" class="mt-3 w-full bg-white hover:bg-emerald-100 text-emerald-700 text-xs font-bold py-2 px-2 rounded-lg border border-emerald-200 uppercase shadow-sm transition">Info Lanjut</button>
                     </div>`
                 }).join('') + '</div>';
             }
@@ -562,23 +618,30 @@
             // 5. SPARK GO MOVEMENTS
             const movements = getMovementsForDate(date).filter(p => p.name.toLowerCase().includes(term) || (p.penyelaras_name && p.penyelaras_name.toLowerCase().includes(term)));
             if (movements.length > 0) {
-                html += `<h4 class="text-sm font-bold text-blue-600 uppercase mb-2 mt-4">Pergerakan (SPARK Go)</h4><div class="space-y-4 mb-4">` +
+                fullHtml += `<h4 class="text-sm font-bold text-blue-600 uppercase mb-2 mt-4">Pergerakan Pegawai</h4><div class="space-y-3 mb-4">` +
                 movements.map(m => {
-                    // Extract attendees correctly
+                    const isCanceled = isEventCanceled(m);
+                    let cardClass = isCanceled ? 'bg-gray-50 border-gray-200 opacity-60' : 'bg-blue-50 border-l-4 border-blue-500 shadow-sm';
+                    let titleClass = isCanceled ? 'text-gray-500 line-through' : 'text-blue-800';
+                    let statusBadge = isCanceled ? `<span class="bg-gray-200 text-gray-600 border border-gray-300 text-[10px] font-bold px-2 py-0.5 rounded ml-2 shadow-sm">BATAL</span>` : '';
+
                     const attendeesList = (m.attendance && Array.isArray(m.attendance))
-                        ? m.attendance.map(a => `<span class="inline-block bg-white border border-blue-200 text-blue-700 text-[10px] px-2 py-0.5 rounded shadow-sm">${a.name.split(' ').slice(0,3).join(' ')}</span>`).join(' ')
+                        ? m.attendance.map(a => `<span class="inline-block bg-white border border-blue-200 text-blue-700 text-[10px] px-2 py-0.5 rounded shadow-sm font-medium">${a.name.split(' ').slice(0,3).join(' ')}</span>`).join(' ')
                         : '<span class="text-xs text-gray-500">Tiada maklumat</span>';
 
                     return `
-                    <div class="bg-blue-50 border-l-4 border-blue-500 shadow-sm rounded-r-xl p-4 text-gray-800 hover:shadow-md transition">
-                        <p class="font-bold text-sm text-blue-800 uppercase mb-1">${m.name}</p>
-                        <div class="text-xs text-gray-600 space-y-1 mt-2">
+                    <div class="rounded-r-xl p-4 text-gray-800 hover:shadow-md transition border ${cardClass}">
+                        <div class="flex items-start justify-between">
+                            <p class="font-bold text-sm uppercase leading-tight ${titleClass}">${m.name}</p>
+                            ${statusBadge}
+                        </div>
+                        <div class="text-xs text-gray-600 space-y-1.5 mt-2 ${isCanceled ? 'opacity-70' : ''}">
                             <p class="flex items-center gap-2"><span class="w-4 text-center">📍</span> <b>${m.location}</b></p>
-                            <p class="flex items-center gap-2"><span class="w-4 text-center">🕒</span> ${formatTime(m.startTime)} - ${formatTime(m.endTime)}</p>
+                            <p class="flex items-center gap-2"><span class="w-4 text-center">🕒</span> <span>${formatTime(m.startTime)} - ${formatTime(m.endTime)}</span></p>
                             <p class="flex items-start gap-2"><span class="w-4 text-center">🎯</span> <span>Tujuan: ${m.description || '-'}</span></p>
                         </div>
-                        <div class="mt-3 pt-3 border-t border-blue-200">
-                            <p class="text-[10px] font-bold text-blue-700 uppercase mb-1">Pegawai Bergerak:</p>
+                        <div class="mt-3 pt-3 border-t ${isCanceled ? 'border-gray-200' : 'border-blue-200'}">
+                            <p class="text-[10px] font-bold ${isCanceled ? 'text-gray-500' : 'text-blue-700'} uppercase mb-1.5">Pegawai Bergerak:</p>
                             <div class="flex flex-wrap gap-1">${attendeesList}</div>
                         </div>
                     </div>`;
@@ -587,13 +650,13 @@
             
             document.getElementById('selected-date-text').textContent = date.toDateString() === new Date().toDateString() ? 'HARI INI' : date.toLocaleDateString('ms-MY', { day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase();
             
-            if (html === '') content.innerHTML = `<div class="border-2 border-dashed border-gray-300 rounded-xl p-5 text-center text-gray-500 h-full flex flex-col justify-center items-center"><p class="mt-4 text-sm font-semibold">Tiada aktiviti ditemui.</p></div>`;
-            else content.innerHTML = html;
+            if (fullHtml === '') content.innerHTML = `<div class="border-2 border-dashed border-gray-300 rounded-xl p-5 text-center text-gray-500 h-full flex flex-col justify-center items-center"><p class="mt-4 text-sm font-semibold">Tiada aktiviti ditemui.</p></div>`;
+            else content.innerHTML = fullHtml;
         }
+
 
         function populateYearFilter() {
             const yearSelect = document.getElementById('year-select');
-            // Campurkan semua sumber tarikh untuk tahun dropdown
             const years = [...new Set([
                 ...allPrograms.map(p => new Date(p.startDate).getFullYear()), 
                 ...allPlannerActivities.map(p => new Date(p.startDate).getFullYear()), 
@@ -627,21 +690,8 @@
             refreshView();
         }
 
-        window.openSalaryModal = (title, dateStr) => {
-            const modal = document.getElementById('salary-modal');
-            document.getElementById('salary-modal-title').textContent = title;
-            const payDate = new Date(dateStr);
-            document.getElementById('salary-modal-date').textContent = payDate.toLocaleDateString('ms-MY', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-            
-            const today = new Date(); today.setHours(0,0,0,0);
-            const target = new Date(dateStr); target.setHours(0,0,0,0);
-            const diffDays = Math.ceil((target - today) / (1000 * 60 * 60 * 24));
-            
-            const countEl = document.getElementById('salary-modal-countdown');
-            if (diffDays > 0) { countEl.textContent = `${diffDays} Hari Lagi ⏳`; countEl.className = "text-xl font-bold text-green-600"; } 
-            else if (diffDays === 0) { countEl.textContent = "HARI INI! 🤑"; countEl.className = "text-xl font-bold text-blue-600 animate-pulse"; } 
-            else { countEl.textContent = `Telah Dibayar (${Math.abs(diffDays)} hari lepas) ✅`; countEl.className = "text-xl font-bold text-gray-500"; }
-            modal.classList.remove('hidden');
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.add('hidden');
         }
 
         window.openActivityModal = function(dataString) {
