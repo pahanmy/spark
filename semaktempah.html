@@ -483,7 +483,7 @@
             const versionInfo = document.getElementById('version-info');
             if(versionInfo) {
                 const year = new Date().getFullYear();
-                versionInfo.textContent = `Sistem Tempahan Bilik V3.1 (${year})`;
+                versionInfo.textContent = `Sistem Tempahan Bilik V3.2 (${year})`;
             }
         }
         
@@ -555,9 +555,10 @@
                         
                         let statusBadge = '';
                         let cancelButton = '';
+                        let reasonHtml = '';
                         let cardClass = "bg-white p-4 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow"; // Default Class
 
-                        // Logic Status, Button & Card Style
+                        // Logic Status, Button, Reason & Card Style
                         if (data.approvalStatus === 'Menunggu Kelulusan') {
                             statusBadge = '<span class="bg-yellow-100 text-yellow-800 text-xs font-semibold px-2 py-1 rounded">Menunggu</span>';
                             
@@ -571,7 +572,6 @@
                             `;
                         } 
                         else if (data.approvalStatus === 'Lulus') {
-                            // STATUS LULUS: Hijau penuh, icon check
                             cardClass = "bg-green-50 p-4 rounded-lg shadow-sm border border-green-200 hover:shadow-md transition-shadow";
                             
                             statusBadge = `
@@ -593,7 +593,6 @@
                             `;
                         } 
                         else if (data.approvalStatus === 'Selesai') {
-                            // STATUS SELESAI: Icon Check Circle
                             statusBadge = `
                                 <span class="bg-blue-100 text-blue-800 text-xs font-bold px-2 py-1 rounded border border-blue-200 flex items-center gap-1">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
@@ -605,6 +604,16 @@
                         }
                         else if (data.approvalStatus === 'Gagal' || data.approvalStatus === 'Ditolak') {
                             statusBadge = '<span class="bg-red-100 text-red-800 text-xs font-semibold px-2 py-1 rounded">Ditolak</span>';
+                            
+                            // MASUKKAN ALASAN PENOLAKAN
+                            if (data.approvalReason) {
+                                reasonHtml = `
+                                    <div class="mt-3 p-2.5 bg-red-50 border border-red-200 rounded-md text-[11px] text-red-700">
+                                        <span class="font-bold uppercase tracking-wider block mb-0.5 text-red-800">Sebab Penolakan:</span> 
+                                        ${data.approvalReason}
+                                    </div>
+                                `;
+                            }
                         } 
                         else if (data.approvalStatus === 'Batal') {
                             statusBadge = '<span class="bg-gray-200 text-gray-600 text-xs font-semibold px-2 py-1 rounded">Batal</span>';
@@ -632,6 +641,7 @@
                                     ${cancelButton}
                                 </div>
                             </div>
+                            ${reasonHtml}
                         `;
                         container.appendChild(card);
                     }
@@ -777,13 +787,11 @@
             modal.classList.remove('hidden');
         }
 
-        // --- DYNAMIC EQUIPMENT (UPDATED STRUCTURE) ---
         async function loadDynamicEquipment(type) {
             const containerId = type === 'coe' ? 'coe-dynamic-list' : 'stem-dynamic-list';
             const container = document.getElementById(containerId);
             container.innerHTML = '<p class="text-xs text-gray-400 italic">Memuatkan senarai...</p>';
             
-            // Reset gallery array
             galleryImages = [];
 
             try {
@@ -800,7 +808,6 @@
                         const checkboxName = type === 'coe' ? 'equip_coe' : 'equip_stem';
                         
                         let imageIcon = '';
-                        // Push to gallery if image exists
                         if(item.image) {
                             galleryImages.push({ name: item.name, url: item.image });
                             const imgIndex = galleryImages.length - 1;
@@ -811,20 +818,21 @@
                                 </button>
                             `;
                         } else {
-                            // Placeholder icon empty
                             imageIcon = `<div class="w-7"></div>`;
                         }
 
+                        // Protect value with &quot; instead of double quotes for HTML structure
+                        const safeValue = item.name.replace(/"/g, '&quot;');
+
                         div.innerHTML = `
                             <label class="flex items-center space-x-3 cursor-pointer w-full">
-                                <input type="checkbox" name="${checkboxName}" value="${item.name}" class="rounded text-indigo-600 w-4 h-4 border-gray-300 focus:ring-indigo-500">
+                                <input type="checkbox" name="${checkboxName}" value="${safeValue}" class="rounded text-indigo-600 w-4 h-4 border-gray-300 focus:ring-indigo-500">
                                 <span class="text-sm text-gray-700 font-medium">${item.name}</span>
                             </label>
                             ${imageIcon}
                         `;
                         container.appendChild(div);
                         
-                        // LOGIK CHECKBOX
                         const checkbox = div.querySelector('input');
                         checkbox.addEventListener('change', function() {
                             const noEquip = container.querySelector('input[value="Tiada Peralatan"]');
@@ -834,7 +842,6 @@
                         });
                     });
 
-                     // Manual "Tiada Peralatan"
                      const noEquipDiv = document.createElement('div');
                      noEquipDiv.className = "flex items-center justify-between p-2 border border-red-200 bg-red-50 rounded-md mt-2";
                      noEquipDiv.innerHTML = `
@@ -845,11 +852,9 @@
                      `;
                      container.appendChild(noEquipDiv);
                      
-                     // Special Logic for "Tiada Peralatan"
                      const noEquipCheck = noEquipDiv.querySelector('input');
                      noEquipCheck.addEventListener('change', function() {
                          if(this.checked) {
-                             // Uncheck all others
                              container.querySelectorAll('input[type="checkbox"]').forEach(cb => {
                                  if(cb !== this) cb.checked = false;
                              });
@@ -865,7 +870,6 @@
             }
         }
         
-        // --- LIGHTBOX FUNCTIONS ---
         window.openLightbox = function(index) {
             if(galleryImages.length === 0) return;
             currentImageIndex = index;
@@ -967,7 +971,7 @@
 
                 extraInfo = {
                     breakdown: { officer, teacher, student },
-                    equipment: equipmentList,
+                    equipment: equipmentList, // <- INFO PERALATAN DISIMPAN DI SINI
                     approvalStatus: 'Menunggu Kelulusan', 
                     approvalReason: ''
                 };
@@ -1016,22 +1020,20 @@
                 ...extraInfo 
             };
             
-        const newBooking = {
-    programKey: programKey,
-    programName: newProgram.name,
-    room: roomBooked,
-    start: startDateTime, 
-    end: endDateTimeFull, 
-    bookedBy_ic: currentApplicant.ic,
-    bookedBy_name: currentApplicant.name,
-    bookedBy_phone: phoneNumber, // (Untuk semaktempah.html)
-    createdAt: serverTimestamp(),
-    approvalStatus: extraInfo.approvalStatus || 'Lulus',
-    
-    // 👇 TAMBAH 2 BARIS INI 👇
-    equipment: extraInfo.equipment || [],
-    breakdown: extraInfo.breakdown || null
-};
+            const newBooking = {
+                programKey: programKey,
+                programName: newProgram.name,
+                room: roomBooked,
+                start: startDateTime, 
+                end: endDateTimeFull, 
+                bookedBy_ic: currentApplicant.ic,
+                bookedBy_name: currentApplicant.name,
+                bookedBy_phone: phoneNumber,
+                createdAt: serverTimestamp(),
+                approvalStatus: extraInfo.approvalStatus || 'Lulus',
+                equipment: extraInfo.equipment || [],       // <- MEMASTIKAN REKOD PERALATAN DISIMPAN DI BOOKING DB
+                breakdown: extraInfo.breakdown || null      // <- MEMASTIKAN PECAHAN PESERTA DISIMPAN
+            };
 
             try {
                 await runTransaction(db, async (transaction) => {
