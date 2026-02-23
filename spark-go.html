@@ -314,9 +314,12 @@
                         <div class="flex flex-col gap-4">
                             <div class="flex justify-between items-center bg-gray-50 p-3 rounded-lg border border-gray-100">
                                 <h2 class="text-sm font-bold text-gray-800 uppercase">Kekerapan Lawatan</h2>
-                                <input type="month" id="school-month" class="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-brand focus:border-brand" onchange="loadSchoolStatus()">
+                                <select id="school-period" class="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-brand focus:border-brand font-medium bg-white shadow-sm" onchange="loadSchoolStatus()">
+                                    <option value="6">6 Bulan Terkini</option>
+                                    <option value="12">1 Tahun Terkini</option>
+                                </select>
                             </div>
-                            <div id="school-status-list" class="custom-scroll overflow-y-auto max-h-[500px] pr-2">
+                            <div id="school-status-list" class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
                                 </div>
                         </div>
                     </div>
@@ -883,7 +886,7 @@
             return d.toLocaleDateString('ms-MY', { day: 'numeric', month: 'short', year: 'numeric' });
         }
 
-        // --- LOGIK STATUS SEKOLAH (TAB 3) ---
+       // --- LOGIK STATUS SEKOLAH (TAB 3 - PAPARAN BERGANDA) ---
         function getSchoolCategory(name) {
             const n = name.toUpperCase();
             if (n.startsWith('SM') || n.startsWith('KV ') || n.includes('KOLEJ') || n.includes('MENENGAH')) return 1; // Menengah
@@ -894,17 +897,25 @@
         window.loadSchoolStatus = async function() {
             if (!currentUser) return;
             const container = document.getElementById('school-status-list');
-            container.innerHTML = '<div class="text-center py-10"><p class="text-indigo-500 font-medium animate-pulse">Mengira status lawatan sekolah...</p></div>';
-
-            let selectedMonth = document.getElementById('school-month').value;
+            const period = parseInt(document.getElementById('school-period').value);
+            
+            container.innerHTML = '<div class="text-center py-12"><p class="text-brand font-bold animate-pulse text-sm uppercase tracking-widest">Menganalisis Data...</p></div>';
 
             try {
-                // Pastikan allSchoolsList sudah diisi (jika tidak, panggil fungsi fetch)
-                if (allSchoolsList.length === 0) {
-                    await loadSchools();
+                // Pastikan senarai sekolah wujud
+                if (allSchoolsList.length === 0) await loadSchools();
+
+                // 1. Jana Senarai Bulan (Dari bulan semasa, undur ke belakang)
+                const months = [];
+                const date = new Date();
+                for (let i = period - 1; i >= 0; i--) {
+                    const d = new Date(date.getFullYear(), date.getMonth() - i, 1);
+                    const yyyy = d.getFullYear();
+                    const mm = String(d.getMonth() + 1).padStart(2, '0');
+                    months.push(`${yyyy}-${mm}`);
                 }
 
-                // Dapatkan rekod pergerakan spesifik user ini
+                // 2. Tarik Rekod Pergerakan
                 const qMoves = query(
                     collection(db, `artifacts/${appId}/public/data/spark_programs`),
                     where("penyelaras_ic", "==", currentUser.ic),
@@ -912,73 +923,106 @@
                 );
                 const snapMoves = await getDocs(qMoves);
 
-                // Sediakan dictionary data
+                // 3. Sediakan Dictionary Data
                 const visitData = {};
-                allSchoolsList.forEach(s => visitData[s] = { monthCount: 0, totalCount: 0 });
+                allSchoolsList.forEach(s => {
+                    visitData[s] = { total: 0 };
+                    months.forEach(m => visitData[s][m] = 0);
+                });
 
+                // 4. Masukkan Jumlah Kiraan
                 snapMoves.forEach(doc => {
                     const data = doc.data();
                     const loc = (data.location || '').toUpperCase();
-                    if (visitData[loc] !== undefined) {
-                        visitData[loc].totalCount++;
-                        if (data.startDate && data.startDate.startsWith(selectedMonth)) {
-                            visitData[loc].monthCount++;
+                    if (visitData[loc]) {
+                        const monthKey = data.startDate ? data.startDate.substring(0, 7) : null;
+                        // Jika tarikh lawatan berada dalam senarai bulan yang dipantau
+                        if (monthKey && visitData[loc][monthKey] !== undefined) {
+                            visitData[loc][monthKey]++;
+                            visitData[loc].total++; // Total ini hanya untuk tempoh 6/12 bulan terpilih
                         }
                     }
                 });
 
-                // Tentukan Kategori dan Susun data
+                // 5. Kategori dan Susun Data
                 const schoolsArr = allSchoolsList.map(s => ({
                     name: s,
                     cat: getSchoolCategory(s),
-                    monthCount: visitData[s].monthCount,
-                    totalCount: visitData[s].totalCount
-                }));
-
-                schoolsArr.sort((a, b) => {
-                    if (a.cat !== b.cat) return a.cat - b.cat; // Kategori: Menengah(1) -> Rendah(2) -> Lain(3)
-                    return a.name.localeCompare(b.name);     // Abjad ABC
+                    data: visitData[s],
+                    total: visitData[s].total
+                })).sort((a, b) => {
+                    if (a.cat !== b.cat) return a.cat - b.cat; // Kategori: Menengah -> Rendah -> Lain
+                    return a.name.localeCompare(b.name);     // ABC
                 });
 
-                // Render UI
-                let html = '';
+                // Helper Format Nama Bulan (Cth: "2026-02" -> "Feb '26")
+                const monthNames = ["Jan", "Feb", "Mac", "Apr", "Mei", "Jun", "Jul", "Ogo", "Sep", "Okt", "Nov", "Dis"];
+                const formatMonth = (ym) => {
+                    const [y, m] = ym.split('-');
+                    return `${monthNames[parseInt(m)-1]} '${y.substring(2)}`;
+                };
+
+                // 6. Bina Header Jadual
+                let thHTML = months.map(m => `<th class="px-3 py-3 text-center text-[10px] font-bold text-gray-500 uppercase tracking-widest whitespace-nowrap min-w-[60px]">${formatMonth(m)}</th>`).join('');
+
+                let html = `
+                    <div class="overflow-x-auto custom-scroll pb-2">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-gray-50 border-b border-gray-200">
+                                    <th class="sticky left-0 bg-gray-50 z-20 px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest shadow-[inset_-1px_0_0_rgba(0,0,0,0.1)] min-w-[200px] max-w-[250px]">Nama Sekolah</th>
+                                    ${thHTML}
+                                    <th class="px-4 py-3 text-center text-[10px] font-bold text-brand uppercase tracking-widest bg-indigo-50/50 whitespace-nowrap shadow-[inset_1px_0_0_rgba(0,0,0,0.05)]">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100">
+                `;
+
+                // 7. Bina Kandungan Jadual (Rows)
                 let currentCat = 0;
                 const catNames = { 1: "SEKOLAH MENENGAH", 2: "SEKOLAH RENDAH", 3: "LAIN-LAIN INSTITUSI" };
 
                 schoolsArr.forEach(s => {
+                    // Masukkan baris pemisah jika bertukar kategori
                     if (s.cat !== currentCat) {
-                        html += `<h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest mt-6 mb-3 border-b border-gray-200 pb-2">${catNames[s.cat]}</h3>`;
+                        html += `
+                            <tr class="bg-slate-100/70 border-y border-slate-200">
+                                <td class="sticky left-0 bg-slate-100 z-10 px-4 py-2.5 text-[10px] font-black text-slate-500 uppercase tracking-widest shadow-[inset_-1px_0_0_rgba(0,0,0,0.05)]">
+                                    ${catNames[s.cat]}
+                                </td>
+                                <td colspan="${months.length + 1}" class="bg-slate-100/70"></td>
+                            </tr>
+                        `;
                         currentCat = s.cat;
                     }
                     
-                    const hasVisitedMonth = s.monthCount > 0;
-                    const hasVisitedTotal = s.totalCount > 0;
-                    const bgClass = hasVisitedMonth ? 'border-brand bg-indigo-50/50' : (hasVisitedTotal ? 'border-indigo-100 bg-white' : 'border-gray-100 bg-white/60');
+                    // Bina lajur-lajur bulan
+                    let tdHTML = months.map(m => {
+                        const count = s.data[m];
+                        const isVisited = count > 0;
+                        return `<td class="px-3 py-2 text-center text-xs font-bold ${isVisited ? 'text-brand bg-orange-50/30' : 'text-gray-300'}">${count > 0 ? count : '-'}</td>`;
+                    }).join('');
 
+                    const hasTotal = s.total > 0;
+
+                    // Baris Data Sekolah
                     html += `
-                        <div class="flex justify-between items-center p-3 rounded-xl border ${bgClass} hover:shadow-md transition-all mb-2">
-                            <div class="flex-1 min-w-0 pr-2">
-                                <h4 class="text-xs font-bold text-gray-800 truncate" title="${s.name}">${s.name}</h4>
-                            </div>
-                            <div class="flex gap-2 flex-shrink-0 text-center">
-                                <div class="bg-white border border-gray-200 px-3 py-1.5 rounded-lg min-w-[60px] shadow-sm">
-                                    <p class="text-[9px] text-gray-400 font-bold uppercase tracking-wider mb-0.5">Bulan</p>
-                                    <p class="text-sm font-black ${hasVisitedMonth ? 'text-brand' : 'text-gray-300'} leading-none">${s.monthCount}</p>
-                                </div>
-                                <div class="bg-gray-100 border border-gray-200 px-3 py-1.5 rounded-lg min-w-[60px]">
-                                    <p class="text-[9px] text-gray-400 font-bold uppercase tracking-wider mb-0.5">Total</p>
-                                    <p class="text-sm font-black ${hasVisitedTotal ? 'text-indigo-800' : 'text-gray-400'} leading-none">${s.totalCount}</p>
-                                </div>
-                            </div>
-                        </div>
+                        <tr class="hover:bg-gray-50 transition-colors group">
+                            <td class="sticky left-0 bg-white group-hover:bg-gray-50 z-10 px-4 py-2.5 text-xs font-bold text-gray-700 shadow-[inset_-1px_0_0_rgba(0,0,0,0.05)] truncate max-w-[200px]" title="${s.name}">
+                                ${s.name}
+                            </td>
+                            ${tdHTML}
+                            <td class="px-4 py-2.5 text-center text-xs font-black shadow-[inset_1px_0_0_rgba(0,0,0,0.05)] ${hasTotal ? 'text-indigo-700 bg-indigo-50/30' : 'text-gray-300 bg-gray-50/30'}">${s.total > 0 ? s.total : '-'}</td>
+                        </tr>
                     `;
                 });
 
+                html += `</tbody></table></div>`;
                 container.innerHTML = html;
 
             } catch(e) {
                 console.error(e);
-                container.innerHTML = '<p class="text-center text-red-500 py-4 text-sm font-medium">Ralat sambungan pangkalan data.</p>';
+                container.innerHTML = '<p class="text-center text-red-500 py-4 text-sm font-medium">Ralat memuatkan data.</p>';
             }
         };
 
