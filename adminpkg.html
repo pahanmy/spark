@@ -12,7 +12,7 @@
         .nav-tab { cursor: pointer; border-bottom: 3px solid transparent; color: #6b7280; font-weight: 500; transition: all 0.3s; }
         .nav-tab.active { border-bottom: 3px solid #4f46e5; color: #4f46e5; font-weight: 700; }
         .custom-scrollbar::-webkit-scrollbar { height: 8px; width: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; rounded: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
         .stat-card { transition: transform 0.2s; }
@@ -187,7 +187,7 @@
                     <table class="min-w-full divide-y divide-gray-200 text-sm">
                         <thead class="bg-gray-50 text-gray-700 font-bold">
                             <tr>
-                                <th class="px-4 py-3 text-left">Peralatan</th>
+                                <th class="px-4 py-3 text-left w-1/4">Senarai Peralatan</th>
                                 <th class="px-2 py-3 text-center">Jan</th>
                                 <th class="px-2 py-3 text-center">Feb</th>
                                 <th class="px-2 py-3 text-center">Mac</th>
@@ -273,7 +273,7 @@
 
         let inventoryData = { coe: [], hab_stem: [] };
         let allBookingsCache = [];
-        let adminCurrentDate = new Date(); // Untuk kawal kalendar admin
+        let adminCurrentDate = new Date(); 
 
         onAuthStateChanged(auth, async (user) => {
             if (user) {
@@ -378,7 +378,7 @@
             }
         }
 
-        // --- ANALYTICS LOGIC (NEW) ---
+        // --- ANALYTICS LOGIC (UPDATED: SHOW ALL INVENTORY) ---
         function initAnalyticsYear() {
             const yearSelect = document.getElementById('analytics-year');
             const currentYear = new Date().getFullYear();
@@ -391,10 +391,22 @@
             const selectedYear = parseInt(yearSelect.value) || new Date().getFullYear();
             const tbody = document.getElementById('analytics-table-body');
             
+            // 1. Sediakan objek untuk SEMUA peralatan dari inventori
             let equipStats = {};
             
+            if(inventoryData.coe) {
+                inventoryData.coe.forEach(item => {
+                    equipStats[item.name] = { room: 'coe', counts: [0,0,0,0,0,0,0,0,0,0,0,0], total: 0 };
+                });
+            }
+            if(inventoryData.hab_stem) {
+                inventoryData.hab_stem.forEach(item => {
+                    equipStats[item.name] = { room: 'hab_stem', counts: [0,0,0,0,0,0,0,0,0,0,0,0], total: 0 };
+                });
+            }
+            
+            // 2. Kira kekerapan dari tempahan (Booking)
             allBookingsCache.forEach(b => {
-                // Jangan kira yang batal atau ditolak. Kira Lulus / Menunggu sahaja
                 if (b.approvalStatus === 'Gagal' || b.approvalStatus === 'Ditolak' || b.approvalStatus === 'Batal' || b.status === 'BATAL') return;
                 if (!b.start) return;
                 
@@ -405,25 +417,28 @@
                     if (b.equipment && Array.isArray(b.equipment)) {
                         b.equipment.forEach(e => {
                             if (e !== 'Tiada Peralatan') {
-                                if (!equipStats[e]) equipStats[e] = [0,0,0,0,0,0,0,0,0,0,0,0];
-                                equipStats[e][month]++;
+                                // Jika peralatan wujud dalam tempahan tetapi tidak ada dalam inventori semasa (telah dipadam)
+                                if (!equipStats[e]) {
+                                    let inferredRoom = b.room === 'Hab STEM' ? 'hab_stem' : 'coe';
+                                    equipStats[e] = { room: inferredRoom, counts: [0,0,0,0,0,0,0,0,0,0,0,0], total: 0 };
+                                }
+                                equipStats[e].counts[month]++;
+                                equipStats[e].total++;
                             }
                         });
                     }
                 }
             });
             
-            // Susun berdasarkan jumlah tertinggi
-            const sortedEquips = Object.keys(equipStats).sort((a,b) => {
-                const totalA = equipStats[a].reduce((sum, val) => sum + val, 0);
-                const totalB = equipStats[b].reduce((sum, val) => sum + val, 0);
-                return totalB - totalA; 
-            });
+            // 3. Susun berdasarkan jumlah tertinggi ke terendah
+            let sortedEquips = Object.keys(equipStats).map(name => {
+                return { name: name, ...equipStats[name] };
+            }).sort((a, b) => b.total - a.total);
             
             tbody.innerHTML = '';
             
             if (sortedEquips.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="14" class="text-center py-10 text-gray-500">Tiada rekod penggunaan peralatan ICT untuk tahun ${selectedYear}.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="14" class="text-center py-10 text-gray-500">Tiada inventori direkodkan di dalam pangkalan data.</td></tr>`;
                 return;
             }
             
@@ -431,19 +446,26 @@
             let grandTotal = 0;
 
             sortedEquips.forEach(eq => {
-                const counts = equipStats[eq];
-                const total = counts.reduce((sum, val) => sum + val, 0);
-                
                 const tr = document.createElement('tr');
-                tr.className = "hover:bg-gray-50 transition";
+                tr.className = "hover:bg-gray-50 transition border-b border-gray-100";
                 
-                let tds = `<td class="px-4 py-3 font-medium text-gray-800 border-r border-gray-100">${eq}</td>`;
-                counts.forEach((c, i) => {
+                // Beza Warna Label (Badge) ikut Bilik
+                let badge = '';
+                if(eq.room === 'coe') {
+                    badge = `<span class="bg-purple-100 text-purple-700 border border-purple-200 text-[10px] px-2 py-0.5 rounded font-bold ml-2">CoE</span>`;
+                } else {
+                    badge = `<span class="bg-emerald-100 text-emerald-700 border border-emerald-200 text-[10px] px-2 py-0.5 rounded font-bold ml-2">STEM</span>`;
+                }
+                
+                let tds = `<td class="px-4 py-3 font-medium text-gray-800 border-r border-gray-100 flex justify-between items-center">${eq.name} ${badge}</td>`;
+                
+                eq.counts.forEach((c, i) => {
                     tds += `<td class="px-2 py-3 text-center border-r border-gray-100 ${c > 0 ? 'text-indigo-600 font-bold bg-indigo-50/30' : 'text-gray-300'}">${c}</td>`;
                     monthlyTotals[i] += c;
                 });
-                grandTotal += total;
-                tds += `<td class="px-4 py-3 text-center font-bold text-indigo-700 bg-indigo-50/50">${total}</td>`;
+                
+                grandTotal += eq.total;
+                tds += `<td class="px-4 py-3 text-center font-bold text-indigo-700 bg-indigo-50/50">${eq.total}</td>`;
                 
                 tr.innerHTML = tds;
                 tbody.appendChild(tr);
@@ -451,7 +473,7 @@
 
             // Tambah baris jumlah keseluruhan
             let totalRow = `<tr class="bg-indigo-100 font-bold text-indigo-900 border-t-2 border-indigo-200">
-                <td class="px-4 py-4 text-right uppercase text-xs tracking-wider border-r border-indigo-200">Jumlah Tempahan Peralatan</td>`;
+                <td class="px-4 py-4 text-right uppercase text-xs tracking-wider border-r border-indigo-200">Jumlah Tempahan Semua</td>`;
             monthlyTotals.forEach(mt => {
                 totalRow += `<td class="px-2 py-4 text-center border-r border-indigo-200 ${mt > 0 ? 'text-indigo-800' : 'text-indigo-400'}">${mt}</td>`;
             });
@@ -497,7 +519,7 @@
                 
                 // Refresh views
                 renderAdminCalendar(); 
-                renderAnalytics(); 
+                if(document.getElementById('btn-analytics').classList.contains('active')) renderAnalytics();
 
                 let filtered = bookings.filter(b => {
                     const start = b.start ? b.start.toDate() : new Date();
@@ -753,6 +775,11 @@
                             listEl.appendChild(div);
                         });
                     }
+                }
+                
+                // Segarkan tab analisis jika ia sedang aktif
+                if(document.getElementById('btn-analytics').classList.contains('active')) {
+                    renderAnalytics();
                 }
             });
         }
