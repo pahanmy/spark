@@ -157,7 +157,7 @@
                                         <div id="stem-dynamic-list" class="grid grid-cols-1 gap-2 text-sm text-gray-700"><p class="text-xs text-gray-400 italic">Memuatkan senarai...</p></div>
                                     </div>
 
-                                    <div class="flex justify-end mt-2">
+                                    <div class="flex justify-end mt-4">
                                         <button type="button" id="check-booking-btn" onclick="checkBookingAvailabilityOnClick(this)" class="btn bg-red-500 text-white font-semibold py-1 px-3 rounded-lg shadow-md hover:bg-red-600 text-xs flex items-center gap-1">
                                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd" /></svg>
                                             Semak Jadual
@@ -210,31 +210,6 @@
                             Tindakan ini gagal kerana tetapan keselamatan (Security Rules) pada pangkalan data Firebase anda tidak membenarkannya. 
                             Ini BUKAN ralat pada kod aplikasi.
                         </p>
-                        <p class="mt-2 text-sm text-gray-500">
-                            Untuk membetulkannya, anda <strong>MESTI</strong> mengemas kini fail <code class="text-xs bg-gray-100 p-1 rounded">firestore.rules</code> di Firebase Console anda.
-                        </p>
-                        <div class="mt-4">
-                            <label class="block text-sm font-medium text-gray-700">Kod Rules yang Betul:</label>
-                            <pre class="mt-1 text-xs bg-gray-800 text-white p-3 rounded-md overflow-x-auto"><code>rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-  
-    match /artifacts/{appId}/public/data/spark_bookings/{bookingId} {
-      allow read: if true;
-      allow create: if request.auth != null;
-    }
-    match /artifacts/{appId}/public/data/spark_programs/{programId} {
-      allow read: if true;
-      allow create: if request.auth != null;
-      allow update: if request.auth != null;
-      allow delete: if request.auth != null;
-    }
-     match /artifacts/{appId}/public/data/spark_schools/{schoolId} {
-      allow read: if true;
-    }
-  }
-}</code></pre>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -327,7 +302,6 @@ service cloud.firestore {
                 return;
             }
 
-            // Kemaskini butang "Kembali ke Dashboard" dengan kunci program
             document.getElementById('dashboard-link-button').onclick = () => {
                 window.location.href = `program.html?kod=${programKey}`;
             };
@@ -398,17 +372,14 @@ service cloud.firestore {
             
             if (program.bookingNeeded && program.roomBooked) {
                  document.getElementById('booking-room-select').value = program.roomBooked;
-                 // Trigger change event to show/hide extra fields based on room type
                  document.getElementById('booking-room-select').dispatchEvent(new Event('change'));
                  
-                 // Populate Breakdown if exists
                  if (program.breakdown) {
                      document.getElementById('count-officer').value = program.breakdown.officer || 0;
                      document.getElementById('count-teacher').value = program.breakdown.teacher || 0;
                      document.getElementById('count-student').value = program.breakdown.student || 0;
                  }
                  
-                 // Populate Equipment Checkboxes if CoE/STEM
                  if (program.roomBooked === 'Centre of Excellence (CoE)') {
                      loadDynamicEquipment('coe', program.equipment || []);
                  } else if (program.roomBooked === 'Hab STEM') {
@@ -462,9 +433,21 @@ service cloud.firestore {
 
                 for (const doc of querySnapshot.docs) {
                     const booking = doc.data();
-                    const bookingEnd = booking.end.toDate(); 
+                    
+                    // ABAIKAN DIRI SENDIRI
                     if (doc.id === currentLoadedProgram.id) continue;
                     
+                    // ABAIKAN JIKA BATAL/GAGAL
+                    if (
+                        booking.status === 'BATAL' || 
+                        booking.approvalStatus === 'Batal' || 
+                        booking.approvalStatus === 'Gagal' || 
+                        booking.approvalStatus === 'Ditolak'
+                    ) {
+                        continue; 
+                    }
+
+                    const bookingEnd = booking.end.toDate(); 
                     if (bookingEnd > newStart) {
                         return { available: false, conflict: booking };
                     }
@@ -553,12 +536,11 @@ service cloud.firestore {
             modal.classList.remove('hidden');
         }
 
-        // --- FUNGSI BARU UNTUK PERALATAN ---
         async function loadDynamicEquipment(type, savedItems = []) {
             const containerId = type === 'coe' ? 'coe-dynamic-list' : 'stem-dynamic-list';
             const container = document.getElementById(containerId);
             container.innerHTML = '<p class="text-xs text-gray-400 italic">Memuatkan senarai...</p>';
-            galleryImages = []; // Reset Gallery for the new list
+            galleryImages = []; 
 
             try {
                 const docRef = doc(db, `artifacts/${appId}/public/data/pkg_equipment`, type);
@@ -585,7 +567,6 @@ service cloud.firestore {
                             imageIcon = `<div class="w-7"></div>`;
                         }
 
-                        // Check if previously saved
                         const isChecked = savedItems.includes(item.name) ? 'checked' : '';
 
                         div.innerHTML = `
@@ -627,7 +608,6 @@ service cloud.firestore {
             } catch (err) { console.error(err); container.innerHTML = '<p class="text-xs text-red-400 italic">Ralat memuatkan data.</p>'; }
         }
 
-        // --- FUNGSI LIGHTBOX ---
         window.openLightbox = function(index) {
             if(galleryImages.length === 0) return;
             currentImageIndex = index;
@@ -691,9 +671,9 @@ service cloud.firestore {
             if (bookingNeeded) {
                 if (!roomBooked) { alert('Sila pilih bilik untuk ditempah.'); isSubmitting = false; submitButton.disabled = false; submitButton.innerHTML = 'Kemaskini Program'; return; }
                 
-                // Cek Bilik Khas
                 const isCoE = roomBooked === 'Centre of Excellence (CoE)';
                 const isStem = roomBooked === 'Hab STEM';
+                const isSPP = roomBooked === 'Bilik Peperiksaan 1' || roomBooked === 'Bilik Peperiksaan 2';
 
                 if (isCoE || isStem) {
                     const officer = parseInt(document.getElementById('count-officer').value) || 0;
@@ -717,8 +697,11 @@ service cloud.firestore {
                         equipment: equipmentList,
                         approvalStatus: currentLoadedProgram.approvalStatus === 'Lulus' && roomBooked === oldRoomBooked ? 'Lulus' : 'Menunggu Kelulusan'
                     };
-                    // Set kuota from calculation
                     document.getElementById('quota').value = officer + teacher + student;
+                } else if (isSPP) {
+                    extraInfo = { 
+                        approvalStatus: currentLoadedProgram.approvalStatus === 'Lulus' && roomBooked === oldRoomBooked ? 'Lulus' : 'Menunggu Kelulusan' 
+                    };
                 } else {
                     extraInfo = { approvalStatus: 'Lulus' };
                 }
@@ -883,7 +866,7 @@ service cloud.firestore {
                 checkCapacity();
             });
 
-            // LOGIK BILIK (Sama seperti semak.html)
+            // LOGIK BILIK 
             const roomSelect = document.getElementById('booking-room-select');
             const pkgWarningBox = document.getElementById('pkg-warning-box');
             const pkgRoomNameDisplay = document.getElementById('pkg-room-name-display');
@@ -911,7 +894,7 @@ service cloud.firestore {
                     participantBreakdown.classList.remove('hidden');
                     quotaInput.setAttribute('readonly', true);
                     quotaInput.classList.add('bg-gray-100');
-                    if(isCoE) loadDynamicEquipment('coe'); // Load fresh if changed
+                    if(isCoE) loadDynamicEquipment('coe'); 
                     if(isStem) loadDynamicEquipment('hab_stem');
                 } else {
                     pkgWarningBox.classList.add('hidden');
