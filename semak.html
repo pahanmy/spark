@@ -276,7 +276,7 @@
                 </div>
                 <div class="mt-8">
                      <a href="senarai.html" class="btn bg-blue-600 text-white font-semibold py-2 px-6 rounded-lg shadow-md hover:bg-blue-700 flex items-center justify-center gap-2 max-w-xs mx-auto">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd" /></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd" /></svg>
                         Pergi ke Senarai Program
                     </a>
                 </div>
@@ -342,7 +342,7 @@
         
         let db, auth, userId, currentApplicant;
         let userProgramsCache = []; 
-        let galleryImages = []; // Array untuk gambar lightbox
+        let galleryImages = []; 
         let currentImageIndex = 0;
         const appId = firebaseConfig.projectId;
         let isSubmitting = false;
@@ -471,6 +471,8 @@
                 if (querySnapshot.empty) return { available: true };
                 for (const doc of querySnapshot.docs) {
                     const booking = doc.data();
+                    if (booking.approvalStatus === 'Batal' || booking.approvalStatus === 'Ditolak' || booking.approvalStatus === 'Gagal') continue;
+                    
                     const bookingEnd = booking.end.toDate(); 
                     if (bookingEnd > newStart) return { available: false, conflict: booking };
                 }
@@ -543,12 +545,11 @@
             modal.classList.remove('hidden');
         }
 
-        // --- DYNAMIC EQUIPMENT & LIGHTBOX ---
         async function loadDynamicEquipment(type) {
             const containerId = type === 'coe' ? 'coe-dynamic-list' : 'stem-dynamic-list';
             const container = document.getElementById(containerId);
             container.innerHTML = '<p class="text-xs text-gray-400 italic">Memuatkan senarai...</p>';
-            galleryImages = []; // Reset Gallery
+            galleryImages = []; 
 
             try {
                 const docRef = doc(db, `artifacts/${appId}/public/data/pkg_equipment`, type);
@@ -563,7 +564,6 @@
                         const checkboxName = type === 'coe' ? 'equip_coe' : 'equip_stem';
                         
                         let imageIcon = '';
-                        // Logic Gambar
                         if(item.image) {
                             galleryImages.push({ name: item.name, url: item.image });
                             const imgIndex = galleryImages.length - 1;
@@ -577,9 +577,11 @@
                             imageIcon = `<div class="w-7"></div>`;
                         }
 
+                        const safeValue = item.name.replace(/"/g, '&quot;');
+
                         div.innerHTML = `
                             <label class="flex items-center space-x-3 cursor-pointer w-full">
-                                <input type="checkbox" name="${checkboxName}" value="${item.name}" class="rounded text-indigo-600 w-4 h-4 border-gray-300 focus:ring-indigo-500">
+                                <input type="checkbox" name="${checkboxName}" value="${safeValue}" class="rounded text-indigo-600 w-4 h-4 border-gray-300 focus:ring-indigo-500">
                                 <span class="text-sm text-gray-700 font-medium">${item.name}</span>
                             </label>
                             ${imageIcon}
@@ -615,7 +617,6 @@
             } catch (err) { console.error(err); container.innerHTML = '<p class="text-xs text-red-400 italic">Ralat memuatkan data.</p>'; }
         }
 
-        // --- LIGHTBOX FUNCTIONS ---
         window.openLightbox = function(index) {
             if(galleryImages.length === 0) return;
             currentImageIndex = index;
@@ -644,7 +645,6 @@
             caption.textContent = galleryImages[currentImageIndex].name;
         }
         
-        // ===== FUNGSI generateProgram =====
         async function generateProgram(event) {
             event.preventDefault();
             if (isSubmitting) return; 
@@ -676,7 +676,6 @@
 
             let extraInfo = {};
 
-            // === 2. Semakan Tempahan Bilik ===
             if (bookingNeeded) {
                 if (!roomBooked) {
                     alert('Sila pilih bilik untuk ditempah.');
@@ -686,6 +685,7 @@
 
                 const isCoE = roomBooked === 'Centre of Excellence (CoE)';
                 const isStem = roomBooked === 'Hab STEM';
+                const isSPP = roomBooked === 'Bilik Peperiksaan 1' || roomBooked === 'Bilik Peperiksaan 2';
 
                 if (isCoE || isStem) {
                     const officer = parseInt(document.getElementById('count-officer').value) || 0;
@@ -707,14 +707,16 @@
                     extraInfo = {
                         breakdown: { officer, teacher, student },
                         equipment: equipmentList,
-                        approvalStatus: 'Menunggu Kelulusan'
+                        approvalStatus: 'Menunggu Kelulusan',
+                        approvalReason: ''
                     };
                     document.getElementById('quota').value = officer + teacher + student;
+                } else if (isSPP) {
+                    extraInfo = { approvalStatus: 'Menunggu Kelulusan', approvalReason: '' };
                 } else {
                     extraInfo = { approvalStatus: 'Lulus' }; 
                 }
                 
-                // Semak ketersediaan bilik
                 const result = await checkBookingAvailability(roomBooked, startDateTime.toISOString(), endDateTimeFull.toISOString());
                 if (!result.available) {
                     showBookingStatusModal(result);
@@ -723,7 +725,6 @@
                 }
             }
 
-            // === 3. Sediakan Data Lain ===
             let surveyKey = surveyNeeded ? `SRV-${Math.random().toString(36).substring(2, 8).toUpperCase()}` : null;
             let evaluationKey = evaluationNeeded ? `EVAL-${Math.random().toString(36).substring(2, 8).toUpperCase()}` : null;
             
@@ -756,7 +757,6 @@
                 }
             }
             
-            // === 4. Sediakan Objek Data ===
             const newProgram = {
                 key: programKey, name: document.getElementById('program-name').value, location: document.getElementById('location').value,
                 startDate: startDate, endDate: endDateValue, startTime: startTime, endTime: endTime, expiryTimestamp: expiryTimestamp,
@@ -773,23 +773,17 @@
             };
             
             const newBooking = {
-    programKey: programKey,
-    programName: newProgram.name,
-    room: roomBooked,
-    start: startDateTime, 
-    end: endDateTimeFull, 
-    bookedBy_ic: currentApplicant.ic,
-    bookedBy_name: currentApplicant.name,
-    bookedBy_phone: phoneNumber, // (Untuk semaktempah.html)
-    createdAt: serverTimestamp(),
-    approvalStatus: extraInfo.approvalStatus || 'Lulus',
-    
-    // 👇 TAMBAH 2 BARIS INI 👇
-    equipment: extraInfo.equipment || [],
-    breakdown: extraInfo.breakdown || null
-};
+                programKey: programKey,
+                programName: newProgram.name,
+                room: roomBooked,
+                start: startDateTime, end: endDateTimeFull, 
+                bookedBy_ic: currentApplicant.ic, bookedBy_name: currentApplicant.name,
+                createdAt: serverTimestamp(),
+                approvalStatus: extraInfo.approvalStatus || 'Lulus',
+                equipment: extraInfo.equipment || [],
+                breakdown: extraInfo.breakdown || null
+            };
 
-            // === 5. Jalankan Transaksi ===
             try {
                 await runTransaction(db, async (transaction) => {
                     const programRef = doc(db, `artifacts/${appId}/public/data/spark_programs`, programKey);
@@ -803,14 +797,12 @@
 
                 document.getElementById('generated-key').textContent = programKey;
                 
-                // Jika perlu kelulusan
                 if (extraInfo.approvalStatus === 'Menunggu Kelulusan') {
                     document.getElementById('success-message-text').innerHTML = `Permohonan tempahan <strong>${roomBooked}</strong> diterima (Menunggu Kelulusan). <br>Status akan dimaklumkan kemudian. Sila gunakan Kunci di bawah untuk Dashboard.`;
                     document.getElementById('program-generated-card').querySelector('h2').className = "text-2xl font-bold text-yellow-600 mb-4";
                     document.getElementById('program-generated-card').querySelector('h2').textContent = "Permohonan Diterima (Menunggu Kelulusan)";
                 }
 
-                // Setup Links
                 const surveyLinkContainer = document.getElementById('survey-link-container');
                 const surveyLinkElement = document.getElementById('generated-survey-link');
                 if (surveyNeeded && surveyKey) {
@@ -870,7 +862,6 @@
                     const maskedIc = `******${currentApplicant.ic.slice(-4)}`;
                     document.getElementById('applicant-details-text').innerHTML = `${currentApplicant.position || 'Tiada Jawatan'} &bull; ${currentApplicant.station || 'Tiada Stesyen'} <br> <span class="font-mono text-indigo-300">${maskedIc}</span>`;
                     
-                    // --- KIRAAN PROGRAM & GAMIFICATION ---
                     const generatedCount = userProgramsCache.filter(p => p.penyelaras_ic === ic).length;
                     const attendedCount = userProgramsCache.filter(p => p.attendance && Array.isArray(p.attendance) && p.attendance.some(attendee => attendee.ic === ic)).length;
                     
@@ -889,7 +880,6 @@
                         const needed = 100 - totalPrograms;
                         gamificationText.textContent = `Perlu ${needed} lagi program untuk lencana bintang.`;
                     }
-                    // -------------------------------------
 
                     nameDisplay.classList.remove('hidden'); enableProgramForm();
                 } else { showNewApplicantModal(ic); }
@@ -994,7 +984,6 @@
             document.getElementById('reference-needed').addEventListener('change', (e) => { document.getElementById('attendance-reference-container').classList.toggle('hidden', !e.target.checked); });
             document.getElementById('booking-needed').addEventListener('change', (e) => { document.getElementById('booking-details-container').classList.toggle('hidden', !e.target.checked); checkCapacity(); });
 
-            // LOGIK BILIK (CoE/STEM)
             const roomSelect = document.getElementById('booking-room-select');
             const pkgWarningBox = document.getElementById('pkg-warning-box');
             const pkgRoomNameDisplay = document.getElementById('pkg-room-name-display');
@@ -1029,7 +1018,6 @@
                 stemEquip.classList.toggle('hidden', !isStem);
             });
 
-            // LOGIK KIRA KUOTA
             const calcTotal = () => {
                 const o = parseInt(document.getElementById('count-officer').value) || 0;
                 const t = parseInt(document.getElementById('count-teacher').value) || 0;
