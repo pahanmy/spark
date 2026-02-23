@@ -236,7 +236,13 @@
         <div class="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
             <h3 class="text-lg font-bold text-red-600 mb-2">Tolak Permohonan</h3>
             <p class="text-sm text-gray-600 mb-4">Sila nyatakan sebab penolakan.</p>
-            <input type="hidden" id="reject-booking-id"><input type="hidden" id="reject-phone">
+            
+            <input type="hidden" id="reject-booking-id">
+            <input type="hidden" id="reject-phone">
+            <input type="hidden" id="reject-prog">
+            <input type="hidden" id="reject-date">
+            <input type="hidden" id="reject-room">
+
             <select id="reject-reason-select" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm bg-gray-50 focus:ring-2 focus:ring-red-500 outline-none" onchange="toggleCustomReason()">
                 <option value="Bilik telah ditempah (Bertindih)">Bilik telah ditempah (Bertindih)</option>
                 <option value="Penyelenggaraan Bilik/Peralatan">Penyelenggaraan Bilik/Peralatan</option>
@@ -246,7 +252,7 @@
             <textarea id="reject-reason-custom" class="w-full border border-gray-300 rounded-lg p-3 text-sm hidden mt-3 focus:ring-2 focus:ring-red-500 outline-none" rows="3" placeholder="Nyatakan sebab penolakan di sini..."></textarea>
             <div class="mt-6 flex justify-end gap-3 pt-4 border-t border-gray-100">
                 <button onclick="closeModal('reject-modal')" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-bold">Batal</button>
-                <button onclick="confirmReject()" class="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700">Hantar</button>
+                <button onclick="confirmReject()" class="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700">Hantar Keputusan</button>
             </div>
         </div>
     </div>
@@ -532,7 +538,6 @@
                 document.getElementById('count-approved').textContent = stats.approved;
                 document.getElementById('count-rejected').textContent = stats.rejected;
                 
-                // SAFE CHECK SEBELUM TEXTCONTENT (Memperbaiki error "Cannot set properties of null")
                 const sorted = Object.entries(equipCounts).sort((a,b) => b[1] - a[1]);
                 if (document.getElementById('top-equip')) {
                     document.getElementById('top-equip').textContent = sorted.length > 0 ? `${sorted[0][0]} (${sorted[0][1]})` : '-';
@@ -560,15 +565,14 @@
                     return statusMatch && yearMatch && monthMatch;
                 });
 
-                // --- LOGIK SUSUNAN (SORT) ---
                 filtered.sort((a, b) => {
                     let timeA = a.createdAt ? a.createdAt.toMillis() : 0;
                     let timeB = b.createdAt ? b.createdAt.toMillis() : 0;
                     
                     if (statusFilter === 'Menunggu Kelulusan') {
-                        return timeA - timeB; // Lama ke Baru
+                        return timeA - timeB; 
                     } else {
-                        return timeB - timeA; // Baru ke Lama
+                        return timeB - timeA; 
                     }
                 });
 
@@ -589,7 +593,6 @@
                 const dateStr = start.toLocaleDateString('ms-MY', { day: 'numeric', month: 'short', year: 'numeric' });
                 const timeStr = `${start.toLocaleTimeString('ms-MY', {hour:'2-digit', minute:'2-digit'})} - ${end.toLocaleTimeString('ms-MY', {hour:'2-digit', minute:'2-digit'})}`;
                 
-                // --- KIRAAN HARI MENUNGGU ---
                 const createdDate = b.createdAt ? b.createdAt.toDate() : new Date();
                 const createdDateStr = createdDate.toLocaleDateString('ms-MY', { day: 'numeric', month: 'short', year: 'numeric' });
                 
@@ -657,13 +660,13 @@
                     actions = `
                         <div class="flex gap-2 mt-4 pt-3 border-t border-gray-100">
                             <button onclick="checkAndApprove('${b.id}', '${waPrefix}', '${safeProgName}', '${dateStr}', '${b.room}', ${isEquipMissing}, '${roomType}', '${currentEquipStr}')" class="flex-1 bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-2 rounded shadow-sm transition">LULUSKAN</button>
-                            <button onclick="openRejectModal('${b.id}', '${waPrefix}')" class="flex-1 bg-white border border-red-200 text-red-600 text-xs font-bold py-2 rounded hover:bg-red-50 transition shadow-sm">TOLAK</button>
+                            <button onclick="openRejectModal('${b.id}', '${waPrefix}', '${safeProgName}', '${dateStr}', '${b.room}')" class="flex-1 bg-white border border-red-200 text-red-600 text-xs font-bold py-2 rounded hover:bg-red-50 transition shadow-sm">TOLAK</button>
                         </div>
                     `;
                 } else if (b.approvalStatus === 'Lulus' && waPrefix) {
-                    actions = `<button onclick="sendWhatsApp('${waPrefix}', 'Lulus', '${safeProgName}', '${dateStr}', '${b.room}', '')" class="mt-3 w-full bg-green-50 text-green-700 border border-green-200 text-xs font-bold py-2 rounded hover:bg-green-100 transition shadow-sm">Kirim Info WhatsApp</button>`;
+                    actions = `<button onclick="sendWhatsApp('${waPrefix}', 'Lulus', '${safeProgName}', '${dateStr}', '${b.room}', '')" class="mt-4 w-full bg-green-50 text-green-700 border border-green-200 text-xs font-bold py-2 rounded hover:bg-green-100 transition shadow-sm">Kirim Info WhatsApp</button>`;
                 } else if ((b.approvalStatus === 'Gagal' || b.approvalStatus === 'Ditolak') && waPrefix) {
-                    actions = `<button onclick="sendWhatsApp('${waPrefix}', 'Gagal', '${safeProgName}', '${dateStr}', '${b.room}', '${b.approvalReason || ''}')" class="mt-3 w-full bg-red-50 text-red-700 border border-red-200 text-xs font-bold py-2 rounded hover:bg-red-100 transition shadow-sm">Kirim Info WhatsApp</button>`;
+                    actions = `<button onclick="sendWhatsApp('${waPrefix}', 'Gagal', '${safeProgName}', '${dateStr}', '${b.room}', '${b.approvalReason || ''}')" class="mt-4 w-full bg-red-50 text-red-700 border border-red-200 text-xs font-bold py-2 rounded hover:bg-red-100 transition shadow-sm">Kirim Info WhatsApp</button>`;
                 }
 
                 const item = document.createElement('div');
@@ -782,14 +785,20 @@
             if(!confirm(`Tetapkan status: ${status}?`)) return;
             try {
                 await updateDoc(doc(db, `artifacts/${appId}/public/data/spark_bookings`, id), { approvalStatus: status, approvalReason: reason });
-                if(status === 'Lulus' && phone && confirm("Buka ruangan WhatsApp kepada pemohon?")) sendWhatsApp(phone, status, prog, date, room, "");
-                else alert("Status berjaya dikemaskini.");
+                if(phone && confirm("Status berjaya dikemaskini. Buka ruangan WhatsApp untuk maklumkan kepada pemohon sekarang?")) {
+                    sendWhatsApp(phone, status, prog, date, room, reason);
+                } else if(!phone) {
+                    alert("Status berjaya dikemaskini.");
+                }
             } catch(e) { alert("Ralat semasa menyimpan."); }
         }
 
-        window.openRejectModal = function(id, phone) {
+        window.openRejectModal = function(id, phone, prog, date, room) {
             document.getElementById('reject-booking-id').value = id;
             document.getElementById('reject-phone').value = phone;
+            document.getElementById('reject-prog').value = prog;
+            document.getElementById('reject-date').value = date;
+            document.getElementById('reject-room').value = room;
             document.getElementById('reject-modal').classList.remove('hidden');
         }
         
@@ -804,10 +813,13 @@
         window.confirmReject = function() {
             const id = document.getElementById('reject-booking-id').value;
             const phone = document.getElementById('reject-phone').value;
+            const prog = document.getElementById('reject-prog').value;
+            const date = document.getElementById('reject-date').value;
+            const room = document.getElementById('reject-room').value;
             let reason = document.getElementById('reject-reason-select').value;
             if(reason === 'custom') reason = document.getElementById('reject-reason-custom').value;
             
-            updateBookingStatus(id, 'Gagal', phone, "Program", "Tarikh", "Bilik", reason);
+            updateBookingStatus(id, 'Gagal', phone, prog, date, room, reason);
             closeModal('reject-modal');
         }
 
