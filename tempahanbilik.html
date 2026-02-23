@@ -231,7 +231,7 @@
         function updateDashboardStats(year, month) {
             const counts = { "stat-coe": 0, "stat-stem": 0, "stat-wisma": 0, "stat-perancangan": 0, "stat-peperiksaan": 0 };
             allBookings.forEach(b => {
-                // FILTER: Jangan kira jika status Batal, Gagal atau Ditolak
+                // FILTER STATS: Jangan kira jika status Batal, Gagal atau Ditolak
                 if(b.status === 'BATAL' || b.approvalStatus === 'Batal' || b.approvalStatus === 'Gagal' || b.approvalStatus === 'Ditolak' || !b.start) return;
                 
                 const s = b.start.toDate();
@@ -317,9 +317,8 @@
                 const isToday = new Date().toDateString() === date.toDateString();
 
                 const events = allBookings.filter(b => {
-                    // FILTER UTAMA: Sembunyikan jika status Batal/Ditolak/Gagal
-                    if(b.status === 'BATAL' || b.approvalStatus === 'Batal' || b.approvalStatus === 'Gagal' || b.approvalStatus === 'Ditolak') return false;
-                    
+                    // Paparkan semua status dalam kalendar (termasuk Batal/Gagal)
+                    if (!b.start) return false;
                     const s = b.start.toDate(); const e = b.end ? b.end.toDate() : s;
                     const checkStart = new Date(year, month, day, 0,0,0);
                     const checkEnd = new Date(year, month, day, 23,59,59);
@@ -333,7 +332,13 @@
                 let badges = '';
                 events.slice(0, 3).forEach(ev => {
                     const conf = roomConfig[ev.room] || roomConfig["DEFAULT"];
-                    badges += `<div class="event-badge ${conf.bg} ${conf.text} border-l-4 ${conf.border.replace('border', 'border-l')}">${conf.icon} ${conf.short}</div>`;
+                    const isCancelledOrFailed = ev.status === 'BATAL' || ev.approvalStatus === 'Batal' || ev.approvalStatus === 'Gagal' || ev.approvalStatus === 'Ditolak';
+                    
+                    if (isCancelledOrFailed) {
+                        badges += `<div class="event-badge bg-gray-100 text-gray-500 border-l-4 border-l-gray-300 line-through opacity-70" title="Dibatalkan/Ditolak">${conf.icon} ${conf.short}</div>`;
+                    } else {
+                        badges += `<div class="event-badge ${conf.bg} ${conf.text} border-l-4 ${conf.border.replace('border', 'border-l')}">${conf.icon} ${conf.short}</div>`;
+                    }
                 });
                 if(events.length > 3) badges += `<div class="text-[9px] text-gray-400 font-bold pl-1">+${events.length-3} lagi</div>`;
 
@@ -376,7 +381,8 @@
 
             const filterRoom = document.getElementById('room-select').value;
             const events = allBookings.filter(b => {
-                // Tunjuk semua di list (termasuk batal/gagal), tapi boleh filter ikut bilik
+                // Tunjuk semua di list harian (termasuk batal/gagal)
+                if (!b.start) return false;
                 const s = b.start.toDate(); const e = b.end ? b.end.toDate() : s;
                 const checkStart = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0,0,0);
                 const checkEnd = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23,59,59);
