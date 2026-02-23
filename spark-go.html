@@ -49,7 +49,7 @@
         .btn-time:hover { border-color: #4F46E5; color: #4F46E5; background-color: #eef2ff; }
         .btn-time.active { background-color: #4F46E5; color: white; border-color: #4F46E5; box-shadow: 0 2px 5px rgba(79, 70, 229, 0.3); }
         
-        .custom-scroll::-webkit-scrollbar { width: 6px; }
+        .custom-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
         .custom-scroll::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 4px; }
 
         .profile-img-wrapper {
@@ -159,9 +159,10 @@
                         <p class="text-gray-400 font-bold uppercase text-xs tracking-widest">Sila imbas atau masukkan IC</p>
                     </div>
 
-                    <div id="main-tabs" class="hidden flex gap-4 border-b border-gray-200 mb-6 relative z-10">
+                    <div id="main-tabs" class="hidden flex gap-4 border-b border-gray-200 mb-6 relative z-10 overflow-x-auto custom-scroll whitespace-nowrap pb-1">
                         <button onclick="switchTab('new')" id="btn-tab-new" class="pb-2 border-b-2 border-brand font-bold text-brand text-sm transition-colors">Rekod Baru</button>
-                        <button onclick="switchTab('history')" id="btn-tab-history" class="pb-2 border-b-2 border-transparent font-medium text-gray-500 hover:text-gray-700 text-sm transition-colors">Sejarah Pergerakan</button>
+                        <button onclick="switchTab('history')" id="btn-tab-history" class="pb-2 border-b-2 border-transparent font-medium text-gray-500 hover:text-gray-700 text-sm transition-colors">Sejarah Sesi</button>
+                        <button onclick="switchTab('schools')" id="btn-tab-schools" class="pb-2 border-b-2 border-transparent font-medium text-gray-500 hover:text-gray-700 text-sm transition-colors">Status Sekolah</button>
                     </div>
 
                     <div id="tab-new-record" class="relative z-10">
@@ -298,12 +299,25 @@
                         </form>
                     </div>
 
-                    <div id="tab-history" class="hidden flex-col gap-4 relative z-10">
-                        <div class="flex justify-between items-center mb-4 bg-gray-50 p-3 rounded-lg border border-gray-100">
-                            <h2 class="text-sm font-bold text-gray-800 uppercase">Rekod Bulanan</h2>
-                            <input type="month" id="history-month" class="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-brand focus:border-brand" onchange="loadHistory()">
+                    <div id="tab-history" class="hidden relative z-10">
+                        <div class="flex flex-col gap-4">
+                            <div class="flex justify-between items-center bg-gray-50 p-3 rounded-lg border border-gray-100">
+                                <h2 class="text-sm font-bold text-gray-800 uppercase">Rekod Bulanan</h2>
+                                <input type="month" id="history-month" class="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-brand focus:border-brand" onchange="loadHistory()">
+                            </div>
+                            <div id="history-list" class="space-y-3 custom-scroll overflow-y-auto max-h-[500px] pr-2">
+                            </div>
                         </div>
-                        <div id="history-list" class="space-y-3 custom-scroll overflow-y-auto max-h-[500px] pr-2">
+                    </div>
+
+                    <div id="tab-school-status" class="hidden relative z-10">
+                        <div class="flex flex-col gap-4">
+                            <div class="flex justify-between items-center bg-gray-50 p-3 rounded-lg border border-gray-100">
+                                <h2 class="text-sm font-bold text-gray-800 uppercase">Kekerapan Lawatan</h2>
+                                <input type="month" id="school-month" class="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-brand focus:border-brand" onchange="loadSchoolStatus()">
+                            </div>
+                            <div id="school-status-list" class="custom-scroll overflow-y-auto max-h-[500px] pr-2">
+                                </div>
                         </div>
                     </div>
 
@@ -354,6 +368,7 @@
         let taggedTargets = []; 
         let allUsersCache = [];
         let savedGroups = [];
+        let allSchoolsList = []; // Simpan semua senarai sekolah untuk kegunaan Tab 3
 
         onAuthStateChanged(auth, async (user) => {
             if (!user) { try { await signInAnonymously(auth); } catch (e) { console.error(e); } }
@@ -366,6 +381,11 @@
             document.getElementById('return-date').value = today;
             document.getElementById('start-time').value = "08:00";
             document.getElementById('end-time').value = "17:00";
+            
+            const currentMonth = today.substring(0, 7); // Format YYYY-MM
+            document.getElementById('history-month').value = currentMonth;
+            document.getElementById('school-month').value = currentMonth;
+
             await Promise.all([loadSchools(), preloadUsers()]);
         }
 
@@ -493,10 +513,14 @@
                 const q = query(collection(db, `artifacts/${appId}/public/data/spark_schools`), orderBy("name"));
                 const snap = await getDocs(q);
                 select.innerHTML = '<option value="">-- Pilih Destinasi --</option>';
+                allSchoolsList = [];
+                
                 snap.forEach(doc => {
+                    const name = doc.data().name.toUpperCase();
+                    allSchoolsList.push(name);
                     const opt = document.createElement('option');
-                    opt.value = doc.data().name;
-                    opt.textContent = doc.data().name;
+                    opt.value = name;
+                    opt.textContent = name;
                     select.appendChild(opt);
                 });
                 select.innerHTML += '<option value="LAIN-LAIN">LAIN-LAIN (NYATAKAN DI TUJUAN)</option>';
@@ -714,6 +738,7 @@
             const referenceList = taggedTargets.map(t => ({ name: t.name, station: t.station || '' }));
 
             try {
+                // Dapatkan Kiraan (Siri ke berapa ke lokasi ini)
                 const qCount = query(
                     collection(db, `artifacts/${appId}/public/data/spark_programs`),
                     where("type", "==", "movement"),
@@ -759,23 +784,39 @@
             }
         }
 
+        // --- PENGURUSAN TAB ---
         window.switchTab = function(tab) {
             const tabNew = document.getElementById('tab-new-record');
             const tabHistory = document.getElementById('tab-history');
+            const tabSchools = document.getElementById('tab-school-status');
+            
             const btnNew = document.getElementById('btn-tab-new');
             const btnHistory = document.getElementById('btn-tab-history');
+            const btnSchools = document.getElementById('btn-tab-schools');
+
+            // Reset paparan
+            tabNew.classList.add('hidden');
+            tabHistory.classList.add('hidden');
+            tabSchools.classList.add('hidden');
+            
+            const inactiveClass = "pb-2 border-b-2 border-transparent font-medium text-gray-500 hover:text-gray-700 text-sm transition-colors";
+            const activeClass = "pb-2 border-b-2 border-brand font-bold text-brand text-sm transition-colors";
+            
+            btnNew.className = inactiveClass;
+            btnHistory.className = inactiveClass;
+            btnSchools.className = inactiveClass;
 
             if (tab === 'new') {
                 tabNew.classList.remove('hidden');
-                tabHistory.classList.add('hidden');
-                btnNew.className = "pb-2 border-b-2 border-brand font-bold text-brand text-sm transition-colors";
-                btnHistory.className = "pb-2 border-b-2 border-transparent font-medium text-gray-500 hover:text-gray-700 text-sm transition-colors";
-            } else {
-                tabNew.classList.add('hidden');
+                btnNew.className = activeClass;
+            } else if (tab === 'history') {
                 tabHistory.classList.remove('hidden');
-                btnHistory.className = "pb-2 border-b-2 border-brand font-bold text-brand text-sm transition-colors";
-                btnNew.className = "pb-2 border-b-2 border-transparent font-medium text-gray-500 hover:text-gray-700 text-sm transition-colors";
+                btnHistory.className = activeClass;
                 loadHistory();
+            } else if (tab === 'schools') {
+                tabSchools.classList.remove('hidden');
+                btnSchools.className = activeClass;
+                loadSchoolStatus();
             }
         };
 
@@ -785,11 +826,6 @@
             historyList.innerHTML = '<div class="text-center py-10"><p class="text-indigo-500 font-medium animate-pulse">Memuatkan rekod pergerakan...</p></div>';
             
             let selectedMonth = document.getElementById('history-month').value;
-            if (!selectedMonth) {
-                const now = new Date();
-                selectedMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2, '0')}`;
-                document.getElementById('history-month').value = selectedMonth;
-            }
 
             try {
                 const q = query(
@@ -814,11 +850,13 @@
                     return;
                 }
 
-                historyList.innerHTML = records.map(r => `
+                historyList.innerHTML = records.map(r => {
+                    const badgeText = r.visitNumber ? `SIRI ${r.visitNumber}` : 'LAWATAN';
+                    return `
                     <div class="bg-white border border-gray-200 rounded-xl p-4 hover:border-brand hover:shadow-md transition-all flex flex-col md:flex-row justify-between gap-4 items-start md:items-center">
                         <div class="flex-grow min-w-0">
                             <div class="flex items-center gap-2 mb-1">
-                                <span class="bg-indigo-50 text-brand text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">${r.visitType || 'LAWATAN'}</span>
+                                <span class="bg-indigo-50 text-brand text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">${badgeText}</span>
                                 <span class="text-[10px] text-gray-500 font-medium uppercase tracking-wide">
                                     ${formatDateHistory(r.startDate)} ${r.startDate !== r.endDate ? ' hingga ' + formatDateHistory(r.endDate) : ''}
                                 </span>
@@ -828,10 +866,10 @@
                         </div>
                         <a href="spark-go-program.html?kod=${r.id}" target="_blank" class="bg-white border border-gray-300 text-gray-700 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-[10px] font-bold hover:bg-indigo-50 hover:text-brand hover:border-brand transition-all flex-shrink-0 w-full md:w-auto shadow-sm uppercase tracking-wider">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4h2v-4zm-6 0H6.414a1 1 0 00-.707.293L4.293 16.707A1 1 0 004 17.414V20h4v-2.586a1 1 0 00-.293-.707L6 15.414V14t1 1h2m4-9V4m0 0H8m4 0h4m-4 1v1m0 0h4m-4 0v2m0-2H8m0 0v2a1 1 0 01-1 1H6a1 1 0 01-1-1V5a1 1 0 011-1h1a1 1 0 011 1v1m0 0h2m2 0h2M5 12h14" /></svg>
-                            Sesi Seterusnya
+                            Buka Sesi
                         </a>
                     </div>
-                `).join('');
+                `}).join('');
 
             } catch(e) {
                 console.error(e);
@@ -844,6 +882,106 @@
             const d = new Date(dateStr);
             return d.toLocaleDateString('ms-MY', { day: 'numeric', month: 'short', year: 'numeric' });
         }
+
+        // --- LOGIK STATUS SEKOLAH (TAB 3) ---
+        function getSchoolCategory(name) {
+            const n = name.toUpperCase();
+            if (n.startsWith('SM') || n.startsWith('KV ') || n.includes('KOLEJ') || n.includes('MENENGAH')) return 1; // Menengah
+            if (n.startsWith('SK ') || n.startsWith('SJK') || n.includes('RENDAH')) return 2; // Rendah
+            return 3; // Lain-lain Institusi
+        }
+
+        window.loadSchoolStatus = async function() {
+            if (!currentUser) return;
+            const container = document.getElementById('school-status-list');
+            container.innerHTML = '<div class="text-center py-10"><p class="text-indigo-500 font-medium animate-pulse">Mengira status lawatan sekolah...</p></div>';
+
+            let selectedMonth = document.getElementById('school-month').value;
+
+            try {
+                // Pastikan allSchoolsList sudah diisi (jika tidak, panggil fungsi fetch)
+                if (allSchoolsList.length === 0) {
+                    await loadSchools();
+                }
+
+                // Dapatkan rekod pergerakan spesifik user ini
+                const qMoves = query(
+                    collection(db, `artifacts/${appId}/public/data/spark_programs`),
+                    where("penyelaras_ic", "==", currentUser.ic),
+                    where("type", "==", "movement")
+                );
+                const snapMoves = await getDocs(qMoves);
+
+                // Sediakan dictionary data
+                const visitData = {};
+                allSchoolsList.forEach(s => visitData[s] = { monthCount: 0, totalCount: 0 });
+
+                snapMoves.forEach(doc => {
+                    const data = doc.data();
+                    const loc = (data.location || '').toUpperCase();
+                    if (visitData[loc] !== undefined) {
+                        visitData[loc].totalCount++;
+                        if (data.startDate && data.startDate.startsWith(selectedMonth)) {
+                            visitData[loc].monthCount++;
+                        }
+                    }
+                });
+
+                // Tentukan Kategori dan Susun data
+                const schoolsArr = allSchoolsList.map(s => ({
+                    name: s,
+                    cat: getSchoolCategory(s),
+                    monthCount: visitData[s].monthCount,
+                    totalCount: visitData[s].totalCount
+                }));
+
+                schoolsArr.sort((a, b) => {
+                    if (a.cat !== b.cat) return a.cat - b.cat; // Kategori: Menengah(1) -> Rendah(2) -> Lain(3)
+                    return a.name.localeCompare(b.name);     // Abjad ABC
+                });
+
+                // Render UI
+                let html = '';
+                let currentCat = 0;
+                const catNames = { 1: "SEKOLAH MENENGAH", 2: "SEKOLAH RENDAH", 3: "LAIN-LAIN INSTITUSI" };
+
+                schoolsArr.forEach(s => {
+                    if (s.cat !== currentCat) {
+                        html += `<h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest mt-6 mb-3 border-b border-gray-200 pb-2">${catNames[s.cat]}</h3>`;
+                        currentCat = s.cat;
+                    }
+                    
+                    const hasVisitedMonth = s.monthCount > 0;
+                    const hasVisitedTotal = s.totalCount > 0;
+                    const bgClass = hasVisitedMonth ? 'border-brand bg-indigo-50/50' : (hasVisitedTotal ? 'border-indigo-100 bg-white' : 'border-gray-100 bg-white/60');
+
+                    html += `
+                        <div class="flex justify-between items-center p-3 rounded-xl border ${bgClass} hover:shadow-md transition-all mb-2">
+                            <div class="flex-1 min-w-0 pr-2">
+                                <h4 class="text-xs font-bold text-gray-800 truncate" title="${s.name}">${s.name}</h4>
+                            </div>
+                            <div class="flex gap-2 flex-shrink-0 text-center">
+                                <div class="bg-white border border-gray-200 px-3 py-1.5 rounded-lg min-w-[60px] shadow-sm">
+                                    <p class="text-[9px] text-gray-400 font-bold uppercase tracking-wider mb-0.5">Bulan</p>
+                                    <p class="text-sm font-black ${hasVisitedMonth ? 'text-brand' : 'text-gray-300'} leading-none">${s.monthCount}</p>
+                                </div>
+                                <div class="bg-gray-100 border border-gray-200 px-3 py-1.5 rounded-lg min-w-[60px]">
+                                    <p class="text-[9px] text-gray-400 font-bold uppercase tracking-wider mb-0.5">Total</p>
+                                    <p class="text-sm font-black ${hasVisitedTotal ? 'text-indigo-800' : 'text-gray-400'} leading-none">${s.totalCount}</p>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                container.innerHTML = html;
+
+            } catch(e) {
+                console.error(e);
+                container.innerHTML = '<p class="text-center text-red-500 py-4 text-sm font-medium">Ralat sambungan pangkalan data.</p>';
+            }
+        };
+
     </script>
 </body>
 </html>
