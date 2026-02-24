@@ -872,6 +872,36 @@
         </div>
     </div>
 
+<div id="noti-details-modal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop hidden">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 sm:p-8 relative m-4 max-h-[90vh] overflow-y-auto transform transition-all border border-gray-100">
+            <button onclick="closeNotiModal()" class="absolute top-5 right-5 text-gray-400 hover:text-red-500 bg-gray-50 hover:bg-red-50 p-1.5 rounded-full transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+            
+            <div class="flex items-start gap-4 mb-5 border-b border-gray-100 pb-4 pr-8">
+                <div id="modal-noti-icon" class="p-3 rounded-xl shadow-sm flex-shrink-0">
+                    </div>
+                <div class="pt-1">
+                    <h3 id="modal-noti-title" class="text-base sm:text-lg font-bold text-gray-800 uppercase leading-tight mb-1">Tajuk</h3>
+                    <p id="modal-noti-date" class="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        <span>Tarikh</span>
+                    </p>
+                </div>
+            </div>
+            
+            <div class="mb-6">
+                <h4 class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 ml-1">Butiran Mesej:</h4>
+                <div class="text-gray-700 text-sm leading-relaxed whitespace-pre-wrap bg-gray-50/80 p-5 rounded-xl border border-gray-100 shadow-inner" id="modal-noti-message">
+                    </div>
+            </div>
+
+            <div id="modal-noti-action" class="hidden border-t border-gray-100 pt-5">
+                </div>
+        </div>
+    </div>
+
+                
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
@@ -2531,14 +2561,16 @@ window.toggleQuickMenu = function() {
         // ==========================================
 // SISTEM NOTIFIKASI
 // ==========================================
+// ==========================================
+// SISTEM NOTIFIKASI (KEMASKINI MODAL)
+// ==========================================
 let unsubscribeNotifications = null;
+let currentNotisList = []; // Simpan senarai terkini di sini
 
 window.setupNotificationListener = function(ic) {
     const notiRef = collection(db, `artifacts/${appId}/public/data/spark_notifications`);
-    // Dapatkan notifikasi pengguna ini, susun dari yang paling baru
     const q = query(notiRef, where("ic", "==", ic), orderBy("createdAt", "desc"));
 
-    // onSnapshot akan terus pantau database. Jika ada perubahan, ia terus render.
     unsubscribeNotifications = onSnapshot(q, (snapshot) => {
         const notis = [];
         let unreadCount = 0;
@@ -2547,6 +2579,7 @@ window.setupNotificationListener = function(ic) {
             notis.push({ id: doc.id, ...data });
             if (!data.isRead) unreadCount++;
         });
+        currentNotisList = notis; // Simpan untuk rujukan modal
         renderNotifications(notis, unreadCount);
     });
 }
@@ -2555,7 +2588,6 @@ window.renderNotifications = function(notis, unreadCount) {
     const badge = document.getElementById('noti-badge');
     const list = document.getElementById('noti-list');
 
-    // Kawal lencana merah
     if (unreadCount > 0) {
         badge.classList.remove('hidden');
         badge.classList.add('animate-pulse');
@@ -2570,7 +2602,6 @@ window.renderNotifications = function(notis, unreadCount) {
         return;
     }
 
-    // Bina senarai
     notis.forEach(noti => {
         const bgClass = noti.isRead ? 'bg-white' : 'bg-indigo-50/50';
         const dotClass = noti.isRead ? 'hidden' : 'block';
@@ -2581,12 +2612,13 @@ window.renderNotifications = function(notis, unreadCount) {
             timeStr = date.toLocaleDateString('ms-MY', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
         }
 
-        // Boleh tukar ikon ikut jenis notifikasi
         let iconSvg = `<svg class="w-4 h-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`;
         if (noti.type === 'program') iconSvg = `<svg class="w-4 h-4 text-teal-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>`;
+        else if (noti.type === 'warning') iconSvg = `<svg class="w-4 h-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>`;
 
+        // Hantar ID sahaja bila diklik
         list.innerHTML += `
-            <div onclick="handleNotificationClick('${noti.id}', '${noti.link || ''}')" class="p-4 ${bgClass} hover:bg-gray-50 cursor-pointer transition-colors relative flex gap-3 group">
+            <div onclick="handleNotificationClick('${noti.id}')" class="p-4 ${bgClass} hover:bg-gray-50 cursor-pointer transition-colors relative flex gap-3 group">
                 <div class="mt-0.5 flex-shrink-0 bg-white p-1.5 rounded-full shadow-sm border border-gray-100 group-hover:scale-110 transition-transform">
                     ${iconSvg}
                 </div>
@@ -2616,7 +2648,7 @@ window.toggleNotification = function() {
     }
 }
 
-// Tutup dropdown jika pengguna klik di luar kotak
+// Tutup dropdown jika klik luar
 document.addEventListener('click', function(e) {
     const container = document.getElementById('notification-container');
     const dropdown = document.getElementById('noti-dropdown');
@@ -2627,27 +2659,82 @@ document.addEventListener('click', function(e) {
     }
 });
 
-window.handleNotificationClick = async function(id, link) {
-    try {
-        // Guna backtick biasa tanpa \
-        await updateDoc(doc(db, `artifacts/${appId}/public/data/spark_notifications`, id), { isRead: true });
-    } catch(e) { console.error("Error reading noti:", e); }
+// Fungsi dipanggil apabila Notifikasi diklik
+window.handleNotificationClick = async function(id) {
+    // Cari data notifikasi penuh dari memori
+    const noti = currentNotisList.find(n => n.id === id);
+    if (!noti) return;
+
+    // 1. Masukkan data ke dalam Modal
+    document.getElementById('modal-noti-title').textContent = noti.title;
+    document.getElementById('modal-noti-message').textContent = noti.message;
     
+    let timeStr = '-';
+    if (noti.createdAt) {
+        timeStr = noti.createdAt.toDate().toLocaleDateString('ms-MY', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    }
+    document.getElementById('modal-noti-date').querySelector('span').textContent = timeStr;
+
+    // Tentukan Ikon & Warna Latar Ikon
+    let iconHtml = `<svg class="w-6 h-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`;
+    let bgClass = "bg-indigo-100";
+    
+    if (noti.type === 'program') {
+        iconHtml = `<svg class="w-6 h-6 text-teal-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>`;
+        bgClass = "bg-teal-100";
+    } else if (noti.type === 'warning') {
+        iconHtml = `<svg class="w-6 h-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>`;
+        bgClass = "bg-red-100";
+    }
+    
+    const iconContainer = document.getElementById('modal-noti-icon');
+    iconContainer.innerHTML = iconHtml;
+    iconContainer.className = `p-3 rounded-xl shadow-sm flex-shrink-0 ${bgClass}`;
+
+    // Semak jika ada pautan (link)
+    const actionContainer = document.getElementById('modal-noti-action');
+    if (noti.link && noti.link !== 'undefined' && noti.link !== '') {
+        actionContainer.innerHTML = `
+            <button onclick="navigateNotiLink('${noti.link}')" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-xl uppercase shadow-md flex items-center justify-center gap-2 transition-all hover:-translate-y-0.5">
+                <span>Teruskan / Buka Modul</span>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+            </button>
+        `;
+        actionContainer.classList.remove('hidden');
+    } else {
+        actionContainer.innerHTML = '';
+        actionContainer.classList.add('hidden');
+    }
+
+    // 2. Tutup Dropdown dan Buka Modal
     toggleNotification();
+    document.getElementById('noti-details-modal').classList.remove('hidden');
     
-    // Logik navigasi (Jika ada link)
-    if (link && link !== 'undefined' && link !== '') {
-        if (link.startsWith('tab:')) {
-            switchTab(link.split(':')[1]);
-        } else {
-            window.location.href = link;
-        }
+    // 3. Update status 'Baca' di Database (Jika belum dibaca)
+    if (!noti.isRead) {
+        try {
+            await updateDoc(doc(db, `artifacts/${appId}/public/data/spark_notifications`, id), { isRead: true });
+        } catch(e) { console.error("Error reading noti:", e); }
+    }
+}
+
+// Fungsi tutup modal
+window.closeNotiModal = function() {
+    document.getElementById('noti-details-modal').classList.add('hidden');
+}
+
+// Fungsi navigasi link dari dalam modal
+window.navigateNotiLink = function(link) {
+    closeNotiModal();
+    if (link.startsWith('tab:')) {
+        switchTab(link.split(':')[1]);
+    } else {
+        window.location.href = link;
     }
 }
 
 window.markAllAsRead = async function() {
     try {
-        // Guna backtick biasa tanpa \
         const q = query(collection(db, `artifacts/${appId}/public/data/spark_notifications`), where("ic", "==", currentUserIc), where("isRead", "==", false));
         const snap = await getDocs(q);
         if (snap.empty) return;
