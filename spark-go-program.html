@@ -3,11 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SPARK Go – Pengurusan Sesi Lawatan</title>
+    <title>SPARK Go – Rekod Pergerakan</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script>
         tailwind.config = {
             theme: {
@@ -20,308 +17,344 @@
                         },
                         accent: {
                             DEFAULT: '#3b82f6', /* Blue 500 */
-                            dark: '#2563eb',    /* Blue 600 */
-                            light: '#dbeafe'    /* Blue 50 */
+                        }
+                    },
+                    animation: {
+                        'fade-in-up': 'fadeInUp 0.5s ease-out',
+                    },
+                    keyframes: {
+                        fadeInUp: {
+                            '0%': { opacity: '0', transform: 'translateY(10px)' },
+                            '100%': { opacity: '1', transform: 'translateY(0)' },
                         }
                     }
                 }
             }
         }
     </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Poppins', sans-serif; background-color: #eef2ff; }
-        .card { background-color: white; border-radius: 1rem; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); border: 1px solid #f1f5f9; }
-        .card-header-accent { border-top: 4px solid #3b82f6; } 
-        .card-header-brand { border-top: 4px solid #4F46E5; } 
-        .btn { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
-        .btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.2); }
-        .btn-accent:hover:not(:disabled) { box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.2); }
-        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-        .modal-backdrop { background-color: rgba(15, 23, 42, 0.6); backdrop-filter: blur(4px); }
+        body { font-family: 'Poppins', sans-serif; background-color: #f8fafc; }
         
-        @keyframes pulse-ring { 0% { transform: scale(0.8); opacity: 0.5; } 100% { transform: scale(1.3); opacity: 0; } }
-        .logo-pulse-ring { position: relative; }
-        .logo-pulse-ring::before { content: ''; position: absolute; inset: 0; border-radius: 50%; background-color: #4F46E5; animation: pulse-ring 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite; z-index: -1; }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        .btn-time { transition: all 0.2s; border: 1px solid #e2e8f0; }
+        .btn-time:hover { border-color: #4F46E5; color: #4F46E5; background-color: #eef2ff; }
+        .btn-time.active { background-color: #4F46E5; color: white; border-color: #4F46E5; box-shadow: 0 2px 5px rgba(79, 70, 229, 0.3); }
         
-        @keyframes highlight-fade { from { background-color: #eef2ff; } to { background-color: white; } }
-        .new-entry { animation: highlight-fade 2s ease-out; }
-        
-        #page-header { transition: transform 0.3s ease-in-out; }
-        .header-hidden { transform: translateY(-100%); }
-        .pro-badge { background-color: #4F46E5; color: white; font-size: 0.65rem; font-weight: 700; padding: 2px 6px; border-radius: 9999px; margin-left: 0.5rem; vertical-align: middle; letter-spacing: 0.05em; }
-        
-        .coordinator-info-box { display: flex; justify-content: flex-end; align-items: center; background: #fff; padding: 0.5rem 1rem; border-radius: 9999px; border: 1px solid #e2e8f0; }
-        .custom-scroll::-webkit-scrollbar { width: 6px; height: 6px;}
+        .custom-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
         .custom-scroll::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 4px; }
+
+        .profile-img-wrapper {
+            width: 90px; height: 90px; 
+            border-radius: 50%; 
+            border: 4px solid rgba(255,255,255,0.4);
+            overflow: hidden;
+            display: flex; align-items: center; justify-content: center;
+            background-color: white;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2);
+        }
     </style>
 </head>
-<body class="flex flex-col min-h-screen pt-32 sm:pt-24"> 
+<body class="flex flex-col min-h-screen">
 
-    <header id="page-header" class="bg-white/90 backdrop-blur-md shadow-sm fixed top-0 left-0 right-0 z-40 w-full border-b border-gray-100">
-        <div class="max-w-screen-2xl mx-auto py-3 px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row justify-between sm:items-center gap-4">
-            <div class="flex items-center gap-3 self-start sm:self-center">
-                <div class="bg-gradient-to-br from-brand to-accent p-2.5 rounded-xl logo-pulse-ring shadow-lg shadow-indigo-200">
+    <header class="bg-white shadow-sm sticky top-0 z-40 border-b border-gray-100">
+        <div class="max-w-screen-2xl mx-auto py-3 px-4 sm:px-6 lg:px-8 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="bg-gradient-to-br from-brand to-accent p-2 rounded-lg shadow-md shadow-indigo-200">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
                     </svg>
                 </div>
                 <div>
-                    <h1 class="text-xl md:text-2xl font-bold text-slate-800 tracking-tight">SPARK <span class="text-brand">Go</span></h1>
-                    <p class="text-[10px] md:text-xs text-slate-500 font-medium uppercase tracking-wide">Pengurusan Sesi Lawatan</p>
+                    <h1 class="text-xl md:text-2xl font-bold text-gray-800 tracking-tight">SPARK <span class="text-brand">Go</span></h1>
+                    <p class="text-[10px] md:text-xs text-gray-500 font-medium uppercase tracking-wide">Rekod Pergerakan Pegawai</p>
                 </div>
             </div>
-            <div id="header-buttons" class="flex w-full sm:w-auto justify-center sm:justify-end items-center gap-2 sm:gap-4 flex-wrap">
-                 <a href="spark-go.html" class="btn bg-slate-100 text-slate-700 font-bold py-2 px-5 rounded-xl hover:bg-slate-200 flex items-center gap-2 text-xs sm:text-sm uppercase tracking-wide">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+            <div class="flex gap-2">
+                <button onclick="window.location.href='user.html'" class="px-4 py-2 rounded-lg text-xs font-bold text-gray-500 hover:text-brand hover:bg-brand-light transition-colors uppercase">
                     Kembali
-                </a>
+                </button>
             </div>
         </div>
     </header>
 
     <main class="max-w-screen-2xl mx-auto py-6 px-4 sm:px-6 lg:px-8 flex-grow w-full">
-        <div id="loading-dashboard" class="text-center p-12">
-            <svg class="animate-spin h-10 w-10 text-brand mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-            <p class="mt-4 text-sm font-medium text-slate-500 uppercase tracking-widest">Memuatkan Sesi...</p>
-        </div>
-
-        <div id="full-dashboard-content" class="hidden">
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <div class="bg-white rounded-2xl shadow-xl max-w-6xl mx-auto border border-gray-100">
+            <div class="md:flex min-h-[650px] relative">
                 
-                <div class="lg:col-span-2 space-y-6">
+                <div class="md:w-2/5 bg-gradient-to-br from-brand to-blue-600 p-8 text-white relative flex flex-col justify-center items-center text-center overflow-hidden rounded-t-2xl md:rounded-tr-none md:rounded-l-2xl md:sticky md:top-[80px] md:h-[calc(100vh-100px)] custom-scroll">
                     
-                    <div class="card card-header-accent p-6 sm:p-8">
-                        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
-                            <div class="flex-1 min-w-0 w-full">
-                                <div class="flex items-center gap-2 mb-2">
-                                    <span id="dashboard-visit-count" class="bg-brand-light text-brand text-[10px] font-bold px-2.5 py-1 rounded-md uppercase tracking-widest">Maklumat Lawatan</span>
-                                </div>
-                                <h2 id="dashboard-program-name" class="text-2xl sm:text-3xl font-bold text-slate-800 leading-tight break-words"></h2>
-                            </div>
+                    <div class="absolute top-[-50px] right-[-50px] w-64 h-64 bg-white opacity-5 rounded-full blur-3xl pointer-events-none"></div>
+                    <div class="absolute bottom-[-50px] left-[-50px] w-48 h-48 bg-blue-300 opacity-10 rounded-full blur-2xl pointer-events-none"></div>
 
-                            <div class="flex items-center gap-2 w-full md:w-auto flex-shrink-0 mt-4 md:mt-0 bg-slate-50 p-1.5 rounded-xl border border-slate-100">
-                                <a id="scanner-button" href="#" title="Buka Pengimbas QR" class="btn bg-white text-brand p-2.5 rounded-lg border border-slate-200 hover:border-brand hover:text-brand transition-all flex justify-center shadow-sm">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v1m6 11h2m-6 0h-2v4h2v-4zm-6 0H6.414a1 1 0 00-.707.293L4.293 16.707A1 1 0 004 17.414V20h4v-2.586a1 1 0 00-.293-.707L6 15.414V14t1 1h2m4-9V4m0 0H8m4 0h4m-4 1v1m0 0h4m-4 0v2m0-2H8m0 0v2a1 1 0 01-1 1H6a1 1 0 01-1-1V5a1 1 0 011-1h1a1 1 0 011 1v1m0 0h2m2 0h2M5 12h14" />
+                    <div class="relative z-10 w-full max-w-xs transition-all duration-500" id="left-panel-content">
+                        
+                        <div id="auth-box">
+                            <div class="mb-8">
+                                <div class="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center mx-auto mb-4 backdrop-blur-sm">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.2-2.858.575-4.175m4.839 1.132a8.5 8.5 0 01-1.439 2.508M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 3a9 9 0 11-18 0 9 9 0 0118 0z" />
                                     </svg>
-                                </a>
-                                <div class="h-6 w-px bg-slate-300 mx-1"></div>
-                                <button onclick="shareCurrentProgramLink()" title="Kongsi" class="btn bg-white text-slate-600 p-2.5 rounded-lg border border-slate-200 hover:border-brand hover:text-brand transition-all flex justify-center shadow-sm">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                        <path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3.027 3.027 0 00.895-1.789l-4.94-2.47A3.027 3.027 0 0015 8z" />
-                                    </svg>
-                                </button>
+                                </div>
+                                <h2 class="text-2xl font-bold mb-1">Pengesahan Pegawai</h2>
+                                <p class="text-indigo-100 text-sm opacity-80">Masukkan No. IC untuk mula merekod.</p>
                             </div>
-                        </div>    
-                    
-                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
-                            <div class="flex items-center gap-3 bg-slate-50 border border-slate-100 px-4 py-3 rounded-xl"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-400 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd" /></svg><span id="dashboard-location" class="font-semibold text-xs text-slate-700 uppercase"></span></div>
-                            <div class="flex items-center gap-3 bg-slate-50 border border-slate-100 px-4 py-3 rounded-xl"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-400 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd" /></svg><span id="dashboard-date" class="font-semibold text-xs text-slate-700 uppercase"></span></div>
-                            <div class="flex items-center gap-3 bg-brand-light border border-indigo-200 px-4 py-3 rounded-xl"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-brand flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd" /></svg><span id="dashboard-time" class="font-semibold text-xs text-brand-dark uppercase"></span></div>
+                            
+                            <div class="relative group">
+                                <input type="text" id="applicant-ic" maxlength="12" oninput="validateApplicant()" placeholder="No. Kad Pengenalan" class="block w-full px-4 py-4 text-center text-lg tracking-widest border border-white/30 bg-white/10 rounded-xl text-white placeholder-indigo-200 focus:outline-none focus:bg-white/20 focus:border-white transition-all shadow-lg backdrop-blur-sm group-hover:bg-white/15">
+                                <div class="absolute inset-0 rounded-xl ring-2 ring-white/20 pointer-events-none group-hover:ring-white/40 transition-all"></div>
+                            </div>
+                            <p id="auth-status" class="text-xs mt-4 text-white font-medium h-5 tracking-wide"></p>
                         </div>
 
-                        <div class="mb-6 bg-slate-50 border border-slate-100 rounded-xl p-5 space-y-4">
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Fokus Strategik</p>
-                                    <p id="dashboard-focus" class="text-sm font-bold text-slate-700">-</p>
+                        <div id="user-info-display" class="hidden animate-fade-in-up w-full">
+                            
+                            <div class="flex justify-center mb-3">
+                                <div id="profile-img-container" class="profile-img-wrapper">
+                                    </div>
+                            </div>
+
+                            <div id="account-status-container" class="flex justify-center mb-3">
+                                </div>
+
+                            <h3 id="user-name" class="font-bold text-xl leading-tight text-white mb-1 drop-shadow-md">NAMA PEGAWAI</h3>
+                            <div class="inline-block bg-black/20 backdrop-blur-md px-4 py-1.5 rounded-full mb-8 border border-white/10">
+                                <p id="user-station" class="text-xs text-white font-medium uppercase tracking-wide">Jawatan / Unit</p>
+                            </div>
+
+                            <div class="glass-panel p-5 rounded-2xl grid grid-cols-2 gap-4 text-center">
+                                <div class="border-r border-white/10">
+                                    <p class="text-4xl font-bold text-white" id="stat-month">0</p>
+                                    <p class="text-[9px] uppercase text-indigo-100 tracking-wider font-bold mt-1">Bulan Ini</p>
                                 </div>
                                 <div>
-                                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Jenis Lawatan</p>
-                                    <p id="dashboard-visit-type" class="text-sm font-bold text-slate-700">-</p>
+                                    <p class="text-4xl font-bold text-white" id="stat-total">0</p>
+                                    <p class="text-[9px] uppercase text-indigo-100 tracking-wider font-bold mt-1">Jumlah Total</p>
                                 </div>
                             </div>
                             
-                            <div class="pt-3 border-t border-slate-200">
-                                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Pegawai Turut Serta (Rombongan)</p>
-                                <div id="dashboard-accompanying" class="flex flex-wrap gap-2">-</div>
-                            </div>
-
-                            <div class="pt-3 border-t border-slate-200">
-                                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Pegawai Sasaran / Ingin Dijumpai</p>
-                                <div id="dashboard-target-list" class="flex flex-wrap gap-2">-</div>
-                            </div>
-
-                            <div class="pt-3 border-t border-slate-200">
-                                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Tujuan / Aktiviti Spesifik</p>
-                                <p id="dashboard-description" class="text-sm text-slate-600 leading-relaxed bg-white p-3 rounded-lg border border-slate-100">-</p>
-                            </div>
-                        </div>
-                        
-                        <div id="dashboard-penyelaras-container" class="coordinator-info-box shadow-sm mt-4">
-                            <div id="dashboard-penyelaras" class="flex items-center gap-2"></div>
-                        </div>
-                    </div>
-
-                    <div class="card card-header-brand p-6 sm:p-8">
-                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-                            <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-brand" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                                Laporan / Nota Penemuan
-                            </h3>
-                            <button onclick="showAddFindingModal()" class="btn btn-accent bg-brand text-white font-bold py-2.5 px-5 rounded-xl hover:bg-brand-dark shadow-md uppercase text-xs tracking-wider flex items-center gap-2 w-full sm:w-auto justify-center">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" /></svg>
-                                Tambah Penemuan
+                            <button onclick="resetForm()" class="mt-8 text-xs text-white/60 hover:text-white flex items-center justify-center gap-1 mx-auto transition-colors">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+                                Tukar Pegawai
                             </button>
                         </div>
-                        <div id="findings-list" class="space-y-4">
-                            </div>
-                    </div>
-
-                    <div class="card p-6">
-                        <div class="flex flex-wrap justify-between items-center gap-y-4 mb-6">
-                            <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-brand" viewBox="0 0 20 20" fill="currentColor"><path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" /></svg>Senarai Pegawai Ditemui</h3>
-                            <div class="flex items-center gap-2">
-                                <button onclick="toggleManualCheckin()" class="btn bg-slate-100 text-slate-700 text-[10px] font-bold py-2 px-3 rounded-lg hover:bg-slate-200 uppercase tracking-wider">Rekod Manual</button>
-                                <select id="attendance-per-page" onchange="changeAttendancePerPage()" class="block w-16 pl-2 pr-6 py-1.5 text-xs border-slate-300 focus:outline-none focus:ring-brand focus:border-brand rounded-lg bg-slate-50">
-                                    <option value="10">10</option>
-                                    <option value="20">20</option>
-                                    <option value="30">30</option>
-                                </select>
-                                <button onclick="showUnlockModal()" class="btn bg-brand-light text-brand-dark font-bold px-3 py-2 rounded-lg text-[10px] flex items-center gap-1 hover:bg-indigo-200 uppercase tracking-wider"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd" /></svg>Edit</button>
-                            </div>
-                        </div>
-
-                        <div id="manual-checkin-card" class="hidden mb-6 bg-slate-50 border border-slate-200 p-4 rounded-xl">
-                            <div class="flex shadow-sm">
-                                <input id="manual-ic-input" type="text" placeholder="Masukkan No. IC pegawai" class="w-full px-4 py-3 border border-slate-300 rounded-l-xl focus:ring-brand focus:border-brand text-sm">
-                                <button onclick="checkIn()" class="btn bg-slate-800 text-white font-bold px-6 py-3 rounded-r-xl hover:bg-slate-900 uppercase text-xs tracking-wider">Sahkan</button>
-                            </div>
-                        </div>
-
-                        <div class="border-b border-slate-200">
-                            <nav id="attendance-date-tabs" class="-mb-px flex space-x-6 overflow-x-auto custom-scroll"></nav>
-                        </div>
-                        <div class="mt-4 overflow-x-auto custom-scroll">
-                            <table class="min-w-full">
-                                <thead class="bg-slate-50 border-y border-slate-200">
-                                    <tr>
-                                        <th scope="col" class="w-12 px-3 py-3"></th>
-                                        <th scope="col" class="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest">Pegawai Ditemui</th>
-                                        <th scope="col" class="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest">Masa Direkod</th>
-                                        <th scope="col" class="px-4 py-3 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest">Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="attendance-list-body"></tbody>
-                            </table>
-                        </div>
-                        <div id="attendance-pagination-controls" class="flex justify-between items-center mt-6"></div>
                     </div>
                 </div>
 
-                <div class="lg:col-span-1 space-y-6">
-                    <div id="right-sidebar-container" class="space-y-6">
+                <div class="md:w-3/5 p-6 md:p-10 bg-white relative overflow-y-auto rounded-b-2xl md:rounded-bl-none md:rounded-r-2xl">
+                    
+                    <div id="form-overlay" class="absolute inset-0 bg-white/80 z-20 flex flex-col items-center justify-center backdrop-blur-[2px] transition-opacity duration-500 rounded-b-2xl md:rounded-bl-none md:rounded-r-2xl">
+                        <div class="bg-gray-50 p-6 rounded-full mb-4 shadow-sm border border-gray-100 animate-pulse">
+                            <svg class="w-10 h-10 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                        </div>
+                        <p class="text-gray-400 font-bold uppercase text-xs tracking-widest">Sila imbas atau masukkan IC</p>
+                    </div>
 
-                        <div id="infographic-card" class="card transition-all duration-300">
-                            <div class="p-5 pb-3 border-b border-slate-100 flex justify-between items-center bg-slate-50 rounded-t-2xl">
-                                <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2 uppercase tracking-wide">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-brand" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h6a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h6a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd" /></svg>
-                                    Rumusan Individu
-                                </h3>
-                                <button onclick="toggleCardContent('infographic-content-wrapper', this)" class="p-1 hover:bg-slate-200 rounded text-slate-400 transition-transform duration-300"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" /></svg></button>
+                    <div id="main-tabs" class="hidden flex gap-4 border-b border-gray-200 mb-6 relative z-10 overflow-x-auto custom-scroll whitespace-nowrap pb-1">
+                        <button onclick="switchTab('new')" id="btn-tab-new" class="pb-2 border-b-2 border-brand font-bold text-brand text-sm transition-colors">Rekod Baru</button>
+                        <button onclick="switchTab('history')" id="btn-tab-history" class="pb-2 border-b-2 border-transparent font-medium text-gray-500 hover:text-gray-700 text-sm transition-colors">Sejarah Sesi</button>
+                        <button onclick="switchTab('schools')" id="btn-tab-schools" class="pb-2 border-b-2 border-transparent font-medium text-gray-500 hover:text-gray-700 text-sm transition-colors">Status Sekolah</button>
+                    </div>
+
+                    <div id="tab-new-record" class="relative z-10">
+                        <form onsubmit="submitMovement(event)" class="space-y-6">
+                            
+                            <div class="flex items-center gap-2 mb-2">
+                                <h2 class="text-xl font-bold text-gray-800">Butiran Pergerakan</h2>
+                                <div class="h-px bg-gray-200 flex-grow ml-4"></div>
                             </div>
-                            <div id="infographic-content-wrapper" class="p-5">
-                                <div id="infographic-keseluruhan" class="space-y-4">
-                                    <div class="grid grid-cols-2 gap-4 text-center">
-                                        <div class="bg-brand-light border border-indigo-200 p-4 rounded-xl flex flex-col justify-center items-center">
-                                            <p class="text-[10px] font-bold text-brand-dark uppercase tracking-widest mb-1">Telah Direkod</p>
-                                            <p id="info-hadir" class="text-4xl font-black text-brand-dark">0</p>
+
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Fokus Strategik</label>
+                                    <select id="ppd-focus" required class="block w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-brand focus:border-brand bg-white hover:bg-gray-50 transition-colors">
+                                        <option value="">-- Sila Pilih Fokus --</option>
+                                        <option value="Kemenjadian Murid">Kemenjadian Murid</option>
+                                        <option value="Sekolah Berkualiti">Sekolah Berkualiti</option>
+                                        <option value="Guru Berkualiti">Guru Berkualiti</option>
+                                        <option value="Sokongan PIBG/Komuniti">Sokongan PIBG/Komuniti</option>
+                                        <option value="Infrastruktur & Aset">Infrastruktur & Aset</option>
+                                        <option value="Pengurusan Tertinggi">Pengurusan Tertinggi</option>
+                                        <option value="Lain-lain">Lain-lain</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Jenis Lawatan</label>
+                                    <select id="visit-type" required class="block w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-brand focus:border-brand bg-white hover:bg-gray-50 transition-colors">
+                                        <option value="KUNJUNG BANTU">KUNJUNG BANTU</option>
+                                        <option value="BIMBINGAN">BIMBINGAN & PEMENTORAN</option>
+                                        <option value="PEMANTAUAN">PEMANTAUAN / AUDIT</option>
+                                        <option value="LAWATAN RASMI">LAWATAN RASMI / KERJA</option>
+                                        <option value="MESYUARAT">MESYUARAT LUAR</option>
+                                        <option value="KURSUS">KURSUS / BENGKEL</option>
+                                        <option value="LAIN-LAIN">LAIN-LAIN</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Lokasi / Destinasi</label>
+                                <div class="relative">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd" /></svg>
+                                    <select id="destination-select" onchange="handleDestinationChange()" required class="block w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-brand focus:border-brand bg-white">
+                                        <option value="">Memuatkan senarai sekolah...</option>
+                                    </select>
+                                </div>
+                                <div id="custom-location-container" class="hidden mt-2">
+                                    <input type="text" id="custom-location" placeholder="Sila nyatakan nama lokasi yang tepat..." class="block w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-brand focus:border-brand bg-gray-50 focus:bg-white transition-colors">
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Pegawai Sasaran / Ingin Dijumpai (Opsyenal)</label>
+                                <div class="relative">
+                                    <input type="text" id="search-target" placeholder="Cari nama pegawai/guru di lokasi (Tag)..." class="block w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-brand focus:border-brand bg-white transition-colors">
+                                    <div id="target-results" class="absolute z-10 w-full bg-white shadow-xl max-h-48 rounded-lg py-1 mt-1 border border-gray-100 overflow-auto hidden custom-scroll"></div>
+                                </div>
+                                <div id="target-list" class="flex flex-wrap gap-2 mt-2"></div>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Tujuan / Aktiviti Spesifik</label>
+                                <textarea id="visit-reason" rows="4" required placeholder="Nyatakan tujuan atau aktiviti yang akan dijalankan dengan lebih spesifik..." class="block w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:ring-brand focus:border-brand shadow-sm resize-none"></textarea>
+                            </div>
+
+                            <div class="bg-indigo-50 p-5 rounded-xl border border-indigo-100 relative">
+                                <div class="absolute top-4 right-4 flex items-center">
+                                    <input id="is-multi-day" type="checkbox" onchange="toggleMultiDay()" class="w-4 h-4 text-brand border-gray-300 rounded focus:ring-brand">
+                                    <label for="is-multi-day" class="ml-2 text-xs font-bold text-indigo-700 uppercase cursor-pointer select-none">Lebih 1 Hari?</label>
+                                </div>
+
+                                <div class="flex flex-col gap-4">
+                                    <div>
+                                        <h3 class="text-xs font-bold text-gray-500 uppercase flex items-center gap-1 mb-2">
+                                            <svg class="w-4 h-4 text-brand" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                            Masa & Tarikh
+                                        </h3>
+                                        <div class="flex gap-2 mb-3">
+                                            <button type="button" onclick="setTiming('pagi')" class="btn-time px-3 py-1.5 rounded-lg text-[10px] font-bold bg-white uppercase text-gray-500 shadow-sm flex-1">🌞 Pagi (8-1)</button>
+                                            <button type="button" onclick="setTiming('petang')" class="btn-time px-3 py-1.5 rounded-lg text-[10px] font-bold bg-white uppercase text-gray-500 shadow-sm flex-1">⛅ Petang (2-5)</button>
+                                            <button type="button" onclick="setTiming('full')" class="btn-time px-3 py-1.5 rounded-lg text-[10px] font-bold bg-white uppercase text-gray-500 shadow-sm flex-1">💼 Seharian (8-5)</button>
                                         </div>
-                                        <div class="bg-accent-light border border-blue-200 p-4 rounded-xl flex flex-col justify-center items-center">
-                                            <p class="text-[10px] font-bold text-accent-dark uppercase tracking-widest mb-1">Belum Ditemui</p>
-                                            <p id="info-kosong-stesen" class="text-4xl font-black text-accent-dark">0</p>
-                                            <button id="view-absent-stesen-btn" onclick="showAbsentListModal()" class="btn mt-3 bg-white border border-accent text-accent text-[9px] font-bold py-1 px-3 rounded-full hover:bg-accent hover:text-white w-full hidden uppercase tracking-wider shadow-sm">Lihat Sasaran</button>
+                                    </div>
+                                    
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <div class="bg-white p-3 rounded-lg border border-gray-200">
+                                            <label class="block text-[10px] text-gray-400 uppercase font-bold mb-1">Mula</label>
+                                            <div class="flex gap-2">
+                                                <input type="date" id="move-date" required class="block w-full border-gray-300 rounded text-xs focus:ring-brand focus:border-brand">
+                                                <input type="time" id="start-time" required class="block w-24 border-gray-300 rounded text-xs focus:ring-brand focus:border-brand">
+                                            </div>
+                                        </div>
+
+                                        <div class="bg-white p-3 rounded-lg border border-gray-200">
+                                            <label class="block text-[10px] text-gray-400 uppercase font-bold mb-1" id="end-label">Tamat (Harian)</label>
+                                            <div class="flex gap-2">
+                                                <input type="date" id="return-date" class="hidden w-full border-gray-300 rounded text-xs focus:ring-brand focus:border-brand">
+                                                <input type="time" id="end-time" required class="block w-full border-gray-300 rounded text-xs focus:ring-brand focus:border-brand">
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
 
-                        <div id="qr-card" class="card transition-all duration-300">
-                            <div class="p-5 pb-3 border-b border-slate-100 flex justify-between items-center bg-slate-50 rounded-t-2xl">
-                                <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2 uppercase tracking-wide">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-brand" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h6a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h6a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd" /></svg>
-                                    Kod QR Bukti Sesi
-                                </h3>
-                            </div>
-                            <div id="qr-content" class="p-6 text-center flex flex-col items-center justify-center relative">
-                                <button onclick="toggleFullScreen()" class="absolute top-4 right-4 text-slate-400 hover:text-brand" title="Mod Skrin Penuh"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l-5-5m11 5v-4m0 4h-4m4 0l-5-5" /></svg></button>
-                                <div class="p-3 bg-white border-2 border-slate-100 rounded-2xl inline-block mt-2 shadow-sm">
-                                    <img id="qr-code-image" src="" alt="QR Code Kehadiran" class="rounded-xl">
+                            <div class="border-t pt-4 border-gray-100">
+                                <div class="flex justify-between items-end mb-2">
+                                    <label class="block text-xs font-bold text-gray-500 uppercase">Pegawai Turut Serta (Rombongan)</label>
+                                    
+                                    <div class="flex gap-2">
+                                        <select id="group-load-select" onchange="loadGroup(this.value)" class="text-[10px] py-1 pl-2 pr-6 border border-gray-300 rounded bg-white text-gray-600 focus:ring-brand focus:border-brand uppercase cursor-pointer shadow-sm">
+                                            <option value="">-- Muat Kumpulan --</option>
+                                        </select>
+                                        
+                                        <button type="button" onclick="saveCurrentGroup()" class="text-[10px] bg-indigo-50 text-brand hover:bg-indigo-100 px-3 py-1 rounded border border-indigo-200 font-bold uppercase flex items-center gap-1 transition shadow-sm">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v14l-5-2.5L5 18V4z" /></svg>
+                                            Simpan
+                                        </button>
+                                    </div>
                                 </div>
-                                <p class="text-xs text-slate-500 mt-4 max-w-xs mx-auto leading-relaxed">Papar & minta pegawai mengimbas kod ini untuk merekod sesi perjumpaan.</p>
+
+                                <div class="relative mb-3">
+                                    <input type="text" id="search-member" placeholder="Cari nama pegawai yang mengikut sama..." class="block w-full pl-4 pr-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-brand focus:border-brand bg-gray-50 focus:bg-white transition-colors">
+                                    <div id="search-results" class="absolute z-10 w-full bg-white shadow-xl max-h-48 rounded-lg py-1 mt-1 border border-gray-100 overflow-auto hidden custom-scroll"></div>
+                                </div>
+
+                                <div id="members-list" class="flex flex-wrap gap-2 min-h-[50px] p-3 rounded-lg bg-gray-50 border border-dashed border-gray-300 items-start content-start">
+                                    <p class="text-xs text-gray-400 italic w-full text-center py-2" id="empty-members-msg">Tiada pegawai lain ditambah.</p>
+                                </div>
+                            </div>
+
+                            <div class="pt-2">
+                                <button type="submit" id="btn-submit" class="w-full flex justify-center items-center gap-2 py-3.5 px-4 border border-transparent rounded-xl shadow-lg shadow-indigo-200 text-sm font-bold text-white bg-gradient-to-r from-brand to-accent hover:from-brand-dark hover:to-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand transition-all transform hover:scale-[1.01] uppercase tracking-wide">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clip-rule="evenodd" /></svg>
+                                    REKOD PERGERAKAN
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <div id="tab-history" class="hidden relative z-10">
+                        <div class="flex flex-col gap-4">
+                            <div class="flex justify-between items-center bg-gray-50 p-3 rounded-lg border border-gray-100">
+                                <h2 class="text-sm font-bold text-gray-800 uppercase">Rekod Bulanan</h2>
+                                <input type="month" id="history-month" class="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-brand focus:border-brand" onchange="loadHistory()">
+                            </div>
+                            <div id="history-list" class="space-y-3 custom-scroll overflow-y-auto max-h-[500px] pr-2">
                             </div>
                         </div>
-
                     </div>
+
+                    <div id="tab-school-status" class="hidden relative z-10">
+                        <div class="flex flex-col gap-4">
+                            <div class="flex justify-between items-center bg-gray-50 p-3 rounded-lg border border-gray-100">
+                                <h2 class="text-sm font-bold text-gray-800 uppercase">Kekerapan Lawatan</h2>
+                                <select id="school-period" class="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-brand focus:border-brand font-medium bg-white shadow-sm" onchange="loadSchoolStatus()">
+                                    <option value="3">3 Bulan</option>
+                                    <option value="6" selected>6 Bulan</option>
+                                    <option value="12">12 Bulan</option>
+                                </select>
+                            </div>
+                            <div id="school-status-list" class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                                </div>
+                        </div>
+                    </div>
+
                 </div>
             </div>
         </div>
     </main>
 
-    <footer class="text-center py-6 mt-8 border-t border-slate-200 bg-white"><p class="text-xs text-slate-500 font-medium">Projek Inovasi oleh <a href="https://pahanmy.github.io/works/" target="_blank" class="font-bold text-brand hover:underline">Pahan</a></p></footer>
-    
-    <div id="delete-finding-modal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop hidden">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-8 text-center">
-            <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-red-100 mb-4">
-                <svg class="h-8 w-8 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+    <div id="success-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 hidden backdrop-blur-sm">
+        <div class="bg-white rounded-2xl shadow-2xl p-8 max-w-sm w-full text-center transform scale-100 transition-all">
+            <div class="mx-auto flex items-center justify-center h-20 w-20 rounded-full bg-indigo-100 mb-6 animate-bounce">
+                <svg class="h-10 w-10 text-brand" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
             </div>
-            <h3 class="text-xl font-bold text-slate-800 mb-2">Padam Penemuan?</h3>
-            <p class="text-xs text-slate-500 mb-6">Sila masukkan No. IC Penyelaras untuk mengesahkan tindakan ini.</p>
-            <input type="password" id="delete-finding-ic" placeholder="No. IC Penyelaras" class="block w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-brand focus:border-brand text-sm mb-2 text-center tracking-[0.2em]">
-            <p id="delete-finding-error" class="text-red-500 text-xs font-bold hidden mb-4">No. IC tidak sepadan!</p>
-            <div class="mt-6 flex justify-center gap-3">
-                <button type="button" onclick="closeModal('delete-finding-modal')" class="btn bg-slate-100 text-slate-700 font-bold py-2.5 px-5 rounded-xl hover:bg-slate-200 uppercase text-xs tracking-wider">Batal</button>
-                <button type="button" onclick="executeDeleteFinding()" class="btn bg-red-500 text-white font-bold py-2.5 px-6 rounded-xl hover:bg-red-600 shadow-md uppercase text-xs tracking-wider">Padam</button>
+            <h3 class="text-2xl font-bold text-gray-900 mb-2">Berjaya!</h3>
+            <p class="text-sm text-gray-500 mb-8">Rekod pergerakan telah disimpan. Selamat bertugas!</p>
+            <div class="space-y-3">
+                 <button onclick="window.location.reload()" class="w-full btn bg-brand text-white font-bold py-3 rounded-xl shadow-lg hover:bg-brand-dark">
+                    Rekod Baru
+                </button>
+                <button onclick="document.getElementById('success-modal').classList.add('hidden'); switchTab('history');" class="w-full btn bg-gray-100 text-gray-700 font-bold py-3 rounded-xl hover:bg-gray-200">
+                    Tutup
+                </button>
             </div>
         </div>
     </div>
-
-    <div id="add-finding-modal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop hidden">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-8 max-h-[90vh] overflow-y-auto custom-scroll">
-            <h3 class="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2">
-                <svg class="w-6 h-6 text-brand" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                Tambah Penemuan Baru
-            </h3>
-            <form id="add-finding-form" onsubmit="submitFinding(event)">
-                <div class="space-y-5">
-                    <div>
-                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Nota / Laporan Penemuan</label>
-                        <textarea id="finding-text" rows="5" class="block w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-brand focus:border-brand text-sm" required placeholder="Catatkan apa yang telah ditemui, dibincangkan, atau isu yang timbul..."></textarea>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Gambar Lampiran (Pilihan)</label>
-                        <input type="file" id="finding-image" accept="image/*" class="block w-full text-sm text-slate-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-brand-light file:text-brand hover:file:bg-indigo-100 transition-colors">
-                        <div id="upload-preview" class="hidden mt-3">
-                            <img id="img-preview" src="" class="h-40 w-full rounded-xl object-cover border border-slate-200">
-                        </div>
-                    </div>
-                </div>
-                <div class="mt-8 flex justify-end gap-3">
-                    <button type="button" onclick="closeModal('add-finding-modal')" class="btn bg-slate-100 text-slate-700 font-bold py-2.5 px-5 rounded-xl hover:bg-slate-200 uppercase text-xs tracking-wider">Batal</button>
-                    <button type="submit" id="btn-submit-finding" class="btn btn-accent bg-brand text-white font-bold py-2.5 px-6 rounded-xl hover:bg-brand-dark shadow-md uppercase text-xs tracking-wider flex items-center gap-2">
-                        Simpan Penemuan
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <div id="share-link-modal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop hidden"><div class="bg-white rounded-2xl shadow-2xl w-full max-w-xl p-8"><h3 class="text-xl font-bold text-slate-800 mb-6">Kongsi Pautan Kod QR</h3><div id="share-loading" class="text-center py-8"><p class="text-sm text-slate-500 animate-pulse font-medium uppercase tracking-widest">Menjana pautan...</p></div><div id="share-content" class="hidden space-y-6"><div><label class="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Pautan Rekod (QR Code)</label><div class="flex shadow-sm"><input id="share-link-input" type="text" readonly class="w-full px-4 py-3 border border-slate-300 rounded-l-xl bg-slate-50 text-sm focus:outline-none"><button onclick="copyShareLink(this)" class="btn bg-brand text-white font-bold px-6 py-3 rounded-r-xl hover:bg-brand-dark uppercase text-xs tracking-wider">Salin</button></div></div></div><div class="mt-8 flex justify-end"><button type="button" onclick="closeModal('share-link-modal')" class="btn bg-slate-100 text-slate-700 font-bold py-2.5 px-6 rounded-xl hover:bg-slate-200 uppercase text-xs tracking-wider">Tutup</button></div></div></div>
-    
-    <div id="new-participant-modal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop hidden"><div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8"><h3 class="text-xl font-bold text-slate-800 mb-2">Daftar Pegawai Baru</h3><p class="text-xs text-slate-500 mb-6 leading-relaxed">No. IC tidak ditemui dalam pangkalan data. Sila lengkapkan maklumat di bawah.</p><form id="new-participant-form" onsubmit="registerAndCheckIn(event)"><div class="space-y-4"><div><label for="new-ic" class="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">No. IC</label><input type="text" id="new-ic" class="block w-full px-4 py-2.5 border border-slate-300 rounded-xl bg-slate-50 text-sm focus:outline-none" readonly></div><div><label for="new-name" class="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Nama Penuh</label><input type="text" id="new-name" class="block w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:ring-brand focus:border-brand text-sm" required></div><div><label for="new-station" class="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Stesen Kerja / Sekolah</label><input type="text" id="new-station" class="block w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:ring-brand focus:border-brand text-sm" required></div><div><label for="new-position" class="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Jawatan</label><input type="text" id="new-position" class="block w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:ring-brand focus:border-brand text-sm" required></div></div><div class="mt-8 flex justify-end gap-3"><button type="button" onclick="closeModal('new-participant-modal')" class="btn bg-slate-100 text-slate-700 font-bold py-2.5 px-5 rounded-xl hover:bg-slate-200 uppercase text-xs tracking-wider">Batal</button><button type="submit" class="btn bg-brand text-white font-bold py-2.5 px-6 rounded-xl hover:bg-brand-dark shadow-md uppercase text-xs tracking-wider">Daftar & Rekod</button></div></form></div></div>
-    
-    <div id="unlock-modal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop hidden"><div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-8"><h3 class="text-xl font-bold text-slate-800 mb-2">Akses Pemilik Sesi</h3><div id="unlock-verification-section"><p class="text-xs text-slate-500 mb-6 leading-relaxed">Sila sahkan No. IC anda sebagai pemilik rekod untuk mendapat akses penyuntingan.</p><input type="password" id="unlock-ic-input" placeholder="Masukkan No. IC" class="block w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-brand focus:border-brand text-sm mb-2 text-center tracking-[0.2em]"><p id="unlock-error" class="text-red-500 text-xs font-bold hidden mb-4 text-center">No. IC tidak sepadan.</p><div class="mt-6 flex justify-end gap-3"><button type="button" onclick="closeModal('unlock-modal')" class="btn bg-slate-100 text-slate-700 font-bold py-2.5 px-5 rounded-xl hover:bg-slate-200 uppercase text-xs tracking-wider">Batal</button><button type="button" onclick="verifyAndUnlock()" class="btn bg-brand text-white font-bold py-2.5 px-6 rounded-xl hover:bg-brand-dark shadow-md uppercase text-xs tracking-wider">Sahkan</button></div></div><div id="unlock-export-section" class="hidden w-full text-left"><p class="text-sm font-medium text-brand mb-6 text-center bg-brand-light py-2 rounded-lg border border-indigo-100">Pengesahan berjaya. Sila pilih tindakan.</p><div class="space-y-3"><button onclick="openParticipantInfo()" class="btn w-full bg-white hover:bg-brand-light border border-slate-200 hover:border-brand text-slate-700 font-bold py-4 px-5 rounded-xl flex items-center gap-3 text-left transition-all shadow-sm"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-brand flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" /></svg><span class="text-sm">Urus Maklumat Pegawai Direkodkan</span></button></div><div class="mt-8 flex justify-center"><button type="button" onclick="closeModal('unlock-modal')" class="btn bg-slate-100 text-slate-700 font-bold py-2.5 px-6 rounded-xl hover:bg-slate-200 uppercase text-xs tracking-wider">Tutup</button></div></div></div></div>
-    
-    <div id="absent-list-modal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop hidden"><div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col p-8"><div class="flex justify-between items-center mb-6"><h3 class="text-xl font-bold text-slate-800">Senarai Sasaran Belum Ditemui</h3><button onclick="closeModal('absent-list-modal')" class="text-slate-400 hover:text-brand bg-slate-50 hover:bg-brand-light h-8 w-8 rounded-full flex items-center justify-center transition-colors">&times;</button></div><div class="overflow-y-auto custom-scroll border border-slate-200 rounded-xl"><table class="min-w-full divide-y divide-slate-200"><thead class="bg-slate-50"><tr><th class="w-16 px-6 py-4 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest">Bil.</th><th class="px-6 py-4 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest">Nama Pegawai Sasaran</th><th class="px-6 py-4 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest">Sekolah / Stesen</th></tr></thead><tbody id="absent-list-body" class="bg-white divide-y divide-slate-100"></tbody></table></div><div class="mt-8 flex justify-end"><button type="button" onclick="closeModal('absent-list-modal')" class="btn bg-slate-100 text-slate-700 font-bold py-2.5 px-6 rounded-xl hover:bg-slate-200 uppercase text-xs tracking-wider">Tutup</button></div></div></div>
-    
-    <div id="fullscreen-qr-modal" class="fixed inset-0 z-50 bg-slate-900/95 backdrop-blur-md flex flex-col items-center justify-center modal-backdrop hidden"><button onclick="closeFullScreen()" class="absolute top-6 right-6 text-slate-400 hover:text-white bg-white/10 p-2 rounded-full transition-colors"><svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button><div class="text-center text-white mb-8"><h1 id="fullscreen-program-name" class="text-3xl md:text-5xl font-black mb-3"></h1><p id="fullscreen-program-details" class="text-sm md:text-lg text-slate-300 font-medium tracking-wide"></p></div><div class="bg-white p-5 rounded-3xl shadow-2xl"><img id="fullscreen-qr-image" src="" alt="QR Code Skrin Penuh" class="rounded-xl"></div></div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, updateDoc, arrayUnion, collection, query, where, onSnapshot, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, collection, query, where, getDocs, orderBy, addDoc, serverTimestamp, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM",
@@ -331,545 +364,700 @@
             messagingSenderId: "799691133747",
             appId: "1:799691133747:web:835a5e3e9413eace806446"
         };
-        
-        let db, auth, userId;
-        let currentLoadedProgram = null;
-        let unsubscribeProgramListener = null;
-        let isInitialLoad = true;
-        let lastAttendanceCount = 0;
-        let currentCheckinUrl = '';
-        let attendancePerPage = 10;
-        let currentAttendancePage = 1;
-        let selectedAttendanceDate = null;
-        let findingToDeleteTimestamp = null; 
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
         const appId = firebaseConfig.projectId;
 
-        try {
-            const app = initializeApp(firebaseConfig);
-            db = getFirestore(app);
-            auth = getAuth(app);
-        } catch (e) { console.error("Error initializing Firebase:", e); }
-        
+        let currentUser = null;
+        let taggedMembers = []; 
+        let taggedTargets = []; 
+        let allUsersCache = [];
+        let savedGroups = [];
+        let allSchoolsList = []; 
+
         onAuthStateChanged(auth, async (user) => {
-            if (user) { userId = user.uid; main(); } 
-            else { try { await signInAnonymously(auth); } catch (error) { console.error("Error signing in:", error); } }
+            if (!user) { try { await signInAnonymously(auth); } catch (e) { console.error(e); } }
+            initPage();
+        });
+
+        async function initPage() {
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('move-date').value = today;
+            document.getElementById('return-date').value = today;
+            document.getElementById('start-time').value = "08:00";
+            document.getElementById('end-time').value = "17:00";
+            
+            const currentMonth = today.substring(0, 7);
+            document.getElementById('history-month').value = currentMonth;
+
+            await Promise.all([loadSchools(), preloadUsers()]);
+        }
+
+        window.handleDestinationChange = function() {
+            const dest = document.getElementById('destination-select').value;
+            const customLocContainer = document.getElementById('custom-location-container');
+            const customLocInput = document.getElementById('custom-location');
+            if (dest === 'LAIN-LAIN') {
+                customLocContainer.classList.remove('hidden');
+                customLocInput.required = true;
+            } else {
+                customLocContainer.classList.add('hidden');
+                customLocInput.required = false;
+                customLocInput.value = '';
+            }
+        }
+
+        window.toggleMultiDay = function() {
+            const isMulti = document.getElementById('is-multi-day').checked;
+            const returnDateInput = document.getElementById('return-date');
+            const endLabel = document.getElementById('end-label');
+            const moveDate = document.getElementById('move-date');
+
+            if (isMulti) {
+                returnDateInput.classList.remove('hidden');
+                returnDateInput.value = moveDate.value;
+                returnDateInput.min = moveDate.value;
+                endLabel.textContent = "Tarikh & Masa Tamat";
+            } else {
+                returnDateInput.classList.add('hidden');
+                endLabel.textContent = "Tamat (Harian)";
+            }
+        }
+
+        document.getElementById('move-date').addEventListener('change', function() {
+            const returnDateInput = document.getElementById('return-date');
+            returnDateInput.min = this.value;
+            if(returnDateInput.value < this.value) returnDateInput.value = this.value;
+        });
+
+        window.setTiming = function(type) {
+            const start = document.getElementById('start-time');
+            const end = document.getElementById('end-time');
+            document.querySelectorAll('.btn-time').forEach(b => b.classList.remove('active'));
+            if(type === 'pagi') { start.value = '08:00'; end.value = '13:00'; }
+            if(type === 'petang') { start.value = '14:00'; end.value = '17:00'; }
+            if(type === 'full') { start.value = '08:00'; end.value = '17:00'; }
+            event.target.classList.add('active');
+        }
+
+        window.resetForm = function() { location.reload(); }
+
+        let debounceTimer;
+        window.validateApplicant = function() {
+            clearTimeout(debounceTimer);
+            const input = document.getElementById('applicant-ic');
+            const status = document.getElementById('auth-status');
+            input.value = input.value.replace(/[^0-9]/g, '');
+            if (input.value.length < 12) {
+                status.textContent = `... ${input.value.length}/12`;
+                status.className = "text-xs mt-3 text-indigo-200 font-medium h-5 animate-pulse";
+                return;
+            }
+            status.textContent = "Menyemak...";
+            status.className = "text-xs mt-3 text-white font-bold h-5";
+            debounceTimer = setTimeout(() => performVerification(input.value), 300);
+        }
+
+        async function performVerification(ic) {
+            const status = document.getElementById('auth-status');
+            const overlay = document.getElementById('form-overlay');
+            const display = document.getElementById('user-info-display');
+            const authBox = document.getElementById('auth-box');
+
+            try {
+                const q = query(collection(db, `artifacts/${appId}/public/data/spark_participants`), where("ic", "==", ic));
+                const snap = await getDocs(q);
+
+                if (!snap.empty) {
+                    const data = snap.docs[0].data();
+                    currentUser = { id: snap.docs[0].id, ...data };
+                    
+                    document.getElementById('user-name').textContent = data.name.toUpperCase();
+                    document.getElementById('user-station').textContent = (data.station || data.unit || "N/A").toUpperCase();
+                    
+                    const imgContainer = document.getElementById('profile-img-container');
+                    const statusContainer = document.getElementById('account-status-container');
+                    const adminIC = "890522135381";
+                    const isPro = (data.isPro === true) || (ic === adminIC);
+
+                    if (isPro && data.profileImageUrl) {
+                        imgContainer.innerHTML = `<img src="${data.profileImageUrl}" class="w-full h-full object-cover rounded-full" alt="Profile">`;
+                    } else {
+                        const initials = data.name.substring(0,2).toUpperCase();
+                        imgContainer.innerHTML = `<span class="text-3xl font-bold text-brand">${initials}</span>`;
+                        imgContainer.style.backgroundColor = 'white';
+                    }
+
+                    if (isPro) {
+                        statusContainer.innerHTML = `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-gradient-to-r from-yellow-400 to-orange-500 text-white shadow-sm border border-yellow-300"><svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>SPARK PRO</span>`;
+                    } else {
+                        statusContainer.innerHTML = `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-white/20 text-indigo-100 border border-white/30">AHLI BIASA</span>`;
+                    }
+                    
+                    loadUserStats(ic);
+                    loadUserGroups(ic);
+                    renderMembers();
+
+                    authBox.classList.add('hidden');
+                    display.classList.remove('hidden');
+                    overlay.classList.add('opacity-0', 'pointer-events-none');
+                    document.getElementById('main-tabs').classList.remove('hidden');
+                } else {
+                    status.textContent = "Tiada rekod. Sila daftar dahulu.";
+                    status.className = "text-xs mt-3 text-red-300 font-bold h-5";
+                }
+            } catch (e) { console.error(e); status.textContent = "Ralat sambungan."; }
+        }
+
+        async function loadUserStats(ic) {
+            try {
+                const q = query(collection(db, `artifacts/${appId}/public/data/spark_programs`), where("penyelaras_ic", "==", ic), where("type", "==", "movement"));
+                const snap = await getDocs(q);
+                let total = snap.size;
+                let monthCount = 0;
+                const currentMonth = new Date().getMonth();
+                const currentYear = new Date().getFullYear();
+                
+                snap.forEach(doc => {
+                    const d = new Date(doc.data().startDate);
+                    if (d.getMonth() === currentMonth && d.getFullYear() === currentYear) monthCount++;
+                });
+                document.getElementById('stat-total').textContent = total;
+                document.getElementById('stat-month').textContent = monthCount;
+            } catch (e) {}
+        }
+
+        async function loadSchools() {
+            const select = document.getElementById('destination-select');
+            try {
+                const q = query(collection(db, `artifacts/${appId}/public/data/spark_schools`), orderBy("name"));
+                const snap = await getDocs(q);
+                select.innerHTML = '<option value="">-- Pilih Destinasi --</option>';
+                allSchoolsList = [];
+                
+                snap.forEach(doc => {
+                    const name = doc.data().name.toUpperCase();
+                    allSchoolsList.push(name);
+                    const opt = document.createElement('option');
+                    opt.value = name;
+                    opt.textContent = name;
+                    select.appendChild(opt);
+                });
+                select.innerHTML += '<option value="LAIN-LAIN">LAIN-LAIN (NYATAKAN LOKASI)</option>';
+            } catch(e) {}
+        }
+
+        async function preloadUsers() {
+            try {
+                const q = query(collection(db, `artifacts/${appId}/public/data/spark_participants`), orderBy("name"));
+                const snap = await getDocs(q);
+                snap.forEach(doc => {
+                    const d = doc.data();
+                    if(d.name && d.ic) allUsersCache.push({ name: d.name.toUpperCase(), ic: d.ic, station: d.station || '' });
+                });
+            } catch (e) {}
+        }
+
+        const searchInput = document.getElementById('search-member');
+        const searchResults = document.getElementById('search-results');
+
+        searchInput.addEventListener('input', (e) => {
+            const val = e.target.value.toUpperCase();
+            searchResults.innerHTML = '';
+            if (val.length < 3) { searchResults.classList.add('hidden'); return; }
+
+            const matches = allUsersCache.filter(u => u.name.includes(val) && u.ic !== currentUser.ic && !taggedMembers.some(tm => tm.ic === u.ic)).slice(0, 8);
+            
+            if (matches.length > 0) {
+                searchResults.classList.remove('hidden');
+                matches.forEach(user => {
+                    const div = document.createElement('div');
+                    div.className = "px-4 py-2 hover:bg-indigo-50 cursor-pointer text-gray-700 border-b border-gray-50 last:border-0";
+                    div.innerHTML = `<div class="font-bold text-xs">${user.name}</div><div class="text-[10px] text-gray-400">${user.station}</div>`;
+                    div.onclick = () => addMember(user);
+                    searchResults.appendChild(div);
+                });
+            } else { searchResults.classList.add('hidden'); }
         });
         
-        function normalizeStationName(stationName) {
-            if (!stationName) return '';
-            let normalized = stationName.trim().toUpperCase();
-            normalized = normalized.replace(/ *\([^)]*\) */g, " ");
-            normalized = normalized.replace(/\bKAMPUNG\b/g, 'KG');
-            normalized = normalized.replace(/\bKG\./g, 'KG');
-            normalized = normalized.replace(/\bSEKOLAH KEBANGSAAN\b/g, 'SK');
-            normalized = normalized.replace(/\bSEKOLAH JENIS KEBANGSAAN\b/g, 'SJK');
-            normalized = normalized.replace(/ {2,}/g, ' ').trim(); 
-            return normalized;
+        document.addEventListener('click', (e) => {
+            if(!searchInput.contains(e.target) && !searchResults.contains(e.target)) searchResults.classList.add('hidden');
+        });
+
+        function addMember(user) {
+            taggedMembers.push(user);
+            renderMembers();
+            searchInput.value = '';
+            searchResults.classList.add('hidden');
         }
 
-        function main() { 
-            if (!userId) return;
-            const urlParams = new URLSearchParams(window.location.search);
-            const programKey = urlParams.get('kod');
-
-            if (programKey) { initializeDashboard(programKey); } 
-            else { document.getElementById('loading-dashboard').innerHTML = '<p class="text-red-500 text-center font-bold">Tiada kunci sesi ditemui.</p>'; }
+        window.removeMember = function(ic) {
+            taggedMembers = taggedMembers.filter(m => m.ic !== ic);
+            renderMembers();
         }
 
-        function initializeDashboard(programKey) {
-            if (unsubscribeProgramListener) unsubscribeProgramListener();
-            isInitialLoad = true;
-            lastAttendanceCount = 0;
-
-            const programRef = doc(db, `artifacts/${appId}/public/data/spark_programs`, programKey);
+        function renderMembers() {
+            const container = document.getElementById('members-list');
+            container.innerHTML = '';
             
-            unsubscribeProgramListener = onSnapshot(programRef, (docSnap) => { 
-                if (docSnap.exists()) {
-                    currentLoadedProgram = { id: docSnap.id, ...docSnap.data() };
-                    
-                    document.getElementById('dashboard-program-name').textContent = currentLoadedProgram.name.toUpperCase();
-                    document.getElementById('dashboard-location').textContent = currentLoadedProgram.location.toUpperCase();
-                    document.getElementById('dashboard-date').textContent = formatDateRange(currentLoadedProgram.startDate, currentLoadedProgram.endDate).toUpperCase();
-                    document.getElementById('dashboard-time').textContent = formatTimeRange(currentLoadedProgram.startTime, currentLoadedProgram.endTime).toUpperCase();
-                    
-                    const visitBadge = document.getElementById('dashboard-visit-count');
-                    if (currentLoadedProgram.visitNumber) {
-                        visitBadge.textContent = `SIRI LAWATAN KE-${currentLoadedProgram.visitNumber}`;
-                    } else {
-                        visitBadge.textContent = `MAKLUMAT LAWATAN`;
-                    }
+            if (currentUser) {
+                const selfTag = document.createElement('span');
+                selfTag.className = "inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold bg-brand text-white shadow-sm border border-brand-dark mb-1 mr-1";
+                const dispName = currentUser.name.split(' ').slice(0,3).join(' ');
+                selfTag.innerHTML = `<span class="mr-1">👑</span> ${dispName}`;
+                container.appendChild(selfTag);
+            }
 
-                    document.getElementById('dashboard-focus').textContent = currentLoadedProgram.focusArea || '-';
-                    document.getElementById('dashboard-visit-type').textContent = currentLoadedProgram.visitType || '-';
-                    document.getElementById('dashboard-description').textContent = currentLoadedProgram.description || '-';
-                    
-                    const accompanyingList = document.getElementById('dashboard-accompanying');
-                    const accompanying = currentLoadedProgram.accompanyingOfficers || [];
-                    if(accompanying.length > 0) {
-                        accompanyingList.innerHTML = accompanying.map(a => `<span class="bg-white text-slate-600 border border-slate-200 text-[10px] font-bold px-3 py-1.5 rounded-lg uppercase shadow-sm">${a}</span>`).join('');
-                    } else {
-                        accompanyingList.innerHTML = `<span class="text-sm font-semibold text-slate-500">Tiada (Bergerak Sendirian)</span>`;
-                    }
-
-                    const targetList = document.getElementById('dashboard-target-list');
-                    const meetWith = currentLoadedProgram.meetWith || [];
-                    if(meetWith.length > 0) {
-                        targetList.innerHTML = meetWith.map(t => `<span class="bg-indigo-50 text-brand border border-indigo-200 text-[10px] font-bold px-3 py-1.5 rounded-lg uppercase shadow-sm">${t.name}</span>`).join('');
-                    } else {
-                        targetList.innerHTML = `<span class="text-sm font-semibold text-slate-500">- Tiada Sasaran Spesifik -</span>`;
-                    }
-
-                    const scannerBtn = document.getElementById('scanner-button');
-                    if (scannerBtn) { scannerBtn.href = `programqr.html?kod=${currentLoadedProgram.id}`; }
-
-                    const penyelarasDiv = document.getElementById('dashboard-penyelaras');
-                    if (penyelarasDiv) {
-                        const penyelarasName = currentLoadedProgram.penyelaras_name || 'N/A';
-                        penyelarasDiv.innerHTML = `<span class="text-[10px] font-bold text-slate-700 uppercase tracking-widest flex items-center">Penyelaras: <span class="ml-1 text-brand">${penyelarasName}</span></span>`;
-                    }
-                    
-                    renderDateTabsAndAttendance();
-                    renderFindings(); 
-
-                    const baseUrl = window.location.origin + window.location.pathname.replace('spark-go-program.html', '');
-                    currentCheckinUrl = `${baseUrl}participant.html?kod=${currentLoadedProgram.id}`;
-                    updateQrCode();
-                    
-                    renderSchoolInfographic(); 
-                    
-                    document.getElementById('loading-dashboard').classList.add('hidden');
-                    document.getElementById('full-dashboard-content').classList.remove('hidden');
-                    
-                    isInitialLoad = false;
-                    
-                    const attendanceList = currentLoadedProgram.attendance || [];
-                    lastAttendanceCount = attendanceList.length;
-
-                } else {
-                    document.getElementById('loading-dashboard').innerHTML = `<p class="text-red-500 text-center font-bold">Sesi lawatan tidak ditemui.</p>`;
-                }
+            taggedMembers.forEach(m => {
+                const tag = document.createElement('span');
+                tag.className = "inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium bg-white border border-gray-300 text-gray-700 shadow-sm mb-1 mr-1";
+                const dispName = m.name.split(' ').slice(0,3).join(' ');
+                tag.innerHTML = `${dispName} <button type="button" onclick="removeMember('${m.ic}')" class="ml-2 text-gray-400 hover:text-red-500 font-bold focus:outline-none">×</button>`;
+                container.appendChild(tag);
             });
         }
 
-        // --- UNTUK MENYELESAIKAN MASALAH AUTO ADD DI SPARK-GO.HTML ---
-        /*
-           PERHATIAN: Memandangkan saya hanya ada akses untuk edit spark-go-program.html di ruang ini,
-           saya telah buang tapisan (filter) di sini supaya semua data yang wujud dalam pangkalan data
-           (termasuk Rombongan/Penyelaras) ditunjukkan.
+        const searchTarget = document.getElementById('search-target');
+        const targetResults = document.getElementById('target-results');
 
-           PENTING! Untuk mengelakkan Penyelaras & Rombongan masuk secara automatik pada masa hadapan,
-           anda PERLU membuka fail `spark-go.html` dan mengubah fungsi `submitMovement`.
-           
-           Cari baris ini di spark-go.html:
-           const attendees = [
-               { ic: currentUser.ic, name: currentUser.name, station: currentUser.station || '', status: 'Hadir Sesi', time: new Date().toISOString(), isPro: currentUser.isPro || false, profileImageUrl: currentUser.profileImageUrl || null }
-           ];
-           taggedMembers.forEach(m => {
-               attendees.push({ ic: m.ic, name: m.name, station: m.station || '', status: 'Hadir Sesi', time: new Date().toISOString(), isPro: m.isPro || false, profileImageUrl: m.profileImageUrl || null });
-           });
+        searchTarget.addEventListener('input', (e) => {
+            const val = e.target.value.toUpperCase();
+            targetResults.innerHTML = '';
+            if (val.length < 3) { targetResults.classList.add('hidden'); return; }
 
-           TUKAR KEPADA:
-           const attendees = []; // Kosongkan sepenuhnya.
-        */
-
-        window.showAddFindingModal = function() {
-            document.getElementById('finding-text').value = '';
-            document.getElementById('finding-image').value = '';
-            document.getElementById('upload-preview').classList.add('hidden');
-            document.getElementById('add-finding-modal').classList.remove('hidden');
-        };
-
-        document.getElementById('finding-image').addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            if(file) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    document.getElementById('img-preview').src = e.target.result;
-                    document.getElementById('upload-preview').classList.remove('hidden');
-                }
-                reader.readAsDataURL(file);
-            } else {
-                document.getElementById('upload-preview').classList.add('hidden');
-            }
+            const matches = allUsersCache.filter(u => u.name.includes(val) && !taggedTargets.some(tt => tt.ic === u.ic)).slice(0, 8);
+            
+            if (matches.length > 0) {
+                targetResults.classList.remove('hidden');
+                matches.forEach(user => {
+                    const div = document.createElement('div');
+                    div.className = "px-4 py-2 hover:bg-indigo-50 cursor-pointer text-gray-700 border-b border-gray-50 last:border-0";
+                    div.innerHTML = `<div class="font-bold text-xs">${user.name}</div><div class="text-[10px] text-gray-400">${user.station}</div>`;
+                    div.onclick = () => addTarget(user);
+                    targetResults.appendChild(div);
+                });
+            } else { targetResults.classList.add('hidden'); }
         });
 
-        window.submitFinding = async function(e) {
-            e.preventDefault();
-            if(!currentLoadedProgram) return;
+        document.addEventListener('click', (e) => {
+            if(!searchTarget.contains(e.target) && !targetResults.contains(e.target)) targetResults.classList.add('hidden');
+        });
 
-            const text = document.getElementById('finding-text').value.trim();
-            const fileInput = document.getElementById('finding-image');
-            const btn = document.getElementById('btn-submit-finding');
+        function addTarget(user) {
+            taggedTargets.push(user);
+            renderTargets();
+            searchTarget.value = '';
+            targetResults.classList.add('hidden');
+        }
 
-            btn.disabled = true;
-            btn.innerHTML = `<svg class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Menyimpan...`;
+        window.removeTarget = function(ic) {
+            taggedTargets = taggedTargets.filter(t => t.ic !== ic);
+            renderTargets();
+        }
 
-            let imageUrl = null;
+        function renderTargets() {
+            const container = document.getElementById('target-list');
+            container.innerHTML = '';
+            
+            taggedTargets.forEach(m => {
+                const tag = document.createElement('span');
+                tag.className = "inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium bg-orange-50 border border-orange-200 text-orange-800 shadow-sm mb-1 mr-1";
+                const dispName = m.name.split(' ').slice(0,3).join(' ');
+                tag.innerHTML = `<span class="mr-1">🎯</span>${dispName} <button type="button" onclick="removeTarget('${m.ic}')" class="ml-2 text-orange-400 hover:text-red-500 font-bold focus:outline-none">×</button>`;
+                container.appendChild(tag);
+            });
+        }
+
+        async function loadUserGroups(ic) {
+            const select = document.getElementById('group-load-select');
+            select.innerHTML = '<option value="">-- Muat Kumpulan --</option>';
+            try {
+                const q = query(collection(db, `artifacts/${appId}/public/data/spark_user_groups`), where("ownerIc", "==", ic));
+                const snap = await getDocs(q);
+                savedGroups = [];
+                snap.forEach(doc => {
+                    const g = { id: doc.id, ...doc.data() };
+                    savedGroups.push(g);
+                    const opt = document.createElement('option');
+                    opt.value = g.id;
+                    opt.textContent = g.name;
+                    select.appendChild(opt);
+                });
+            } catch (e) {}
+        }
+
+        window.loadGroup = function(groupId) {
+            if(!groupId) return;
+            const group = savedGroups.find(g => g.id === groupId);
+            if(group && group.members) {
+                group.members.forEach(newMember => {
+                    if(newMember.ic !== currentUser.ic && !taggedMembers.some(existing => existing.ic === newMember.ic)) {
+                        taggedMembers.push(newMember);
+                    }
+                });
+                renderMembers();
+                document.getElementById('group-load-select').value = "";
+            }
+        }
+
+        window.saveCurrentGroup = async function() {
+            if(taggedMembers.length === 0) {
+                alert("Sila tambah pegawai lain untuk disimpan.");
+                return;
+            }
+            const groupName = prompt("Namakan kumpulan ini (Cth: Team Audit):");
+            if(!groupName) return;
 
             try {
-                if (fileInput.files.length > 0) {
-                    btn.innerHTML = `<svg class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Memuat Naik Gambar...`;
-                    const file = fileInput.files[0];
-                    const formData = new FormData();
-                    formData.append('image', file);
-                    
-                    const IMGBB_API_KEY = "a7c600ac733fe14649cacd8e65619c4b"; 
-                    const imgRes = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, {
-                        method: 'POST',
-                        body: formData
-                    });
-                    
-                    const imgData = await imgRes.json();
-                    if (imgData.success) {
-                        imageUrl = imgData.data.url;
-                    } else {
-                        throw new Error("Gagal muat naik gambar ke ImgBB");
-                    }
-                }
+                const newGroup = {
+                    name: groupName.toUpperCase(),
+                    ownerIc: currentUser.ic,
+                    members: taggedMembers.map(m => ({ name: m.name, ic: m.ic, station: m.station || '' })),
+                    createdAt: serverTimestamp()
+                };
+                const docRef = await addDoc(collection(db, `artifacts/${appId}/public/data/spark_user_groups`), newGroup);
+                savedGroups.push({ id: docRef.id, ...newGroup });
+                const select = document.getElementById('group-load-select');
+                const opt = document.createElement('option');
+                opt.value = docRef.id;
+                opt.textContent = newGroup.name;
+                select.appendChild(opt);
+                alert("Kumpulan disimpan!");
+            } catch (e) { alert("Gagal menyimpan."); }
+        }
 
-                const newFinding = {
-                    text: text,
-                    imageUrl: imageUrl,
-                    timestamp: new Date().toISOString()
+        window.submitMovement = async function(e) {
+            e.preventDefault();
+            const btn = document.getElementById('btn-submit');
+            if(!currentUser) return;
+            
+            btn.disabled = true;
+            btn.innerHTML = "Menyimpan Rekod...";
+            
+            const focus = document.getElementById('ppd-focus').value;
+            const type = document.getElementById('visit-type').value;
+            const reason = document.getElementById('visit-reason').value.toUpperCase();
+            
+            let dest = document.getElementById('destination-select').value;
+            if (dest === 'LAIN-LAIN') {
+                dest = document.getElementById('custom-location').value.toUpperCase();
+            }
+            
+            const startDate = document.getElementById('move-date').value;
+            const isMulti = document.getElementById('is-multi-day').checked;
+            const endDate = isMulti ? document.getElementById('return-date').value : startDate;
+            
+            const start = document.getElementById('start-time').value;
+            const end = document.getElementById('end-time').value;
+
+            const programKey = `GO-${Math.random().toString(36).substring(2,7).toUpperCase()}`;
+            
+            // PERUBAHAN UTAMA: Kehadiran dibiarkan KOSONG. 
+            // Nama penyelaras dan rombongan tidak lagi dimasukkan secara automatik di sini.
+            const attendees = [];
+
+            const referenceList = taggedTargets.map(t => ({ name: t.name, station: t.station || '' }));
+
+            try {
+                const qCount = query(
+                    collection(db, `artifacts/${appId}/public/data/spark_programs`),
+                    where("type", "==", "movement"),
+                    where("location", "==", dest)
+                );
+                const snapCount = await getDocs(qCount);
+                const visitNumber = snapCount.size + 1; 
+
+                const record = {
+                    key: programKey,
+                    name: `${type}: ${dest}`.toUpperCase(), 
+                    visitNumber: visitNumber, 
+                    accompanyingOfficers: taggedMembers.map(m => m.name.toUpperCase()), 
+                    location: dest,
+                    description: `[${focus.toUpperCase()}] ${reason}`,
+                    visitType: type,
+                    focusArea: focus,
+                    startDate: startDate, 
+                    endDate: endDate,
+                    startTime: start, 
+                    endTime: end,
+                    quota: referenceList.length > 0 ? referenceList.length : 1, // Elak quota 0
+                    penyelaras_ic: currentUser.ic,
+                    penyelaras_name: currentUser.name,
+                    attendance: attendees, // Array kosong []
+                    referenceList: referenceList, 
+                    referenceNeeded: referenceList.length > 0,
+                    meetWith: taggedTargets.map(t => ({ name: t.name, ic: t.ic, station: t.station || '' })), 
+                    status: 'Selesai',
+                    type: 'movement',
+                    createdAt: serverTimestamp(),
+                    method: 'bersemuka',
+                    bookingNeeded: false, surveyNeeded: false, evaluationNeeded: false, eCertificateNeeded: false
                 };
 
-                const programRef = doc(db, `artifacts/${appId}/public/data/spark_programs`, currentLoadedProgram.id);
-                await updateDoc(programRef, { findings: arrayUnion(newFinding) });
-
-                closeModal('add-finding-modal');
-
-            } catch(error) {
-                console.error("Error adding finding:", error);
-                alert("Ralat menyimpan penemuan: " + error.message);
-            } finally {
+                await addDoc(collection(db, `artifacts/${appId}/public/data/spark_programs`), record);
+                document.getElementById('success-modal').classList.remove('hidden');
+            } catch (e) {
+                console.error(e);
+                alert("Ralat menyimpan rekod.");
                 btn.disabled = false;
-                btn.innerHTML = `Simpan Penemuan`;
+                btn.innerHTML = "REKOD PERGERAKAN";
             }
-        };
-
-        function renderFindings() {
-            if(!currentLoadedProgram) return;
-            const findings = currentLoadedProgram.findings || [];
-            const container = document.getElementById('findings-list');
-            
-            if(findings.length === 0) {
-                container.innerHTML = '<div class="text-center py-10 bg-slate-50 rounded-xl border border-dashed border-slate-300"><p class="text-slate-500 text-xs font-bold uppercase tracking-widest">Belum ada penemuan / laporan direkodkan.</p></div>';
-                return;
-            }
-
-            const sorted = [...findings].sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
-            
-            container.innerHTML = sorted.map((f, i) => `
-                <div class="p-5 border border-slate-200 rounded-2xl bg-white shadow-sm hover:shadow-md transition-shadow relative group">
-                    <div class="flex justify-between items-start mb-3 border-b border-slate-100 pb-2">
-                        <div class="flex items-center gap-2">
-                            <span class="bg-brand text-white px-2 py-1 rounded-md text-xs font-bold mr-1">#${sorted.length - i}</span>
-                            <span class="text-[10px] font-bold text-brand uppercase tracking-widest bg-brand-light px-2.5 py-1 rounded-md">
-                                ${new Date(f.timestamp).toLocaleDateString('ms-MY', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                            </span>
-                        </div>
-                        <button onclick="confirmDeleteFinding('${f.timestamp}')" class="text-slate-300 hover:text-red-500 transition-colors p-1" title="Padam Nota">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                        </button>
-                    </div>
-                    <p class="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">${f.text}</p>
-                    ${f.imageUrl ? `<div class="mt-4"><a href="${f.imageUrl}" target="_blank" title="Klik untuk lihat imej penuh"><img src="${f.imageUrl}" alt="Lampiran" class="rounded-xl border border-slate-200 max-h-64 object-cover hover:opacity-90 transition-opacity w-full sm:w-auto"></a></div>` : ''}
-                </div>
-            `).join('');
         }
 
-        window.confirmDeleteFinding = function(timestamp) {
-            findingToDeleteTimestamp = timestamp;
-            document.getElementById('delete-finding-ic').value = '';
-            document.getElementById('delete-finding-error').classList.add('hidden');
-            document.getElementById('delete-finding-modal').classList.remove('hidden');
+        window.deleteRecord = async function(id) {
+            if(confirm("Adakah anda pasti mahu memadam rekod pergerakan ini? Tindakan ini tidak boleh diundur.")) {
+                try {
+                    await deleteDoc(doc(db, `artifacts/${appId}/public/data/spark_programs`, id));
+                    alert("Rekod berjaya dipadam.");
+                    loadHistory();
+                    loadUserStats(currentUser.ic);
+                    loadSchoolStatus();
+                } catch(e) {
+                    console.error(e);
+                    alert("Gagal memadam rekod. Sila cuba lagi.");
+                }
+            }
+        }
+
+        window.switchTab = function(tab) {
+            const tabNew = document.getElementById('tab-new-record');
+            const tabHistory = document.getElementById('tab-history');
+            const tabSchools = document.getElementById('tab-school-status');
+            
+            const btnNew = document.getElementById('btn-tab-new');
+            const btnHistory = document.getElementById('btn-tab-history');
+            const btnSchools = document.getElementById('btn-tab-schools');
+
+            tabNew.classList.add('hidden');
+            tabHistory.classList.add('hidden');
+            tabSchools.classList.add('hidden');
+            
+            const inactiveClass = "pb-2 border-b-2 border-transparent font-medium text-gray-500 hover:text-gray-700 text-sm transition-colors";
+            const activeClass = "pb-2 border-b-2 border-brand font-bold text-brand text-sm transition-colors";
+            
+            btnNew.className = inactiveClass;
+            btnHistory.className = inactiveClass;
+            btnSchools.className = inactiveClass;
+
+            if (tab === 'new') {
+                tabNew.classList.remove('hidden');
+                btnNew.className = activeClass;
+            } else if (tab === 'history') {
+                tabHistory.classList.remove('hidden');
+                btnHistory.className = activeClass;
+                loadHistory();
+            } else if (tab === 'schools') {
+                tabSchools.classList.remove('hidden');
+                btnSchools.className = activeClass;
+                loadSchoolStatus();
+            }
         };
 
-        window.executeDeleteFinding = async function() {
-            if (!currentLoadedProgram) return;
-            const inputIc = document.getElementById('delete-finding-ic').value.trim();
+        window.loadHistory = async function() {
+            if (!currentUser) return;
+            const historyList = document.getElementById('history-list');
+            historyList.innerHTML = '<div class="text-center py-10"><p class="text-indigo-500 font-medium animate-pulse">Memuatkan rekod pergerakan...</p></div>';
             
-            if(inputIc !== currentLoadedProgram.penyelaras_ic) {
-                document.getElementById('delete-finding-error').classList.remove('hidden');
-                return;
-            }
-            
+            let selectedMonth = document.getElementById('history-month').value;
+
             try {
-                const programRef = doc(db, `artifacts/${appId}/public/data/spark_programs`, currentLoadedProgram.id);
-                const updatedFindings = (currentLoadedProgram.findings || []).filter(f => f.timestamp !== findingToDeleteTimestamp);
+                const q = query(
+                    collection(db, `artifacts/${appId}/public/data/spark_programs`), 
+                    where("penyelaras_ic", "==", currentUser.ic), 
+                    where("type", "==", "movement")
+                );
+                const snap = await getDocs(q);
                 
-                await updateDoc(programRef, { findings: updatedFindings });
-                closeModal('delete-finding-modal');
-                findingToDeleteTimestamp = null;
-            } catch(e) {
-                console.error("Error deleting finding", e);
-                alert("Gagal memadam penemuan. Ralat sambungan.");
-            }
-        };
-
-        function renderDateTabsAndAttendance() {
-            const tabsContainer = document.getElementById('attendance-date-tabs');
-            tabsContainer.innerHTML = '';
-            
-            const startDate = new Date(currentLoadedProgram.startDate + 'T00:00:00');
-            const endDate = new Date(currentLoadedProgram.endDate + 'T00:00:00');
-            const programDates = [];
-
-            for (let dt = startDate; dt <= endDate; dt.setDate(dt.getDate() + 1)) { programDates.push(new Date(dt)); }
-            if (programDates.length === 0) return;
-
-            const todayStr = new Date().toISOString().split('T')[0];
-            const programDateStrings = programDates.map(d => d.toISOString().split('T')[0]);
-            
-            if (!selectedAttendanceDate || !programDateStrings.includes(selectedAttendanceDate)) {
-                 selectedAttendanceDate = programDateStrings.includes(todayStr) ? todayStr : programDateStrings[0];
-            }
-
-            if (programDates.length > 1) {
-                programDates.forEach(date => {
-                    const dateStr = date.toISOString().split('T')[0];
-                    const isActive = dateStr === selectedAttendanceDate;
-                    const tab = document.createElement('a');
-                    tab.href = '#';
-                    tab.textContent = formatDate(date);
-                    tab.className = `whitespace-nowrap py-3 px-2 border-b-2 font-bold text-xs uppercase tracking-wider transition-colors ${isActive ? 'text-brand border-brand' : 'text-slate-400 border-transparent hover:text-slate-600 hover:border-slate-300'}`;
-                    tab.onclick = (e) => { e.preventDefault(); filterAttendanceByDate(dateStr); };
-                    tabsContainer.appendChild(tab);
+                let records = [];
+                snap.forEach(doc => {
+                    const data = doc.data();
+                    if (data.startDate && data.startDate.startsWith(selectedMonth)) {
+                        records.push({ id: doc.id, ...data });
+                    }
                 });
-            } else {
-                const tab = document.createElement('span');
-                tab.textContent = formatDate(programDates[0]);
-                tab.className = 'py-3 px-2 border-b-2 font-bold text-xs uppercase tracking-wider text-brand border-brand';
-                tabsContainer.appendChild(tab);
-            }
-            filterAttendanceByDate(selectedAttendanceDate);
-        }
 
-        function filterAttendanceByDate(dateStr) {
-            selectedAttendanceDate = dateStr;
-            const allAttendance = currentLoadedProgram.attendance || [];
-            
-            // TIDAK ADA TAPISAN KELUARKAN PENYELARAS
-            // Semua nama yang berada dalam database 'attendance' akan dipaparkan.
-            let filteredList = currentLoadedProgram.startDate === currentLoadedProgram.endDate ? 
-                               allAttendance : 
-                               allAttendance.filter(p => p.time.startsWith(dateStr));
+                records.sort((a, b) => new Date(b.startDate) - new Date(a.startDate));
 
-            renderAttendanceTable(filteredList);
-        }
-
-        function showAbsentListModal() {
-            if (!currentLoadedProgram) return;
-
-            const absentListBody = document.getElementById('absent-list-body');
-            const attendance = currentLoadedProgram.attendance || [];
-            const referenceList = currentLoadedProgram.referenceList || [];
-            absentListBody.innerHTML = ''; 
-
-            const attendedIndividuals = new Set(attendance.map(p => `${(p.name || '').trim().toUpperCase()}|${normalizeStationName(p.station)}`));
-
-            let absentHtml = '';
-            let absentCounter = 0;
-
-            referenceList.forEach((ref) => {
-                const refName = (ref.name || '').trim().toUpperCase();
-                const normalizedRefStation = normalizeStationName(ref.station); 
-                let isAbsent = true;
-
-                if (refName) { 
-                    const refIndividualKey = `${refName}|${normalizedRefStation}`;
-                    if (attendedIndividuals.has(refIndividualKey)) isAbsent = false;
+                if (records.length === 0) {
+                    historyList.innerHTML = '<div class="text-center py-8 bg-gray-50 rounded-xl border border-dashed border-gray-300"><p class="text-gray-500 text-xs font-medium uppercase tracking-wider">Tiada pergerakan direkodkan<br>pada bulan ini.</p></div>';
+                    return;
                 }
 
-                if (isAbsent) {
-                    absentCounter++;
-                    absentHtml += `
-                        <tr class="hover:bg-slate-50 transition-colors">
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">${absentCounter}.</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-slate-800">${ref.name || '-'}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-xs text-slate-500 uppercase">${ref.station || '-'}</td>
+                historyList.innerHTML = records.map(r => {
+                    const badgeText = r.visitNumber ? `SIRI ${r.visitNumber}` : 'LAWATAN';
+                    return `
+                    <div class="bg-white border border-gray-200 rounded-xl p-4 hover:border-brand hover:shadow-md transition-all flex flex-col md:flex-row justify-between gap-4 items-start md:items-center">
+                        <div class="flex-grow min-w-0">
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="bg-indigo-50 text-brand text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">${badgeText}</span>
+                                <span class="text-[10px] text-gray-500 font-medium uppercase tracking-wide">
+                                    ${formatDateHistory(r.startDate)} ${r.startDate !== r.endDate ? ' hingga ' + formatDateHistory(r.endDate) : ''}
+                                </span>
+                            </div>
+                            <h3 class="text-sm font-bold text-gray-800 uppercase truncate" title="${r.location}">${r.location}</h3>
+                            <p class="text-xs text-gray-500 mt-1 line-clamp-2">${r.description || 'Tiada butiran spesifik.'}</p>
+                        </div>
+                        <div class="flex items-center gap-2 flex-shrink-0 w-full md:w-auto">
+                            <a href="spark-go-program.html?kod=${r.id}" target="_blank" class="bg-white border border-gray-300 text-gray-700 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-[10px] font-bold hover:bg-indigo-50 hover:text-brand hover:border-brand transition-all flex-grow md:flex-grow-0 shadow-sm uppercase tracking-wider">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4h2v-4zm-6 0H6.414a1 1 0 00-.707.293L4.293 16.707A1 1 0 004 17.414V20h4v-2.586a1 1 0 00-.293-.707L6 15.414V14t1 1h2m4-9V4m0 0H8m4 0h4m-4 1v1m0 0h4m-4 0v2m0-2H8m0 0v2a1 1 0 01-1 1H6a1 1 0 01-1-1V5a1 1 0 011-1h1a1 1 0 011 1v1m0 0h2m2 0h2M5 12h14" /></svg>
+                                Buka Sesi
+                            </a>
+                            <button onclick="deleteRecord('${r.id}')" class="bg-red-50 border border-red-200 text-red-600 flex items-center justify-center p-2.5 rounded-lg hover:bg-red-100 transition-all shadow-sm" title="Padam Rekod">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                            </button>
+                        </div>
+                    </div>
+                `}).join('');
+
+            } catch(e) {
+                console.error(e);
+                historyList.innerHTML = '<p class="text-center text-red-500 py-4 text-sm font-medium">Ralat sambungan pangkalan data.</p>';
+            }
+        };
+
+        function formatDateHistory(dateStr) {
+            if(!dateStr) return '';
+            const d = new Date(dateStr);
+            return d.toLocaleDateString('ms-MY', { day: 'numeric', month: 'short', year: 'numeric' });
+        }
+
+        function getSchoolCategory(name) {
+            const n = name.toUpperCase();
+            if (n.startsWith('SM') || n.startsWith('KV ') || n.includes('KOLEJ') || n.includes('MENENGAH')) return 1; 
+            if (n.startsWith('SK ') || n.startsWith('SJK') || n.includes('RENDAH')) return 2; 
+            return 3; 
+        }
+
+        window.loadSchoolStatus = async function() {
+            if (!currentUser) return;
+            const container = document.getElementById('school-status-list');
+            const period = parseInt(document.getElementById('school-period').value);
+            
+            container.innerHTML = '<div class="text-center py-12"><p class="text-brand font-bold animate-pulse text-sm uppercase tracking-widest">Menganalisis Data...</p></div>';
+
+            try {
+                if (allSchoolsList.length === 0) await loadSchools();
+
+                const months = [];
+                const date = new Date();
+                const currentYear = date.getFullYear();
+
+                for (let i = period - 1; i >= 0; i--) {
+                    const d = new Date(date.getFullYear(), date.getMonth() - i, 1);
+                    if (d.getFullYear() === currentYear) {
+                        const yyyy = d.getFullYear();
+                        const mm = String(d.getMonth() + 1).padStart(2, '0');
+                        months.push(`${yyyy}-${mm}`);
+                    }
+                }
+
+                if (months.length === 0) {
+                    container.innerHTML = '<p class="text-center text-gray-400 py-4 text-xs font-medium">Tiada bulan dalam tahun semasa untuk dipaparkan.</p>';
+                    return;
+                }
+
+                const qMoves = query(
+                    collection(db, `artifacts/${appId}/public/data/spark_programs`),
+                    where("penyelaras_ic", "==", currentUser.ic),
+                    where("type", "==", "movement")
+                );
+                const snapMoves = await getDocs(qMoves);
+
+                const visitData = {};
+                allSchoolsList.forEach(s => {
+                    visitData[s] = { total: 0 };
+                    months.forEach(m => visitData[s][m] = 0);
+                });
+
+                snapMoves.forEach(doc => {
+                    const data = doc.data();
+                    const loc = (data.location || '').toUpperCase();
+                    if (visitData[loc]) {
+                        const monthKey = data.startDate ? data.startDate.substring(0, 7) : null;
+                        if (monthKey && visitData[loc][monthKey] !== undefined) {
+                            visitData[loc][monthKey]++;
+                            visitData[loc].total++; 
+                        }
+                    }
+                });
+
+                const schoolsArr = allSchoolsList.map(s => ({
+                    name: s,
+                    cat: getSchoolCategory(s),
+                    data: visitData[s],
+                    total: visitData[s].total
+                })).sort((a, b) => {
+                    if (a.cat !== b.cat) return a.cat - b.cat; 
+                    return a.name.localeCompare(b.name);     
+                });
+
+                const monthNames = ["Jan", "Feb", "Mac", "Apr", "Mei", "Jun", "Jul", "Ogo", "Sep", "Okt", "Nov", "Dis"];
+                const formatMonth = (ym) => {
+                    const [y, m] = ym.split('-');
+                    return `${monthNames[parseInt(m)-1]} '${y.substring(2)}`;
+                };
+
+                let thHTML = months.map(m => `<th class="px-3 py-3 text-center text-[10px] font-bold text-gray-500 uppercase tracking-widest whitespace-nowrap min-w-[60px]">${formatMonth(m)}</th>`).join('');
+
+                let html = `
+                    <div class="overflow-x-auto custom-scroll pb-2">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-gray-50 border-b border-gray-200">
+                                    <th class="sticky left-0 bg-gray-50 z-20 px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest shadow-[inset_-1px_0_0_rgba(0,0,0,0.1)] min-w-[200px] max-w-[250px]">Nama Sekolah</th>
+                                    ${thHTML}
+                                    <th class="px-4 py-3 text-center text-[10px] font-bold text-brand uppercase tracking-widest bg-indigo-50/50 whitespace-nowrap shadow-[inset_1px_0_0_rgba(0,0,0,0.05)]">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100">
+                `;
+
+                let currentCat = 0;
+                const catNames = { 1: "SEKOLAH MENENGAH", 2: "SEKOLAH RENDAH", 3: "LAIN-LAIN INSTITUSI" };
+
+                schoolsArr.forEach(s => {
+                    if (s.cat !== currentCat) {
+                        html += `
+                            <tr class="bg-slate-100/70 border-y border-slate-200">
+                                <td class="sticky left-0 bg-slate-100 z-10 px-4 py-2.5 text-[10px] font-black text-slate-500 uppercase tracking-widest shadow-[inset_-1px_0_0_rgba(0,0,0,0.05)]">
+                                    ${catNames[s.cat]}
+                                </td>
+                                <td colspan="${months.length + 1}" class="bg-slate-100/70"></td>
+                            </tr>
+                        `;
+                        currentCat = s.cat;
+                    }
+                    
+                    let tdHTML = months.map(m => {
+                        const count = s.data[m];
+                        const isVisited = count > 0;
+                        return `<td class="px-3 py-2 text-center text-xs font-bold ${isVisited ? 'text-brand bg-indigo-50/30' : 'text-gray-300'}">${count > 0 ? count : '-'}</td>`;
+                    }).join('');
+
+                    const hasTotal = s.total > 0;
+
+                    html += `
+                        <tr class="hover:bg-gray-50 transition-colors group">
+                            <td class="sticky left-0 bg-white group-hover:bg-gray-50 z-10 px-4 py-2.5 text-xs font-bold text-gray-700 shadow-[inset_-1px_0_0_rgba(0,0,0,0.05)] truncate max-w-[200px]" title="${s.name}">
+                                ${s.name}
+                            </td>
+                            ${tdHTML}
+                            <td class="px-4 py-2.5 text-center text-xs font-black shadow-[inset_1px_0_0_rgba(0,0,0,0.05)] ${hasTotal ? 'text-indigo-700 bg-indigo-50/30' : 'text-gray-300 bg-gray-50/30'}">${s.total > 0 ? s.total : '-'}</td>
                         </tr>
                     `;
-                }
-            });
-
-            if (absentCounter === 0) {
-                absentListBody.innerHTML = `<tr><td colspan="3" class="px-6 py-8 text-center text-slate-400 font-medium text-sm">Semua sasaran telah direkodkan.</td></tr>`;
-            } else {
-                absentListBody.innerHTML = absentHtml;
-            }
-            document.getElementById('absent-list-modal').classList.remove('hidden');
-        }
-
-        async function checkIn(){
-            if (!currentLoadedProgram) return alert('Tiada sesi dibuka.');
-            const manualIcInput = document.getElementById('manual-ic-input');
-            const ic = manualIcInput.value.trim().replace(/[^0-9]/g, '');
-            if(!ic) return;
-            
-            const alreadyAttended = (currentLoadedProgram.attendance || []).find(p => p.ic === ic);
-            if (alreadyAttended) {
-                 alert("Pegawai ini telah direkodkan.");
-                 manualIcInput.value = ""; return;
-            }
-
-            const participantsRef = collection(db, `artifacts/${appId}/public/data/spark_participants`);
-            const q = query(participantsRef, where("ic", "==", ic));
-            const querySnapshot = await getDocs(q);
-            
-            if (!querySnapshot.empty) {
-                const participantDoc = querySnapshot.docs[0];
-                addParticipantToAttendance({ id: participantDoc.id, ...participantDoc.data() });
-            } else {
-                showNewParticipantModal(ic);
-            }
-            manualIcInput.value = "";
-        }
-
-        async function addParticipantToAttendance(participantData) {
-            if (!currentLoadedProgram) return;
-            const newAttendanceRecord = { 
-                ...participantData, 
-                time: new Date().toISOString(), 
-                status: 'Selesai Sesi',
-                isPro: participantData.isPro === true,
-                profileImageUrl: participantData.profileImageUrl || null
-            };
-            const programRef = doc(db, `artifacts/${appId}/public/data/spark_programs`, currentLoadedProgram.id);
-            try { await updateDoc(programRef, { attendance: arrayUnion(newAttendanceRecord) }); } 
-            catch(error) { alert("Gagal merekod. Sila cuba lagi."); }
-        }
-        
-        async function registerAndCheckIn(event) {
-            event.preventDefault();
-            const newParticipant = {
-                ic: document.getElementById('new-ic').value,
-                name: document.getElementById('new-name').value.toUpperCase(),
-                station: document.getElementById('new-station').value,
-                position: document.getElementById('new-position').value,
-                isPro: false, profileImageUrl: null
-            };
-            try {
-                const participantsRef = collection(db, `artifacts/${appId}/public/data/spark_participants`);
-                const q = query(participantsRef, where("ic", "==", newParticipant.ic));
-                const existing = await getDocs(q);
-                if (!existing.empty) {
-                    addParticipantToAttendance({ id: existing.docs[0].id, ...existing.docs[0].data() });
-                    closeModal("new-participant-modal"); return; 
-                }
-                const docRef = await addDoc(participantsRef, newParticipant);
-                addParticipantToAttendance({ id: docRef.id, ...newParticipant });
-                closeModal("new-participant-modal");
-            } catch (error) { alert("Gagal mendaftar pegawai baru."); }
-        }
-        
-        function generateAvatar(participant) {
-            if (!participant || !participant.name) return '';
-            const isPro = participant.isPro === true;
-            const hasImage = participant.profileImageUrl && participant.profileImageUrl.trim() !== "";
-            if (isPro && hasImage) {
-                 return `<div class="flex-shrink-0 h-10 w-10 rounded-full border-2 border-brand shadow-sm overflow-hidden relative bg-slate-200"><img src="${participant.profileImageUrl}" alt="${participant.name}" class="w-full h-full object-cover object-center"></div>`;
-            } else if (isPro) {
-                 return `<div class="flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center text-[10px] font-bold bg-brand text-white border-2 border-indigo-300 shadow-sm tracking-tighter">PRO</div>`;
-            } else {
-                const name = participant.name;
-                const initials = name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
-                const colors = ['bg-accent-light text-blue-800', 'bg-brand-light text-indigo-800', 'bg-slate-100 text-slate-800'];
-                let charCodeSum = 0;
-                for (let i = 0; i < name.length; i++) { charCodeSum += name.charCodeAt(i); }
-                const color = colors[charCodeSum % colors.length];
-                return `<div class="flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center text-sm font-bold ${color} shadow-sm">${initials}</div>`;
-            }
-        }
-        
-        function renderAttendanceTable(attendanceList){
-            if (!currentLoadedProgram) return;
-            const attendanceListBody = document.getElementById('attendance-list-body');
-            const sortedList = (attendanceList || []).sort((a, b) => new Date(b.time) - new Date(a.time));
-            const isNewEntryAdded = !isInitialLoad && sortedList.length > lastAttendanceCount;
-            const startIndex = (currentAttendancePage - 1) * attendancePerPage;
-            const paginatedList = sortedList.slice(startIndex, startIndex + attendancePerPage);
-
-            if(paginatedList.length === 0){
-                attendanceListBody.innerHTML=`<tr><td colspan="4" class="text-center text-slate-400 font-medium py-12 text-sm">Belum ada pegawai direkodkan.</td></tr>`
-            } else {
-                attendanceListBody.innerHTML = paginatedList.map((p) => {
-                    const highlightClass = isNewEntryAdded ? 'new-entry' : '';
-                    const proBadgeHtml = p.isPro === true ? '<span class="pro-badge">Pro</span>' : '';
-                    return `
-                        <tr class="${highlightClass} border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                            <td class="px-3 py-4">${generateAvatar(p)} </td>
-                            <td class="px-4 py-4">
-                                <div class="text-sm font-bold text-slate-800 truncate">${p.name.toUpperCase()} ${proBadgeHtml}</div>
-                                <div class="text-[10px] text-slate-500 font-medium uppercase tracking-wider truncate mt-0.5">${(p.position || '-').toUpperCase()}</div>
-                                <div class="text-[10px] text-slate-400 uppercase tracking-wider truncate mt-0.5">${(p.station || '-').toUpperCase()}</div>
-                            </td>
-                            <td class="px-4 py-4 whitespace-nowrap text-xs text-slate-500 font-mono">${new Date(p.time).toLocaleTimeString('ms-MY')}</td>
-                            <td class="px-4 py-4 whitespace-nowrap text-sm"><span class="px-2.5 py-1 inline-flex text-[10px] uppercase tracking-widest font-bold rounded-md bg-accent-light text-blue-800">Direkod</span></td>
-                        </tr>`
-                }).join("");
-            }
-            renderSchoolInfographic(); 
-            renderAttendancePaginationControls(sortedList.length);
-        }
-
-        function renderAttendancePaginationControls(totalItems) { 
-            const paginationControls = document.getElementById('attendance-pagination-controls'); 
-            const totalPages = Math.ceil(totalItems / attendancePerPage); 
-            if (totalPages <= 1) { paginationControls.innerHTML = ''; return; } 
-            const prevDisabled = currentAttendancePage === 1 ? 'disabled' : ''; 
-            const nextDisabled = currentAttendancePage === totalPages ? 'disabled' : ''; 
-            paginationControls.innerHTML = `<button onclick="prevAttendancePage()" ${prevDisabled} class="btn bg-slate-100 text-slate-600 text-[10px] font-bold uppercase tracking-widest py-2 px-4 rounded-lg hover:bg-slate-200">Sebelumnya</button><span class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Halaman ${currentAttendancePage} / ${totalPages}</span><button onclick="nextAttendancePage()" ${nextDisabled} class="btn bg-slate-100 text-slate-600 text-[10px] font-bold uppercase tracking-widest py-2 px-4 rounded-lg hover:bg-slate-200">Seterusnya</button>`; 
-        }
-
-        function prevAttendancePage() { if (currentAttendancePage > 1) { currentAttendancePage--; filterAttendanceByDate(selectedAttendanceDate); } }
-        function nextAttendancePage() { 
-            const filteredList = currentLoadedProgram.startDate === currentLoadedProgram.endDate ? 
-                currentLoadedProgram.attendance : (currentLoadedProgram.attendance || []).filter(p => p.time.startsWith(selectedAttendanceDate)); 
-            
-            if (currentAttendancePage < Math.ceil(filteredList.length / attendancePerPage)) { currentAttendancePage++; filterAttendanceByDate(selectedAttendanceDate); } 
-        }
-        function changeAttendancePerPage() { attendancePerPage = parseInt(document.getElementById('attendance-per-page').value, 10); currentAttendancePage = 1; filterAttendanceByDate(selectedAttendanceDate); }
-
-        function renderSchoolInfographic() {
-            if (!currentLoadedProgram) return;
-            const attendance = currentLoadedProgram.attendance || [];
-            const referenceList = currentLoadedProgram.referenceList || [];
-
-            document.getElementById('info-hadir').textContent = attendance.length;
-
-            if (referenceList.length > 0) {
-                const attendedIndividuals = new Set(attendance.map(p => `${(p.name || '').trim().toUpperCase()}|${normalizeStationName(p.station)}`));
-                let absentCount = 0;
-                referenceList.forEach(ref => {
-                    if (ref.name && !attendedIndividuals.has(`${ref.name.trim().toUpperCase()}|${normalizeStationName(ref.station)}`)) absentCount++;
                 });
-                document.getElementById('info-kosong-stesen').textContent = absentCount;
-                document.getElementById('view-absent-stesen-btn').classList.toggle('hidden', absentCount === 0);
-            } else {
-                document.getElementById('info-kosong-stesen').textContent = 'N/A';
+
+                html += `</tbody></table></div>`;
+                container.innerHTML = html;
+
+            } catch(e) {
+                console.error(e);
+                container.innerHTML = '<p class="text-center text-red-500 py-4 text-sm font-medium">Ralat memuatkan data.</p>';
             }
-        }
+        };
 
-        function updateQrCode() { if (!currentCheckinUrl) return; document.getElementById('qr-code-image').src = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(currentCheckinUrl)}`; }
-        function showNewParticipantModal(ic){ document.getElementById('new-ic').value = ic; document.getElementById('new-participant-modal').classList.remove('hidden'); }
-        function closeModal(modalId) { const modal = document.getElementById(modalId); if(!modal) return; modal.classList.add('hidden'); }
-        function showUnlockModal() { if (!currentLoadedProgram) return; document.getElementById('unlock-modal').classList.remove('hidden'); }
-        function verifyAndUnlock() { const enteredIc = document.getElementById('unlock-ic-input').value; if (currentLoadedProgram && enteredIc === currentLoadedProgram.penyelaras_ic) { document.getElementById('unlock-verification-section').classList.add('hidden'); document.getElementById('unlock-export-section').classList.remove('hidden'); document.getElementById('unlock-error').classList.add('hidden'); } else { document.getElementById('unlock-error').classList.remove('hidden'); } }
-        
-        async function shareCurrentProgramLink() { if (!currentLoadedProgram) return; const baseUrl = window.location.origin + window.location.pathname.replace('spark-go-program.html', ''); const longUrl = `${baseUrl}participant.html?kod=${currentLoadedProgram.id}`; document.getElementById('share-link-input').value = longUrl; document.getElementById('share-loading').classList.add('hidden'); document.getElementById('share-content').classList.remove('hidden'); document.getElementById('share-link-modal').classList.remove('hidden'); }
-        function copyShareLink(buttonElement) { navigator.clipboard.writeText(document.getElementById('share-link-input').value).then(() => { buttonElement.textContent = 'Tersalin!'; setTimeout(() => { buttonElement.textContent = 'Salin'; }, 2000); }); }
-        function formatDate(date) { return new Date(date).toLocaleDateString('ms-MY', { day: 'numeric', month: 'long', year: 'numeric' }); }
-        function formatDateRange(start, end) { return start === end ? formatDate(start) : `${formatDate(start)} - ${formatDate(end)}`; }
-        function formatTimeMalay(timeString) { if (!timeString) return ''; const [hourStr, minuteStr] = timeString.split(':'); let hour = parseInt(hourStr, 10); const period = hour < 12 ? 'pagi' : hour === 12 ? 'tengah hari' : 'petang'; return `${hour % 12 || 12}:${minuteStr} ${period}`; }
-        function formatTimeRange(start, end) { return `${formatTimeMalay(start)} - ${formatTimeMalay(end)}`; }
-        function toggleManualCheckin() { document.getElementById('manual-checkin-card').classList.toggle('hidden'); }
-        function toggleFullScreen() { document.getElementById('fullscreen-program-name').textContent = currentLoadedProgram.name.toUpperCase(); document.getElementById('fullscreen-qr-image').src = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(currentCheckinUrl)}`; document.getElementById('fullscreen-qr-modal').classList.remove('hidden'); }
-        function closeFullScreen() { document.getElementById('fullscreen-qr-modal').classList.add('hidden'); }
-        function openParticipantInfo() { window.location.href = `maklumatpeserta.html?kod=${currentLoadedProgram.id}`; }
-        function toggleCardContent(contentId, btn) { const content = document.getElementById(contentId); content.classList.toggle('hidden'); btn.style.transform = content.classList.contains('hidden') ? 'rotate(180deg)' : 'rotate(0deg)'; }
-
-        Object.assign(window, { checkIn, registerAndCheckIn, showUnlockModal, verifyAndUnlock, shareCurrentProgramLink, copyShareLink, closeModal, updateQrCode, changeAttendancePerPage, prevAttendancePage, nextAttendancePage, toggleManualCheckin, toggleFullScreen, closeFullScreen, openParticipantInfo, generateAvatar, showAbsentListModal, filterAttendanceByDate, normalizeStationName, toggleCardContent, showAddFindingModal, submitFinding, confirmDeleteFinding, executeDeleteFinding });
     </script>
 </body>
 </html>
