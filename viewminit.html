@@ -72,6 +72,8 @@
         .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #0284c7; border-radius: 3px; }
 
+        .modal-backdrop { background-color: rgba(0,0,0,0.5); backdrop-filter: blur(2px); }
+
         /* --- PRINT CSS: Elak Terpotong & Papar A4 Bersih --- */
         .minit-table tr, .content-table, .preview-image-container, .break-inside-avoid { 
             page-break-inside: avoid !important; 
@@ -85,24 +87,34 @@
 
         @media print {
             .no-print, header, #read-acknowledgement-bar { display: none !important; }
-            body, html {
-                height: auto !important;
-                overflow: visible !important;
-                background-color: white !important;
+            body, html, .flex-1, #main-scroll-area { 
+                height: auto !important; 
+                overflow: visible !important; 
+                width: 100% !important;
+                display: block !important;
+                background-color: white !important; 
+                margin: 0 !important; 
+                padding: 0 !important; 
             }
             #pdf-wrapper { 
                 width: 100% !important; 
                 margin: 0 !important; 
                 padding: 0 !important; 
+                box-shadow: none !important; 
             }
-            .a4-paper {
-                width: 100% !important;
-                margin: 0 !important;
+            .a4-paper { 
+                width: 100% !important; 
+                margin: 0 !important; 
                 padding: 10mm 15mm !important; 
-                box-shadow: none !important;
-                min-height: auto !important;
+                box-shadow: none !important; 
+                min-height: auto !important; 
+                height: auto !important;
                 display: block !important; 
+                page-break-after: auto !important; 
+                page-break-inside: auto !important;
             }
+            .force-break { page-break-before: always !important; margin-top: 0 !important; }
+            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         }
 
         /* Loading Screen */
@@ -130,7 +142,12 @@
                 </div>
             </div>
             <div class="flex items-center gap-2">
-                <button onclick="window.print()" class="bg-gray-800 hover:bg-black text-white text-xs font-bold py-2 px-4 rounded-lg shadow-md flex items-center gap-2 uppercase transition-all"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg> Cetak / Simpan PDF</button>
+                <button onclick="shareRecord()" id="btn-share" class="hidden bg-green-500 hover:bg-green-600 text-white text-xs font-bold py-2 px-4 rounded-lg shadow-md flex items-center gap-2 uppercase transition-all">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" /></svg>
+                    Kongsi
+                </button>
+
+                <button onclick="window.print()" class="bg-gray-800 hover:bg-black text-white text-xs font-bold py-2 px-4 rounded-lg shadow-md flex items-center gap-2 uppercase transition-all"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg> Cetak</button>
             </div>
         </div>
     </header>
@@ -181,14 +198,51 @@
                     </div>
                 </div>
 
-                <div class="mt-8 border-t-2 border-dashed border-gray-300 pt-4 break-inside-avoid w-full">
-                    <h4 class="text-[8pt] font-bold text-gray-500 uppercase mb-2">Makluman & Pengesahan Telah Membaca:</h4>
-                    <div id="out-readers-list" class="flex flex-wrap gap-1.5 text-[7pt]">
-                        <span class="text-gray-400 italic">Memuatkan senarai...</span>
+                <div class="absolute bottom-4 left-0 w-full text-center"><p class="text-[8px] text-gray-300 uppercase tracking-[0.2em]">Dijana oleh SPARK Curai</p></div>
+            </div>
+            
+            <div class="a4-paper force-break hidden" id="acknowledgement-page">
+                <div class="paper-content flex flex-col h-full">
+                    <div class="border-b-2 border-black pb-2 mb-4">
+                        <h2 class="font-bold uppercase text-lg text-black">LAMPIRAN: PENGESAHAN BACAAN</h2>
+                        <p class="text-sm uppercase text-gray-700 w-full" id="ack-tajuk"></p>
+                    </div>
+                    
+                    <div class="mt-2 break-inside-avoid w-full flex-grow">
+                        <h4 class="text-[9pt] font-bold text-gray-500 uppercase mb-4">Senarai Individu Telah Membaca & Mengesahkan:</h4>
+                        <div id="out-readers-list" class="flex flex-wrap gap-3 text-[8pt]">
+                            <span class="text-gray-400 italic">Memuatkan senarai...</span>
+                        </div>
+                    </div>
+                    
+                    <div class="border-t border-gray-300 pt-1 mt-auto flex justify-between items-center text-[7px] text-gray-400 uppercase tracking-wider">
+                        <span>Dijana oleh SPARK Curai</span>
+                        <span>Tarikh Cetakan: <span class="print-date"></span></span>
                     </div>
                 </div>
+            </div>
 
-                <div class="absolute bottom-4 left-0 w-full text-center"><p class="text-[8px] text-gray-300 uppercase tracking-[0.2em]">Dijana oleh SPARK Curai</p></div>
+        </div>
+    </div>
+
+    <div id="share-modal" class="hidden fixed inset-0 z-[100] flex items-center justify-center modal-backdrop no-print">
+        <div class="bg-white rounded-2xl shadow-2xl p-6 w-[90%] max-w-lg relative transform transition-all">
+            <button onclick="closeShareModal()" class="absolute top-4 right-4 text-gray-400 hover:text-red-500">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+            
+            <h2 class="text-xl font-bold text-green-600 mb-2 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                Mesej Sedia Dikongsi!
+            </h2>
+            
+            <div class="text-sm text-gray-600 space-y-4 mt-4">
+                <p>Salin teks di bawah dan kongsikan ke dalam kumpulan WhatsApp, Telegram, atau e-mel untuk makluman.</p>
+                
+                <div class="bg-gray-50 p-2 rounded-lg border border-gray-300 shadow-inner flex flex-col gap-2">
+                    <textarea id="share-msg-input" readonly rows="9" class="w-full bg-transparent text-[11px] font-medium text-gray-700 outline-none resize-none"></textarea>
+                    <button onclick="copyFromModal()" id="btn-copy-modal" class="w-full bg-sky-600 hover:bg-sky-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-sm">Salin Teks</button>
+                </div>
             </div>
         </div>
     </div>
@@ -218,11 +272,18 @@
         const db = getFirestore(app); 
         const appId = firebaseConfig.projectId;
 
-        // Ambil ID dokumen daripada URL (contoh: viewminit.html?id=DOCUMENT_ID)
         const urlParams = new URLSearchParams(window.location.search);
         const docId = urlParams.get('id');
 
+        // Variables global untuk kongsi
+        window.globalProgName = "MINIT CURAI";
+        window.globalProgDate = "-";
+
         window.onload = async function() {
+            // Update semua kelas print-date
+            const currentDate = new Date().toLocaleDateString('ms-MY', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute:'2-digit' });
+            document.querySelectorAll('.print-date').forEach(el => el.textContent = currentDate);
+
             if (!docId) {
                 alert("Ralat: ID dokumen tidak dijumpai.");
                 document.getElementById('loader').innerHTML = "<p class='text-red-500 font-bold'>Dokumen Tidak Ditemui.</p>";
@@ -237,8 +298,9 @@
                     renderDocument(docSnap.data(), docId);
                     loadReaders(docId);
                     document.getElementById('loader').style.display = 'none';
-                    // Tunjuk palang pengesahan bacaan
+                    // Tunjuk palang pengesahan & butang kongsi
                     document.getElementById('read-acknowledgement-bar').classList.remove('hidden');
+                    document.getElementById('btn-share').classList.remove('hidden');
                 } else {
                     document.getElementById('loader').innerHTML = "<p class='text-red-500 font-bold'>Maaf, rekod telah dipadam atau tidak wujud.</p>";
                 }
@@ -253,20 +315,49 @@
             try {
                 const q = query(collection(db, `artifacts/${appId}/public/data/spark_minit_readers`), where("docId", "==", id));
                 const snap = await getDocs(q);
+                
+                // Kumpul data dan susun (sort) mengikut masa
+                const readersData = [];
+                snap.forEach(d => readersData.push(d.data()));
+                readersData.sort((a, b) => {
+                    const timeA = a.timestamp ? (a.timestamp.toDate ? a.timestamp.toDate().getTime() : new Date(a.timestamp).getTime()) : 0;
+                    const timeB = b.timestamp ? (b.timestamp.toDate ? b.timestamp.toDate().getTime() : new Date(b.timestamp).getTime()) : 0;
+                    return timeA - timeB;
+                });
+
                 const listEl = document.getElementById('out-readers-list');
                 listEl.innerHTML = "";
                 
-                if (snap.empty) {
+                if (readersData.length === 0) {
                     listEl.innerHTML = "<span class='text-gray-400 italic'>Belum ada individu yang membuat pengesahan bacaan.</span>";
+                    document.getElementById('acknowledgement-page').classList.add('hidden');
                     return;
                 }
                 
-                snap.forEach(documentSnap => {
-                    const data = documentSnap.data();
-                    const badge = document.createElement('span');
-                    badge.className = "bg-green-50 text-green-700 border border-green-200 px-2 py-0.5 rounded font-bold uppercase tracking-tight";
-                    badge.innerText = data.name;
-                    listEl.appendChild(badge);
+                document.getElementById('acknowledgement-page').classList.remove('hidden');
+                
+                readersData.forEach(data => {
+                    // Ekstrak & Format Tarikh/Masa
+                    let dateStr = "Tarikh tidak direkodkan";
+                    if(data.timestamp) {
+                        const dateObj = data.timestamp.toDate ? data.timestamp.toDate() : new Date(data.timestamp);
+                        dateStr = dateObj.toLocaleDateString('ms-MY', { day: '2-digit', month: 'short', year: 'numeric' }) + " | " + dateObj.toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit', hour12: true });
+                    }
+
+                    const item = document.createElement('div');
+                    item.className = "flex items-center justify-start bg-gray-50 border border-gray-200 p-2.5 rounded-lg shadow-sm w-full sm:w-[48%] md:w-[31%]";
+                    item.innerHTML = `
+                        <div class="flex items-center gap-3">
+                            <div class="bg-sky-100 text-sky-600 p-2 rounded-full flex-shrink-0">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                            </div>
+                            <div class="overflow-hidden">
+                                <p class="font-bold text-gray-800 text-[8pt] uppercase truncate w-full" title="${data.name}">${data.name}</p>
+                                <p class="text-[7pt] text-gray-500 font-medium">${dateStr}</p>
+                            </div>
+                        </div>
+                    `;
+                    listEl.appendChild(item);
                 });
             } catch (e) { console.error("Gagal load readers", e); }
         }
@@ -291,7 +382,6 @@
                 if (!snapUser.empty) {
                     readerName = snapUser.docs[0].data().name;
                 } else {
-                    // Jika tiada dalam pangkalan data, minta taip nama secara manual
                     readerName = prompt("Rekod IC tidak ditemui di dalam sistem SPARK.\n\nSila masukkan NAMA PENUH anda untuk direkodkan sebagai pembaca:");
                     if(!readerName || readerName.trim() === "") {
                         btn.innerText = "Sahkan"; btn.disabled = false;
@@ -322,9 +412,55 @@
             }
         }
 
+        // FUNGSI SHARE KE WHATSAPP/TELEGRAM
+        window.shareRecord = function() {
+            const baseUrl = window.location.origin + window.location.pathname;
+            const link = baseUrl + `?id=${docId}`;
+
+            const msg = `Perkara: Makluman Minit Curai - ${window.globalProgName}\n\nTuan/Puan,\n\nDisertakan pautan Minit Curai bagi mesyuarat/program yang telah dilaksanakan pada ${window.globalProgDate} untuk makluman dan tindakan pihak tuan/puan.\n\nPautan Dokumen:\n${link}\n\nMohon kerjasama tuan/puan untuk memasukkan No. Kad Pengenalan (tanpa sengkang) di ruangan bawah dalam pautan tersebut sebagai pengesahan bahawa minit ini telah dibaca dan diambil maklum.\n\nTerima kasih.`;
+
+            const inputEl = document.getElementById('share-msg-input');
+            if(inputEl) inputEl.value = msg;
+            document.getElementById('share-modal').classList.remove('hidden');
+
+            // Auto-copy bila modal dibuka
+            navigator.clipboard.writeText(msg).then(() => {
+                const btn = document.getElementById('btn-copy-modal');
+                btn.innerText = "Telah Disalin!";
+                btn.classList.replace('bg-sky-600', 'bg-green-600');
+                btn.classList.replace('hover:bg-sky-700', 'hover:bg-green-700');
+                setTimeout(() => {
+                    btn.innerText = "Salin Teks";
+                    btn.classList.replace('bg-green-600', 'bg-sky-600');
+                    btn.classList.replace('hover:bg-green-700', 'hover:bg-sky-700');
+                }, 3000);
+            }).catch(err => console.error("Gagal auto-copy:", err));
+        }
+
+        window.closeShareModal = function() { document.getElementById('share-modal').classList.add('hidden'); }
+
+        window.copyFromModal = function() {
+            const inputEl = document.getElementById('share-msg-input');
+            inputEl.select();
+            navigator.clipboard.writeText(inputEl.value).then(() => {
+                const btn = document.getElementById('btn-copy-modal');
+                btn.innerText = "Telah Disalin!";
+                btn.classList.replace('bg-sky-600', 'bg-green-600');
+                btn.classList.replace('hover:bg-sky-700', 'hover:bg-green-700');
+                setTimeout(() => {
+                    btn.innerText = "Salin Teks";
+                    btn.classList.replace('bg-green-600', 'bg-sky-600');
+                    btn.classList.replace('hover:bg-green-700', 'hover:bg-sky-700');
+                }, 2000);
+            });
+        }
+
         function renderDocument(data, id) {
             // Render Text Fields
-            document.getElementById('out-tajuk').textContent = (data.tajuk || "").toUpperCase();
+            const tajukProgram = (data.tajuk || "").toUpperCase();
+            document.getElementById('out-tajuk').textContent = tajukProgram;
+            document.getElementById('ack-tajuk').textContent = "PROGRAM: " + tajukProgram; 
+            
             document.getElementById('out-tempat').textContent = (data.tempat || "").toUpperCase();
             document.getElementById('out-anjuran').textContent = (data.anjuran || "").toUpperCase();
             document.getElementById('out-nama').textContent = (data.nama || "").toUpperCase();
@@ -353,6 +489,10 @@
                 }
                 document.getElementById('out-tarikh').textContent = tarikhText;
             }
+
+            // Update variables untuk fungsi Kongsi
+            window.globalProgName = tajukProgram || "MINIT CURAI";
+            window.globalProgDate = tarikhText || "-";
 
             // Masa Logic
             if(data.masa) { 
@@ -502,6 +642,11 @@
                     }
                 });
             }, 100);
+            
+            // Susun Halaman Pengesahan Di Belakang Skali
+            const pdfWrapper = document.getElementById('pdf-wrapper');
+            const ackPage = document.getElementById('acknowledgement-page');
+            pdfWrapper.appendChild(ackPage);
         }
     </script>
 </body>
