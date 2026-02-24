@@ -143,9 +143,13 @@
         </button>
 
         <div id="noti-dropdown" class="absolute right-0 mt-2 w-72 sm:w-80 bg-white rounded-xl shadow-2xl border border-gray-100 hidden z-50 overflow-hidden transform opacity-0 scale-95 transition-all duration-200 origin-top-right">
-            <div class="px-4 py-3 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+           <div class="px-4 py-3 border-b border-gray-100 flex justify-between items-center bg-gray-50">
                 <h3 class="text-xs font-bold text-gray-700 uppercase tracking-wider">Notifikasi</h3>
-                <button onclick="markAllAsRead()" class="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 hover:underline uppercase">Tanda Semua Dibaca</button>
+                <div class="flex items-center gap-2">
+                    <button onclick="markAllAsRead()" class="text-[9px] font-bold text-indigo-600 hover:text-indigo-800 hover:underline uppercase" title="Tanda Semua Dibaca">Baca Semua</button>
+                    <span class="text-gray-300 text-[10px]">|</span>
+                    <button onclick="clearAllReadNotifications()" class="text-[9px] font-bold text-red-500 hover:text-red-700 hover:underline uppercase" title="Padam Semua Yang Telah Dibaca">Padam (Clear)</button>
+                </div>
             </div>
             <div id="noti-list" class="max-h-72 overflow-y-auto bg-white divide-y divide-gray-50">
                 <div class="p-4 text-center text-xs text-gray-400 uppercase">Memuatkan...</div>
@@ -2598,7 +2602,7 @@ window.renderNotifications = function(notis, unreadCount) {
 
     list.innerHTML = '';
     if (notis.length === 0) {
-        list.innerHTML = '<div class="p-5 text-center text-xs font-medium text-gray-400 uppercase tracking-wide">Tiada Notifikasi Baharu.</div>';
+        list.innerHTML = '<div class="p-5 text-center text-xs font-medium text-gray-400 uppercase tracking-wide">Tiada Notifikasi.</div>';
         return;
     }
 
@@ -2616,21 +2620,62 @@ window.renderNotifications = function(notis, unreadCount) {
         if (noti.type === 'program') iconSvg = `<svg class="w-4 h-4 text-teal-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>`;
         else if (noti.type === 'warning') iconSvg = `<svg class="w-4 h-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>`;
 
-        // Hantar ID sahaja bila diklik
         list.innerHTML += `
             <div onclick="handleNotificationClick('${noti.id}')" class="p-4 ${bgClass} hover:bg-gray-50 cursor-pointer transition-colors relative flex gap-3 group">
                 <div class="mt-0.5 flex-shrink-0 bg-white p-1.5 rounded-full shadow-sm border border-gray-100 group-hover:scale-110 transition-transform">
                     ${iconSvg}
                 </div>
-                <div class="flex-1 pr-4">
-                    <p class="text-[11px] font-bold text-gray-800 mb-0.5 uppercase">${noti.title}</p>
+                <div class="flex-1 pr-6"> <p class="text-[11px] font-bold text-gray-800 mb-0.5 uppercase">${noti.title}</p>
                     <p class="text-[11px] text-gray-600 line-clamp-2 leading-snug">${noti.message}</p>
                     <p class="text-[9px] text-gray-400 mt-1.5 font-bold uppercase tracking-wider">${timeStr}</p>
                 </div>
+                
                 <div class="absolute right-4 top-1/2 -translate-y-1/2 h-2 w-2 bg-red-500 rounded-full ${dotClass}"></div>
+                
+                <button onclick="deleteNotification(event, '${noti.id}')" class="absolute top-2 right-2 text-gray-300 hover:text-red-500 bg-white hover:bg-red-50 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-all border border-transparent hover:border-red-200" title="Padam Notifikasi Ini">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
             </div>
         `;
     });
+}
+
+// FUNGSI 1: PADAM INDIVIDU (Satu-satu)
+window.deleteNotification = async function(event, id) {
+    event.stopPropagation(); // Halang modal/popup dari terbuka bila butang X diklik
+    try {
+        await deleteDoc(doc(db, `artifacts/${appId}/public/data/spark_notifications`, id));
+    } catch(e) { 
+        console.error("Error delete noti:", e); 
+    }
+}
+
+// FUNGSI 2: PADAM SEMUA YANG DAH DIBACA
+window.clearAllReadNotifications = async function() {
+    if(!confirm("Adakah anda pasti mahu memadam SEMUA notifikasi yang telah dibaca?")) return;
+    
+    try {
+        const q = query(
+            collection(db, `artifacts/${appId}/public/data/spark_notifications`), 
+            where("ic", "==", currentUserIc), 
+            where("isRead", "==", true)
+        );
+        const snap = await getDocs(q);
+        
+        if (snap.empty) {
+            alert("Tiada notifikasi yang telah dibaca untuk dipadam.");
+            return;
+        }
+
+        const batch = writeBatch(db);
+        snap.forEach(d => {
+            batch.delete(d.ref);
+        });
+        await batch.commit();
+        
+    } catch(e) { 
+        console.error("Error clear all noti:", e); 
+    }
 }
 
 window.toggleNotification = function() {
