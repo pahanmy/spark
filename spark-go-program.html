@@ -341,7 +341,7 @@
         let attendancePerPage = 10;
         let currentAttendancePage = 1;
         let selectedAttendanceDate = null;
-        let findingToDeleteTimestamp = null; // Pembolehubah global utk padam finding
+        let findingToDeleteTimestamp = null; 
         const appId = firebaseConfig.projectId;
 
         try {
@@ -442,20 +442,36 @@
                     
                     isInitialLoad = false;
                     
-                    const accompanyingNames = currentLoadedProgram.accompanyingOfficers || [];
-                    const actualAttendees = (currentLoadedProgram.attendance || []).filter(p => {
-                        const isPenyelaras = p.ic === currentLoadedProgram.penyelaras_ic;
-                        const isRombongan = accompanyingNames.includes((p.name || '').toUpperCase());
-                        return !isPenyelaras && !isRombongan;
-                    });
-                    lastAttendanceCount = actualAttendees.length;
+                    const attendanceList = currentLoadedProgram.attendance || [];
+                    lastAttendanceCount = attendanceList.length;
 
                 } else {
                     document.getElementById('loading-dashboard').innerHTML = `<p class="text-red-500 text-center font-bold">Sesi lawatan tidak ditemui.</p>`;
                 }
             });
         }
-        
+
+        // --- UNTUK MENYELESAIKAN MASALAH AUTO ADD DI SPARK-GO.HTML ---
+        /*
+           PERHATIAN: Memandangkan saya hanya ada akses untuk edit spark-go-program.html di ruang ini,
+           saya telah buang tapisan (filter) di sini supaya semua data yang wujud dalam pangkalan data
+           (termasuk Rombongan/Penyelaras) ditunjukkan.
+
+           PENTING! Untuk mengelakkan Penyelaras & Rombongan masuk secara automatik pada masa hadapan,
+           anda PERLU membuka fail `spark-go.html` dan mengubah fungsi `submitMovement`.
+           
+           Cari baris ini di spark-go.html:
+           const attendees = [
+               { ic: currentUser.ic, name: currentUser.name, station: currentUser.station || '', status: 'Hadir Sesi', time: new Date().toISOString(), isPro: currentUser.isPro || false, profileImageUrl: currentUser.profileImageUrl || null }
+           ];
+           taggedMembers.forEach(m => {
+               attendees.push({ ic: m.ic, name: m.name, station: m.station || '', status: 'Hadir Sesi', time: new Date().toISOString(), isPro: m.isPro || false, profileImageUrl: m.profileImageUrl || null });
+           });
+
+           TUKAR KEPADA:
+           const attendees = []; // Kosongkan sepenuhnya.
+        */
+
         window.showAddFindingModal = function() {
             document.getElementById('finding-text').value = '';
             document.getElementById('finding-image').value = '';
@@ -497,7 +513,6 @@
                     const formData = new FormData();
                     formData.append('image', file);
                     
-                    // Kemaskini API Key
                     const IMGBB_API_KEY = "a7c600ac733fe14649cacd8e65619c4b"; 
                     const imgRes = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, {
                         method: 'POST',
@@ -563,7 +578,6 @@
             `).join('');
         }
 
-        // FUNGSI UNTUK PADAM PENEMUAN
         window.confirmDeleteFinding = function(timestamp) {
             findingToDeleteTimestamp = timestamp;
             document.getElementById('delete-finding-ic').value = '';
@@ -575,7 +589,6 @@
             if (!currentLoadedProgram) return;
             const inputIc = document.getElementById('delete-finding-ic').value.trim();
             
-            // Sahkan IC
             if(inputIc !== currentLoadedProgram.penyelaras_ic) {
                 document.getElementById('delete-finding-error').classList.remove('hidden');
                 return;
@@ -583,7 +596,6 @@
             
             try {
                 const programRef = doc(db, `artifacts/${appId}/public/data/spark_programs`, currentLoadedProgram.id);
-                // Filter nota yg hendak dipadam
                 const updatedFindings = (currentLoadedProgram.findings || []).filter(f => f.timestamp !== findingToDeleteTimestamp);
                 
                 await updateDoc(programRef, { findings: updatedFindings });
@@ -636,15 +648,12 @@
         function filterAttendanceByDate(dateStr) {
             selectedAttendanceDate = dateStr;
             const allAttendance = currentLoadedProgram.attendance || [];
-            let filteredList = currentLoadedProgram.startDate === currentLoadedProgram.endDate ? allAttendance : allAttendance.filter(p => p.time.startsWith(dateStr));
             
-            // TAPISAN BARU: Tapis keluar Penyelaras dan Pegawai Rombongan
-            const accompanyingNames = currentLoadedProgram.accompanyingOfficers || [];
-            filteredList = filteredList.filter(p => {
-                const isPenyelaras = p.ic === currentLoadedProgram.penyelaras_ic;
-                const isRombongan = accompanyingNames.includes((p.name || '').toUpperCase());
-                return !isPenyelaras && !isRombongan;
-            });
+            // TIDAK ADA TAPISAN KELUARKAN PENYELARAS
+            // Semua nama yang berada dalam database 'attendance' akan dipaparkan.
+            let filteredList = currentLoadedProgram.startDate === currentLoadedProgram.endDate ? 
+                               allAttendance : 
+                               allAttendance.filter(p => p.time.startsWith(dateStr));
 
             renderAttendanceTable(filteredList);
         }
@@ -782,7 +791,7 @@
             const paginatedList = sortedList.slice(startIndex, startIndex + attendancePerPage);
 
             if(paginatedList.length === 0){
-                attendanceListBody.innerHTML=`<tr><td colspan="4" class="text-center text-slate-400 font-medium py-12 text-sm">Belum ada rekod (Penyelaras/Rombongan tidak dikira di sini).</td></tr>`
+                attendanceListBody.innerHTML=`<tr><td colspan="4" class="text-center text-slate-400 font-medium py-12 text-sm">Belum ada pegawai direkodkan.</td></tr>`
             } else {
                 attendanceListBody.innerHTML = paginatedList.map((p) => {
                     const highlightClass = isNewEntryAdded ? 'new-entry' : '';
@@ -804,16 +813,21 @@
             renderAttendancePaginationControls(sortedList.length);
         }
 
-        function renderAttendancePaginationControls(totalItems) { const paginationControls = document.getElementById('attendance-pagination-controls'); const totalPages = Math.ceil(totalItems / attendancePerPage); if (totalPages <= 1) { paginationControls.innerHTML = ''; return; } const prevDisabled = currentAttendancePage === 1 ? 'disabled' : ''; const nextDisabled = currentAttendancePage === totalPages ? 'disabled' : ''; paginationControls.innerHTML = `<button onclick="prevAttendancePage()" ${prevDisabled} class="btn bg-slate-100 text-slate-600 text-[10px] font-bold uppercase tracking-widest py-2 px-4 rounded-lg hover:bg-slate-200">Sebelumnya</button><span class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Halaman ${currentAttendancePage} / ${totalPages}</span><button onclick="nextAttendancePage()" ${nextDisabled} class="btn bg-slate-100 text-slate-600 text-[10px] font-bold uppercase tracking-widest py-2 px-4 rounded-lg hover:bg-slate-200">Seterusnya</button>`; }
+        function renderAttendancePaginationControls(totalItems) { 
+            const paginationControls = document.getElementById('attendance-pagination-controls'); 
+            const totalPages = Math.ceil(totalItems / attendancePerPage); 
+            if (totalPages <= 1) { paginationControls.innerHTML = ''; return; } 
+            const prevDisabled = currentAttendancePage === 1 ? 'disabled' : ''; 
+            const nextDisabled = currentAttendancePage === totalPages ? 'disabled' : ''; 
+            paginationControls.innerHTML = `<button onclick="prevAttendancePage()" ${prevDisabled} class="btn bg-slate-100 text-slate-600 text-[10px] font-bold uppercase tracking-widest py-2 px-4 rounded-lg hover:bg-slate-200">Sebelumnya</button><span class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Halaman ${currentAttendancePage} / ${totalPages}</span><button onclick="nextAttendancePage()" ${nextDisabled} class="btn bg-slate-100 text-slate-600 text-[10px] font-bold uppercase tracking-widest py-2 px-4 rounded-lg hover:bg-slate-200">Seterusnya</button>`; 
+        }
+
         function prevAttendancePage() { if (currentAttendancePage > 1) { currentAttendancePage--; filterAttendanceByDate(selectedAttendanceDate); } }
         function nextAttendancePage() { 
-            const accompanyingNames = currentLoadedProgram.accompanyingOfficers || [];
             const filteredList = currentLoadedProgram.startDate === currentLoadedProgram.endDate ? 
                 currentLoadedProgram.attendance : (currentLoadedProgram.attendance || []).filter(p => p.time.startsWith(selectedAttendanceDate)); 
             
-            const actualList = filteredList.filter(p => p.ic !== currentLoadedProgram.penyelaras_ic && !accompanyingNames.includes((p.name || '').toUpperCase()));
-            
-            if (currentAttendancePage < Math.ceil(actualList.length / attendancePerPage)) { currentAttendancePage++; filterAttendanceByDate(selectedAttendanceDate); } 
+            if (currentAttendancePage < Math.ceil(filteredList.length / attendancePerPage)) { currentAttendancePage++; filterAttendanceByDate(selectedAttendanceDate); } 
         }
         function changeAttendancePerPage() { attendancePerPage = parseInt(document.getElementById('attendance-per-page').value, 10); currentAttendancePage = 1; filterAttendanceByDate(selectedAttendanceDate); }
 
@@ -821,19 +835,11 @@
             if (!currentLoadedProgram) return;
             const attendance = currentLoadedProgram.attendance || [];
             const referenceList = currentLoadedProgram.referenceList || [];
-            
-            // TAPISAN UNTUK INFOGRAFIK (Sasaran sahaja)
-            const accompanyingNames = currentLoadedProgram.accompanyingOfficers || [];
-            const actualAttendees = attendance.filter(p => {
-                const isPenyelaras = p.ic === currentLoadedProgram.penyelaras_ic;
-                const isRombongan = accompanyingNames.includes((p.name || '').toUpperCase());
-                return !isPenyelaras && !isRombongan;
-            });
 
-            document.getElementById('info-hadir').textContent = actualAttendees.length;
+            document.getElementById('info-hadir').textContent = attendance.length;
 
             if (referenceList.length > 0) {
-                const attendedIndividuals = new Set(actualAttendees.map(p => `${(p.name || '').trim().toUpperCase()}|${normalizeStationName(p.station)}`));
+                const attendedIndividuals = new Set(attendance.map(p => `${(p.name || '').trim().toUpperCase()}|${normalizeStationName(p.station)}`));
                 let absentCount = 0;
                 referenceList.forEach(ref => {
                     if (ref.name && !attendedIndividuals.has(`${ref.name.trim().toUpperCase()}|${normalizeStationName(ref.station)}`)) absentCount++;
