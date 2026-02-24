@@ -45,18 +45,41 @@
         .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #0284c7; border-radius: 3px; }
 
-        /* --- PRINT CSS: Elak Terpotong & Papar A4 Bersih --- */
+        /* --- PRINT CSS: Fix terpotong & memaparkan A4 sempurna mengikut standard minitcurai --- */
         .break-inside-avoid { page-break-inside: avoid !important; break-inside: avoid !important; }
 
         @media print {
             .no-print, header, #read-acknowledgement-bar { display: none !important; }
-            body, html { height: auto !important; overflow: visible !important; background-color: white !important; margin: 0; padding: 0; }
-            #pdf-wrapper { width: 100% !important; margin: 0 !important; padding: 0 !important; box-shadow: none !important; }
-            .a4-paper { 
-                width: 100% !important; margin: 0 !important; padding: 10mm 15mm !important; 
-                box-shadow: none !important; min-height: auto !important; height: auto !important;
-                display: block !important; page-break-after: always !important; page-break-inside: avoid;
+            
+            body, html, .flex-1, #main-scroll-area { 
+                height: auto !important; 
+                overflow: visible !important; 
+                width: 100% !important;
+                display: block !important;
+                background-color: white !important; 
+                margin: 0 !important; 
+                padding: 0 !important; 
             }
+            
+            #pdf-wrapper { 
+                width: 100% !important; 
+                margin: 0 !important; 
+                padding: 0 !important; 
+                box-shadow: none !important; 
+            }
+            
+            .a4-paper { 
+                width: 100% !important; 
+                margin: 0 !important; 
+                padding: 10mm 15mm !important; 
+                box-shadow: none !important; 
+                min-height: auto !important; 
+                height: auto !important;
+                display: block !important; 
+                page-break-after: auto !important; 
+                page-break-inside: auto !important;
+            }
+            
             .force-break { page-break-before: always !important; margin-top: 0 !important; }
             * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         }
@@ -181,16 +204,9 @@
                         </div>
                     </div>
 
-                    <div class="mt-4 border-t-2 border-dashed border-gray-300 pt-4 break-inside-avoid w-full">
-                        <h4 class="text-[8pt] font-bold text-gray-500 uppercase mb-2">Makluman & Pengesahan Telah Membaca:</h4>
-                        <div id="out-readers-list" class="flex flex-wrap gap-1.5 text-[7pt]">
-                            <span class="text-gray-400 italic">Memuatkan senarai...</span>
-                        </div>
-                    </div>
-
                     <div class="border-t border-gray-300 pt-1 mt-4 flex justify-between items-center text-[7px] text-gray-400 uppercase tracking-wider">
                         <span>Dijana oleh SPARK OPR</span>
-                        <span>Tarikh Cetakan: <span id="print-date"></span></span>
+                        <span>Tarikh Cetakan: <span class="print-date"></span></span>
                     </div>
                 </div>
             </div>
@@ -233,6 +249,27 @@
                     </div>
                 </div>
             </div>
+            
+            <div class="a4-paper force-break hidden" id="acknowledgement-page">
+                <div class="paper-content flex flex-col h-full">
+                    <div class="border-b-2 border-black pb-2 mb-4">
+                        <h2 class="font-bold uppercase text-lg text-black">LAMPIRAN: PENGESAHAN BACAAN</h2>
+                        <p class="text-sm uppercase text-gray-700 w-full" id="ack-tajuk"></p>
+                    </div>
+                    
+                    <div class="mt-2 break-inside-avoid w-full flex-grow">
+                        <h4 class="text-[9pt] font-bold text-gray-500 uppercase mb-4">Senarai Individu Telah Membaca & Mengesahkan:</h4>
+                        <div id="out-readers-list" class="flex flex-wrap gap-2 text-[8pt]">
+                            <span class="text-gray-400 italic">Memuatkan senarai...</span>
+                        </div>
+                    </div>
+                    
+                    <div class="border-t border-gray-300 pt-1 mt-auto flex justify-between items-center text-[7px] text-gray-400 uppercase tracking-wider">
+                        <span>Dijana oleh SPARK OPR</span>
+                        <span>Tarikh Cetakan: <span class="print-date"></span></span>
+                    </div>
+                </div>
+            </div>
 
         </div>
     </div>
@@ -240,7 +277,7 @@
     <div id="read-acknowledgement-bar" class="fixed bottom-0 w-full bg-white border-t border-gray-200 shadow-[0_-4px_15px_rgba(0,0,0,0.1)] p-4 z-50 no-print flex flex-col sm:flex-row justify-center items-center gap-3 hidden">
         <span class="text-sm font-bold text-gray-700">Sahkan anda telah membaca laporan ini:</span>
         <div class="flex gap-2 w-full sm:w-auto">
-            <input type="number" id="reader-ic" placeholder="No. Kad Pengenalan" class="border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 flex-1 sm:w-64">
+            <input type="text" id="reader-ic" pattern="\d*" maxlength="12" oninput="this.value = this.value.replace(/[^0-9]/g, '');" placeholder="No. Kad Pengenalan (Nombor)" class="border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 flex-1 sm:w-64">
             <button id="btn-confirm-read" onclick="confirmRead()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded shadow transition-colors text-sm whitespace-nowrap">Sahkan</button>
         </div>
     </div>
@@ -262,12 +299,13 @@
         const db = getFirestore(app); 
         const appId = firebaseConfig.projectId;
 
-        // Ambil ID dokumen daripada URL (contoh: viewopr.html?id=DOCUMENT_ID)
         const urlParams = new URLSearchParams(window.location.search);
         const docId = urlParams.get('id');
 
         window.onload = async function() {
-            document.getElementById('print-date').textContent = new Date().toLocaleDateString('ms-MY', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute:'2-digit' });
+            // Update semua kelas print-date
+            const currentDate = new Date().toLocaleDateString('ms-MY', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute:'2-digit' });
+            document.querySelectorAll('.print-date').forEach(el => el.textContent = currentDate);
 
             if (!docId) {
                 alert("Ralat: ID dokumen OPR tidak dijumpai.");
@@ -283,7 +321,6 @@
                     renderDocument(docSnap.data(), docId);
                     loadReaders(docId);
                     document.getElementById('loader').style.display = 'none';
-                    // Tunjuk palang pengesahan bacaan
                     document.getElementById('read-acknowledgement-bar').classList.remove('hidden');
                 } else {
                     document.getElementById('loader').innerHTML = "<p class='text-red-500 font-bold'>Maaf, rekod OPR telah dipadam atau tidak wujud.</p>";
@@ -304,13 +341,18 @@
                 
                 if (snap.empty) {
                     listEl.innerHTML = "<span class='text-gray-400 italic'>Belum ada individu yang membuat pengesahan bacaan.</span>";
+                    // Jika belum ada pengesahan, tidak perlu tunjuk helaian pengesahan
+                    document.getElementById('acknowledgement-page').classList.add('hidden');
                     return;
                 }
+                
+                // Pastikan helaian pengesahan ditunjukkan jika wujud pembaca
+                document.getElementById('acknowledgement-page').classList.remove('hidden');
                 
                 snap.forEach(documentSnap => {
                     const data = documentSnap.data();
                     const badge = document.createElement('span');
-                    badge.className = "bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded font-bold uppercase tracking-tight";
+                    badge.className = "bg-indigo-50 text-indigo-700 border border-indigo-200 px-3 py-1 rounded font-bold uppercase tracking-tight";
                     badge.innerText = data.name;
                     listEl.appendChild(badge);
                 });
@@ -329,7 +371,6 @@
             btn.innerText = "Sila Tunggu..."; btn.disabled = true;
 
             try {
-                // Semak IC dalam SPARK Participants
                 const qUser = query(collection(db, `artifacts/${appId}/public/data/spark_participants`), where("ic", "==", icInput));
                 const snapUser = await getDocs(qUser);
                 
@@ -344,7 +385,6 @@
                     }
                 }
 
-                // Simpan Rekod Bacaan
                 const readerDocId = docId + "_" + icInput;
                 await setDoc(doc(db, `artifacts/${appId}/public/data/spark_opr_readers`, readerDocId), {
                     docId: docId,
@@ -356,7 +396,7 @@
                 alert("Terima kasih! Pengesahan bacaan anda telah berjaya direkodkan.");
                 document.getElementById('read-acknowledgement-bar').style.display = 'none';
                 
-                loadReaders(docId); // Refresh list
+                loadReaders(docId); 
             } catch (e) {
                 console.error(e);
                 alert("Ralat semasa menyimpan pengesahan. Sila cuba lagi.");
@@ -366,22 +406,20 @@
         }
 
         function renderDocument(data, id) {
-            // Header Organisasi
             if(data.orgName) document.getElementById('out-org-name').textContent = data.orgName;
             if(data.subOrgName) document.getElementById('out-sub-org').textContent = data.subOrgName;
             if(data.logoUrl) document.getElementById('header-logo').src = data.logoUrl;
             
-            // Latar Belakang (Watermark)
             if(data.backgroundUrl) {
                 document.getElementById('paper-bg').style.backgroundImage = `url('${data.backgroundUrl}')`;
                 document.getElementById('paper-bg').style.opacity = data.backgroundOpacity || 0.1;
             }
 
-            // Maklumat Program
-            document.getElementById('out-tajuk').textContent = (data.tajuk || "").toUpperCase();
+            const tajukProgram = (data.tajuk || "").toUpperCase();
+            document.getElementById('out-tajuk').textContent = tajukProgram;
+            document.getElementById('ack-tajuk').textContent = "PROGRAM: " + tajukProgram; // Tajuk untuk halaman pengesahan
             document.getElementById('out-tempat').textContent = (data.tempat || "").toUpperCase();
             
-            // Tarikh
             let dateDisplay = "";
             if(data.tarikhMula) {
                 const d1 = new Date(data.tarikhMula); const day1 = d1.getDate(); const month1 = d1.toLocaleDateString('ms-MY', { month: 'short' }).toUpperCase(); const year1 = d1.getFullYear();
@@ -394,18 +432,15 @@
             }
             document.getElementById('out-tarikh').textContent = dateDisplay;
 
-            // Kandungan Teks (Fokus, Impak, Isu) - Kekalkan struktur bullet jika ada
             document.getElementById('out-objektif').textContent = data.objektif || "";
             document.getElementById('out-dapatan').textContent = data.dapatan || "";
             document.getElementById('out-isu').textContent = data.isu || "";
 
-            // Catatan Tambahan
             if(data.showCatatan) {
                 document.getElementById('row-catatan').classList.remove('hidden');
                 document.getElementById('out-catatan').textContent = data.catatan || "";
             }
 
-            // Gambar Laporan
             const showCaption = data.showCaption !== false;
             const imgGrid = document.getElementById('preview-image-grid');
             if (data.imageMode === 4) {
@@ -428,15 +463,13 @@
                     hasAnyImage = true;
                 }
             }
-            if(!hasAnyImage) { imgGrid.parentElement.classList.add('hidden'); } // Sorok kotak gambar jika tiada gambar
+            if(!hasAnyImage) { imgGrid.parentElement.classList.add('hidden'); }
 
-            // Pautan & QR Dokumen
             if (data.showLinkDokumen && data.linkDokumen) {
                 document.getElementById('out-link-container').classList.remove('hidden');
                 document.getElementById('out-qr-dokumen').src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(data.linkDokumen)}`;
             }
 
-            // Tanda Tangan & Disediakan Oleh
             document.getElementById('out-nama').textContent = (data.nama || "").toUpperCase();
             document.getElementById('out-jawatan').textContent = (data.jawatan || "").toUpperCase();
             if (data.showSignature && data.signatureUrl && data.signatureUrl.length > 10) {
@@ -444,13 +477,16 @@
                 document.getElementById('out-sig-img').classList.remove('hidden');
             }
 
-            // Barcode
             JsBarcode("#barcode", data.serialNumber || id.substring(0,8).toUpperCase(), { format: "CODE128", width: 1, height: 15, displayValue: true, fontSize: 8, margin: 0, textMargin: 1 });
 
-            // Kehadiran (Senarai Lampiran)
             if (data.attendanceList && data.attendanceList.length > 0) {
                 renderAttendanceTable(data.attendanceList, data.tajuk);
             }
+            
+            // Pindahkan halaman acknowledgement ke belakang div #pdf-wrapper secara fizikal
+            const pdfWrapper = document.getElementById('pdf-wrapper');
+            const ackPage = document.getElementById('acknowledgement-page');
+            pdfWrapper.appendChild(ackPage);
         }
 
         function renderAttendanceTable(attData, tajukProgram) {
@@ -465,9 +501,8 @@
                 const pageEl = templatePage.cloneNode(true);
                 pageEl.id = `generated-att-page-${i}`;
                 pageEl.classList.remove('hidden');
-                pageEl.classList.add('force-break'); // Paksa turun ke muka surat baharu
+                pageEl.classList.add('force-break'); 
                 
-                // Masukkan Tajuk & Tarikh Cetakan
                 pageEl.querySelectorAll('.att-subtitle-el').forEach(el => el.textContent = "PROGRAM: " + (tajukProgram || ""));
                 pageEl.querySelectorAll('.att-print-date-el').forEach(el => el.textContent = nowStr);
 
@@ -498,7 +533,6 @@
                     tbody.appendChild(tr);
                 });
 
-                // Paparkan jumlah keseluruhan pada muka surat terakhir senarai kehadiran
                 const footerDiv = pageEl.querySelector('.att-footer-count');
                 if (i === totalPages - 1) {
                     footerDiv.style.visibility = 'visible';
