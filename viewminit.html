@@ -13,7 +13,7 @@
         body { font-family: 'Poppins', sans-serif; background-color: #f3f4f6; margin: 0; padding: 0; }
         
         /* A4 Paper */
-        #pdf-wrapper { width: 210mm; margin: 20px auto; background: white; transition: all 0.3s ease; }
+        #pdf-wrapper { width: 210mm; margin: 20px auto 100px auto; background: white; transition: all 0.3s ease; }
         .a4-paper { 
             width: 210mm; 
             min-height: 297mm; 
@@ -84,7 +84,7 @@
         }
 
         @media print {
-            .no-print, header { display: none !important; }
+            .no-print, header, #read-acknowledgement-bar { display: none !important; }
             body, html {
                 height: auto !important;
                 overflow: visible !important;
@@ -111,7 +111,7 @@
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
-<body class="flex flex-col h-screen overflow-hidden">
+<body class="flex flex-col h-screen overflow-hidden relative">
 
     <div id="loader">
         <div class="spinner mb-4"></div>
@@ -126,7 +126,7 @@
                 </div>
                 <div>
                     <h1 class="text-xl font-bold text-sky-700 uppercase tracking-wide">MINIT CURAI</h1>
-                    <p class="text-xs text-gray-500">Dokumen Digital</p>
+                    <p class="text-xs text-gray-500">Dokumen Digital SPARK</p>
                 </div>
             </div>
             <div class="flex items-center gap-2">
@@ -181,14 +181,29 @@
                     </div>
                 </div>
 
+                <div class="mt-8 border-t-2 border-dashed border-gray-300 pt-4 break-inside-avoid w-full">
+                    <h4 class="text-[8pt] font-bold text-gray-500 uppercase mb-2">Makluman & Pengesahan Telah Membaca:</h4>
+                    <div id="out-readers-list" class="flex flex-wrap gap-1.5 text-[7pt]">
+                        <span class="text-gray-400 italic">Memuatkan senarai...</span>
+                    </div>
+                </div>
+
                 <div class="absolute bottom-4 left-0 w-full text-center"><p class="text-[8px] text-gray-300 uppercase tracking-[0.2em]">Dijana oleh SPARK Curai</p></div>
             </div>
         </div>
     </div>
 
+    <div id="read-acknowledgement-bar" class="fixed bottom-0 w-full bg-white border-t border-gray-200 shadow-[0_-4px_15px_rgba(0,0,0,0.1)] p-4 z-50 no-print flex flex-col sm:flex-row justify-center items-center gap-3 hidden">
+        <span class="text-sm font-bold text-gray-700">Sahkan anda telah membaca minit ini:</span>
+        <div class="flex gap-2 w-full sm:w-auto">
+            <input type="number" id="reader-ic" placeholder="No. Kad Pengenalan" class="border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 flex-1 sm:w-64">
+            <button id="btn-confirm-read" onclick="confirmRead()" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded shadow transition-colors text-sm whitespace-nowrap">Sahkan</button>
+        </div>
+    </div>
+
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, collection, query, where, getDocs, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Konfigurasi Pangkalan Data
         const firebaseConfig = { 
@@ -220,7 +235,10 @@
 
                 if (docSnap.exists()) {
                     renderDocument(docSnap.data(), docId);
+                    loadReaders(docId);
                     document.getElementById('loader').style.display = 'none';
+                    // Tunjuk palang pengesahan bacaan
+                    document.getElementById('read-acknowledgement-bar').classList.remove('hidden');
                 } else {
                     document.getElementById('loader').innerHTML = "<p class='text-red-500 font-bold'>Maaf, rekod telah dipadam atau tidak wujud.</p>";
                 }
@@ -229,6 +247,80 @@
                 document.getElementById('loader').innerHTML = "<p class='text-red-500 font-bold'>Ralat sambungan pangkalan data.</p>";
             }
         };
+
+        // FUNGSI LOAD PEMBACA
+        async function loadReaders(id) {
+            try {
+                const q = query(collection(db, `artifacts/${appId}/public/data/spark_minit_readers`), where("docId", "==", id));
+                const snap = await getDocs(q);
+                const listEl = document.getElementById('out-readers-list');
+                listEl.innerHTML = "";
+                
+                if (snap.empty) {
+                    listEl.innerHTML = "<span class='text-gray-400 italic'>Belum ada individu yang membuat pengesahan bacaan.</span>";
+                    return;
+                }
+                
+                snap.forEach(documentSnap => {
+                    const data = documentSnap.data();
+                    const badge = document.createElement('span');
+                    badge.className = "bg-green-50 text-green-700 border border-green-200 px-2 py-0.5 rounded font-bold uppercase tracking-tight";
+                    badge.innerText = data.name;
+                    listEl.appendChild(badge);
+                });
+            } catch (e) { console.error("Gagal load readers", e); }
+        }
+
+        // FUNGSI PENGESAHAN BACAAN
+        window.confirmRead = async function() {
+            const icInput = document.getElementById('reader-ic').value.trim();
+            if(!icInput || icInput.length < 10) { 
+                alert("Sila masukkan No. Kad Pengenalan yang sah tanpa sengkang (-)."); 
+                return; 
+            }
+
+            const btn = document.getElementById('btn-confirm-read');
+            btn.innerText = "Sila Tunggu..."; btn.disabled = true;
+
+            try {
+                // 1. Semak jika IC ada dalam SPARK Participants
+                const qUser = query(collection(db, `artifacts/${appId}/public/data/spark_participants`), where("ic", "==", icInput));
+                const snapUser = await getDocs(qUser);
+                
+                let readerName = "";
+                if (!snapUser.empty) {
+                    readerName = snapUser.docs[0].data().name;
+                } else {
+                    // Jika tiada dalam pangkalan data, minta taip nama secara manual
+                    readerName = prompt("Rekod IC tidak ditemui di dalam sistem SPARK.\n\nSila masukkan NAMA PENUH anda untuk direkodkan sebagai pembaca:");
+                    if(!readerName || readerName.trim() === "") {
+                        btn.innerText = "Sahkan"; btn.disabled = false;
+                        return;
+                    }
+                }
+
+                // 2. Simpan Rekod Bacaan
+                const readerDocId = docId + "_" + icInput;
+                await setDoc(doc(db, `artifacts/${appId}/public/data/spark_minit_readers`, readerDocId), {
+                    docId: docId,
+                    ic: icInput,
+                    name: readerName.toUpperCase(),
+                    timestamp: new Date()
+                });
+
+                alert("Terima kasih! Pengesahan bacaan anda telah berjaya direkodkan.");
+                document.getElementById('read-acknowledgement-bar').style.display = 'none';
+                
+                // Refresh list pembaca
+                loadReaders(docId);
+
+            } catch (e) {
+                console.error(e);
+                alert("Ralat semasa menyimpan pengesahan. Sila cuba lagi.");
+            } finally {
+                btn.innerText = "Sahkan"; btn.disabled = false;
+            }
+        }
 
         function renderDocument(data, id) {
             // Render Text Fields
