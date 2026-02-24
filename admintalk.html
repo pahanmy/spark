@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SPARK - Pusat Hebahan Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Poppins', sans-serif; background-color: #f8f9fa; }
+    </style>
+</head>
+<body class="bg-gray-50 flex flex-col min-h-screen">
+
+    <header class="bg-indigo-900 shadow-lg text-white">
+        <div class="max-w-3xl mx-auto py-6 px-4 sm:px-6 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="bg-white/20 p-2 rounded-lg">
+                    <svg class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"></path></svg>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-wider">ADMIN TALK</h1>
+                    <p class="text-xs text-indigo-200">Sistem Hebahan Notifikasi Berpusat</p>
+                </div>
+            </div>
+            <a href="user.html" class="text-xs bg-indigo-800 hover:bg-indigo-700 px-4 py-2 rounded-full font-bold transition-colors border border-indigo-700">Kembali</a>
+        </div>
+    </header>
+
+    <main class="flex-grow max-w-3xl mx-auto w-full px-4 py-8">
+        <div class="bg-white rounded-2xl shadow-xl border border-gray-100 p-6 sm:p-8">
+            <h2 class="text-lg font-bold text-gray-800 uppercase mb-1 border-b border-gray-100 pb-3 flex items-center gap-2">
+                <svg class="w-5 h-5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                Karang Hebahan Baharu
+            </h2>
+            
+            <form id="broadcast-form" onsubmit="sendBroadcast(event)" class="space-y-5 mt-5">
+                
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Tajuk Notifikasi</label>
+                    <input type="text" id="noti-title" required placeholder="Contoh: Penyelenggaraan Sistem SPARK" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm font-medium">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Mesej (Kandungan)</label>
+                    <textarea id="noti-message" required rows="3" placeholder="Sistem akan digantung sementara pada malam ini..." class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"></textarea>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Jenis Ikon</label>
+                        <select id="noti-type" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm font-medium uppercase">
+                            <option value="system">Makluman Sistem (Biru)</option>
+                            <option value="program">Program / Aktiviti (Hijau)</option>
+                            <option value="warning">Amaran / Penting (Merah)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Pautan Klik (Pilihan)</label>
+                        <input type="text" id="noti-link" placeholder="Contoh: tab:planner ATAU https://..." class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm text-blue-600">
+                    </div>
+                </div>
+
+                <div class="pt-4 border-t border-gray-100 flex flex-col items-center">
+                    <p id="status-text" class="text-xs text-gray-500 mb-3 text-center"></p>
+                    <button type="submit" id="btn-submit" class="w-full sm:w-auto bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold py-3 px-10 rounded-full shadow-lg transform transition hover:scale-105 uppercase flex items-center justify-center gap-2">
+                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
+                        Hantar Ke Semua Pengguna
+                    </button>
+                </div>
+            </form>
+        </div>
+    </main>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, collection, getDocs, writeBatch, doc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // GUNA CONFIG FIREBASE ANDA
+        const firebaseConfig = {
+            apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM",
+            authDomain: "myqrhadir.firebaseapp.com",
+            projectId: "myqrhadir",
+            storageBucket: "myqrhadir.appspot.com",
+            messagingSenderId: "799691133747",
+            appId: "1:799691133747:web:835a5e3e9413eace806446"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const appId = firebaseConfig.projectId;
+
+        // FUNGSI BROADCAST KE SEMUA PENGGUNA
+        window.sendBroadcast = async function(e) {
+            e.preventDefault();
+            
+            const title = document.getElementById('noti-title').value.trim();
+            const message = document.getElementById('noti-message').value.trim();
+            const type = document.getElementById('noti-type').value;
+            const link = document.getElementById('noti-link').value.trim();
+
+            if (!confirm(`AMARAN!\n\nAdakah anda pasti mahu menghantar notifikasi "${title}" ini kepada SEMUA pengguna SPARK? Tindakan ini tidak boleh ditarik balik.`)) {
+                return;
+            }
+
+            const btn = document.getElementById('btn-submit');
+            const statusTxt = document.getElementById('status-text');
+            
+            btn.disabled = true;
+            btn.innerHTML = `<svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> MEMPROSES...`;
+            statusTxt.innerHTML = "Sedang mendapatkan senarai pengguna...";
+
+            try {
+                // 1. Dapatkan semua pengguna berdaftar
+                const usersRef = collection(db, `artifacts/${appId}/public/data/spark_participants`);
+                const snapshot = await getDocs(usersRef);
+                
+                if (snapshot.empty) {
+                    throw new Error("Tiada pengguna dijumpai di dalam pangkalan data.");
+                }
+
+                // 2. Sediakan teknik Batch Write (pecahkan kepada 400 dokumen per batch - Firebase limit 500)
+                let batches = [];
+                let currentBatch = writeBatch(db);
+                let count = 0;
+                let totalSent = 0;
+
+                statusTxt.innerHTML = `Mula menghantar kepada ${snapshot.size} pengguna...`;
+
+                snapshot.forEach((userDoc) => {
+                    const userData = userDoc.data();
+                    
+                    if (userData.ic) {
+                        // Cipta dokumen notifikasi baharu untuk pengguna ini
+                        const notiRef = doc(collection(db, `artifacts/${appId}/public/data/spark_notifications`));
+                        currentBatch.set(notiRef, {
+                            ic: userData.ic.replace(/[^0-9]/g, ''), // Pastikan clean IC
+                            title: title,
+                            message: message,
+                            type: type,
+                            isRead: false,
+                            link: link,
+                            createdAt: new Date()
+                        });
+                        
+                        count++;
+                        totalSent++;
+
+                        // Jika batch dah capai 400, commit dan buka batch baharu
+                        if (count === 400) {
+                            batches.push(currentBatch.commit());
+                            currentBatch = writeBatch(db);
+                            count = 0;
+                        }
+                    }
+                });
+
+                // Commit sisa baki yang ada
+                if (count > 0) {
+                    batches.push(currentBatch.commit());
+                }
+
+                // Tunggu semua proses penghantaran selesai serentak
+                await Promise.all(batches);
+
+                statusTxt.innerHTML = `<span class="text-green-600 font-bold">Hebat! Notifikasi berjaya dihantar kepada ${totalSent} pengguna.</span>`;
+                alert(`SUCCESS!\n\nNotifikasi berjaya dihantar kepada ${totalSent} pengguna.`);
+                document.getElementById('broadcast-form').reset();
+
+            } catch (error) {
+                console.error("Ralat Broadcast:", error);
+                statusTxt.innerHTML = `<span class="text-red-600 font-bold">Ralat: ${error.message}</span>`;
+                alert("Gagal menghantar. Sila rujuk console.");
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = `<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg> Hantar Ke Semua Pengguna`;
+            }
+        }
+    </script>
+</body>
+</html>
