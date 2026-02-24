@@ -170,7 +170,11 @@
                 <button onclick="showCreditModal()" class="text-xs font-bold text-indigo-600 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 px-3 py-2 rounded-lg flex items-center gap-1 transition-colors mr-2">💡 Kredit Idea</button>
                 <button onclick="window.location.href='user.html'" class="text-gray-500 hover:text-sky-600 text-sm font-semibold px-3 flex items-center gap-1 transition-colors">Kembali</button>
                 <div class="h-6 w-px bg-gray-300 mx-1"></div>
+                
                 <button id="btn-share" onclick="shareRecord()" class="hidden bg-green-500 hover:bg-green-600 text-white text-xs font-bold py-2 px-4 rounded-lg shadow-md flex items-center gap-2 uppercase transition-all"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" /></svg> Kongsi</button>
+                
+                <button onclick="downloadPDF()" class="bg-gray-600 hover:bg-gray-700 text-white text-xs font-bold py-2 px-4 rounded-lg shadow-md flex items-center gap-2 uppercase transition-all"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg> Muat Turun PDF</button>
+                
                 <button onclick="saveAndGeneratePDF()" id="btn-final-save" class="bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white text-xs font-bold py-2 px-6 rounded-lg shadow-md flex items-center gap-2 uppercase transition-all"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg> Selesai & Jana PDF</button>
             </div>
         </div>
@@ -305,7 +309,7 @@
                             <p class="text-[8pt] italic mb-0 self-start w-full text-left">Disediakan Oleh:</p>
                             
                             <div class="h-20 w-full flex items-end justify-start -mb-2 relative z-10">
-                                 <img id="out-sig-img" class="h-full max-w-[220px] object-contain object-bottom hidden" src="" style="filter: contrast(1.5);">
+                                 <img id="out-sig-img" class="h-full max-w-[220px] object-contain object-bottom hidden" src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=" style="filter: contrast(1.5);">
                             </div>
 
                             <div class="border-b border-black w-full mb-1 relative z-0"></div>
@@ -508,7 +512,15 @@
                 p.style.fontFamily = val;
             }
         }
-        window.shareRecord = function() { if(!window.currentDocId) { alert("Simpan dulu."); return; } const link = window.location.href.replace('sparkcurai.html', `viewminit.html?id=${window.currentDocId}`); window.open(`https://wa.me/?text=${encodeURIComponent("Salam, berikut pautan Minit Curai: " + link)}`, '_blank'); }
+        
+        // TELAH DIKEMASKINI - PAUTAN KONGSI TANPA IC
+        window.shareRecord = function() { 
+            if(!window.currentDocId) { alert("Sila simpan minit ini terlebih dahulu."); return; } 
+            const baseUrl = window.location.origin + window.location.pathname.replace(/\/[^\/]+$/, '/viewminit.html');
+            const link = baseUrl + `?id=${window.currentDocId}`; 
+            window.open(`https://wa.me/?text=${encodeURIComponent("Salam, berikut pautan Minit Curai: " + link)}`, '_blank'); 
+        }
+        
         window.autoResize = function(el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }
 
         // --- AI LOGIC ---
@@ -974,16 +986,17 @@
 
         window.setDefaults = function() { const n = new Date(); document.getElementById('in-tarikh').value = n.toISOString().split('T')[0]; document.getElementById('in-masa').value = n.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }); }
         
-        // KEMAS KINI FUNGSI JANA PDF BAHARU
+        // KEMAS KINI FUNGSI JANA PDF BAHARU (TAMBAH TANGKAPAN RALAT)
         window.downloadPDF = function() { 
             const el = document.getElementById('pdf-wrapper'); 
             let t = document.getElementById('in-tajuk').value.substring(0, 20).replace(/[^a-zA-Z0-9]/g, '_'); 
+            if(!t) t = "Minit_Curai";
             
             let opt = { 
                 margin: [0, 0, 0, 0], 
                 filename: `CURAI_${t}.pdf`, 
                 image: { type: 'jpeg', quality: 0.98 }, 
-                html2canvas: { scale: 2, useCORS: true, windowWidth: el.scrollWidth }, 
+                html2canvas: { scale: 2, useCORS: true, windowWidth: el.scrollWidth, allowTaint: true }, 
                 pagebreak: { mode: ['css', 'legacy'] },
                 jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } 
             };
@@ -994,6 +1007,10 @@
 
             html2pdf().set(opt).from(el).save().then(() => {
                 paperEl.style.display = originalDisplay || 'flex';
+            }).catch(err => {
+                console.error("Ralat PDF: ", err);
+                paperEl.style.display = originalDisplay || 'flex';
+                alert("Ralat semasa menjana PDF. Pastikan tiada data gambar yang tersekat.");
             }); 
         }
         
@@ -1017,7 +1034,17 @@
             if(chk.checked && hasData) img.classList.remove('hidden'); else img.classList.add('hidden');
         }
 
-        window.clearSignature=function(){ sigCtx.clearRect(0,0,sigCanvas.width,sigCanvas.height); isSignatureDrawn=false; const i = document.getElementById('sig-instruction'); if(i) i.classList.remove('hidden'); document.getElementById('out-sig-img').src = ""; checkSigVisibility(); triggerAutoSave(); }
+        // KEMAS KINI PEMADAMAN TANDATANGAN (GUNAKAN PIKSEL LUTSINAR)
+        window.clearSignature=function(){ 
+            sigCtx.clearRect(0,0,sigCanvas.width,sigCanvas.height); 
+            isSignatureDrawn=false; 
+            const i = document.getElementById('sig-instruction'); 
+            if(i) i.classList.remove('hidden'); 
+            document.getElementById('out-sig-img').src = "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs="; 
+            checkSigVisibility(); 
+            triggerAutoSave(); 
+        }
+        
         window.toggleSignature=function(){ const chk=document.getElementById('chk-signature'); const cont=document.getElementById('sig-input-container'); if(chk.checked){ cont.classList.remove('hidden'); setTimeout(() => { const rect = sigCanvas.getBoundingClientRect(); if(rect.width > 0) { const ratio = Math.max(window.devicePixelRatio || 1, 1); sigCanvas.width = rect.width * ratio; sigCanvas.height = rect.height * ratio; sigCtx.scale(ratio, ratio); } }, 100); } else { cont.classList.add('hidden'); } checkSigVisibility(); }
         window.handleSigUpload=function(input){ if(input.files[0]){ const r=new FileReader(); r.onload=(e)=>{ document.getElementById('out-sig-img').src=e.target.result; if(document.getElementById('chk-signature').checked) checkSigVisibility(); triggerAutoSave(); }; r.readAsDataURL(input.files[0]); } }
         
