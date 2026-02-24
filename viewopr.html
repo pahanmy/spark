@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paparan Laporan OPR - SPARK</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.0/dist/JsBarcode.all.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        body { font-family: 'Poppins', sans-serif; background-color: #f3f4f6; margin: 0; padding: 0; }
+        
+        /* A4 Paper */
+        #pdf-wrapper { width: 210mm; margin: 20px auto 100px auto; background: white; transition: all 0.3s ease; }
+        .a4-paper { 
+            width: 210mm; min-height: 297mm; height: auto;
+            padding: 10mm 15mm; 
+            background: white; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1); 
+            color: black; 
+            position: relative; 
+            font-family: Arial, sans-serif; 
+            display: flex;
+            flex-direction: column;
+        }
+
+        .paper-background { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-size: cover; background-position: center; background-repeat: no-repeat; z-index: 0; pointer-events: none; opacity: 0.1; }
+        .paper-content { position: relative; z-index: 10; flex-grow: 1; display: flex; flex-direction: column; }
+        
+        .opr-table { width: 100%; border-collapse: collapse; margin-bottom: 0.8rem; background: rgba(255,255,255,0.85); font-size: 8pt; }
+        .opr-table td, .opr-table th { border: 1px solid black; padding: 4px 6px; vertical-align: top; }
+        .opr-header { background-color: rgba(240, 253, 244, 0.95); font-weight: bold; text-transform: uppercase; width: 25%; }
+        
+        .att-table { width: 100%; border-collapse: collapse; font-family: Arial, sans-serif; margin-bottom: 10px; font-size: 9pt; }
+        .att-table th { background-color: #f3f4f6; border: 1px solid #000; padding: 8px 8px; text-transform: uppercase; font-weight: bold; color: #000; }
+        .att-table td { border: 1px solid #000; padding: 6px 8px; vertical-align: middle; color: #000; }
+        .att-table tr:nth-child(even) { background-color: #fafafa; }
+
+        .report-img-container { width: 100%; aspect-ratio: 16 / 9; display: flex; justify-content: center; align-items: center; overflow: hidden; position: relative; background-color: transparent; border: 1px solid #cbd5e1; }
+        .report-img-container img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+        /* Custom Scrollbar */
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #0284c7; border-radius: 3px; }
+
+        /* --- PRINT CSS: Elak Terpotong & Papar A4 Bersih --- */
+        .break-inside-avoid { page-break-inside: avoid !important; break-inside: avoid !important; }
+
+        @media print {
+            .no-print, header, #read-acknowledgement-bar { display: none !important; }
+            body, html { height: auto !important; overflow: visible !important; background-color: white !important; margin: 0; padding: 0; }
+            #pdf-wrapper { width: 100% !important; margin: 0 !important; padding: 0 !important; box-shadow: none !important; }
+            .a4-paper { 
+                width: 100% !important; margin: 0 !important; padding: 10mm 15mm !important; 
+                box-shadow: none !important; min-height: auto !important; height: auto !important;
+                display: block !important; page-break-after: always !important; page-break-inside: avoid;
+            }
+            .force-break { page-break-before: always !important; margin-top: 0 !important; }
+            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        }
+
+        /* Loading Screen */
+        #loader { position: fixed; inset: 0; background: rgba(255,255,255,0.9); z-index: 100; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #4f46e5; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="flex flex-col h-screen overflow-hidden relative">
+
+    <div id="loader">
+        <div class="spinner mb-4"></div>
+        <p class="text-sm font-bold text-gray-500 uppercase tracking-wider">Memuatkan Laporan OPR...</p>
+    </div>
+
+    <header class="bg-white shadow-sm border-b border-gray-200 z-50 no-print flex-shrink-0">
+        <div class="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="bg-indigo-600 p-2 rounded-lg shadow-md">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="text-white"><path d="M4 4H8V8H4V4Z" fill="currentColor"></path><path d="M4 16H8V20H4V16Z" fill="currentColor"></path><path d="M16 4H20V8H16V4Z" fill="currentColor"></path><path d="M10 4H14V6H10V4Z" fill="currentColor"></path><path d="M10 8H12V10H10V8Z" fill="currentColor"></path><path d="M12 12H14V14H12V12Z" fill="currentColor"></path></svg>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold text-indigo-700 uppercase tracking-wide">LAPORAN OPR</h1>
+                    <p class="text-xs text-gray-500">Dokumen Digital SPARK</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="window.print()" class="bg-gray-800 hover:bg-black text-white text-xs font-bold py-2 px-4 rounded-lg shadow-md flex items-center gap-2 uppercase transition-all">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg> 
+                    Cetak / Simpan PDF
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <div class="flex-1 overflow-auto bg-gray-100 p-4 custom-scrollbar" id="main-scroll-area">
+        <div id="pdf-wrapper">
+            
+            <div class="a4-paper" id="main-report">
+                <div id="paper-bg" class="paper-background"></div>
+
+                <div class="paper-content">
+                    <div class="flex items-center justify-between border-b-2 border-black pb-3 mb-3 break-inside-avoid">
+                        <div class="flex items-center gap-4">
+                            <img id="header-logo" src="https://upload.wikimedia.org/wikipedia/commons/thumb/2/26/Coat_of_arms_of_Malaysia.svg/1200px-Coat_of_arms_of_Malaysia.svg.png" class="h-20 w-auto object-contain" alt="Logo">
+                            <div>
+                                <h2 id="out-org-name" class="font-bold uppercase leading-tight text-[14pt]">KEMENTERIAN PENDIDIKAN</h2>
+                                <p id="out-sub-org" class="text-sm uppercase mt-1">PEJABAT PENDIDIKAN DAERAH MIRI</p>
+                            </div>
+                        </div>
+                        <div class="flex flex-col items-end pl-4"><svg id="barcode"></svg></div>
+                    </div>
+
+                    <div class="text-center mb-3 break-inside-avoid">
+                        <h1 id="out-tajuk" class="font-bold uppercase inline-block bg-white/90 text-[12pt]">LAPORAN PROGRAM</h1>
+                    </div>
+
+                    <table class="opr-table break-inside-avoid" id="main-table">
+                        <tr>
+                            <th class="opr-header">TARIKH</th>
+                            <td id="out-tarikh" class="w-1/4 uppercase font-semibold"></td>
+                            <th class="opr-header">LOKASI</th>
+                            <td id="out-tempat" class="uppercase font-semibold"></td>
+                        </tr>
+                        <tr>
+                            <th class="opr-header align-top">FOKUS / OBJEKTIF</th>
+                            <td colspan="3" class="align-top"><div id="out-objektif" class="whitespace-pre-wrap leading-relaxed"></div></td>
+                        </tr>
+                        <tr>
+                            <th class="opr-header align-top">IMPAK</th>
+                            <td colspan="3" class="align-top bg-green-50/50"><div id="out-dapatan" class="whitespace-pre-wrap leading-relaxed"></div></td>
+                        </tr>
+                        <tr>
+                            <th class="opr-header align-top">ISU / TINDAKAN</th>
+                            <td colspan="3" class="align-top bg-red-50/50"><div id="out-isu" class="whitespace-pre-wrap leading-relaxed text-red-900"></div></td>
+                        </tr>
+                    </table>
+
+                    <div id="row-catatan" class="hidden mb-3 border border-black p-2 bg-white/80 relative break-inside-avoid">
+                         <h3 class="text-[8pt] font-bold uppercase border-b border-gray-300 mb-1 inline-block pr-4">Catatan</h3>
+                         <div id="out-catatan" class="text-[8pt] whitespace-pre-wrap"></div>
+                    </div>
+
+                    <div class="mt-3 border border-black p-1 bg-white/80 break-inside-avoid">
+                        <h3 class="text-[8pt] font-bold uppercase bg-gray-100 p-1 border-b border-black text-center mb-1">LAPORAN BERGAMBAR</h3>
+                        <div id="preview-image-grid" class="grid grid-cols-2 gap-2"> 
+                            <div class="report-img-container hidden" id="prev-box-0">
+                                <img id="prev-img-0" src="">
+                                <span id="prev-cap-0" class="absolute bottom-0 w-full bg-white/90 text-black font-bold border-t border-gray-200 text-[8pt] text-center py-1 hidden"></span>
+                            </div>
+                            <div class="report-img-container hidden" id="prev-box-1">
+                                <img id="prev-img-1" src="">
+                                <span id="prev-cap-1" class="absolute bottom-0 w-full bg-white/90 text-black font-bold border-t border-gray-200 text-[8pt] text-center py-1 hidden"></span>
+                            </div>
+                            <div class="report-img-container hidden" id="prev-box-2">
+                                <img id="prev-img-2" src="">
+                                <span id="prev-cap-2" class="absolute bottom-0 w-full bg-white/90 text-black font-bold border-t border-gray-200 text-[8pt] text-center py-1 hidden"></span>
+                            </div>
+                            <div class="report-img-container hidden" id="prev-box-3">
+                                <img id="prev-img-3" src="">
+                                <span id="prev-cap-3" class="absolute bottom-0 w-full bg-white/90 text-black font-bold border-t border-gray-200 text-[8pt] text-center py-1 hidden"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-between items-end mt-auto mb-2 pt-6 break-inside-avoid"> 
+                        <div id="out-link-container" class="hidden flex flex-col items-start pl-2">
+                             <div class="flex items-center gap-1 text-[8pt] font-bold text-gray-600 uppercase mb-1">Kod QR Dokumentasi</div>
+                             <img id="out-qr-dokumen" src="" class="w-16 h-16 border border-gray-300 p-1 bg-white">
+                        </div>
+
+                        <div class="text-center w-1/3 flex flex-col items-center ml-auto">
+                            <p class="text-[8pt] italic mb-1 self-start w-full text-left">Disediakan Oleh:</p>
+                            <div class="h-16 w-full flex items-end justify-center mb-1 relative z-10">
+                                 <img id="out-sig-img" class="h-full w-auto object-contain hidden" src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=">
+                            </div>
+                            <div class="border-b border-black w-full mb-1 relative z-0"></div>
+                            <p id="out-nama" class="font-bold uppercase leading-tight text-[9pt]"></p>
+                            <p id="out-jawatan" class="text-[8pt] uppercase mt-0.5"></p>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 border-t-2 border-dashed border-gray-300 pt-4 break-inside-avoid w-full">
+                        <h4 class="text-[8pt] font-bold text-gray-500 uppercase mb-2">Makluman & Pengesahan Telah Membaca:</h4>
+                        <div id="out-readers-list" class="flex flex-wrap gap-1.5 text-[7pt]">
+                            <span class="text-gray-400 italic">Memuatkan senarai...</span>
+                        </div>
+                    </div>
+
+                    <div class="border-t border-gray-300 pt-1 mt-4 flex justify-between items-center text-[7px] text-gray-400 uppercase tracking-wider">
+                        <span>Dijana oleh SPARK OPR</span>
+                        <span>Tarikh Cetakan: <span id="print-date"></span></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="a4-paper hidden" id="attendance-page-template">
+                <div class="paper-content">
+                    <div class="border-b-2 border-black pb-2 mb-4">
+                        <h2 class="font-bold uppercase text-lg text-black">LAMPIRAN: SENARAI KEHADIRAN</h2>
+                        <div class="flex justify-between items-end">
+                            <p class="text-sm uppercase text-gray-700 w-3/4 att-subtitle-el"></p>
+                            <p class="text-xs text-gray-500 italic text-right">Dijana pada: <span class="att-print-date-el"></span></p>
+                        </div>
+                    </div>
+                    
+                    <div class="overflow-hidden flex-grow">
+                        <table class="att-table">
+                            <thead>
+                                <tr>
+                                    <th class="w-10 text-center">BIL.</th>
+                                    <th>NAMA PESERTA</th>
+                                    <th class="w-1/5">JAWATAN</th>
+                                    <th class="w-1/4">STESEN / SEKOLAH</th>
+                                    <th class="w-24 text-center">STATUS</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="mt-4 flex justify-end att-footer-count" style="visibility: hidden;">
+                        <div class="border border-black p-2 px-4 bg-gray-50 text-right">
+                            <span class="text-xs font-bold uppercase mr-2">Jumlah Kehadiran:</span>
+                            <span class="att-total-count-el text-sm font-bold text-black">0</span>
+                        </div>
+                    </div>
+
+                    <div class="mt-auto pt-4 border-t border-gray-300 text-[8pt] text-gray-400 text-center uppercase italic">
+                        Dokumen lampiran kehadiran rasmi sistem SPARK.
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div id="read-acknowledgement-bar" class="fixed bottom-0 w-full bg-white border-t border-gray-200 shadow-[0_-4px_15px_rgba(0,0,0,0.1)] p-4 z-50 no-print flex flex-col sm:flex-row justify-center items-center gap-3 hidden">
+        <span class="text-sm font-bold text-gray-700">Sahkan anda telah membaca laporan ini:</span>
+        <div class="flex gap-2 w-full sm:w-auto">
+            <input type="number" id="reader-ic" placeholder="No. Kad Pengenalan" class="border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 flex-1 sm:w-64">
+            <button id="btn-confirm-read" onclick="confirmRead()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded shadow transition-colors text-sm whitespace-nowrap">Sahkan</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, doc, getDoc, collection, query, where, getDocs, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Konfigurasi Pangkalan Data
+        const firebaseConfig = { 
+            apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM", 
+            authDomain: "myqrhadir.firebaseapp.com", 
+            projectId: "myqrhadir", 
+            storageBucket: "myqrhadir.appspot.com", 
+            messagingSenderId: "799691133747", 
+            appId: "1:799691133747:web:835a5e3e9413eace806446" 
+        };
+        const app = initializeApp(firebaseConfig); 
+        const db = getFirestore(app); 
+        const appId = firebaseConfig.projectId;
+
+        // Ambil ID dokumen daripada URL (contoh: viewopr.html?id=DOCUMENT_ID)
+        const urlParams = new URLSearchParams(window.location.search);
+        const docId = urlParams.get('id');
+
+        window.onload = async function() {
+            document.getElementById('print-date').textContent = new Date().toLocaleDateString('ms-MY', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute:'2-digit' });
+
+            if (!docId) {
+                alert("Ralat: ID dokumen OPR tidak dijumpai.");
+                document.getElementById('loader').innerHTML = "<p class='text-red-500 font-bold'>Dokumen Tidak Ditemui.</p>";
+                return;
+            }
+
+            try {
+                const docRef = doc(db, `artifacts/${appId}/public/data/spark_opr_records`, docId);
+                const docSnap = await getDoc(docRef);
+
+                if (docSnap.exists()) {
+                    renderDocument(docSnap.data(), docId);
+                    loadReaders(docId);
+                    document.getElementById('loader').style.display = 'none';
+                    // Tunjuk palang pengesahan bacaan
+                    document.getElementById('read-acknowledgement-bar').classList.remove('hidden');
+                } else {
+                    document.getElementById('loader').innerHTML = "<p class='text-red-500 font-bold'>Maaf, rekod OPR telah dipadam atau tidak wujud.</p>";
+                }
+            } catch (error) {
+                console.error("Gagal menarik data:", error);
+                document.getElementById('loader').innerHTML = "<p class='text-red-500 font-bold'>Ralat sambungan pangkalan data.</p>";
+            }
+        };
+
+        // FUNGSI LOAD PEMBACA
+        async function loadReaders(id) {
+            try {
+                const q = query(collection(db, `artifacts/${appId}/public/data/spark_opr_readers`), where("docId", "==", id));
+                const snap = await getDocs(q);
+                const listEl = document.getElementById('out-readers-list');
+                listEl.innerHTML = "";
+                
+                if (snap.empty) {
+                    listEl.innerHTML = "<span class='text-gray-400 italic'>Belum ada individu yang membuat pengesahan bacaan.</span>";
+                    return;
+                }
+                
+                snap.forEach(documentSnap => {
+                    const data = documentSnap.data();
+                    const badge = document.createElement('span');
+                    badge.className = "bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded font-bold uppercase tracking-tight";
+                    badge.innerText = data.name;
+                    listEl.appendChild(badge);
+                });
+            } catch (e) { console.error("Gagal load readers", e); }
+        }
+
+        // FUNGSI PENGESAHAN BACAAN
+        window.confirmRead = async function() {
+            const icInput = document.getElementById('reader-ic').value.trim();
+            if(!icInput || icInput.length < 10) { 
+                alert("Sila masukkan No. Kad Pengenalan yang sah tanpa sengkang (-)."); 
+                return; 
+            }
+
+            const btn = document.getElementById('btn-confirm-read');
+            btn.innerText = "Sila Tunggu..."; btn.disabled = true;
+
+            try {
+                // Semak IC dalam SPARK Participants
+                const qUser = query(collection(db, `artifacts/${appId}/public/data/spark_participants`), where("ic", "==", icInput));
+                const snapUser = await getDocs(qUser);
+                
+                let readerName = "";
+                if (!snapUser.empty) {
+                    readerName = snapUser.docs[0].data().name;
+                } else {
+                    readerName = prompt("Rekod IC tidak ditemui di dalam sistem SPARK.\n\nSila masukkan NAMA PENUH anda untuk direkodkan sebagai pembaca:");
+                    if(!readerName || readerName.trim() === "") {
+                        btn.innerText = "Sahkan"; btn.disabled = false;
+                        return;
+                    }
+                }
+
+                // Simpan Rekod Bacaan
+                const readerDocId = docId + "_" + icInput;
+                await setDoc(doc(db, `artifacts/${appId}/public/data/spark_opr_readers`, readerDocId), {
+                    docId: docId,
+                    ic: icInput,
+                    name: readerName.toUpperCase(),
+                    timestamp: new Date()
+                });
+
+                alert("Terima kasih! Pengesahan bacaan anda telah berjaya direkodkan.");
+                document.getElementById('read-acknowledgement-bar').style.display = 'none';
+                
+                loadReaders(docId); // Refresh list
+            } catch (e) {
+                console.error(e);
+                alert("Ralat semasa menyimpan pengesahan. Sila cuba lagi.");
+            } finally {
+                btn.innerText = "Sahkan"; btn.disabled = false;
+            }
+        }
+
+        function renderDocument(data, id) {
+            // Header Organisasi
+            if(data.orgName) document.getElementById('out-org-name').textContent = data.orgName;
+            if(data.subOrgName) document.getElementById('out-sub-org').textContent = data.subOrgName;
+            if(data.logoUrl) document.getElementById('header-logo').src = data.logoUrl;
+            
+            // Latar Belakang (Watermark)
+            if(data.backgroundUrl) {
+                document.getElementById('paper-bg').style.backgroundImage = `url('${data.backgroundUrl}')`;
+                document.getElementById('paper-bg').style.opacity = data.backgroundOpacity || 0.1;
+            }
+
+            // Maklumat Program
+            document.getElementById('out-tajuk').textContent = (data.tajuk || "").toUpperCase();
+            document.getElementById('out-tempat').textContent = (data.tempat || "").toUpperCase();
+            
+            // Tarikh
+            let dateDisplay = "";
+            if(data.tarikhMula) {
+                const d1 = new Date(data.tarikhMula); const day1 = d1.getDate(); const month1 = d1.toLocaleDateString('ms-MY', { month: 'short' }).toUpperCase(); const year1 = d1.getFullYear();
+                if(data.tarikhTamat && data.tarikhTamat !== data.tarikhMula) {
+                    const d2 = new Date(data.tarikhTamat); const day2 = d2.getDate(); const month2 = d2.toLocaleDateString('ms-MY', { month: 'short' }).toUpperCase(); const year2 = d2.getFullYear();
+                    if(year1 === year2 && month1 === month2) dateDisplay = `${day1} - ${day2} ${month1} ${year1}`;
+                    else if (year1 === year2) dateDisplay = `${day1} ${month1} - ${day2} ${month2} ${year1}`;
+                    else dateDisplay = `${day1} ${month1} ${year1} - ${day2} ${month2} ${year2}`;
+                } else { dateDisplay = `${day1} ${month1} ${year1}`; }
+            }
+            document.getElementById('out-tarikh').textContent = dateDisplay;
+
+            // Kandungan Teks (Fokus, Impak, Isu) - Kekalkan struktur bullet jika ada
+            document.getElementById('out-objektif').textContent = data.objektif || "";
+            document.getElementById('out-dapatan').textContent = data.dapatan || "";
+            document.getElementById('out-isu').textContent = data.isu || "";
+
+            // Catatan Tambahan
+            if(data.showCatatan) {
+                document.getElementById('row-catatan').classList.remove('hidden');
+                document.getElementById('out-catatan').textContent = data.catatan || "";
+            }
+
+            // Gambar Laporan
+            const showCaption = data.showCaption !== false;
+            const imgGrid = document.getElementById('preview-image-grid');
+            if (data.imageMode === 4) {
+                document.getElementById('prev-box-2').classList.remove('hidden');
+                document.getElementById('prev-box-3').classList.remove('hidden');
+                imgGrid.classList.remove('grid-cols-2');
+                imgGrid.classList.add('grid-cols-2', 'grid-rows-2');
+            }
+            const imgs = [data.img1, data.img2, data.img3, data.img4];
+            let hasAnyImage = false;
+            for(let i=0; i<4; i++) {
+                if(imgs[i] && imgs[i].length > 10) {
+                    document.getElementById(`prev-box-${i}`).classList.remove('hidden');
+                    document.getElementById(`prev-img-${i}`).src = imgs[i];
+                    document.getElementById(`prev-img-${i}`).classList.remove('hidden');
+                    if(showCaption && data.captions && data.captions[i]) {
+                        document.getElementById(`prev-cap-${i}`).textContent = data.captions[i];
+                        document.getElementById(`prev-cap-${i}`).classList.remove('hidden');
+                    }
+                    hasAnyImage = true;
+                }
+            }
+            if(!hasAnyImage) { imgGrid.parentElement.classList.add('hidden'); } // Sorok kotak gambar jika tiada gambar
+
+            // Pautan & QR Dokumen
+            if (data.showLinkDokumen && data.linkDokumen) {
+                document.getElementById('out-link-container').classList.remove('hidden');
+                document.getElementById('out-qr-dokumen').src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(data.linkDokumen)}`;
+            }
+
+            // Tanda Tangan & Disediakan Oleh
+            document.getElementById('out-nama').textContent = (data.nama || "").toUpperCase();
+            document.getElementById('out-jawatan').textContent = (data.jawatan || "").toUpperCase();
+            if (data.showSignature && data.signatureUrl && data.signatureUrl.length > 10) {
+                document.getElementById('out-sig-img').src = data.signatureUrl;
+                document.getElementById('out-sig-img').classList.remove('hidden');
+            }
+
+            // Barcode
+            JsBarcode("#barcode", data.serialNumber || id.substring(0,8).toUpperCase(), { format: "CODE128", width: 1, height: 15, displayValue: true, fontSize: 8, margin: 0, textMargin: 1 });
+
+            // Kehadiran (Senarai Lampiran)
+            if (data.attendanceList && data.attendanceList.length > 0) {
+                renderAttendanceTable(data.attendanceList, data.tajuk);
+            }
+        }
+
+        function renderAttendanceTable(attData, tajukProgram) {
+            const ROWS_PER_PAGE = 15;
+            const wrapper = document.getElementById('pdf-wrapper');
+            const templatePage = document.getElementById('attendance-page-template');
+            const nowStr = new Date().toLocaleDateString('ms-MY', {day: '2-digit', month: '2-digit', year: 'numeric'});
+            
+            const totalPages = Math.ceil(attData.length / ROWS_PER_PAGE);
+
+            for (let i = 0; i < totalPages; i++) {
+                const pageEl = templatePage.cloneNode(true);
+                pageEl.id = `generated-att-page-${i}`;
+                pageEl.classList.remove('hidden');
+                pageEl.classList.add('force-break'); // Paksa turun ke muka surat baharu
+                
+                // Masukkan Tajuk & Tarikh Cetakan
+                pageEl.querySelectorAll('.att-subtitle-el').forEach(el => el.textContent = "PROGRAM: " + (tajukProgram || ""));
+                pageEl.querySelectorAll('.att-print-date-el').forEach(el => el.textContent = nowStr);
+
+                const tbody = pageEl.querySelector('tbody');
+                const startIdx = i * ROWS_PER_PAGE;
+                const endIdx = startIdx + ROWS_PER_PAGE;
+                const chunk = attData.slice(startIdx, endIdx);
+
+                chunk.forEach((p, idx) => {
+                    const tr = document.createElement('tr');
+                    const displayNum = startIdx + idx + 1;
+                    
+                    const name = p.name ? p.name.toUpperCase() : "PESERTA";
+                    const jawatan = p.position ? p.position.toUpperCase() : "-";
+                    const stesen = p.station ? p.station.toUpperCase() : "-";
+                    const status = p.status ? p.status.toUpperCase() : "HADIR"; 
+                    
+                    let rowClass = "";
+                    if(jawatan.includes("PENGETUA") || jawatan.includes("GURU BESAR") || jawatan.includes("PEGAWAI")) rowClass = "font-bold bg-gray-100";
+
+                    tr.innerHTML = `
+                        <td class="text-center font-bold ${rowClass}">${displayNum}</td>
+                        <td class="font-semibold ${rowClass}">${name}</td>
+                        <td class="text-[inherit] ${rowClass}">${jawatan}</td>
+                        <td class="text-[inherit] ${rowClass}">${stesen}</td>
+                        <td class="text-center text-[inherit] font-bold">${status}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+
+                // Paparkan jumlah keseluruhan pada muka surat terakhir senarai kehadiran
+                const footerDiv = pageEl.querySelector('.att-footer-count');
+                if (i === totalPages - 1) {
+                    footerDiv.style.visibility = 'visible';
+                    pageEl.querySelector('.att-total-count-el').textContent = attData.length;
+                } else {
+                    footerDiv.style.visibility = 'hidden';
+                }
+
+                wrapper.appendChild(pageEl);
+            }
+        }
+    </script>
+</body>
+</html>
