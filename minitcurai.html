@@ -8,6 +8,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     
     <style>
@@ -290,7 +291,6 @@
         const app = initializeApp(firebaseConfig); const db = getFirestore(app); const auth = getAuth(app); const appId = firebaseConfig.projectId;
         const SECRET_G = "Z3NrX3hUbHQxRjVIYjRIdmRtejliS3Z5V0dkeWIzRllJcHdSazhrbWRxVlkySTdmTDlOZVdMMGs="; 
         
-        // --- IMGBB CONFIG (UPDATED) ---
         const IMGBB_API_KEY = "a7c600ac733fe14649cacd8e65619c4b"; 
 
         function getKey(encoded) { try { return atob(encoded); } catch (e) { return ""; } }
@@ -427,7 +427,6 @@
             btn.innerHTML = `...`; btn.disabled = true;
             const GROQ_API_KEY = getKey(SECRET_G);
             try {
-                // SYSTEM PROMPT UPDATED FOR STRICT FORMAL MALAY MINUTES
                 const systemPrompt = "Bertindak sebagai pencatat minit profesional. Tukar input pengguna menjadi ayat minit mesyuarat rasmi Bahasa Melayu yang padat, formal, dan gramatis. Gunakan gaya bahasa pentadbiran kerajaan Malaysia. Mulakan ayat dengan frasa tegas seperti 'Pengerusi memaklumkan', 'Mesyuarat memutuskan', 'Pihak pengurusan menegaskan', atau 'Ahli mesyuarat bersetuju'. HANYA berikan output teks minit sahaja tanpa sebarang penjelasan, mukadimah, atau tanda petik.";
 
                 const r = await fetch("https://api.groq.com/openai/v1/chat/completions", { method: "POST", headers: { "Authorization": `Bearer ${GROQ_API_KEY}`, "Content-Type": "application/json" }, body: JSON.stringify({ messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userText }], model: "llama-3.3-70b-versatile", temperature: 0.5 }) });
@@ -494,7 +493,6 @@
             document.getElementById('speakers-container').appendChild(w);
         }
 
-        // --- NEW: Handle Image Upload ---
         window.addImagePoint = function(i) {
             const input = document.createElement('input');
             input.type = 'file';
@@ -535,16 +533,15 @@
             input.click();
         }
 
-        window.updateImageCaption = function(i, pi, val) {
-            window.speakersData[i].points[pi].caption = val;
-            triggerAutoSave();
-            updatePreview();
-        }
+        window.updateImageCaption = function(i, pi, val) { window.speakersData[i].points[pi].caption = val; triggerAutoSave(); updatePreview(); }
+        // NEW: Link Update Functions
+        window.updatePointLink = function(i, pi, val) { window.speakersData[i].points[pi].link = val; triggerAutoSave(); updatePreview(); }
+        window.updateSubPointLink = function(i, pi, si, val) { window.speakersData[i].points[pi].subs[si].link = val; triggerAutoSave(); updatePreview(); }
+        window.updateSubSubPointLink = function(i, pi, si, ssi, val) { window.speakersData[i].points[pi].subs[si].subsubs[ssi].link = val; triggerAutoSave(); updatePreview(); }
 
         window.createPointHTML = function(p, i, pi) {
             const aiClass = window.isSparkPro ? "" : "btn-ai-locked";
             
-            // --- IMAGE HANDLING ---
             if(p.type === 'image') {
                 return `<div class="relative bg-white border border-green-200 rounded p-2 shadow-sm border-l-4 border-l-green-400 mb-2">
                     <div class="flex justify-between items-center mb-2">
@@ -561,7 +558,6 @@
                 </div>`;
             }
 
-            // --- TABLE HANDLING ---
             if(p.type === 'table') {
                 let rowsHtml = '';
                 p.tableData.forEach((row, rIndex) => {
@@ -585,7 +581,6 @@
                 </div>`;
             }
 
-            // --- STANDARD TEXT HANDLING ---
             const isStat = p.status !== ""; const statHide = isStat ? "" : "hidden"; const whoHide = p.status === "TINDAKAN" ? "" : "hidden"; const boldCls = p.isBold ? "active" : "inactive";
             
             let subs = ''; 
@@ -593,6 +588,7 @@
                 const subText = (typeof s === 'object') ? s.text : s;
                 const subStatus = (typeof s === 'object') ? s.status : "";
                 const subWho = (typeof s === 'object') ? s.who : "";
+                const subLink = (typeof s === 'object') ? (s.link || "") : "";
                 const subSubsArray = (typeof s === 'object' && s.subsubs) ? s.subsubs : [];
                 
                 let subSubsHtml = '';
@@ -600,12 +596,17 @@
                      const ssStatus = ss.status || "";
                      const ssStatHide = ssStatus !== "" ? "" : "hidden";
                      const ssWhoHide = ssStatus === "TINDAKAN" ? "" : "hidden";
+                     const ssLink = ss.link || "";
                      
                      subSubsHtml += `<div class="mt-2 ml-4 border-l border-gray-300 pl-2">
                         <div class="flex gap-2 items-center">
                             <span class="text-[9px] text-gray-400 italic">${pi+1}.${si+1}.${ssi+1}</span>
                             <textarea oninput="updateSubSubPoint(${i}, ${pi}, ${si}, ${ssi}, this.value); autoResize(this)" rows="1" class="spark-input text-[11px] bg-white w-full italic" placeholder="Perincian...">${ss.text}</textarea>
                             <button onclick="removeSubSubPoint(${i}, ${pi}, ${si}, ${ssi})" class="text-gray-300 hover:text-red-400">x</button>
+                        </div>
+                        <div class="mt-1 ml-6 flex items-center gap-1">
+                            <svg class="w-3 h-3 text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
+                            <input type="url" value="${ssLink}" oninput="updateSubSubPointLink(${i}, ${pi}, ${si}, ${ssi}, this.value)" class="w-full text-[9px] border border-gray-200 rounded px-1.5 py-0.5 text-sky-600 focus:outline-none focus:border-sky-400" placeholder="URL Pautan Rujukan (Jika ada)...">
                         </div>
                         <div class="ml-6 mt-1 flex items-center justify-between">
                             <label class="inline-flex items-center cursor-pointer"><input type="checkbox" ${ssStatus !== "" ? 'checked' : ''} onchange="toggleSubSubPointStatus(${i}, ${pi}, ${si}, ${ssi}, this.checked)" class="form-checkbox h-3 w-3 text-sky-600"><span class="ml-1 text-[8px] text-gray-400 hover:text-gray-600">Status</span></label>
@@ -631,6 +632,10 @@
                              <button onclick="askAI(this, 'sub', ${i}, ${pi}, ${si})" class="btn-ai-fancy absolute right-1 top-1 ${aiClass}">AI</button>
                         </div>
                         <button type="button" onclick="removeSubPoint(${i}, ${pi}, ${si})" class="mt-1 text-gray-300 hover:text-red-400">x</button>
+                    </div>
+                    <div class="mt-1 flex items-center gap-1 pl-10 pr-2">
+                         <svg class="w-3 h-3 text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
+                         <input type="url" value="${subLink}" oninput="updateSubPointLink(${i}, ${pi}, ${si}, this.value)" class="w-full text-[9.5px] border border-gray-200 rounded px-1.5 py-1 text-sky-600 focus:outline-none focus:border-sky-400" placeholder="URL Pautan Rujukan (Jika ada)...">
                     </div>
                     <div class="ml-10 flex gap-3 items-center">
                          <label class="inline-flex items-center cursor-pointer"><input type="checkbox" ${isSubStat ? 'checked' : ''} onchange="toggleSubPointStatus(${i}, ${pi}, ${si}, this.checked)" class="form-checkbox h-3 w-3 text-sky-600"><span class="ml-1 text-[9px] text-gray-400 hover:text-gray-600">Status</span></label>
@@ -658,6 +663,10 @@
                             <textarea id="input-point-${i}-${pi}" oninput="autoResize(this); updatePointText(${i}, ${pi}, this.value)" rows="1" class="spark-input text-sm mb-1 pr-16" placeholder="Isi Poin Utama...">${p.text}</textarea>
                             <button onclick="askAI(this, 'point', ${i}, ${pi})" class="btn-ai-fancy absolute right-2 top-2 ${aiClass}">AI</button>
                         </div>
+                        <div class="mt-1 flex items-center gap-1 mb-2">
+                             <svg class="w-4 h-4 text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
+                             <input type="url" value="${p.link || ''}" oninput="updatePointLink(${i}, ${pi}, this.value)" class="w-full text-[10px] border border-gray-200 rounded px-2 py-1.5 text-sky-600 focus:outline-none focus:border-sky-400" placeholder="URL Pautan Rujukan (Jika ada)...">
+                        </div>
                         <div class="flex items-center justify-between mb-2 mt-1">
                              <label class="inline-flex items-center cursor-pointer"><input type="checkbox" ${isStat ? 'checked' : ''} onchange="togglePointStatus(${i}, ${pi}, this.checked)" class="form-checkbox h-3 w-3 text-sky-600"><span class="ml-2 text-[9px] text-gray-400 hover:text-gray-600 uppercase font-bold">Status/Tindakan</span></label>
                         </div>
@@ -677,9 +686,9 @@
             </div>`;
         }
 
-        window.addSubPoint = function(i, pi) { window.speakersData[i].points[pi].subs.push({ text: "", status: "", who: "", subsubs: [] }); renderFormFromData(); triggerAutoSave(); updatePreview(); }
-        window.addSubSubPoint = function(i, pi, si) { let sub = window.speakersData[i].points[pi].subs[si]; if(!sub.subsubs) sub.subsubs = []; sub.subsubs.push({ text: "", status: "", who: "" }); renderFormFromData(); triggerAutoSave(); updatePreview(); }
-        window.updateSubPoint = function(i, pi, si, v) { let sub = window.speakersData[i].points[pi].subs[si]; if(typeof sub === 'string') sub = { text: v, status: "", who: "", subsubs: [] }; else sub.text = v; window.speakersData[i].points[pi].subs[si] = sub; triggerAutoSave(); updatePreview(); }
+        window.addSubPoint = function(i, pi) { window.speakersData[i].points[pi].subs.push({ text: "", status: "", who: "", link: "", subsubs: [] }); renderFormFromData(); triggerAutoSave(); updatePreview(); }
+        window.addSubSubPoint = function(i, pi, si) { let sub = window.speakersData[i].points[pi].subs[si]; if(!sub.subsubs) sub.subsubs = []; sub.subsubs.push({ text: "", status: "", who: "", link: "" }); renderFormFromData(); triggerAutoSave(); updatePreview(); }
+        window.updateSubPoint = function(i, pi, si, v) { let sub = window.speakersData[i].points[pi].subs[si]; if(typeof sub === 'string') sub = { text: v, status: "", who: "", link: "", subsubs: [] }; else sub.text = v; window.speakersData[i].points[pi].subs[si] = sub; triggerAutoSave(); updatePreview(); }
         window.updateSubSubPoint = function(i, pi, si, ssi, v) { window.speakersData[i].points[pi].subs[si].subsubs[ssi].text = v; triggerAutoSave(); updatePreview(); }
         window.removeSubSubPoint = function(i, pi, si, ssi) { window.speakersData[i].points[pi].subs[si].subsubs.splice(ssi, 1); renderFormFromData(); triggerAutoSave(); updatePreview(); }
         
@@ -693,13 +702,13 @@
         window.addTableCol = function(i, pi) { window.speakersData[i].points[pi].tableData.forEach(row => row.push("")); renderFormFromData(); triggerAutoSave(); updatePreview(); }
         window.removeTableRow = function(i, pi, r) { if(window.speakersData[i].points[pi].tableData.length > 1) { window.speakersData[i].points[pi].tableData.splice(r, 1); renderFormFromData(); triggerAutoSave(); updatePreview(); } else alert("Jadual mesti ada sekurangnya 1 baris."); }
         
-        window.toggleSubPointStatus = function(i, pi, si, chk) { let sub = window.speakersData[i].points[pi].subs[si]; if(typeof sub === 'string') sub = { text: sub, status: "", who: "" }; sub.status = chk ? "MAKLUMAN" : ""; window.speakersData[i].points[pi].subs[si] = sub; renderFormFromData(); triggerAutoSave(); updatePreview(); }
+        window.toggleSubPointStatus = function(i, pi, si, chk) { let sub = window.speakersData[i].points[pi].subs[si]; if(typeof sub === 'string') sub = { text: sub, status: "", who: "", link: "" }; sub.status = chk ? "MAKLUMAN" : ""; window.speakersData[i].points[pi].subs[si] = sub; renderFormFromData(); triggerAutoSave(); updatePreview(); }
         window.updateSubPointStatusType = function(i, pi, si, val) { window.speakersData[i].points[pi].subs[si].status = val; renderFormFromData(); triggerAutoSave(); updatePreview(); }
         window.updateSubPointWho = function(i, pi, si, val) { window.speakersData[i].points[pi].subs[si].who = val; triggerAutoSave(); updatePreview(); }
         window.addSpeaker = function() { window.speakersData.push({ name: "Pengerusi", points: [] }); addPoint(window.speakersData.length - 1); triggerAutoSave(); }
         window.removeSpeaker = function(i) { if(confirm("Padam?")) { window.speakersData.splice(i, 1); renderFormFromData(); triggerAutoSave(); updatePreview(); } }
         window.updateSpeakerName = function(i, v) { window.speakersData[i].name = v; triggerAutoSave(); updatePreview(); }
-        window.addPoint = function(i, silent = false) { window.speakersData[i].points.push({ text: "", subs: [], status: "", who: "", isBold: false, type: 'text' }); renderFormFromData(); if(!silent) triggerAutoSave(); updatePreview(); }
+        window.addPoint = function(i, silent = false) { window.speakersData[i].points.push({ text: "", subs: [], status: "", who: "", isBold: false, type: 'text', link: "" }); renderFormFromData(); if(!silent) triggerAutoSave(); updatePreview(); }
         window.removePoint = function(i, pi) { window.speakersData[i].points.splice(pi, 1); renderFormFromData(); triggerAutoSave(); updatePreview(); }
         window.updatePointText = function(i, pi, v) { window.speakersData[i].points[pi].text = v; triggerAutoSave(); updatePreview(); }
         window.toggleBold = function(i, pi) { window.speakersData[i].points[pi].isBold = !window.speakersData[i].points[pi].isBold; renderFormFromData(); triggerAutoSave(); updatePreview(); }
@@ -720,8 +729,21 @@
                 document.getElementById('out-semak-jawatan').textContent = document.getElementById('in-semak-jawatan').value.toUpperCase() || "JAWATAN";
             } else { document.getElementById('out-semak-wrapper').classList.add('hidden'); }
 
+            const qrQueue = [];
+            function getLinkHtml(link, id) {
+                if (!link) return '';
+                qrQueue.push({ id: id, url: link });
+                return `<div class="mt-1 mb-2 flex flex-wrap items-center gap-2 bg-sky-50/50 p-1.5 rounded border border-sky-100 print:bg-transparent print:border-none print:p-0">
+                            <a href="${link}" target="_blank" class="text-[8.5pt] text-sky-700 no-underline flex items-center gap-1 font-semibold uppercase tracking-wide hover:underline break-all max-w-full">
+                                <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
+                                Pautan Rujukan
+                            </a>
+                            <div id="${id}" class="w-10 h-10 print:w-12 print:h-12 border border-gray-200 p-0.5 rounded bg-white shadow-sm shrink-0"></div>
+                        </div>`;
+            }
+
             const c = document.getElementById('out-content'); c.innerHTML = '';
-            window.speakersData.forEach(s => {
+            window.speakersData.forEach((s, speakerIdx) => {
                 const sec = document.createElement('div'); sec.className = "speaker-section";
                 if(s.name) sec.innerHTML += `<div class="speaker-title">${s.name}</div>`;
                 const list = document.createElement('div'); list.className = "preview-list";
@@ -745,7 +767,9 @@
                     }
 
                     const item = document.createElement('div'); item.className = "preview-item";
-                    item.innerHTML = `<div class="preview-num">${i+1}.</div><div class="preview-text"><div style="${p.isBold?'font-weight:bold':''}">${p.text}</div></div>`;
+                    let linkHtml = getLinkHtml(p.link, `qr-p-${speakerIdx}-${i}`);
+                    
+                    item.innerHTML = `<div class="preview-num">${i+1}.</div><div class="preview-text"><div style="${p.isBold?'font-weight:bold':''}">${p.text}</div>${linkHtml}</div>`;
                     const td = item.querySelector('.preview-text');
                     
                     if(p.subs.length > 0) { 
@@ -754,10 +778,12 @@
                             const subText = (typeof sb === 'object') ? sb.text : sb;
                             const subStatus = (typeof sb === 'object') ? sb.status : "";
                             const subWho = (typeof sb === 'object') ? sb.who : "";
+                            const subLink = (typeof sb === 'object') ? sb.link : "";
                             const subSubs = (typeof sb === 'object' && sb.subsubs) ? sb.subsubs : [];
 
                             if(subText.trim() || subSubs.length > 0) {
-                                let html = `<div class="sub-item"><div class="sub-num">${i+1}.${si+1}</div><div class="sub-text-wrapper"><div class="sub-text">${subText}</div>`;
+                                let sLinkHtml = getLinkHtml(subLink, `qr-s-${speakerIdx}-${i}-${si}`);
+                                let html = `<div class="sub-item"><div class="sub-num">${i+1}.${si+1}</div><div class="sub-text-wrapper"><div class="sub-text">${subText}</div>${sLinkHtml}`;
                                 if(subStatus) { const whoLabel = subStatus === "MAKLUMAN" ? "MAKLUMAN" : "TINDAKAN: " + (subWho.toUpperCase() || "PGB"); html += `<div class="status-tag">${whoLabel}</div>`; }
                                 
                                 if(subSubs.length > 0) {
@@ -765,8 +791,10 @@
                                     subSubs.forEach((ss, ssi) => {
                                         const ssStatus = ss.status || "";
                                         const ssWho = ss.who || "";
+                                        const ssLink = ss.link || "";
                                         if(ss.text.trim()) {
-                                            html += `<div class="sub-sub-item"><div class="sub-sub-num">${i+1}.${si+1}.${ssi+1}</div><div class="sub-sub-text-wrapper flex-grow"><div class="sub-sub-text">${ss.text}</div>`;
+                                            let ssLinkHtml = getLinkHtml(ssLink, `qr-ss-${speakerIdx}-${i}-${si}-${ssi}`);
+                                            html += `<div class="sub-sub-item"><div class="sub-sub-num">${i+1}.${si+1}.${ssi+1}</div><div class="sub-sub-text-wrapper flex-grow"><div class="sub-sub-text">${ss.text}</div>${ssLinkHtml}`;
                                             if(ssStatus) { const ssWhoLabel = ssStatus === "MAKLUMAN" ? "MAKLUMAN" : "TINDAKAN: " + (ssWho.toUpperCase() || "PGB"); html += `<div class="status-tag">${ssWhoLabel}</div>`; }
                                             html += `</div></div>`;
                                         }
@@ -786,10 +814,31 @@
             });
             window.renderBarcode();
             checkSigVisibility();
+
+            // Render QR Codes after DOM is updated
+            setTimeout(() => {
+                qrQueue.forEach(q => {
+                    const el = document.getElementById(q.id);
+                    if (el) {
+                        el.innerHTML = ""; 
+                        new QRCode(el, {
+                            text: q.url,
+                            width: 100, // Render slightly larger internal resolution for crispness
+                            height: 100,
+                            colorDark : "#000000",
+                            colorLight : "#ffffff",
+                            correctLevel : QRCode.CorrectLevel.L
+                        });
+                        const img = el.querySelector('img');
+                        const cvs = el.querySelector('canvas');
+                        if(img) img.style.cssText = "width: 100%; height: 100%; object-fit: contain; display: block;";
+                        if(cvs) cvs.style.cssText = "width: 100%; height: 100%; object-fit: contain; display: block;";
+                    }
+                });
+            }, 100);
         }
 
         window.setDefaults = function() { const n = new Date(); document.getElementById('in-tarikh').value = n.toISOString().split('T')[0]; document.getElementById('in-masa').value = n.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }); }
-        window.renderBarcode = function() { const s = `SPARK-${Math.floor(Math.random()*1000000)}`; JsBarcode("#barcode", s, { format: "CODE128", width: 1, height: 15, displayValue: true, fontSize: 8, margin: 0, textMargin: 1 }); }
         window.downloadPDF = function() { const el = document.getElementById('pdf-wrapper'); let t = document.getElementById('in-tajuk').value.substring(0, 20).replace(/[^a-zA-Z0-9]/g, '_'); html2pdf().set({ margin: 0, filename: `CURAI_${t}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } }).from(el).save(); }
         
         function initSignaturePad() { 
@@ -816,7 +865,6 @@
         window.toggleSignature=function(){ const chk=document.getElementById('chk-signature'); const cont=document.getElementById('sig-input-container'); if(chk.checked){ cont.classList.remove('hidden'); setTimeout(() => { const rect = sigCanvas.getBoundingClientRect(); if(rect.width > 0) { const ratio = Math.max(window.devicePixelRatio || 1, 1); sigCanvas.width = rect.width * ratio; sigCanvas.height = rect.height * ratio; sigCtx.scale(ratio, ratio); } }, 100); } else { cont.classList.add('hidden'); } checkSigVisibility(); }
         window.handleSigUpload=function(input){ if(input.files[0]){ const r=new FileReader(); r.onload=(e)=>{ document.getElementById('out-sig-img').src=e.target.result; if(document.getElementById('chk-signature').checked) checkSigVisibility(); triggerAutoSave(); }; r.readAsDataURL(input.files[0]); } }
         
-        // NEW: Toggle Verified Input
         window.toggleVerified = function() {
             const chk = document.getElementById('chk-verified');
             const cont = document.getElementById('verified-input-container');
