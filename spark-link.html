@@ -691,16 +691,18 @@
             }
         }
 
-        function generateSlug(text) {
+       function generateSlug(text) {
             const randomStr = Math.random().toString(36).substring(2, 6);
-            if(!text || text.trim() === '') return `user${randomStr}`;
+            if(!text || text.trim() === '') return `user-${randomStr}`;
             
-            // Tukar huruf kecil dan buang SEMUA ruang kosong atau simbol
             let cleanText = text.toLowerCase()
-                                .replace(/[^a-z0-9]/g, ''); 
+                                .replace(/[^a-z0-9\s-]/g, '') // Hanya benarkan huruf, nombor, jarak, sengkang
+                                .replace(/\s+/g, '-')         // Tukar ruang kosong jadi sengkang
+                                .replace(/-+/g, '-')          // Tukar sengkang bertindih (---) jadi satu sengkang (-)
+                                .replace(/^-+|-+$/g, '');     // Buang sengkang di awal dan akhir teks
             
-            if(!cleanText) return `user${randomStr}`;
-            return `${cleanText}${randomStr}`; // Cantum rapat tanpa sengkang
+            if(!cleanText) return `user-${randomStr}`;
+            return `${cleanText}-${randomStr}`; 
         }
 
         window.updateSlugFromName = function() {
@@ -711,7 +713,12 @@
                 pageData.slug = newSlug;
             } else {
                 if(document.getElementById('in-slug').value.trim() === '') {
-                     document.getElementById('in-slug').value = generateSlug(document.getElementById('in-name').value);
+                     let cleanText = document.getElementById('in-name').value.toLowerCase()
+                                .replace(/[^a-z0-9\s-]/g, '')
+                                .replace(/\s+/g, '-')
+                                .replace(/-+/g, '-')
+                                .replace(/^-+|-+$/g, '');
+                     document.getElementById('in-slug').value = cleanText;
                 }
             }
         }
@@ -800,9 +807,13 @@
             pageData.endDate = document.getElementById('in-end-date').value;
 
            if(isSparkPro) {
-                // Buang kebolehan menaip sengkang, paksa semua bersambung rapat
-                pageData.slug = document.getElementById('in-slug').value.replace(/[^a-z0-9]/g, '').toLowerCase();
-                document.getElementById('in-slug').value = pageData.slug; // Update paparan di kotak input
+                let typedSlug = document.getElementById('in-slug').value.toLowerCase();
+                // Automatik tukar jarak ke sengkang dan buang sengkang berlebihan semasa menaip
+                typedSlug = typedSlug.replace(/[^a-z0-9\s-]/g, '')
+                                     .replace(/\s+/g, '-')
+                                     .replace(/-+/g, '-');
+                document.getElementById('in-slug').value = typedSlug;
+                pageData.slug = typedSlug;
             }
 
             document.getElementById('prev-name').textContent = pageData.name || "@namasaya";
@@ -1088,7 +1099,7 @@
             }
         }
 
-        window.saveLinkData = async function() {
+     window.saveLinkData = async function() {
             const btn = document.getElementById('btn-save');
             const origText = btn.innerHTML;
             btn.innerHTML = `<svg class="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Menyimpan...`;
@@ -1104,12 +1115,39 @@
                 pageData.showAvatar = document.getElementById('chk-show-avatar').checked;
                 pageData.ownerIc = currentUserIc;
                 
-               if(isSparkPro) {
-                    pageData.slug = document.getElementById('in-slug').value.replace(/[^a-z0-9]/g, '').toLowerCase();
+                // Pastikan slug yang disimpan adalah bersih (tiada sengkang di hujung)
+                if(isSparkPro) {
+                    pageData.slug = document.getElementById('in-slug').value
+                        .replace(/[^a-z0-9\s-]/g, '')
+                        .replace(/\s+/g, '-')
+                        .replace(/-+/g, '-')
+                        .replace(/^-+|-+$/g, '')
+                        .toLowerCase();
                 }
                 if(!pageData.slug) pageData.slug = generateSlug(pageData.name);
                 
                 pageData.links = pageData.links.filter(l => l.title.trim() !== '' || l.url.trim() !== '');
+
+                // --- SEMAKAN SLUG UNIK (DUPLIKASI) ---
+                const linksRef = collection(db, `artifacts/${appId}/public/data/spark_links`);
+                const qSlug = query(linksRef, where("slug", "==", pageData.slug));
+                const slugSnap = await getDocs(qSlug);
+                
+                let isDuplicate = false;
+                slugSnap.forEach(docSnap => {
+                    // Semak jika slug wujud DAN ia bukan dokumen yang sedang kita edit sekarang
+                    if (docSnap.id !== currentPageId) {
+                        isDuplicate = true;
+                    }
+                });
+
+                if (isDuplicate) {
+                    alert(`MAAF! Pautan (Slug) "${pageData.slug}" telah pun digunakan oleh pihak lain.\n\nSila tukar pautan awam anda (contoh tambah nombor atau singkatan).`);
+                    btn.innerHTML = origText;
+                    btn.disabled = false;
+                    return; // Hentikan proses simpan
+                }
+                // -------------------------------------
 
                 const saveData = {
                     ...pageData,
@@ -1133,11 +1171,9 @@
 
                 updatePageSelector();
                 document.getElementById('page-selector').value = currentPageId;
-                
                 document.getElementById('btn-delete-page').classList.remove('hidden');
                 
                 renderLinkInputs(); 
-
                 window.showPromoModal();
 
             } catch (error) {
