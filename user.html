@@ -1901,6 +1901,24 @@
                 actions.appendChild(btnDelete);
             }
 
+
+else if (eventData.taggedIcs && eventData.taggedIcs.includes(currentUserIc)) {
+                // Jika pengguna bukan pemilik, tetapi telah ditag
+                const btnUntag = document.createElement('button');
+                btnUntag.className = "w-full text-xs bg-red-50 border border-red-200 hover:bg-red-100 text-red-600 font-bold py-2.5 px-4 rounded-lg uppercase shadow-sm transition-colors flex justify-center items-center gap-2";
+                btnUntag.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7a4 4 0 11-8 0 4 4 0 018 0zM9 14a6 6 0 00-6 6v1h12v-1a6 6 0 00-6-6zm11-2l-4 4m0 0l-4-4m4 4V4" /></svg> KELUAR DARI TAG`;
+                btnUntag.title = "Padam tag anda dari aktiviti ini";
+                btnUntag.onclick = () => {
+                    if(confirm("Adakah anda pasti mahu memadam nama anda (untag) dari aktiviti ini?")) {
+                        untagFromPlannerActivity(eventData.id, eventData);
+                        modal.classList.add('hidden');
+                    }
+                };
+                actions.appendChild(btnUntag);
+            }
+
+
+            
             modal.classList.remove('hidden');
         }
 
@@ -1915,7 +1933,34 @@
                 alert("Gagal memadam.");
             }
         }
+window.untagFromPlannerActivity = async function(id, eventData) {
+            try {
+                // 1. Keluarkan IC pengguna dari senarai taggedIcs
+                let updatedTaggedIcs = eventData.taggedIcs.filter(ic => ic !== currentUserIc);
+                
+                // 2. Cuba keluarkan nama pengguna dari string senarai peserta (participants)
+                let myName = document.getElementById('user-name').textContent;
+                let participantsArray = eventData.participants ? eventData.participants.split(',').map(p => p.trim()) : [];
+                let updatedParticipants = participantsArray.filter(p => p.toUpperCase() !== myName.toUpperCase()).join(', ');
 
+                // 3. Kemaskini pangkalan data Firebase
+                await updateDoc(doc(db, `artifacts/${appId}/public/data/spark_planner`, id), {
+                    taggedIcs: updatedTaggedIcs,
+                    participants: updatedParticipants
+                });
+
+                // 4. Padam dari senarai paparan lokal (UI) dan render semula kalendar
+                plannerList = plannerList.filter(p => p.id !== id);
+                renderPlannerList();
+                
+                alert("Anda telah berjaya dikeluarkan dari senarai tag aktiviti ini.");
+
+            } catch (err) {
+                console.error("Error untagging:", err);
+                alert("Gagal memadam tag. Sila cuba lagi.");
+            }
+        }
+        // --- TAMAT KOD BARU ---
         window.convertToSpark = function(data) {
             localStorage.setItem('spark_import_data', JSON.stringify(data));
             window.location.href = 'tukarspark.html';
