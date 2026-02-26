@@ -500,6 +500,14 @@
         let selectedAttendanceDate = null;
         const appId = firebaseConfig.projectId;
 
+        // FUNGSI GET LOCAL DATE STRING
+        function getLocalDateString(d) {
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
         try {
             const app = initializeApp(firebaseConfig);
             db = getFirestore(app);
@@ -522,33 +530,24 @@
         function normalizeStationName(stationName) {
             if (!stationName) return '';
             let normalized = stationName.trim().toUpperCase();
-            
-            // 1. BUANG KURUNGAN DAN KANDUNGANNYA (contoh: (C), (CINA), (2))
             normalized = normalized.replace(/ *\([^)]*\) */g, " ");
-
-            // 2. NORMALISASI SINGKATAN UMUM
             normalized = normalized.replace(/\bKAMPUNG\b/g, 'KG');
             normalized = normalized.replace(/\bKG\./g, 'KG');
             normalized = normalized.replace(/\bJALAN\b/g, 'JLN');
             normalized = normalized.replace(/\bJLN\./g, 'JLN');
             normalized = normalized.replace(/\bSEKOLAH KEBANGSAAN\b/g, 'SK');
             normalized = normalized.replace(/\bSEKOLAH JENIS KEBANGSAAN\b/g, 'SJK');
-            
-            // 3. BUANG RUANG BERGANDA DAN TRIM
             normalized = normalized.replace(/ {2,}/g, ' ').trim(); 
-            
             return normalized;
         }
 
         function main() { 
             if (!userId) return;
-            
             const urlParams = new URLSearchParams(window.location.search);
             const programKey = urlParams.get('kod');
 
             if (programKey) {
                 initializeDashboard(programKey);
-                // SET LINK UNTUK BUTANG COVER.HTML
                 const coverButton = document.getElementById('cover-page-button');
                 if (coverButton) {
                     coverButton.href = `cover.html?kod=${programKey}`;
@@ -584,7 +583,6 @@
                 const participantsRef = collection(db, `artifacts/${appId}/public/data/spark_participants`);
                 const q = query(participantsRef, where("ic", "==", ic));
                 const querySnapshot = await getDocs(q);
-                
                 if (!querySnapshot.empty) {
                     return querySnapshot.docs[0].data();
                 }
@@ -693,26 +691,21 @@
             const endDate = new Date(currentLoadedProgram.endDate + 'T00:00:00');
             const programDates = [];
 
-            // Kumpul semua tarikh program dalam array
             for (let dt = startDate; dt <= endDate; dt.setDate(dt.getDate() + 1)) {
                 programDates.push(new Date(dt));
             }
 
             if (programDates.length === 0) return;
 
-            // Pastikan kita guna masa Malaysia untuk 'today'
             const todayStr = getLocalDateString(new Date());
             const programDateStrings = programDates.map(d => getLocalDateString(d));
             
-            // Pilih tarikh lalai (hari ini jika ada, atau hari pertama program)
             if (!selectedAttendanceDate || !programDateStrings.includes(selectedAttendanceDate)) {
                  selectedAttendanceDate = programDateStrings.includes(todayStr) ? todayStr : programDateStrings[0];
             }
 
-            // Jana butang tab
             if (programDates.length > 1) {
                 programDates.forEach(date => {
-                    // PEMBETULAN UTAMA: Guna fungsi tempatan untuk format tarikh (Bukan toISOString)
                     const dateStr = getLocalDateString(date); 
                     const isActive = dateStr === selectedAttendanceDate;
                     
@@ -720,8 +713,6 @@
                     tab.href = '#';
                     tab.textContent = formatDate(date);
                     tab.className = `whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm ${isActive ? 'text-indigo-600 border-indigo-500' : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'}`;
-                    
-                    // Bila tab ditekan, ia akan hantar tarikh yang tepat ke sistem
                     tab.onclick = (e) => {
                         e.preventDefault();
                         filterAttendanceByDate(dateStr);
@@ -729,14 +720,12 @@
                     tabsContainer.appendChild(tab);
                 });
             } else {
-                // Program sehari
                 const tab = document.createElement('span');
                 tab.textContent = formatDate(programDates[0]);
                 tab.className = 'py-2 px-1 border-b-2 font-medium text-sm text-indigo-600 border-indigo-500';
                 tabsContainer.appendChild(tab);
             }
             
-            // Arahkan sistem papar data mengikut tarikh yang dipilih
             filterAttendanceByDate(selectedAttendanceDate);
         }
 
@@ -750,7 +739,10 @@
             if (isSingleDayProgram) {
                 filteredList = allAttendance;
             } else {
-                filteredList = allAttendance.filter(p => p.time && p.time.startsWith(dateStr));
+                filteredList = allAttendance.filter(p => {
+                    if (!p.time) return false;
+                    return getLocalDateString(new Date(p.time)) === dateStr; 
+                });
             }
 
             const dateLabel = document.getElementById('attendance-date-label');
@@ -1093,9 +1085,10 @@
             const ic = manualIcInput.value.trim().replace(/[^0-9]/g, '');
             if(!ic) return;
             
-            const todayStr = new Date().toISOString().split('T')[0];
+            const todayStr = getLocalDateString(new Date());
             const alreadyAttended = (currentLoadedProgram.attendance || []).find(p => {
-                return p.ic === ic && p.time && p.time.startsWith(todayStr);
+                if (p.ic !== ic || !p.time) return false;
+                return getLocalDateString(new Date(p.time)) === todayStr;
             });
 
             if (alreadyAttended) {
@@ -1248,7 +1241,7 @@
 
         function renderAttendancePaginationControls(totalItems) { const paginationControls = document.getElementById('attendance-pagination-controls'); const totalPages = Math.ceil(totalItems / attendancePerPage); if (totalPages <= 1) { paginationControls.innerHTML = ''; return; } const prevDisabled = currentAttendancePage === 1 ? 'disabled' : ''; const nextDisabled = currentAttendancePage === totalPages ? 'disabled' : ''; paginationControls.innerHTML = ` <button onclick="prevAttendancePage()" ${prevDisabled} class="btn bg-gray-200 text-gray-700 text-sm py-1 px-3 rounded-lg">Sebelumnya</button> <span class="text-sm text-gray-700">Halaman ${currentAttendancePage} dari ${totalPages}</span> <button onclick="nextAttendancePage()" ${nextDisabled} class="btn bg-gray-200 text-gray-700 text-sm py-1 px-3 rounded-lg">Seterusnya</button> `; }
         function prevAttendancePage() { if (currentAttendancePage > 1) { currentAttendancePage--; filterAttendanceByDate(selectedAttendanceDate); } }
-        function nextAttendancePage() { const allAttendance = currentLoadedProgram.attendance || []; let filteredList; const isSingleDayProgram = currentLoadedProgram.startDate === currentLoadedProgram.endDate; if (isSingleDayProgram) { filteredList = allAttendance; } else { filteredList = allAttendance.filter(p => p.time.startsWith(selectedAttendanceDate)); } const totalPages = Math.ceil(filteredList.length / attendancePerPage); if (currentAttendancePage < totalPages) { currentAttendancePage++; filterAttendanceByDate(selectedAttendanceDate); } }
+        function nextAttendancePage() { const allAttendance = currentLoadedProgram.attendance || []; let filteredList; const isSingleDayProgram = currentLoadedProgram.startDate === currentLoadedProgram.endDate; if (isSingleDayProgram) { filteredList = allAttendance; } else { filteredList = allAttendance.filter(p => p.time && p.time.startsWith(selectedAttendanceDate)); } const totalPages = Math.ceil(filteredList.length / attendancePerPage); if (currentAttendancePage < totalPages) { currentAttendancePage++; filterAttendanceByDate(selectedAttendanceDate); } }
         function changeAttendancePerPage() { attendancePerPage = parseInt(document.getElementById('attendance-per-page').value, 10); currentAttendancePage = 1; filterAttendanceByDate(selectedAttendanceDate); }
        
         async function showEvaluationModal() { 
