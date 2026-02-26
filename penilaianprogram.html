@@ -58,7 +58,7 @@
                 <p class="mt-2 text-white/80 text-sm font-medium">Memuatkan borang penilaian...</p>
             </div>
 
-            <div id="ic-card" class="card p-5 sm:p-8 hidden max-w-md mx-auto relative z-10">
+            <div id="ic-card" class="card p-5 sm:p-8 hidden max-w-md mx-auto">
                 <div class="text-center mb-3">
                     <div class="inline-block bg-purple-100 p-2.5 rounded-xl logo-pulse">
                         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="text-purple-600">
@@ -88,20 +88,14 @@
                     </div>
                 </div>
                 
+                <div id="mini-stats-container" class="mb-4 hidden w-full"></div>
+
                 <form id="ic-form" onsubmit="handleIcSubmit(event)">
                     <label for="participant-ic" class="block text-sm font-medium text-gray-700 mb-1.5 text-center">Sila Masukkan No. IC Anda</label>
                     <input type="tel" id="participant-ic" required placeholder="Cth: 900101131234" maxlength="12" oninput="validateIcInput(this)" class="block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-lg tracking-widest text-center font-semibold">
                     <div class="text-right text-[10px] text-gray-500 mt-1 pr-1"><span id="ic-counter">0</span>/12 Digit</div>
                     <button type="submit" id="submit-ic-btn" class="btn w-full mt-4 bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-4 rounded-xl text-sm uppercase tracking-wide shadow-md">Mula Menilai</button>
                 </form>
-            </div>
-
-            <div id="stats-card" class="card p-5 mt-4 hidden max-w-md mx-auto w-full border-t-4 border-purple-500 relative z-0">
-                <h3 class="text-sm font-bold text-gray-800 uppercase tracking-wide mb-3 flex items-center justify-center gap-2 border-b pb-2 border-gray-100">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-purple-500" viewBox="0 0 20 20" fill="currentColor"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" /></svg>
-                    Statistik Maklum Balas
-                </h3>
-                <div id="stats-container" class="mt-2"></div>
             </div>
 
             <div id="evaluation-form-card" class="card p-5 sm:p-8 hidden">
@@ -125,7 +119,7 @@
                 </form>
             </div>
 
-            <div id="message-card" class="card p-8 text-center hidden max-w-md mx-auto relative z-20">
+            <div id="message-card" class="card p-8 text-center hidden max-w-md mx-auto">
                  <div id="message-icon" class="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4"></div>
                 <h2 id="message-title" class="text-2xl font-bold text-gray-800"></h2>
                 <p id="message-body" class="text-gray-600 mt-2 text-sm leading-relaxed"></p>
@@ -183,7 +177,14 @@
         
         onAuthStateChanged(auth, async (user) => { if (user) main(); else { try { await signInAnonymously(auth); } catch (error) { console.error("Error signing in:", error); } } });
 
-        // Helper untuk format tarikh & masa
+        // Helper untuk format tarikh & masa dengan betulan masa tempatan (Zon Waktu)
+        function getLocalDateString(d) {
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
         function formatShortDate(dateStr) {
             if (!dateStr) return '';
             const d = new Date(dateStr + 'T00:00:00');
@@ -236,62 +237,57 @@
                 
                 document.getElementById('loading-state').classList.add('hidden');
                 document.getElementById('ic-card').classList.remove('hidden');
-                renderStats(); // Paparkan statistik selepas data berjaya dimuat turun
+                
+                renderStats(); // Panggil paparan statistik mini
             } else { showMessage('error', 'Penilaian Tidak Ditemui', 'Sila pastikan anda menggunakan pautan yang betul.'); }
         }
 
         function renderStats() {
-            const statsCard = document.getElementById('stats-card');
-            const statsContainer = document.getElementById('stats-container');
+            const container = document.getElementById('mini-stats-container');
             if (!currentProgram) return;
+
+            // 1. Tentukan tarikh sasaran
+            const targetDate = evaluationDate || getLocalDateString(new Date());
+
+            // 2. Kira jumlah kehadiran (attendance) untuk hari tersebut
+            const attendanceList = currentProgram.attendance || [];
+            const dailyAttendance = attendanceList.filter(a => {
+                if (!a.time) return false;
+                return getLocalDateString(new Date(a.time)) === targetDate;
+            });
+            const totalAttendance = dailyAttendance.length;
+
+            // 3. Kira jumlah borang dijawab (evaluations) untuk hari tersebut
             const evaluations = currentProgram.evaluations || [];
-            
-            if (evaluations.length === 0) {
-                statsCard.classList.add('hidden');
+            const dailyEvals = evaluations.filter(ev => ev.evalDate === targetDate);
+            const totalEvals = dailyEvals.length;
+
+            // Sembunyikan jika tiada kehadiran langsung pada hari tersebut
+            if (totalAttendance === 0 && totalEvals === 0) {
+                container.classList.add('hidden');
                 return;
             }
 
-            // Kumpulkan data mengikut tarikh
-            const countsByDate = {};
-            evaluations.forEach(ev => {
-                const d = ev.evalDate || 'Lain-lain';
-                countsByDate[d] = (countsByDate[d] || 0) + 1;
-            });
+            // 4. Kira Peratusan
+            let pct = 0;
+            if (totalAttendance > 0) {
+                pct = Math.round((totalEvals / totalAttendance) * 100);
+                if (pct > 100) pct = 100; // Langkah berjaga-jaga
+            }
 
-            // Susun tarikh dari awal ke akhir
-            const sortedDates = Object.keys(countsByDate).sort();
-            const maxCount = Math.max(...Object.values(countsByDate));
-            const totalEvals = evaluations.length;
-
-            let html = `
-                <div class="mb-5 text-center bg-purple-50 rounded-lg p-2 border border-purple-100 shadow-inner">
-                    <span class="text-3xl font-extrabold text-purple-700">${totalEvals}</span>
-                    <span class="text-[10px] text-purple-500 block uppercase font-bold tracking-widest mt-0.5">Jumlah Keseluruhan</span>
-                </div>
-                <div class="space-y-4">
-            `;
-
-            sortedDates.forEach(dateStr => {
-                const count = countsByDate[dateStr];
-                // Kira peratusan untuk panjang bar (minimum 5% supaya bar kelihatan)
-                const pct = Math.max(5, Math.round((count / maxCount) * 100)); 
-                const displayDate = dateStr !== 'Lain-lain' ? formatShortDate(dateStr) : dateStr;
-
-                html += `
-                    <div>
-                        <div class="flex justify-between text-xs mb-1.5 items-end">
-                            <span class="font-semibold text-gray-700 uppercase tracking-wide text-[11px]">${displayDate}</span>
-                            <span class="font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded text-[10px] shadow-sm">${count} Orang</span>
-                        </div>
-                        <div class="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden shadow-inner">
-                            <div class="bg-gradient-to-r from-purple-400 to-purple-600 h-2.5 rounded-full transition-all duration-1000 ease-out" style="width: ${pct}%"></div>
-                        </div>
+            // 5. Paparan UI Mini dan Kompak
+            container.innerHTML = `
+                <div class="bg-purple-50 rounded-xl p-3 border border-purple-100 shadow-sm">
+                    <div class="flex justify-between items-end mb-2">
+                        <span class="text-[10px] font-bold text-purple-800 uppercase tracking-wide">Status Maklum Balas Hari Ini</span>
+                        <span class="text-[10px] font-bold text-purple-600 bg-white px-2 py-0.5 rounded shadow-sm border border-purple-100">${totalEvals} / ${totalAttendance} (${pct}%)</span>
                     </div>
-                `;
-            });
-            html += `</div>`;
-            statsContainer.innerHTML = html;
-            statsCard.classList.remove('hidden');
+                    <div class="w-full bg-purple-200 rounded-full h-1.5 overflow-hidden">
+                        <div class="bg-purple-500 h-1.5 rounded-full transition-all duration-1000 ease-out" style="width: ${pct}%"></div>
+                    </div>
+                </div>
+            `;
+            container.classList.remove('hidden');
         }
 
         function renderEvaluationForm() {
@@ -373,7 +369,7 @@
             renderEvaluationForm();
             document.getElementById('evaluator-name').innerHTML = `PENILAI: <span class="font-bold text-purple-700 ml-1 uppercase border-b-2 border-purple-200 pb-0.5">${participantInfo.name}</span>`;
             document.getElementById('ic-card').classList.add('hidden');
-            document.getElementById('stats-card').classList.add('hidden'); // Sembunyikan statistik masa menjawab borang
+            document.getElementById('mini-stats-container').classList.add('hidden'); // Sembunyikan ketika menjawab
             document.getElementById('evaluation-form-card').classList.remove('hidden');
         }
 
@@ -407,7 +403,7 @@
                 ic: participantInfo.ic, 
                 name: participantInfo.name,
                 time: new Date().toISOString(),
-                evalDate: evaluationDate || new Date().toISOString().split('T')[0], 
+                evalDate: evaluationDate || getLocalDateString(new Date()), 
                 responses: responses,
                 suggestion: document.getElementById('suggestion-textarea').value.trim()
             };
@@ -415,8 +411,8 @@
             const programRef = doc(db, `artifacts/${appId}/public/data/spark_programs`, currentProgram.id);
             try {
                 await updateDoc(programRef, { evaluations: arrayUnion(newEvaluation) });
-
-                // Kemas kini carta secara live dalam cache
+                
+                // Kemas kini array di lokal memori dan jana carta terkini
                 if(!currentProgram.evaluations) currentProgram.evaluations = [];
                 currentProgram.evaluations.push(newEvaluation);
                 renderStats();
@@ -441,8 +437,9 @@
         function showMessage(type, title, body, showCertButton = false) {
             document.getElementById('loading-state').classList.add('hidden');
             document.getElementById('ic-card').classList.add('hidden');
-            document.getElementById('stats-card').classList.add('hidden'); // Sembunyikan statistik pada tetingkap mesej
+            document.getElementById('mini-stats-container').classList.add('hidden');
             document.getElementById('evaluation-form-card').classList.add('hidden');
+            
             const msgCard = document.getElementById('message-card');
             const msgIcon = document.getElementById('message-icon');
             const msgTitle = document.getElementById('message-title');
@@ -464,11 +461,6 @@
             msgIcon.className = `w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${color} shadow-lg`;
             msgIcon.innerHTML = icon;
             msgCard.classList.remove('hidden');
-            
-            // Apabila paparan mesej berjaya, paparkan kembali statistik (Opsional, nampak lawa untuk mesej berjaya)
-            if (type === 'success') {
-                document.getElementById('stats-card').classList.remove('hidden');
-            }
         }
         
         function printCertificate() {
