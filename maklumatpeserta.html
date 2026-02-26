@@ -79,8 +79,9 @@
             <h3 class="text-xl font-bold text-gray-800 mb-4 uppercase">Senarai Peserta Program</h3>
             
             <div class="border-b border-gray-200 mb-4">
-                <nav id="attendance-date-tabs" class="-mb-px flex space-x-6 overflow-x-auto"></nav>
+                <nav id="attendance-date-tabs" class="-mb-px flex space-x-2 overflow-x-auto pb-1"></nav>
             </div>
+
             <div class="flex flex-wrap gap-4 mb-4 items-end">
                 <div class="flex-grow">
                     <label for="search-input" class="text-sm font-medium text-gray-700">Carian</label>
@@ -176,7 +177,7 @@
         let allParticipants = [];
         let currentPage = 1;
         let itemsPerPage = 10;
-        let selectedAttendanceDate = null; // KOD BARU: Menyimpan tarikh tab yang dipilih
+        let selectedAttendanceDate = null;
         const appId = firebaseConfig.projectId;
 
         try {
@@ -230,7 +231,7 @@
                     document.getElementById('program-time').textContent = formatTimeRange(currentProgram.startTime, currentProgram.endTime);
                     
                     populateStationFilter();
-                    renderDateTabsAndAttendance(); // KOD BARU: Panggil render tab tarikh
+                    renderDateTabsAndAttendance(); // Kemas kini Tab dan Kehadiran
                 } else {
                     document.getElementById('loading-state').innerHTML = `<p class="text-red-500">Program dengan kunci "${programKey}" tidak ditemui.</p>`;
                 }
@@ -240,11 +241,11 @@
             });
         }
         
-        // --- KOD BARU: FUNGSI UNTUK TAB TARIKH ---
+        // --- FUNGSI UNTUK TAB TARIKH & STATISTIK HARIAN ---
         function formatDate(date) { 
             if (!date) return ''; 
             const d = typeof date === 'string' ? new Date(date.split('T')[0] + 'T00:00:00') : (date.toDate ? date.toDate() : date); 
-            return d.toLocaleDateString('ms-MY', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kuala_Lumpur' }); 
+            return d.toLocaleDateString('ms-MY', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kuala_Lumpur' }); 
         }
 
         function renderDateTabsAndAttendance() {
@@ -268,14 +269,31 @@
                  selectedAttendanceDate = programDateStrings.includes(todayStr) ? todayStr : programDateStrings[0];
             }
 
+            const kuota = parseInt(currentProgram.quota) || 0; 
+
             if (programDates.length > 1) {
                 programDates.forEach(date => {
                     const dateStr = date.toISOString().split('T')[0];
                     const isActive = dateStr === selectedAttendanceDate;
+                    
+                    // Kira statistik kehadiran untuk tarikh ini
+                    const dailyCount = allParticipants.filter(p => p.time && p.time.startsWith(dateStr)).length;
+                    let statText = `${dailyCount} Hadir`;
+                    if (kuota > 0) {
+                        const percentage = Math.min(100, Math.round((dailyCount / kuota) * 100));
+                        statText = `${dailyCount}/${kuota} (${percentage}%)`;
+                    }
+
                     const tab = document.createElement('a');
                     tab.href = '#';
-                    tab.textContent = formatDate(date);
-                    tab.className = `whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm ${isActive ? 'text-indigo-600 border-indigo-500' : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'}`;
+                    tab.dataset.date = dateStr;
+                    tab.className = `flex flex-col items-center justify-center py-2 px-4 border-b-2 transition-colors cursor-pointer rounded-t-lg ${isActive ? 'text-indigo-700 border-indigo-600 bg-indigo-50/50' : 'text-gray-500 border-transparent hover:text-gray-700 hover:bg-gray-50'}`;
+                    
+                    tab.innerHTML = `
+                        <span class="text-sm font-semibold mb-1">${formatDate(date)}</span>
+                        <span class="text-[10px] px-2.5 py-0.5 rounded-full ${isActive ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-700'}">${statText}</span>
+                    `;
+
                     tab.onclick = (e) => {
                         e.preventDefault();
                         selectDateTab(dateStr);
@@ -283,9 +301,20 @@
                     tabsContainer.appendChild(tab);
                 });
             } else {
-                const tab = document.createElement('span');
-                tab.textContent = formatDate(programDates[0]);
-                tab.className = 'py-2 px-1 border-b-2 font-medium text-sm text-indigo-600 border-indigo-500';
+                const dateStr = programDates[0].toISOString().split('T')[0];
+                const dailyCount = allParticipants.length; 
+                let statText = `${dailyCount} Hadir`;
+                if (kuota > 0) {
+                    const percentage = Math.min(100, Math.round((dailyCount / kuota) * 100));
+                    statText = `${dailyCount}/${kuota} (${percentage}%)`;
+                }
+
+                const tab = document.createElement('div');
+                tab.className = 'flex flex-col items-center justify-center py-2 px-4 border-b-2 text-indigo-700 border-indigo-600 bg-indigo-50/50 rounded-t-lg';
+                tab.innerHTML = `
+                    <span class="text-sm font-semibold mb-1">${formatDate(programDates[0])}</span>
+                    <span class="text-[10px] px-2.5 py-0.5 rounded-full bg-indigo-600 text-white">${statText}</span>
+                `;
                 tabsContainer.appendChild(tab);
             }
             
@@ -296,16 +325,18 @@
             selectedAttendanceDate = dateStr;
             const tabs = document.querySelectorAll('#attendance-date-tabs a');
             tabs.forEach(tab => {
-                const isActive = tab.textContent === formatDate(new Date(dateStr + 'T00:00:00'));
-                tab.classList.toggle('text-indigo-600', isActive);
-                tab.classList.toggle('border-indigo-500', isActive);
-                tab.classList.toggle('text-gray-500', !isActive);
-                tab.classList.toggle('border-transparent', !isActive);
+                const isActive = tab.dataset.date === dateStr;
+                tab.className = `flex flex-col items-center justify-center py-2 px-4 border-b-2 transition-colors cursor-pointer rounded-t-lg ${isActive ? 'text-indigo-700 border-indigo-600 bg-indigo-50/50' : 'text-gray-500 border-transparent hover:text-gray-700 hover:bg-gray-50'}`;
+                
+                const badge = tab.querySelector('span:nth-child(2)');
+                if(badge) {
+                    badge.className = `text-[10px] px-2.5 py-0.5 rounded-full ${isActive ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-700'}`;
+                }
             });
             currentPage = 1;
             renderParticipantTable();
         }
-        // --- TAMAT KOD BARU ---
+        // --- TAMAT FUNGSI TAB TARIKH ---
 
         function formatTimeMalay(timeString) {
             if (!timeString) return '';
@@ -789,7 +820,7 @@
             const compareBy = document.querySelector('input[name="compare-by"]:checked').value;
             const pastedRows = pastedData.split('\n').filter(row => row.trim() !== '');
 
-            // Use the currently filtered list (so it respects the selected Date Tab)
+            // Gunakan senarai yang telah ditapis mengikut tab tarikh
             const availableAttendees = [...getFilteredAndSortedParticipants()];
 
             if (compareBy === 'station') {
@@ -811,7 +842,7 @@
                     outputTextarea.value = absentees.join('\n');
                     copyBtn.classList.remove('hidden');
                  } else {
-                    outputTextarea.value = 'Hebat! Semua stesyen dari senarai anda didapati telah hadir.';
+                    outputTextarea.value = 'Hebat! Semua stesyen dari senarai anda didapati telah hadir untuk tarikh ini.';
                     copyBtn.classList.add('hidden');
                  }
                  return;
@@ -937,7 +968,7 @@
                 outputTextarea.value = comparisonReviewState.absentees.sort().join('\n');
                 copyBtn.classList.remove('hidden');
             } else {
-                outputTextarea.value = 'Hebat! Semua peserta dari senarai anda didapati telah hadir.';
+                outputTextarea.value = 'Hebat! Semua peserta dari senarai anda didapati telah hadir untuk tarikh ini.';
                 copyBtn.classList.add('hidden');
             }
             
@@ -1081,9 +1112,9 @@
         };
 
         window.downloadAllAppreciationCertificates = function() {
-            // Sijil Penghargaan diberikan kepada peranan khas sahaja, bukan Peserta biasa
-            const list = allParticipants.filter(p => ['Penceramah', 'Fasilitator', 'Urusetia'].includes(p.role));
-            if(list.length === 0) return alert("Tiada Penceramah, Fasilitator atau Urusetia untuk dicetak.");
+            // Gunakan list yang sedang di-filter supaya ia menyokong cetakan pukal ikut tab
+            const list = getFilteredAndSortedParticipants().filter(p => ['Penceramah', 'Fasilitator', 'Urusetia'].includes(p.role));
+            if(list.length === 0) return alert("Tiada Penceramah, Fasilitator atau Urusetia dalam tab/senarai ini untuk dicetak.");
             const printWindow = window.open('', '_blank');
             let content = `<html><head><title>Sijil Pukal - ${currentProgram.name}</title><style>${certificateStyles}</style></head><body>`;
             list.forEach(p => { content += generateCertificateHTMLString(p); });
