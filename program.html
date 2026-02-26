@@ -217,7 +217,12 @@
 
             <div class="card p-6">
                 <div class="flex flex-wrap justify-between items-center gap-y-2 mb-4">
-                    <h3 class="text-lg font-semibold text-gray-800 flex items-center gap-2"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-indigo-500" viewBox="0 0 20 20" fill="currentColor"><path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" /></svg>Senarai Kehadiran</h3>
+                   <h3 class="text-lg font-semibold text-gray-800 flex items-center gap-2">
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-indigo-500" viewBox="0 0 20 20" fill="currentColor"><path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" /></svg>
+    Senarai Kehadiran 
+    <span id="attendance-date-label" class="bg-indigo-100 text-indigo-800 text-xs px-2 py-1 rounded-md ml-2 hidden"></span>
+</h3>
+                    
                     <div class="flex items-center gap-x-2">
                         <button onclick="toggleManualCheckin()" class="btn bg-blue-100 text-blue-800 text-xs font-semibold py-1 px-3 rounded-lg hover:bg-blue-200">Daftar Manual</button>
                         <label for="attendance-per-page" class="text-sm font-medium text-gray-700 ml-2">Papar:</label>
@@ -762,6 +767,14 @@ renderEarlyBirds(); // <--- PANGGIL FUNGSI DI SINI
                 filteredList = allAttendance.filter(p => p.time.startsWith(dateStr));
             }
 
+// --- KOD BARU: Kemas kini label tarikh pada tajuk ---
+    const dateLabel = document.getElementById('attendance-date-label');
+    if (dateLabel) {
+        dateLabel.textContent = formatDate(new Date(dateStr + 'T00:00:00'));
+        dateLabel.classList.remove('hidden');
+    }
+    // ----------------------------------------------------
+            
             const tabs = document.querySelectorAll('#attendance-date-tabs a');
             tabs.forEach(tab => {
                 tab.classList.toggle('text-indigo-600', tab.textContent === formatDate(new Date(dateStr + 'T00:00:00')));
@@ -1282,8 +1295,78 @@ function generateAvatar(participant) {
         function prevAttendancePage() { if (currentAttendancePage > 1) { currentAttendancePage--; filterAttendanceByDate(selectedAttendanceDate); } }
         function nextAttendancePage() { const allAttendance = currentLoadedProgram.attendance || []; let filteredList; const isSingleDayProgram = currentLoadedProgram.startDate === currentLoadedProgram.endDate; if (isSingleDayProgram) { filteredList = allAttendance; } else { filteredList = allAttendance.filter(p => p.time.startsWith(selectedAttendanceDate)); } const totalPages = Math.ceil(filteredList.length / attendancePerPage); if (currentAttendancePage < totalPages) { currentAttendancePage++; filterAttendanceByDate(selectedAttendanceDate); } }
         function changeAttendancePerPage() { attendancePerPage = parseInt(document.getElementById('attendance-per-page').value, 10); currentAttendancePage = 1; filterAttendanceByDate(selectedAttendanceDate); }
-        async function showEvaluationModal() { if (!currentLoadedProgram || !currentLoadedProgram.evaluationNeeded || !currentLoadedProgram.evaluationKey) { return alert("Modul Penilaian Program tidak diaktifkan."); } const modal = document.getElementById('evaluation-modal'); const loadingDiv = document.getElementById('evaluation-content-loading'); const contentDiv = document.getElementById('evaluation-content'); const linkInput = document.getElementById('evaluation-link-input'); const qrImg = document.getElementById('evaluation-qr-code'); modal.classList.remove('hidden'); loadingDiv.classList.remove('hidden'); contentDiv.classList.add('hidden'); linkInput.value = ''; qrImg.src = ''; const baseUrl = window.location.origin + window.location.pathname.replace('program.html', ''); const longUrl = `${baseUrl}penilaianprogram.html?kod=${currentLoadedProgram.evaluationKey}`; try { const response = await fetch(`https://tinyurl.com/api-create.php?url=${encodeURIComponent(longUrl)}`); if (!response.ok) { throw new Error('Network response'); } const shortUrl = await response.text(); linkInput.value = shortUrl; } catch (error) { console.error('Failed to shorten:', error); linkInput.value = longUrl; } finally { const finalLink = linkInput.value; qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(finalLink)}`; loadingDiv.classList.add('hidden'); contentDiv.classList.remove('hidden'); } }
-        function copyEvaluationLink(buttonElement) { const linkInput = document.getElementById('evaluation-link-input'); navigator.clipboard.writeText(linkInput.value).then(() => { buttonElement.textContent = 'Tersalin!'; setTimeout(() => { buttonElement.textContent = 'Salin'; }, 2000); }); }
+       
+        async function showEvaluationModal() { 
+    if (!currentLoadedProgram || !currentLoadedProgram.evaluationNeeded || !currentLoadedProgram.evaluationKey) { 
+        return alert("Modul Penilaian Program tidak diaktifkan."); 
+    } 
+    const modal = document.getElementById('evaluation-modal'); 
+    const loadingDiv = document.getElementById('evaluation-content-loading'); 
+    const contentDiv = document.getElementById('evaluation-content'); 
+    const linkInput = document.getElementById('evaluation-link-input'); 
+    const qrImg = document.getElementById('evaluation-qr-code'); 
+    const modalTitle = modal.querySelector('h3');
+
+    // Kemas kini tajuk modal dengan tarikh yang sedang dipilih
+    let formattedDate = selectedAttendanceDate ? formatDate(new Date(selectedAttendanceDate + 'T00:00:00')) : '';
+    modalTitle.textContent = `Pautan & Kod QR Penilaian (${formattedDate})`;
+
+    modal.classList.remove('hidden'); 
+    loadingDiv.classList.remove('hidden'); 
+    contentDiv.classList.add('hidden'); 
+    linkInput.value = ''; 
+    qrImg.src = ''; 
+    
+    const baseUrl = window.location.origin + window.location.pathname.replace('program.html', ''); 
+    
+    // --- KOD BARU: Tambah parameter &tarikh= pada URL panjang ---
+    const longUrl = `${baseUrl}penilaianprogram.html?kod=${currentLoadedProgram.evaluationKey}&tarikh=${selectedAttendanceDate || ''}`; 
+    // ------------------------------------------------------------
+
+    try { 
+        const response = await fetch(`https://tinyurl.com/api-create.php?url=${encodeURIComponent(longUrl)}`); 
+        if (!response.ok) { throw new Error('Network response'); } 
+        const shortUrl = await response.text(); 
+        linkInput.value = shortUrl; 
+    } catch (error) { 
+        console.error('Failed to shorten:', error); 
+        linkInput.value = longUrl; 
+    } finally { 
+        const finalLink = linkInput.value; 
+        qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(finalLink)}`; 
+        loadingDiv.classList.add('hidden'); 
+        contentDiv.classList.remove('hidden'); 
+    } 
+}
+
+async function downloadEvaluationQr() { 
+    const qrImage = document.getElementById('evaluation-qr-code'); 
+    const imageUrl = qrImage.src; 
+    if (!imageUrl || !currentLoadedProgram) { 
+        alert("QR belum dijana."); return; 
+    } 
+    try { 
+        const response = await fetch(imageUrl); 
+        const blob = await response.blob(); 
+        const link = document.createElement('a'); 
+        link.href = URL.createObjectURL(blob); 
+        const sanitizedName = currentLoadedProgram.name.replace(/[^a-z0-9]/gi, '_').toLowerCase(); 
+        
+        // --- KOD BARU: Tambah tarikh pada nama fail yang dimuat turun ---
+        const safeDate = selectedAttendanceDate ? selectedAttendanceDate : '';
+        link.download = `qr_penilaian_${sanitizedName}_${safeDate}.png`; 
+        // ----------------------------------------------------------------
+
+        document.body.appendChild(link); 
+        link.click(); 
+        document.body.removeChild(link); 
+        URL.revokeObjectURL(link.href); 
+    } catch (error) { 
+        console.error("Gagal muat turun QR:", error); 
+        alert("Gagal muat turun."); 
+    } 
+}
+        
         async function downloadEvaluationQr() { const qrImage = document.getElementById('evaluation-qr-code'); const imageUrl = qrImage.src; if (!imageUrl || !currentLoadedProgram) { alert("QR belum dijana."); return; } try { const response = await fetch(imageUrl); const blob = await response.blob(); const link = document.createElement('a'); link.href = URL.createObjectURL(blob); const sanitizedName = currentLoadedProgram.name.replace(/[^a-z0-9]/gi, '_').toLowerCase(); link.download = `qr_penilaian_${sanitizedName}.png`; document.body.appendChild(link); link.click(); document.body.removeChild(link); URL.revokeObjectURL(link.href); } catch (error) { console.error("Gagal muat turun QR:", error); alert("Gagal muat turun."); } }
         function openEvaluationLink() { const url = document.getElementById('evaluation-link-input').value; if (url) { window.open(url, '_blank'); } }
         async function downloadQrCode() { const qrImage = document.getElementById('qr-code-image'); const imageUrl = qrImage.src; if (!imageUrl || !currentLoadedProgram) { alert("QR belum dijana."); return; } try { const response = await fetch(imageUrl); const blob = await response.blob(); const link = document.createElement('a'); link.href = URL.createObjectURL(blob); const sanitizedName = currentLoadedProgram.name.replace(/[^a-z0-9]/gi, '_').toLowerCase(); link.download = `qr_kehadiran_${sanitizedName}.png`; document.body.appendChild(link); link.click(); document.body.removeChild(link); URL.revokeObjectURL(link.href); } catch (error) { console.error("Gagal muat turun QR:", error); alert("Gagal muat turun."); } }
