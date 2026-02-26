@@ -109,11 +109,7 @@
                 </div>
             </div>
             <div id="header-buttons" class="flex w-full sm:w-auto justify-center sm:justify-end items-center gap-2 sm:gap-4 flex-wrap">
-             <button onclick="fixEvaluationDates()" class="btn bg-red-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-red-700 text-xs sm:text-sm">
-                    🔧 Baiki Tarikh Penilaian
-                 </button>
-                
-                <a href="index.html" class="btn bg-gray-100 text-gray-800 font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-gray-200 flex items-center gap-2 text-xs sm:text-sm"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.707-10.293a1 1 0 00-1.414-1.414l-3 3a1 1 0 001.414 1.414L9 9.414V13a1 1 0 102 0V9.414l1.293 1.293a1 1 0 001.414-1.414l-3-3z" clip-rule="evenodd" /></svg>Halaman Utama</a>
+                 <a href="index.html" class="btn bg-gray-100 text-gray-800 font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-gray-200 flex items-center gap-2 text-xs sm:text-sm"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.707-10.293a1 1 0 00-1.414-1.414l-3 3a1 1 0 001.414 1.414L9 9.414V13a1 1 0 102 0V9.414l1.293 1.293a1 1 0 001.414-1.414l-3-3z" clip-rule="evenodd" /></svg>Halaman Utama</a>
                  <a href="jadual.html" class="btn bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-indigo-700 flex items-center gap-2 text-xs sm:text-sm">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd" /></svg>
                     Kalendar Bulanan
@@ -1505,48 +1501,7 @@ async function downloadEvaluationQr() {
                  renderInfographic(); // Panggil semula untuk pastikan metrik dikemas kini
             }
         }
-async function fixEvaluationDates() {
-            if (!currentLoadedProgram || !currentLoadedProgram.evaluations) {
-                alert("Tiada data penilaian untuk dibaiki.");
-                return;
-            }
 
-            let isChanged = false;
-            const fixedEvaluations = currentLoadedProgram.evaluations.map(ev => {
-                // 1. Ambil masa sebenar borang dihantar dari database
-                const realTime = new Date(ev.time);
-                
-                // 2. Tukar ke format YYYY-MM-DD waktu tempatan Malaysia
-                const year = realTime.getFullYear();
-                const month = String(realTime.getMonth() + 1).padStart(2, '0');
-                const day = String(realTime.getDate()).padStart(2, '0');
-                const correctDateStr = `${year}-${month}-${day}`;
-
-                // 3. Jika tarikh yang direkod salah (kurang sehari), kita betulkan
-                if (ev.evalDate !== correctDateStr) {
-                    console.log(`Baiki rekod ${ev.name} | Dari: ${ev.evalDate} -> Kepada: ${correctDateStr}`);
-                    ev.evalDate = correctDateStr; // overwrite dengan tarikh betul
-                    isChanged = true;
-                }
-                return ev;
-            });
-
-            if (isChanged) {
-                const submitConfirm = confirm("Sistem mendapati ada rekod tarikh yang lari. Teruskan baiki data di database?");
-                if (submitConfirm) {
-                    const programRef = doc(db, `artifacts/${appId}/public/data/spark_programs`, currentLoadedProgram.id);
-                    try {
-                        await updateDoc(programRef, { evaluations: fixedEvaluations });
-                        alert("Selesai bro! Semua tarikh penilaian lama dah dikemas kini ikut hari sebenar mereka isi.");
-                    } catch (error) {
-                        console.error("Gagal baiki data:", error);
-                        alert("Ralat masa membaiki data.");
-                    }
-                }
-            } else {
-                alert("Semua data tarikh penilaian dah betul, tiada yang perlu dibaiki.");
-            }
-        }
         function startCountdown(programData) { let interval = window.countdownTimerInterval; if (interval) clearInterval(interval); const container = document.getElementById('dashboard-countdown'); const timerSpan = document.getElementById('countdown-timer-text'); if (!programData.expiryTimestamp) { container.classList.add('hidden'); container.classList.remove('flex'); return; } container.classList.remove('hidden'); container.classList.add('flex'); const cutoff = new Date(programData.expiryTimestamp); window.countdownTimerInterval = setInterval(() => { const distance = cutoff - new Date().getTime(); if (distance < 0) { clearInterval(window.countdownTimerInterval); timerSpan.innerHTML = 'Pendaftaran Ditutup'; return; } const d = Math.floor(distance / 864e5); const h = Math.floor((distance % 864e5) / 36e5); const m = Math.floor((distance % 36e5) / 6e4); let str = 'Tutup dalam: '; if (d > 0) str += `${d}h `; str += `${h}j ${m}m`; timerSpan.innerHTML = str; }, 1000); }
         function updateQrCode() { if (!currentCheckinUrl) return; const size = document.querySelector('input[name="qr-size"]:checked').value; const qrImg = document.getElementById('qr-code-image'); qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(currentCheckinUrl)}`; }
         function showNewParticipantModal(ic){ document.getElementById('new-ic').value = ic; document.getElementById('new-participant-modal').classList.remove('hidden'); }
@@ -1876,8 +1831,7 @@ async function fixEvaluationDates() {
 }
         Object.assign(window, { 
             checkIn, 
-            registerAndCheckIn,
-            fixEvaluationDates,
+            registerAndCheckIn, 
             showUnlockModal, 
             verifyAndUnlock, 
             shareCurrentProgramLink, 
