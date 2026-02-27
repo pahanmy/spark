@@ -284,14 +284,15 @@
                     <thead class="bg-gray-50 border-b border-gray-200">
                         <tr>
                             <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Bil</th>
-                            <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Tugasan / Penyelaras</th>
-                            <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Tarikh Akhir (Status)</th>
-                            <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Pencapaian Keseluruhan</th>
+                            <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Maklumat Tugasan</th>
+                            <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider min-w-[160px]">Status Anda</th>
+                            <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Tarikh Akhir (Baki)</th>
+                            <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Prestasi Keseluruhan</th>
                             <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Tindakan</th>
                         </tr>
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-100">
-                        <tr><td colspan="5" class="px-6 py-8 text-center text-gray-500">Memuatkan data tugasan...</td></tr>
+                        <tr><td colspan="6" class="px-6 py-8 text-center text-gray-500">Memuatkan data tugasan...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -666,22 +667,28 @@
             const [tahun, bulan, hari] = tarikhString.split('-');
             return `${hari}/${bulan}/${tahun}`;
         }
+        
+        function formatDateTime(isoString) {
+            if (!isoString) return '';
+            const d = new Date(isoString);
+            return d.toLocaleDateString('ms-MY', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+        }
 
         function kiraBakiHari(tarikhString, peratus, isClosedByAdmin) {
             const isCompleted = peratus === 100 || isClosedByAdmin;
-            if (isCompleted) return { teks: 'Selesai', badgeClass: 'bg-green-100 text-green-800' };
+            if (isCompleted) return { teks: 'Selesai', badgeClass: 'bg-green-100 text-green-800', isOverdue: false };
             
             const tarikhSiap = new Date(tarikhString);
-            if (isNaN(tarikhSiap.getTime())) return { teks: '-', badgeClass: 'bg-gray-100 text-gray-800' };
+            if (isNaN(tarikhSiap.getTime())) return { teks: '-', badgeClass: 'bg-gray-100 text-gray-800', isOverdue: false };
             
             const hariIni = new Date(); hariIni.setHours(0, 0, 0, 0);
             const tarikhSiapTengahMalam = new Date(tarikhString); tarikhSiapTengahMalam.setHours(0, 0, 0, 0);
             const bezaMasa = tarikhSiapTengahMalam.getTime() - hariIni.getTime();
             const bezaHari = Math.ceil(bezaMasa / (1000 * 60 * 60 * 24));
             
-            if (bezaHari > 0) return { teks: `${bezaHari} hari lagi`, badgeClass: 'bg-indigo-100 text-indigo-800' };
-            else if (bezaHari === 0) return { teks: 'Hari Ini', badgeClass: 'bg-amber-100 text-amber-800' };
-            else return { teks: `Terlewat ${Math.abs(bezaHari)} hari`, badgeClass: 'bg-red-100 text-red-800' };
+            if (bezaHari > 0) return { teks: `${bezaHari} hari lagi`, badgeClass: 'bg-indigo-100 text-indigo-800', isOverdue: false };
+            else if (bezaHari === 0) return { teks: 'Hari Ini', badgeClass: 'bg-amber-100 text-amber-800', isOverdue: false };
+            else return { teks: `Terlewat ${Math.abs(bezaHari)} hari`, badgeClass: 'bg-red-100 text-red-800', isOverdue: true };
         }
 
         function getInitials(name) {
@@ -690,10 +697,11 @@
             return name.substring(0, 2).toUpperCase();
         }
 
-      window.logout = function() {
+        window.logout = function() {
             localStorage.removeItem('user_ic');
             window.location.href = 'https://pahanmy.github.io/ppdmiri/'; 
         }
+
         // --- FUNGSI LOGIN IC ---
         document.getElementById('form-login-ic').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -772,7 +780,7 @@
         function renderProfileBanner() {
             document.getElementById('profile-banner').classList.remove('hidden');
             
-            // Badge PRO/BIASA (Lebih Kemas/Minimalistik)
+            // Badge PRO/BIASA
             let isSparkPro = (currentUserData.isPro === true) || (currentUserData.ic === "890522135381");
             const proBadge = isSparkPro 
                 ? `<span class="ml-2 align-middle bg-black text-white text-[10px] px-2 py-0.5 rounded-md shadow-sm tracking-widest font-bold border border-gray-600">PRO</span>` 
@@ -795,12 +803,10 @@
                 initials.classList.remove('hidden');
             }
 
-            // Custom Header Background Jika PRO
+            // Custom Header Background
             if (isSparkPro && currentUserData.userHeaderBgUrl) {
                 const banner = document.getElementById('profile-banner');
                 banner.style.backgroundImage = `url('${currentUserData.userHeaderBgUrl}')`;
-                
-                // Pastikan overlay dihidupkan untuk gambar tersuai
                 document.getElementById('banner-overlay').classList.remove('opacity-30');
                 document.getElementById('banner-overlay').classList.add('opacity-50');
             }
@@ -810,7 +816,6 @@
                 document.getElementById('admin-school-names').innerHTML = currentUserSchools.join('<br>');
             }
             
-            // Logik Sembunyikan Butang '+ Tambah Tugasan Baru'
             const btnTambah = document.getElementById('btn-tambah-tugasan');
             const isWargaPPD = (currentUserData.sector && currentUserData.sector.toUpperCase().includes("SEKTOR")) || (currentUserData.ic === "890522135381");
             
@@ -833,7 +838,7 @@
                 paparkanTugasan();
             }, (error) => {
                 console.error("Error mendengar data: ", error);
-                badanJadual.innerHTML = `<tr><td colspan="5" class="px-6 py-4 text-center text-red-500">Gagal menyambung ke pangkalan data.</td></tr>`;
+                badanJadual.innerHTML = `<tr><td colspan="6" class="px-6 py-4 text-center text-red-500">Gagal menyambung ke pangkalan data.</td></tr>`;
             });
         }
 
@@ -849,11 +854,10 @@
                 const searchMatch = tugasan.nama.toLowerCase().includes(searchTerm);
                 const sektorMatch = (sektorTerm === "") ? true : (tugasan.sektor === sektorTerm);
                 
-                // Tapisan Bulan (Berdasarkan tarikh mula penugasan)
                 let bulanMatch = true;
                 if (bulanTerm !== "") {
                     if (tugasan.tarikhMula) {
-                        const m = tugasan.tarikhMula.split('-')[1]; // YYYY-MM-DD
+                        const m = tugasan.tarikhMula.split('-')[1]; 
                         bulanMatch = (m === bulanTerm);
                     } else {
                         bulanMatch = false; 
@@ -862,7 +866,7 @@
 
                 let isAuthorized = false;
                 if (tugasan.penyelaras_ic === currentUserData.ic || tugasan.userId === userId) {
-                    isAuthorized = true; // Penyelaras nampak
+                    isAuthorized = true; 
                 } else {
                     const rawSkop = Array.isArray(tugasan.skopSenaraiSekolah) ? tugasan.skopSenaraiSekolah : [];
                     const taskSkopNames = rawSkop.map(s => {
@@ -870,7 +874,7 @@
                         return String(s);
                     }).map(normalizeName);
 
-                    // PENTING: Jika tiada skop langsung, isAuthorized kekal false (tidak dipaparkan)
+                    // Sembunyikan terus jika skop kosong
                     if (taskSkopNames.length > 0) {
                         isAuthorized = taskSkopNames.some(key => userSkopKeys.includes(key));
                     }
@@ -921,9 +925,47 @@
                 if (isTrulyCompleted) totalSelesaiCount++;
                 else totalBelumCount++;
 
-                return { ...tugasan, progress: { jumlahSelesai, total, peratus, isTrulyCompleted } };
+                // LOGIK BARU: REKOD TINDAKAN PENGGUNA & STATUS ALERT
+                let myCompletionRecord = null;
+                if (allRekodSelesai.length > 0) {
+                    myCompletionRecord = allRekodSelesai.find(r => 
+                        r.ic_pengesah === currentUserData.ic || 
+                        userSkopKeys.includes(normalizeName(r.stesen_pengesah)) || 
+                        userSkopKeys.includes(normalizeName(r.nama_pengesah))
+                    );
+                }
+
+                let isMyScope = false;
+                if (originalTotalSkop.length > 0) {
+                    const taskSkopNames = originalTotalSkop.map(s => {
+                        if(typeof s === 'object' && s !== null) return String(s.nama || '');
+                        return String(s);
+                    }).map(normalizeName);
+                    isMyScope = taskSkopNames.some(key => userSkopKeys.includes(key));
+                } else {
+                    isMyScope = true; 
+                }
+
+                const bakiInfo = kiraBakiHari(tugasan.tarikhSiap, peratus, isCompletedAdmin);
+                
+                let requiresAction = false;
+                if (isMyScope && !myCompletionRecord && !isCompletedAdmin && peratus < 100 && !bakiInfo.isOverdue) {
+                    requiresAction = true;
+                }
+
+                return { ...tugasan, progress: { jumlahSelesai, total, peratus, isTrulyCompleted }, myCompletionRecord, isMyScope, requiresAction, bakiInfo };
             });
             
+            // ISIH MENGIKUT TINDAKAN DIPERLUKAN KEMUDIAN TARIKH
+            listWithProgress.sort((a, b) => {
+                if (a.requiresAction && !b.requiresAction) return -1;
+                if (!a.requiresAction && b.requiresAction) return 1;
+
+                const dateA = a.createdAt ? a.createdAt.toDate().getTime() : 0;
+                const dateB = b.createdAt ? b.createdAt.toDate().getTime() : 0;
+                return dateB - dateA;
+            });
+
             totalTugasanEl.textContent = filteredList.length;
             totalSelesaiEl.textContent = totalSelesaiCount;
             totalBelumEl.textContent = totalBelumCount;
@@ -937,7 +979,7 @@
             const paginatedList = listWithProgress.slice(startIndex, endIndex);
             
             if (paginatedList.length === 0) {
-                badanJadual.innerHTML = `<tr><td colspan="5" class="px-6 py-4 text-center text-gray-500 italic bg-gray-50">Tiada tugasan yang dijumpai.</td></tr>`;
+                badanJadual.innerHTML = `<tr><td colspan="6" class="px-6 py-4 text-center text-gray-500 italic bg-gray-50">Tiada tugasan yang dijumpai.</td></tr>`;
                 renderPaginationControls(0, 0);
                 return;
             }
@@ -947,9 +989,6 @@
                 const tugasan = data;
                 const isPenyelaras = tugasan.penyelaras_ic === currentUserData.ic || tugasan.userId === userId;
                 
-                const effectivePeratus = isTrulyCompleted ? 100 : peratus;
-                const bakiHariInfo = kiraBakiHari(tugasan.tarikhSiap, effectivePeratus, tugasan.isClosedByAdmin); 
-
                 const baris = document.createElement('tr');
                 baris.className = "hover:bg-gray-50 transition-colors duration-150";
 
@@ -975,7 +1014,7 @@
                      <div class="text-center text-xs mt-1"><span class="font-medium ${progressTextColorClass}">${peratus}%</span> (${jumlahSelesai}/${total})</div>`;
 
                 let tindakanHtml = `
-                    <a href="task.html?id=${tugasan.id}" class="btn bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1">
+                    <a href="task.html?id=${tugasan.id}" class="btn bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 w-full justify-center">
                         Papan Pemuka
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
                     </a>
@@ -983,21 +1022,46 @@
 
                 if (isPenyelaras) {
                     tindakanHtml = `
-                        <div class="flex items-center gap-2">
-                            <button class="btn text-green-600 hover:text-green-900 p-1.5 rounded bg-gray-50 border border-transparent hover:border-green-200 butang-edit" data-id="${tugasan.id}" title="Edit Tugasan">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd" /></svg>
-                            </button>
+                        <div class="flex flex-col gap-2">
                             ${tindakanHtml}
-                            <button class="btn text-red-500 hover:text-red-700 p-1.5 rounded bg-gray-50 border border-transparent hover:border-red-200 butang-padam" data-id="${tugasan.id}" title="Padam Tugasan">
-                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                            </button>
+                            <div class="flex items-center gap-2 w-full">
+                                <button class="flex-1 btn text-green-600 hover:text-green-900 p-1.5 rounded bg-gray-50 border border-transparent hover:border-green-200 butang-edit flex items-center justify-center gap-1" data-id="${tugasan.id}" title="Edit Tugasan">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd" /></svg>
+                                    <span class="text-[10px] font-bold uppercase">Edit</span>
+                                </button>
+                                <button class="flex-1 btn text-red-500 hover:text-red-700 p-1.5 rounded bg-gray-50 border border-transparent hover:border-red-200 butang-padam flex items-center justify-center gap-1" data-id="${tugasan.id}" title="Padam Tugasan">
+                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                    <span class="text-[10px] font-bold uppercase">Padam</span>
+                                </button>
+                            </div>
                         </div>
                     `;
                 }
                 
+                // STATUS TINDAKAN HTML
+                let myStatusHtml = '';
+                if (data.myCompletionRecord) {
+                    myStatusHtml = `
+                        <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-bold bg-green-100 text-green-700 border border-green-200 mb-1">
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                            SELESAI DIJAWAB
+                        </span>
+                        <div class="text-[10px] text-gray-500 font-medium">${formatDateTime(data.myCompletionRecord.timestamp)}</div>
+                    `;
+                } else if (data.isMyScope) {
+                    if (data.bakiInfo.isCompleted || data.bakiInfo.isOverdue) {
+                         myStatusHtml = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-gray-100 text-gray-500 border border-gray-200">TIADA REKOD (DITUTUP)</span>`;
+                    } else {
+                         myStatusHtml = `<span class="inline-block px-2.5 py-1.5 rounded-md text-[10px] font-bold bg-red-100 text-red-700 border border-red-200 animate-pulse shadow-sm tracking-wider">TINDAKAN DIPERLUKAN</span>`;
+                    }
+                } else {
+                    myStatusHtml = `<span class="text-[10px] text-gray-400 italic">Pemerhati / Penyelaras</span>`;
+                }
+
+                // Baris Jadual Dikemaskini
                 baris.innerHTML = `
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">${startIndex + index + 1}</td>
-                    <td class="px-6 py-4 max-w-md"> 
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono align-top">${startIndex + index + 1}</td>
+                    <td class="px-6 py-4 max-w-md align-top"> 
                         <div class="text-sm font-bold text-gray-900 flex items-center flex-wrap gap-1 leading-snug">
                             <span class="block" style="word-break: break-word;">${tugasan.nama}</span>
                             ${newBadgeHtml}
@@ -1008,16 +1072,19 @@
                         </div>
                         <div class="text-[0.7rem] text-gray-500 font-medium uppercase tracking-wider mt-0.5">${tugasan.sektor}</div>
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                    <td class="px-6 py-4 whitespace-nowrap align-top">
+                        ${myStatusHtml}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm align-top">
                         <div class="text-gray-900 font-medium">${formatTarikh(tugasan.tarikhSiap)}</div>
-                        <span class="mt-1.5 inline-block px-2.5 py-0.5 rounded-md text-[0.7rem] font-bold uppercase tracking-wide border border-black/5 ${bakiHariInfo.badgeClass}">
-                            ${bakiHariInfo.teks}
+                        <span class="mt-1.5 inline-block px-2.5 py-0.5 rounded-md text-[0.7rem] font-bold uppercase tracking-wide border border-black/5 ${data.bakiInfo.badgeClass}">
+                            ${data.bakiInfo.teks}
                         </span>
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700 min-w-[150px]">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700 min-w-[150px] align-top">
                         ${rumusanDisplay}
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium align-top">
                         ${tindakanHtml}
                     </td>
                 `;
