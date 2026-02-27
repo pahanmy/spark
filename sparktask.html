@@ -889,7 +889,6 @@
                 let isTaggedForMe = false;
                 let taggedByInfo = null;
 
-                // Semak jika pengguna telah di-tag dalam tugasan ini
                 if (tugasan.taggedUsers && Array.isArray(tugasan.taggedUsers)) {
                     const myTag = tugasan.taggedUsers.find(t => t.ic === currentUserData.ic);
                     if (myTag) {
@@ -901,7 +900,7 @@
                 if (tugasan.penyelaras_ic === currentUserData.ic || tugasan.userId === userId) {
                     isAuthorized = true; 
                 } else if (isTaggedForMe) {
-                    isAuthorized = true; // Luluskan terus jika di-tag
+                    isAuthorized = true; 
                 } else {
                     const rawSkop = Array.isArray(tugasan.skopSenaraiSekolah) ? tugasan.skopSenaraiSekolah : [];
                     const taskSkopNames = rawSkop.map(s => {
@@ -914,7 +913,6 @@
                     }
                 }
                 
-                // Masukkan data tag ke dalam objek tugasan untuk kegunaan paparan
                 tugasan._isTaggedForMe = isTaggedForMe;
                 tugasan._taggedByInfo = taggedByInfo;
 
@@ -978,7 +976,6 @@
                         if(typeof s === 'object' && s !== null) return String(s.nama || '');
                         return String(s);
                     }).map(normalizeName);
-                    // Juga kira sebagai MyScope jika saya di-tag
                     isMyScope = taskSkopNames.some(key => userSkopKeys.includes(key)) || tugasan._isTaggedForMe;
                 } else {
                     isMyScope = true; 
@@ -994,12 +991,22 @@
                 return { ...tugasan, progress: { jumlahSelesai, total, peratus, isTrulyCompleted }, myCompletionRecord, isMyScope, requiresAction, bakiInfo };
             });
             
+            // LOGIK SUSUNAN (SORTING) TERBARU
             listWithProgress.sort((a, b) => {
+                const aDone = a.progress.isTrulyCompleted || !!a.myCompletionRecord;
+                const bDone = b.progress.isTrulyCompleted || !!b.myCompletionRecord;
+                
+                // 1. Asingkan yang "Selesai" ke Bawah
+                if (!aDone && bDone) return -1;
+                if (aDone && !bDone) return 1;
+
+                // 2. Utamakan yang perlukan tindakan
                 if (a.requiresAction && !b.requiresAction) return -1;
                 if (!a.requiresAction && b.requiresAction) return 1;
 
-                const dateA = a.createdAt ? a.createdAt.toDate().getTime() : 0;
-                const dateB = b.createdAt ? b.createdAt.toDate().getTime() : 0;
+                // 3. Tarikh baru ke atas
+                const dateA = a.createdAt && a.createdAt.toDate ? a.createdAt.toDate().getTime() : 0;
+                const dateB = b.createdAt && b.createdAt.toDate ? b.createdAt.toDate().getTime() : 0;
                 return dateB - dateA;
             });
 
@@ -1043,7 +1050,7 @@
                 if (tugasan.createdAt && tugasan.createdAt.toDate) {
                     const diffHours = (new Date().getTime() - tugasan.createdAt.toDate().getTime()) / (1000 * 60 * 60);
                     if (diffHours < 24) {
-                        newBadgeHtml = `<span class="ml-2 inline-flex items-center bg-red-100 text-red-700 border border-red-200 text-[0.65rem] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">Baru</span>`;
+                        newBadgeHtml = `<span class="ml-2 inline-flex items-center bg-rose-500 text-white border border-rose-600 text-[0.65rem] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider shadow-sm animate-pulse">✨ Baru</span>`;
                     }
                 }
                 
