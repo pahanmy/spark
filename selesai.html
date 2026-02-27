@@ -59,7 +59,7 @@
             line-height: 1.6;
         }
         .required-tag {
-             color: #EF4444; /* text-red-500 */
+             color: #EF4444;
              font-size: 0.8rem;
              font-weight: 600;
              margin-left: 0.5rem;
@@ -316,7 +316,8 @@
                             <span id="info-peratus-fallback" class="absolute right-0 top-0.5 text-xs text-gray-700 font-semibold px-2">0%</span>
                         </div>
                     </div>
-                    </div>
+                </div>
+
                 <form id="ic-form" onsubmit="checkIc(event)" class="mt-6">
                     <label for="participant-ic" class="block text-sm font-medium text-gray-700 mb-2">No. Kad Pengenalan</label>
                     <input type="tel" id="participant-ic" required placeholder="900101131234" maxlength="12" oninput="validateIcInput(this)" class="block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 text-lg tracking-wider" style="text-transform: none;">
@@ -365,9 +366,17 @@
                                 <input type="text" id="update-station-manual" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" oninput="this.value = this.value.toUpperCase()">
                                 <p class="text-xs text-gray-500 mt-1">Sila pastikan ejaan tepat untuk mengelakkan ralat perekodan tugasan.</p>
                             </div>
+                            
+                            <div class="pt-4 border-t border-gray-200 mt-2">
+                                <label class="block text-sm font-medium text-gray-700">Pengesahan Keselamatan</label>
+                                <p class="text-xs text-gray-500 mb-2">Sila masukkan semula No. IC anda untuk mengesahkan penukaran ini.</p>
+                                <input type="password" id="update-station-ic-confirm" placeholder="Contoh: 900101131234" maxlength="12" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-center tracking-[0.2em] font-mono" required>
+                                <p id="update-station-ic-error" class="text-xs text-red-600 mt-1 hidden font-semibold">No. IC tidak sepadan. Sila cuba lagi.</p>
+                            </div>
                         </div>
-                        <div class="mt-6 flex justify-end">
-                            <button type="submit" id="submit-update-station-btn" class="btn bg-indigo-600 text-white font-semibold py-2 px-6 rounded-lg shadow-md hover:bg-indigo-700">Simpan & Teruskan</button>
+                        <div class="mt-6 flex justify-end gap-3">
+                            <button type="button" onclick="document.getElementById('update-station-modal').classList.add('hidden')" class="btn bg-gray-200 text-gray-700 font-semibold py-2 px-6 rounded-lg hover:bg-gray-300">Batal</button>
+                            <button type="submit" id="submit-update-station-btn" class="btn bg-indigo-600 text-white font-semibold py-2 px-6 rounded-lg shadow-md hover:bg-indigo-700">Sahkan & Teruskan</button>
                         </div>
                     </form>
                 </div>
@@ -438,7 +447,7 @@
                 <h2 id="message-title" class="text-2xl font-bold"></h2>
                 <p id="message-body" class="text-gray-600 mt-2"></p>
                 <button id="return-button" class="btn w-full mt-6 bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg">Kembali ke Papan Pemuka</button>
-                </div>
+            </div>
         </div>
     </main>
     
@@ -466,7 +475,7 @@
         let currentTaskId = null;
         let validatedIc = null;
         let participantInfo = null;
-        let validSchoolsList = []; // MENYIMPAN SENARAI NAMA SEKOLAH/STESEN YANG SAH
+        let validSchoolsList = []; 
         
         const appId = firebaseConfig.projectId;
         let unsubscribeTaskListener = null; 
@@ -550,7 +559,7 @@
 
             try {
                 setupDynamicFormListeners();
-                await loadSchoolsIntoDropdowns(); // Muatkan senarai sekolah ke dalam array global
+                await loadSchoolsIntoDropdowns(); 
                 loadPositionsIntoDropdowns();
 
                 const taskRef = doc(db, `artifacts/${appId}/public/data/spark_tasks`, currentTaskId);
@@ -726,16 +735,13 @@
                 }
                 
                 const docData = querySnapshot.docs[0].data();
+                const currentDocId = querySnapshot.docs[0].id; 
                 
-                // LOGIK BARU: SEMAK & KEMASKINI STESEN
                 const currentStation = docData.station || '';
-                // Abaikan pengesahan jika mereka adalah orang awam atau kakitangan yang stesennya ada dalam senarai
                 const isStationInList = validSchoolsList.includes(currentStation);
-                // Benarkan PPD / JABATAN secara terus
                 const isNonSchoolStation = currentStation.includes('PPD') || currentStation.includes('PEJABAT') || currentStation.includes('JABATAN');
                 
                 if (!isStationInList && !isNonSchoolStation && validSchoolsList.length > 0) {
-                    // Tunjuk Modal Kemaskini
                     document.getElementById('current-station-display').textContent = currentStation || 'TIADA REKOD';
                     
                     const selectEl = document.getElementById('update-station-select');
@@ -751,18 +757,17 @@
                     optOther.textContent = 'LAIN-LAIN (Tulis Manual)';
                     selectEl.appendChild(optOther);
 
-                    // Simpan data sementara
                     window.tempDocDataForUpdate = docData;
                     window.tempIcForUpdate = ic;
+                    window.tempDocIdForUpdate = currentDocId; 
 
                     document.getElementById('update-station-modal').classList.remove('hidden');
                     
                     icSubmitBtn.disabled = false;
                     icSubmitBtn.innerHTML = "Seterusnya";
-                    return; // Hentikan fungsi di sini, tunggu user kemaskini
+                    return; 
                 }
                 
-                // Teruskan secara normal jika stesen sah
                 proceedToForm(ic, docData);
                 
             } catch (error) {
@@ -773,7 +778,6 @@
             }
         }
 
-        // Fungsi sokongan untuk meneruskan aliran selepas IC atau stesen disahkan
         function proceedToForm(ic, docData) {
             participantInfo = {
                 ic: ic,
@@ -839,12 +843,25 @@
 
         document.getElementById('update-station-form').addEventListener('submit', async (e) => {
             e.preventDefault();
+            
+            const confirmIcInput = document.getElementById('update-station-ic-confirm').value.trim();
+            const icErrorEl = document.getElementById('update-station-ic-error');
+            const icToUpdate = window.tempIcForUpdate;
+
+            if (confirmIcInput !== icToUpdate) {
+                icErrorEl.classList.remove('hidden');
+                document.getElementById('update-station-ic-confirm').focus();
+                return; 
+            } else {
+                icErrorEl.classList.add('hidden');
+            }
+
             const btn = document.getElementById('submit-update-station-btn');
             const selectValue = document.getElementById('update-station-select').value;
             let newStation = selectValue;
 
             if (selectValue === 'LAIN-LAIN') {
-                newStation = document.getElementById('update-station-manual').value.trim();
+                newStation = document.getElementById('update-station-manual').value.trim().toUpperCase();
                 if (!newStation) {
                     alert("Sila masukkan nama stesen.");
                     return;
@@ -855,21 +872,24 @@
             btn.textContent = "Menyimpan...";
 
             try {
-                const icToUpdate = window.tempIcForUpdate;
-                const docRef = doc(db, `artifacts/${appId}/public/data/spark_participants`, icToUpdate);
+                const docIdToUpdate = window.tempDocIdForUpdate; 
+                
+                const docRef = doc(db, `artifacts/${appId}/public/data/spark_participants`, docIdToUpdate);
                 await updateDoc(docRef, { station: newStation });
 
-                // Kemaskini data sementara
                 window.tempDocDataForUpdate.station = newStation;
 
                 document.getElementById('update-station-modal').classList.add('hidden');
+                document.getElementById('update-station-ic-confirm').value = '';
+                
                 proceedToForm(icToUpdate, window.tempDocDataForUpdate);
 
             } catch (err) {
                 console.error("Gagal kemaskini stesen:", err);
                 alert("Gagal mengemaskini pangkalan data. Sila cuba lagi.");
+            } finally {
                 btn.disabled = false;
-                btn.textContent = "Simpan & Teruskan";
+                btn.textContent = "Sahkan & Teruskan";
             }
         });
         
