@@ -102,7 +102,7 @@
                     Halaman Utama
                 </a>
 
-                <a href="laporan-sparktask.html" id="btn-laporan-tahunan" class="btn flex items-center justify-center rounded-lg border border-indigo-200 bg-indigo-50 py-2 px-4 text-sm font-bold text-indigo-700 shadow-sm hover:bg-indigo-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
+                <a href="#" id="btn-laporan-tahunan" class="btn flex items-center justify-center rounded-lg border border-indigo-200 bg-indigo-50 py-2 px-4 text-sm font-bold text-indigo-700 shadow-sm hover:bg-indigo-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
@@ -1014,6 +1014,7 @@
                         if(typeof s === 'object' && s !== null) return String(s.nama || '');
                         return String(s);
                     }).map(normalizeName);
+                    // Juga kira sebagai MyScope jika saya di-tag
                     isMyScope = taskSkopNames.some(key => userSkopKeys.includes(key)) || tugasan._isTaggedForMe;
                 } else {
                     isMyScope = true; 
@@ -1026,19 +1027,13 @@
                     requiresAction = true;
                 }
 
-                // --- LOGIK KIRAAN STATUS DIPERBAIKI (TIDAK DOUBLE INCREMENT) ---
-                const isPenyelaras = (tugasan.penyelaras_ic && currentUserData && tugasan.penyelaras_ic === currentUserData.ic) || tugasan.userId === userId;
-                
-                if (isPenyelaras) {
-                    if (isTrulyCompleted) totalSelesaiCount++;
-                    else totalBelumCount++;
+                // --- LOGIK KIRAAN STATUS (DISERAGAMKAN SEPENUHNYA) ---
+                // Jika sudah dijawab (ada rekod saya/sekolah saya) ATAU tugasan sudah siap 100% ATAU ditutup/overdue
+                const isSelesaiDiJawab = !!myCompletionRecord || isTrulyCompleted || bakiInfo.isCompleted || bakiInfo.isOverdue;
+                if (isSelesaiDiJawab) {
+                    totalSelesaiCount++;
                 } else {
-                    // Bagi sasaran: Jika dah dijawab, ATAU tugasan dah ditutup/overdue = Selesai
-                    if (myCompletionRecord || isTrulyCompleted || bakiInfo.isOverdue) {
-                        totalSelesaiCount++; 
-                    } else {
-                        totalBelumCount++; 
-                    }
+                    totalBelumCount++;
                 }
 
                 return { ...tugasan, progress: { jumlahSelesai, total, peratus, isTrulyCompleted }, myCompletionRecord, isMyScope, requiresAction, bakiInfo };
@@ -1061,8 +1056,8 @@
 
             // LOGIK SUSUNAN (SORTING) TERBARU
             listWithProgress.sort((a, b) => {
-                const aDone = a.progress.isTrulyCompleted || !!a.myCompletionRecord || !a.requiresAction;
-                const bDone = b.progress.isTrulyCompleted || !!b.myCompletionRecord || !b.requiresAction;
+                const aDone = !!a.myCompletionRecord || a.progress.isTrulyCompleted || a.bakiInfo.isCompleted || a.bakiInfo.isOverdue;
+                const bDone = !!b.myCompletionRecord || b.progress.isTrulyCompleted || b.bakiInfo.isCompleted || b.bakiInfo.isOverdue;
                 
                 if (!aDone && bDone) return -1;
                 if (aDone && !bDone) return 1;
@@ -1102,10 +1097,12 @@
                 const baris = document.createElement('tr');
                 
                 // 1. KEMASKINI WARNA BARIS (ROW)
-                if (data.myCompletionRecord) {
-                    baris.className = "bg-emerald-50 hover:bg-emerald-100 transition-colors duration-150 border-l-4 border-emerald-500";
-                } else if (peratus === 100 || tugasan.isClosedByAdmin) {
-                    baris.className = "bg-gray-50 opacity-80 hover:opacity-100 transition-colors duration-150";
+                if (data.myCompletionRecord || peratus === 100 || tugasan.isClosedByAdmin || data.bakiInfo.isOverdue) {
+                    if (data.myCompletionRecord) {
+                        baris.className = "bg-emerald-50 hover:bg-emerald-100 transition-colors duration-150 border-l-4 border-emerald-500";
+                    } else {
+                        baris.className = "bg-gray-50 opacity-80 hover:opacity-100 transition-colors duration-150";
+                    }
                 } else {
                     baris.className = "bg-white hover:bg-gray-50 transition-colors duration-150";
                 }
@@ -1161,7 +1158,7 @@
                                     <span class="text-[10px] font-bold uppercase">Edit</span>
                                 </button>
                                 <button class="flex-1 btn text-red-500 hover:text-red-700 p-1.5 rounded bg-white border border-gray-200 hover:border-red-300 butang-padam flex items-center justify-center gap-1 shadow-sm" data-id="${tugasan.id}" title="Padam Tugasan">
-                                    <svg class="h-4 w-4" fill="none" viewBox="0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                                     <span class="text-[10px] font-bold uppercase">Padam</span>
                                 </button>
                             </div>
