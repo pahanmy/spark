@@ -101,6 +101,13 @@
                     </svg>
                     Halaman Utama
                 </a>
+
+                <a href="laporan-sparktask.html" class="btn flex items-center justify-center rounded-lg border border-indigo-200 bg-indigo-50 py-2 px-4 text-sm font-bold text-indigo-700 shadow-sm hover:bg-indigo-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Laporan Tahunan
+                </a>
                  
                  <a href="#" id="btn-tambah-tugasan" class="hidden btn flex items-center justify-center rounded-lg border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
                     + Tambah Tugasan Baru
@@ -136,6 +143,21 @@
 
     <main id="main-dashboard-content" class="container max-w-screen-2xl mx-auto p-4 sm:p-6 lg:p-8 flex-grow hidden">
         
+        <div id="new-task-alert" class="hidden mb-6 bg-gradient-to-r from-rose-50 to-orange-50 border border-rose-200 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between shadow-sm gap-4">
+            <div class="flex items-center gap-4">
+                <div class="bg-rose-500 p-2.5 rounded-full text-white shadow-md animate-bounce">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
+                </div>
+                <div>
+                    <h3 class="text-sm font-bold text-rose-900 uppercase tracking-wider">Perhatian: Tugasan Baru</h3>
+                    <p class="text-sm text-rose-700 mt-0.5">Terdapat <span id="new-task-count" class="font-bold text-lg mx-1">0</span> tugasan baru dimuat naik dalam tempoh 24 jam lalu.</p>
+                </div>
+            </div>
+            <button onclick="document.getElementById('new-task-alert').classList.add('hidden')" class="text-rose-400 hover:text-rose-600 font-bold text-sm flex items-center">
+                Tutup <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+
         <div id="profile-banner" class="mb-8 overflow-hidden rounded-2xl shadow-md bg-gradient-to-r from-indigo-800 to-purple-800 text-white relative hidden bg-cover bg-center">
             <div id="banner-overlay" class="absolute inset-0 bg-black opacity-30 z-0"></div>
             <div class="absolute inset-0 opacity-10 bg-pattern z-0"></div>
@@ -762,7 +784,7 @@
                 const snapUser = await getDocs(qUser);
 
                 if (snapUser.empty) {
-                    err.textContent = "Rekod tidak ditemui. Anda perlu mendaftar menerusi pengesahan kehadiran atau tugasan terlebih dahulu.";
+                    err.innerHTML = "Rekod tidak ditemui. Sila daftar profil anda di <a href='daftarbaru.html' class='text-indigo-600 font-bold hover:underline'>Pendaftaran Baru</a> terlebih dahulu.";
                     err.classList.remove('hidden');
                     resetLoginBtn(btn);
                     return;
@@ -877,6 +899,7 @@
             const bulanTerm = document.getElementById('bulan-filter').value;
             itemsPerPage = parseInt(itemsPerPageSelect.value, 10);
 
+            // Filter Global untuk Carian/Kebenaran
             const filteredList = senaraiTugasan.filter(tugasan => {
                 const searchMatch = tugasan.nama.toLowerCase().includes(searchTerm);
                 const sektorMatch = (sektorTerm === "") ? true : (tugasan.sektor === sektorTerm);
@@ -895,7 +918,6 @@
                 let isTaggedForMe = false;
                 let taggedByInfo = null;
 
-                // Semak jika pengguna telah di-tag dalam tugasan ini
                 if (tugasan.taggedUsers && Array.isArray(tugasan.taggedUsers)) {
                     const myTag = tugasan.taggedUsers.find(t => t.ic === currentUserData.ic);
                     if (myTag) {
@@ -907,7 +929,7 @@
                 if (tugasan.penyelaras_ic === currentUserData.ic || tugasan.userId === userId) {
                     isAuthorized = true; 
                 } else if (isTaggedForMe) {
-                    isAuthorized = true; // Luluskan terus jika di-tag
+                    isAuthorized = true; 
                 } else {
                     const rawSkop = Array.isArray(tugasan.skopSenaraiSekolah) ? tugasan.skopSenaraiSekolah : [];
                     const taskSkopNames = rawSkop.map(s => {
@@ -920,7 +942,6 @@
                     }
                 }
                 
-                // Masukkan data tag ke dalam objek tugasan untuk kegunaan paparan
                 tugasan._isTaggedForMe = isTaggedForMe;
                 tugasan._taggedByInfo = taggedByInfo;
 
@@ -929,8 +950,17 @@
             
             let totalSelesaiCount = 0;
             let totalBelumCount = 0;
+            let newTaskCount = 0; // KIRAAN UNTUK BANNER TUGASAN BARU
             
             const listWithProgress = filteredList.map(tugasan => {
+                // KIRAAN TUGASAN BARU (Bawah 24 Jam)
+                if (tugasan.createdAt && tugasan.createdAt.toDate) {
+                    const diffHours = (new Date().getTime() - tugasan.createdAt.toDate().getTime()) / (1000 * 60 * 60);
+                    if (diffHours < 24) {
+                        newTaskCount++;
+                    }
+                }
+
                 const originalTotalSkop = Array.isArray(tugasan.skopSenaraiSekolah) ? tugasan.skopSenaraiSekolah : [];
                 const allRekodSelesai = tugasan.rekodSelesai || [];
                 
@@ -1000,6 +1030,18 @@
                 return { ...tugasan, progress: { jumlahSelesai, total, peratus, isTrulyCompleted }, myCompletionRecord, isMyScope, requiresAction, bakiInfo };
             });
             
+            // KEMASKINI BANNER ALERT
+            const alertBanner = document.getElementById('new-task-alert');
+            const alertCount = document.getElementById('new-task-count');
+            if (alertBanner && alertCount) {
+                if(newTaskCount > 0) {
+                    alertCount.textContent = newTaskCount;
+                    alertBanner.classList.remove('hidden');
+                } else {
+                    alertBanner.classList.add('hidden');
+                }
+            }
+
             // LOGIK SUSUNAN (SORTING) TERBARU
             listWithProgress.sort((a, b) => {
                 const aDone = a.progress.isTrulyCompleted || !!a.myCompletionRecord;
@@ -1110,7 +1152,7 @@
                                     <span class="text-[10px] font-bold uppercase">Edit</span>
                                 </button>
                                 <button class="flex-1 btn text-red-500 hover:text-red-700 p-1.5 rounded bg-white border border-gray-200 hover:border-red-300 butang-padam flex items-center justify-center gap-1 shadow-sm" data-id="${tugasan.id}" title="Padam Tugasan">
-                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                    <svg class="h-4 w-4" fill="none" viewBox="0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                                     <span class="text-[10px] font-bold uppercase">Padam</span>
                                 </button>
                             </div>
@@ -1211,8 +1253,8 @@
             paginationControls.innerHTML = `
                 <span class="text-sm text-gray-600">Menunjukkan <span class="font-bold text-gray-900">${(currentPage - 1) * itemsPerPage + 1}</span> hingga <span class="font-bold text-gray-900">${Math.min(currentPage * itemsPerPage, totalItems)}</span> dari <span class="font-bold text-gray-900">${totalItems}</span></span>
                 <div class="flex gap-2">
-                    <button onclick="goToPage(${currentPage - 1})" ${prevDisabled} class="btn bg-white border border-gray-300 text-gray-700 text-sm font-medium py-1.5 px-3 rounded-lg hover:bg-gray-50">Sblm</button>
-                    <button onclick="goToPage(${currentPage + 1})" ${nextDisabled} class="btn bg-white border border-gray-300 text-gray-700 text-sm font-medium py-1.5 px-3 rounded-lg hover:bg-gray-50">Strny</button>
+                    <button onclick="goToPage(${currentPage - 1})" ${prevDisabled} class="btn bg-white border border-gray-300 text-gray-700 text-sm font-medium py-1.5 px-3 rounded-lg hover:bg-gray-50">Sebelumnya</button>
+                    <button onclick="goToPage(${currentPage + 1})" ${nextDisabled} class="btn bg-white border border-gray-300 text-gray-700 text-sm font-medium py-1.5 px-3 rounded-lg hover:bg-gray-50">Seterusnya</button>
                 </div>
             `;
         }
