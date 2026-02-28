@@ -548,10 +548,15 @@
             </p>
             
             <form id="borang-tag-rakan">
-                <label for="tag-rakan-select" class="block text-sm font-medium text-gray-700 mb-1">Senarai Warga Stesen</label>
-                <select id="tag-rakan-select" class="block w-full rounded-lg border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500 sm:text-sm py-2.5 px-3 mb-6 bg-white" required>
-                    <option value="">Memuatkan senarai...</option>
-                </select>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Senarai Warga Stesen (Maksima 3)</label>
+                
+                <div id="tag-selects-wrapper" class="space-y-3 mb-3">
+                    </div>
+                
+                <button type="button" id="tambah-tag-btn" class="text-xs text-purple-700 font-bold hover:text-purple-900 flex items-center gap-1 mb-6 bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-lg border border-purple-200 transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                    Tambah Rakan
+                </button>
                 
                 <div class="flex justify-end gap-3">
                     <button type="button" onclick="document.getElementById('modal-tag-rakan').classList.remove('buka')" class="btn rounded-lg border border-gray-300 bg-white py-2 px-4 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50">
@@ -601,6 +606,7 @@
         let currentActionIntent = null;
         let currentPage = 1;
         let itemsPerPage = 10;
+        let globalRakanOptionsHtml = ''; // Untuk select rakan berganda
 
         try {
             const app = initializeApp(firebaseConfig);
@@ -805,8 +811,8 @@
             
             let isSparkPro = (currentUserData.isPro === true) || (currentUserData.ic === "890522135381");
             const proBadge = isSparkPro 
-                ? `<span class="ml-2 align-middle bg-black text-white text-[10px] px-2 py-0.5 rounded-md shadow-sm tracking-widest font-bold border border-gray-600">PRO</span>` 
-                : `<span class="ml-2 align-middle bg-gray-500 text-white text-[10px] px-2 py-0.5 rounded-md shadow-sm tracking-wide font-bold">BIASA</span>`;
+                ? `<a href="sponsor.html" class="ml-2 align-middle bg-black text-white text-[10px] px-2 py-0.5 rounded-md shadow-sm tracking-widest font-bold border border-gray-600 hover:bg-gray-800 transition-colors cursor-pointer inline-block">PRO</a>` 
+                : `<a href="sponsor.html" class="ml-2 align-middle bg-gray-500 text-white text-[10px] px-2 py-0.5 rounded-md shadow-sm tracking-wide font-bold hover:bg-gray-600 transition-colors cursor-pointer inline-block">BIASA</a>`;
             
             document.getElementById('profile-name').innerHTML = `${currentUserData.name} ${proBadge}`;
             document.getElementById('profile-position').textContent = currentUserData.position || 'Tiada Jawatan';
@@ -1234,79 +1240,143 @@
             
             currentTagTaskId = taskId;
             const modalTag = document.getElementById('modal-tag-rakan');
-            const selectTag = document.getElementById('tag-rakan-select');
+            const wrapper = document.getElementById('tag-selects-wrapper');
             const stationNameDisplay = document.getElementById('tag-station-name');
             const btnSimpanTag = document.getElementById('simpan-tag-btn');
+            const btnTambahTag = document.getElementById('tambah-tag-btn');
             
             stationNameDisplay.textContent = currentUserData.station;
-            selectTag.innerHTML = '<option value="">Memuatkan warga stesen dari pangkalan data...</option>';
-            selectTag.disabled = true;
+            
+            // Reset wrapper to 1 initial disabled select
+            wrapper.innerHTML = `
+                <div class="tag-select-row flex items-center gap-2">
+                    <select class="tag-rakan-select block w-full rounded-lg border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500 sm:text-sm py-2.5 px-3 bg-white" required disabled>
+                        <option value="">Memuatkan senarai...</option>
+                    </select>
+                </div>
+            `;
+            
+            btnTambahTag.classList.add('hidden');
             btnSimpanTag.disabled = true;
             
             modalTag.classList.add('buka');
             
             try {
-                // Cari rakan sekerja di stesen yang sama
                 const qRakan = query(collection(db, `artifacts/${appId}/public/data/spark_participants`), where("station", "==", currentUserData.station));
                 const snapRakan = await getDocs(qRakan);
                 
-                selectTag.innerHTML = '<option value="">-- Sila Pilih Rakan Sekerja --</option>';
+                globalRakanOptionsHtml = '<option value="">-- Sila Pilih Rakan Sekerja --</option>';
                 let count = 0;
                 
                 snapRakan.forEach(doc => {
                     const rakan = doc.data();
-                    if (rakan.ic !== currentUserData.ic) { // Jangan paparkan diri sendiri
-                        selectTag.innerHTML += `<option value="${rakan.ic}">${rakan.name} (${rakan.position || 'Tiada Jawatan'})</option>`;
+                    if (rakan.ic !== currentUserData.ic) { 
+                        globalRakanOptionsHtml += `<option value="${rakan.ic}">${rakan.name} (${rakan.position || 'Tiada Jawatan'})</option>`;
                         count++;
                     }
                 });
                 
+                const firstSelect = wrapper.querySelector('.tag-rakan-select');
+                
                 if (count === 0) {
-                    selectTag.innerHTML = '<option value="">Tiada rakan sekerja lain mendaftar di stesen ini.</option>';
-                    selectTag.disabled = true;
+                    firstSelect.innerHTML = '<option value="">Tiada rakan sekerja lain mendaftar di stesen ini.</option>';
+                    firstSelect.disabled = true;
                     btnSimpanTag.disabled = true;
+                    btnTambahTag.classList.add('hidden');
                 } else {
-                    selectTag.disabled = false;
+                    firstSelect.innerHTML = globalRakanOptionsHtml;
+                    firstSelect.disabled = false;
                     btnSimpanTag.disabled = false;
+                    if (count > 1) {
+                        btnTambahTag.classList.remove('hidden');
+                    }
                 }
                 
             } catch (error) {
                 console.error("Gagal memuatkan senarai rakan:", error);
-                selectTag.innerHTML = '<option value="">Ralat sistem. Gagal memuatkan data.</option>';
+                const firstSelect = wrapper.querySelector('.tag-rakan-select');
+                firstSelect.innerHTML = '<option value="">Ralat sistem. Gagal memuatkan data.</option>';
             }
         }
         
+        // Logik Butang Tambah Rakan
+        document.getElementById('tambah-tag-btn').addEventListener('click', () => {
+            const wrapper = document.getElementById('tag-selects-wrapper');
+            const rows = wrapper.querySelectorAll('.tag-select-row');
+            
+            if (rows.length >= 3) return;
+            
+            const newRow = document.createElement('div');
+            newRow.className = 'tag-select-row flex items-center gap-2 mt-2 transition-all';
+            newRow.innerHTML = `
+                <select class="tag-rakan-select block w-full rounded-lg border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500 sm:text-sm py-2.5 px-3 bg-white" required>
+                    ${globalRakanOptionsHtml}
+                </select>
+                <button type="button" class="btn-remove-tag text-red-500 hover:text-red-700 p-2.5 bg-red-50 hover:bg-red-100 rounded-lg border border-red-200 transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                </button>
+            `;
+            wrapper.appendChild(newRow);
+            
+            if (wrapper.querySelectorAll('.tag-select-row').length >= 3) {
+                document.getElementById('tambah-tag-btn').classList.add('hidden');
+            }
+        });
+
+        // Logik Padam Rakan dari senarai form
+        document.getElementById('tag-selects-wrapper').addEventListener('click', (e) => {
+            const removeBtn = e.target.closest('.btn-remove-tag');
+            if (removeBtn) {
+                removeBtn.closest('.tag-select-row').remove();
+                document.getElementById('tambah-tag-btn').classList.remove('hidden');
+            }
+        });
+
+        // Hantar borang Penugasan
         document.getElementById('borang-tag-rakan').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const select = document.getElementById('tag-rakan-select');
-            const selectedOpt = select.options[select.selectedIndex];
             
-            if (!selectedOpt.value) return;
+            const selects = document.querySelectorAll('.tag-rakan-select');
+            const tagDataArray = [];
+            const selectedIcs = new Set();
+            
+            for (let select of selects) {
+                const selectedOpt = select.options[select.selectedIndex];
+                if (selectedOpt && selectedOpt.value) {
+                    if (selectedIcs.has(selectedOpt.value)) {
+                        alert("Terdapat pilihan individu yang sama lebih daripada sekali. Sila periksa semula.");
+                        return;
+                    }
+                    selectedIcs.add(selectedOpt.value);
+                    
+                    const rakanNameOnly = selectedOpt.text.split(' (')[0];
+                    tagDataArray.push({
+                        ic: selectedOpt.value,
+                        name: rakanNameOnly,
+                        taggedByIc: currentUserData.ic,
+                        taggedByName: currentUserData.name,
+                        timestamp: new Date().toISOString()
+                    });
+                }
+            }
+            
+            if (tagDataArray.length === 0) return;
             
             const btn = document.getElementById('simpan-tag-btn');
             btn.disabled = true;
             btn.innerHTML = `<svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Menyimpan...`;
             
             try {
-                const rakanNameOnly = selectedOpt.text.split(' (')[0]; // Buang bahagian jawatan dalam kurungan
-                
-                const tagData = {
-                    ic: selectedOpt.value,
-                    name: rakanNameOnly,
-                    taggedByIc: currentUserData.ic,
-                    taggedByName: currentUserData.name,
-                    timestamp: new Date().toISOString()
-                };
-                
                 const docRef = doc(db, `artifacts/${appId}/public/data/spark_tasks`, currentTagTaskId);
                 
-                // Gunakan arrayUnion untuk menambah data ke array taggedUsers
                 await updateDoc(docRef, {
-                    taggedUsers: arrayUnion(tagData)
+                    taggedUsers: arrayUnion(...tagDataArray)
                 });
                 
                 document.getElementById('modal-tag-rakan').classList.remove('buka');
-                alert(`Berjaya! Tugasan ini telah dikhaskan kepada ${rakanNameOnly}. Ia kini akan muncul di Papan Pemuka beliau.`);
+                
+                const names = tagDataArray.map(t => t.name).join(', ');
+                alert(`Berjaya! Tugasan ini telah dikhaskan kepada: ${names}`);
                 
             } catch (error) {
                 console.error("Gagal menyimpan data tag:", error);
