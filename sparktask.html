@@ -84,6 +84,22 @@
         .tag-autocomplete-list::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 8px; }
         .tag-autocomplete-list::-webkit-scrollbar-thumb { background: #c7d2fe; border-radius: 8px; }
         .tag-autocomplete-list::-webkit-scrollbar-thumb:hover { background: #818cf8; }
+
+        /* GAYA BARU UNTUK TAB PENGASINGAN TUGAS */
+        .tab-btn {
+            transition: all 0.3s ease;
+        }
+        .tab-btn.active {
+            color: #4f46e5;
+            border-bottom-color: #4f46e5;
+            background-color: #eef2ff;
+            font-weight: 700;
+        }
+        .tab-btn:not(.active):hover {
+            background-color: #f3f4f6;
+            color: #374151;
+            border-bottom-color: #d1d5db;
+        }
     </style>
 </head>
 <body class="bg-gray-50 text-gray-900 flex flex-col min-h-screen">
@@ -313,6 +329,21 @@
                     </select>
                 </div>
             </div>
+        </div>
+
+        <div id="tab-pengasingan-tugas" class="hidden mb-4 border-b border-gray-200 bg-white rounded-t-xl px-4 pt-2">
+            <ul class="flex flex-wrap -mb-px text-sm font-medium text-center gap-2" id="tab-senarai">
+                <li class="mr-2">
+                    <button class="inline-block p-4 border-b-2 rounded-t-lg tab-btn active" data-tab="tindakan">
+                        📋 Tugasan Perlu Tindakan
+                    </button>
+                </li>
+                <li class="mr-2">
+                    <button class="inline-block p-4 border-b-2 border-transparent rounded-t-lg tab-btn text-gray-500" data-tab="seliaan">
+                        📊 Tugasan Seliaan Saya
+                    </button>
+                </li>
+            </ul>
         </div>
 
         <div class="card bg-white rounded-xl shadow-md overflow-hidden border border-gray-200">
@@ -652,6 +683,10 @@
         
         let rakanDataList = []; 
 
+        // PENGASINGAN TUGAS PPD
+        let activeTabPPD = 'tindakan'; 
+        let isWargaPPD = false;
+
         try {
             const app = initializeApp(firebaseConfig);
             db = getFirestore(app);
@@ -888,33 +923,14 @@
             }
             
             const btnTambah = document.getElementById('btn-tambah-tugasan');
-            const isWargaPPD = (currentUserData.sector && currentUserData.sector.toUpperCase().includes("SEKTOR")) || (currentUserData.ic === "890522135381");
+            isWargaPPD = (currentUserData.sector && currentUserData.sector.toUpperCase().includes("SEKTOR")) || (currentUserData.ic === "890522135381");
             
-            const containerCards = document.getElementById('dashboard-cards-container');
-            const cardCapai100 = document.getElementById('card-capai-100');
-            const labelSelesai = document.getElementById('label-telah-selesai');
-            const labelBelum = document.getElementById('label-belum-selesai');
-
             if (isWargaPPD) {
                 btnTambah.classList.remove('hidden');
-                if(containerCards) {
-                    containerCards.classList.remove('md:grid-cols-3');
-                    containerCards.classList.add('md:grid-cols-4');
-                    cardCapai100.classList.remove('hidden');
-                    cardCapai100.classList.add('flex');
-                    labelSelesai.textContent = "Tugasan Ditutup";
-                    labelBelum.textContent = "Tugasan Aktif";
-                }
+                document.getElementById('tab-pengasingan-tugas').classList.remove('hidden');
             } else {
                 btnTambah.classList.add('hidden');
-                if(containerCards) {
-                    containerCards.classList.add('md:grid-cols-3');
-                    containerCards.classList.remove('md:grid-cols-4');
-                    cardCapai100.classList.add('hidden');
-                    cardCapai100.classList.remove('flex');
-                    labelSelesai.textContent = "Selesai Dijawab";
-                    labelBelum.textContent = "Belum Dijawab";
-                }
+                document.getElementById('tab-pengasingan-tugas').classList.add('hidden');
             }
         }
 
@@ -1036,9 +1052,6 @@
             });
             
             let newTaskCount = 0; 
-            let totalSelesaiCount = 0;
-            let totalBelumCount = 0;
-            let totalCapai100Count = 0;
             
             const listWithProgress = filteredList.map(tugasan => {
                 
@@ -1112,22 +1125,78 @@
 
                 const isPenyelaras = (tugasan.penyelaras_ic && currentUserData && tugasan.penyelaras_ic === currentUserData.ic) || tugasan.userId === userId;
                 
-                // MENGIRA DATA METRIK (KAD STATISTIK ATAS)
-                if (isPenyelaras) {
-                    // PENYELARAS: Semak sama ada tugasan 100% selesai oleh semua sasaran
-                    if (isTrulyCompleted) totalSelesaiCount++;
-                    else totalBelumCount++;
-
-                    if (peratus === 100) totalCapai100Count++;
-                } else {
-                    // GURU BESAR / PENGETUA / LAIN-LAIN: Semak jika sekolah/diri sendiri dah respon
-                    if (myCompletionRecord) totalSelesaiCount++;
-                    else totalBelumCount++;
-                }
-
                 return { ...tugasan, progress: { jumlahSelesai, total, peratus, isTrulyCompleted }, myCompletionRecord, isMyScope, requiresAction, bakiInfo, isPenyelaras };
             });
             
+            // PENGASINGAN TUGAS UNTUK WARGA PPD
+            let finalDisplayList = listWithProgress;
+            const containerCards = document.getElementById('dashboard-cards-container');
+            const cardCapai100 = document.getElementById('card-capai-100');
+            const labelSelesai = document.getElementById('label-telah-selesai');
+            const labelBelum = document.getElementById('label-belum-selesai');
+
+            if (isWargaPPD) {
+                if (activeTabPPD === 'seliaan') {
+                    // Papar tugasan yang saya buat sahaja
+                    finalDisplayList = listWithProgress.filter(t => t.isPenyelaras);
+                    
+                    if(containerCards) {
+                        containerCards.classList.remove('md:grid-cols-3');
+                        containerCards.classList.add('md:grid-cols-4');
+                        cardCapai100.classList.remove('hidden');
+                        cardCapai100.classList.add('flex');
+                        labelSelesai.textContent = "Tugasan Ditutup";
+                        labelBelum.textContent = "Tugasan Aktif";
+                    }
+                } else {
+                    // Papar tugasan yang dituju kepada saya untuk dijawab sahaja
+                    finalDisplayList = listWithProgress.filter(t => !t.isPenyelaras);
+                    
+                    if(containerCards) {
+                        containerCards.classList.add('md:grid-cols-3');
+                        containerCards.classList.remove('md:grid-cols-4');
+                        cardCapai100.classList.add('hidden');
+                        cardCapai100.classList.remove('flex');
+                        labelSelesai.textContent = "Selesai Dijawab";
+                        labelBelum.textContent = "Belum Dijawab";
+                    }
+                }
+            } else {
+                if(containerCards) {
+                    containerCards.classList.add('md:grid-cols-3');
+                    containerCards.classList.remove('md:grid-cols-4');
+                    cardCapai100.classList.add('hidden');
+                    cardCapai100.classList.remove('flex');
+                    labelSelesai.textContent = "Selesai Dijawab";
+                    labelBelum.textContent = "Belum Dijawab";
+                }
+            }
+
+            // KIRA METRIK HANYA UNTUK SENARAI YANG SEDANG DIPAPARKAN DI TAB
+            let totalSelesaiCount = 0;
+            let totalBelumCount = 0;
+            let totalCapai100Count = 0;
+
+            finalDisplayList.forEach(data => {
+                const { peratus, isTrulyCompleted } = data.progress;
+                
+                if (data.isPenyelaras) {
+                    if (isTrulyCompleted) totalSelesaiCount++;
+                    else totalBelumCount++;
+                    if (peratus === 100) totalCapai100Count++;
+                } else {
+                    if (data.myCompletionRecord) totalSelesaiCount++;
+                    else totalBelumCount++;
+                }
+            });
+
+            // UPDATE DATA METRIK DI DOM
+            if (totalTugasanEl) totalTugasanEl.textContent = finalDisplayList.length;
+            if (totalSelesaiEl) totalSelesaiEl.textContent = totalSelesaiCount;
+            if (totalBelumEl) totalBelumEl.textContent = totalBelumCount;
+            const capai100El = document.getElementById('total-capai-100');
+            if (capai100El) capai100El.textContent = totalCapai100Count;
+
             // KEMASKINI BANNER ALERT
             const alertBanner = document.getElementById('new-task-alert');
             const alertCount = document.getElementById('new-task-count');
@@ -1143,15 +1212,8 @@
                 }
             }
 
-            // UPDATE DATA METRIK DI DOM
-            if (totalTugasanEl) totalTugasanEl.textContent = filteredList.length;
-            if (totalSelesaiEl) totalSelesaiEl.textContent = totalSelesaiCount;
-            if (totalBelumEl) totalBelumEl.textContent = totalBelumCount;
-            const capai100El = document.getElementById('total-capai-100');
-            if (capai100El) capai100El.textContent = totalCapai100Count;
-
             // LOGIK SUSUNAN JADUAL PINTAR
-            listWithProgress.sort((a, b) => {
+            finalDisplayList.sort((a, b) => {
                 const aDone = a.isPenyelaras ? a.progress.isTrulyCompleted : !!a.myCompletionRecord;
                 const bDone = b.isPenyelaras ? b.progress.isTrulyCompleted : !!b.myCompletionRecord;
                 
@@ -1166,13 +1228,13 @@
                 return dateB - dateA;
             });
 
-            const totalItems = listWithProgress.length;
+            const totalItems = finalDisplayList.length;
             const totalPages = Math.ceil(totalItems / itemsPerPage);
             if (currentPage > totalPages) currentPage = totalPages;
             if (currentPage < 1) currentPage = 1;
             const startIndex = (currentPage - 1) * itemsPerPage;
             const endIndex = startIndex + itemsPerPage;
-            const paginatedList = listWithProgress.slice(startIndex, endIndex);
+            const paginatedList = finalDisplayList.slice(startIndex, endIndex);
             
             if (paginatedList.length === 0) {
                 badanJadual.innerHTML = `<tr><td colspan="6" class="px-6 py-4 text-center text-gray-500 italic bg-gray-50">Tiada tugasan yang dijumpai.</td></tr>`;
@@ -2052,6 +2114,24 @@
             const currentMonth = new Date().getMonth() + 1;
             const formattedMonth = currentMonth < 10 ? '0' + currentMonth : '' + currentMonth;
             document.getElementById('bulan-filter').value = formattedMonth;
+
+            // Logik klik untuk pertukaran tab
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    document.querySelectorAll('.tab-btn').forEach(b => {
+                        b.classList.remove('active', 'text-indigo-600', 'border-indigo-600', 'bg-eef2ff', 'font-bold');
+                        b.classList.add('text-gray-500', 'border-transparent');
+                    });
+                    
+                    const target = e.currentTarget;
+                    target.classList.remove('text-gray-500', 'border-transparent');
+                    target.classList.add('active', 'text-indigo-600', 'border-indigo-600', 'bg-eef2ff', 'font-bold');
+                    
+                    activeTabPPD = target.getAttribute('data-tab');
+                    currentPage = 1; 
+                    paparkanTugasan(); 
+                });
+            });
 
             namaModal.addEventListener('input', (e) => { e.target.value = e.target.value.toUpperCase(); });
             skopListTextarea.addEventListener('input', (e) => { e.target.value = e.target.value.toUpperCase(); });
