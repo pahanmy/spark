@@ -94,11 +94,37 @@
             <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
                 <div>
                     <h2 class="text-xl font-bold text-gray-800">Senarai Pegawai PPD</h2>
-                    <p class="text-sm text-gray-600 mt-1">Sahkan nama pegawai supaya ia muncul dalam pilihan "Skop Sasaran Tugasan".</p>
+                    <p class="text-sm text-gray-600 mt-1">Sahkan nama pegawai mengikut Sektor supaya ia tersusun di dalam Tugasan.</p>
                 </div>
                 
                 <div class="w-full lg:w-auto flex flex-col sm:flex-row gap-3">
+                    <select id="filter-status-ppd" class="block w-full sm:w-48 rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border">
+                        <option value="semua">Semua Status</option>
+                        <option value="sah">Telah Disahkan Sahaja</option>
+                        <option value="belum">Belum Disahkan Sahaja</option>
+                    </select>
                     <input type="text" id="carian-ppd" class="block w-full sm:w-64 rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border" placeholder="Cari nama pegawai...">
+                </div>
+            </div>
+
+            <div id="bulk-action-panel" class="hidden bg-indigo-50 border border-indigo-200 p-4 rounded-lg mb-4 items-center justify-between gap-4 flex-col sm:flex-row shadow-sm transition-all">
+                <div class="text-sm font-bold text-indigo-800 whitespace-nowrap">
+                    <span id="bulk-count">0</span> pegawai dipilih
+                </div>
+                <div class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                    <select id="bulk-sector-select" class="block w-full sm:w-auto rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border font-medium">
+                        <option value="">-- Pilih Sektor Untuk Pengesahan --</option>
+                        <option value="SEKTOR PENGURUSAN">SEKTOR PENGURUSAN</option>
+                        <option value="SEKTOR PENGURUSAN SEKOLAH">SEKTOR PENGURUSAN SEKOLAH</option>
+                        <option value="SEKTOR PEMBELAJARAN">SEKTOR PEMBELAJARAN</option>
+                        <option value="SEKTOR PENTAKSIRAN DAN PEPERIKSAAN">SEKTOR PENTAKSIRAN DAN PEPERIKSAAN</option>
+                        <option value="SEKTOR PEMBANGUNAN MURID">SEKTOR PEMBANGUNAN MURID</option>
+                        <option value="SEKTOR PERANCANGAN">SEKTOR PERANCANGAN</option>
+                        <option value="SEKTOR PSIKOLOGI DAN KAUNSELING">SEKTOR PSIKOLOGI DAN KAUNSELING</option>
+                        <option value="LAIN-LAIN">LAIN-LAIN</option>
+                    </select>
+                    <button onclick="sahkanPukal()" class="btn bg-indigo-600 text-white hover:bg-indigo-700 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider whitespace-nowrap shadow-md">Sahkan Pukal</button>
+                    <button onclick="batalSahPukal()" class="btn bg-red-100 text-red-700 hover:bg-red-200 border border-red-300 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider whitespace-nowrap">Batal Sah Pukal</button>
                 </div>
             </div>
 
@@ -106,14 +132,17 @@
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
                         <tr>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-12">Bil</th>
+                            <th scope="col" class="px-4 py-3 text-center w-12">
+                                <input type="checkbox" id="check-all-ppd" class="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 cursor-pointer">
+                            </th>
+                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-12">Bil</th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Maklumat Pegawai</th>
-                            <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-40">Status Pangkalan Data</th>
-                            <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider w-40">Pengesahan</th>
+                            <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-48">Status Pangkalan Data</th>
+                            <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider w-56">Pengesahan</th>
                         </tr>
                     </thead>
                     <tbody id="jadual-ppd" class="bg-white divide-y divide-gray-200">
-                        <tr><td colspan="4" class="px-6 py-8 text-center text-gray-500">Memuatkan data...</td></tr>
+                        <tr><td colspan="5" class="px-6 py-8 text-center text-gray-500">Memuatkan data...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -191,7 +220,7 @@
         let assignedICs = []; 
         
         // Khusus untuk Tab PPD
-        let senaraiSahPPD = {}; 
+        let senaraiSahPPD = {}; // format: { ic: 'SEKTOR PENGURUSAN', ... }
         
         let sekolahDipilih = "";
         let penggunaDisahkan = null;
@@ -235,7 +264,7 @@
         
         async function muatData() {
             try {
-                // 1. Ambil sekolah (Tapis PPD)
+                // 1. Ambil sekolah
                 const qSekolah = query(collection(db, `artifacts/${appId}/public/data/spark_schools`), orderBy("name"));
                 const snapSekolah = await getDocs(qSekolah);
                 senaraiSekolah = snapSekolah.docs
@@ -254,12 +283,13 @@
                     if(data.ic) assignedICs.push(data.ic);
                 });
 
-                // 3. Ambil mapping PPD DARI KOLEKSI BARU
+                // 3. Ambil mapping PPD (yang dah disahkan di KOLEKSI BARU)
                 const qPPD = collection(db, `artifacts/${appId}/public/data/spark_verified_ppd`);
                 const snapPPD = await getDocs(qPPD);
                 senaraiSahPPD = {};
                 snapPPD.forEach(doc => {
-                    senaraiSahPPD[doc.data().ic || doc.id] = true; 
+                    const data = doc.data();
+                    senaraiSahPPD[data.ic || doc.id] = data.sector || 'Disahkan'; 
                 });
 
                 // 4. Ambil semua peserta
@@ -273,7 +303,7 @@
             } catch (error) {
                 console.error("Gagal memuat data:", error);
                 document.getElementById('jadual-sekolah').innerHTML = `<tr><td colspan="4" class="px-6 py-4 text-center text-red-500">Gagal menyambung ke pangkalan data.</td></tr>`;
-                document.getElementById('jadual-ppd').innerHTML = `<tr><td colspan="4" class="px-6 py-4 text-center text-red-500">Gagal menyambung ke pangkalan data.</td></tr>`;
+                document.getElementById('jadual-ppd').innerHTML = `<tr><td colspan="5" class="px-6 py-4 text-center text-red-500">Gagal menyambung ke pangkalan data.</td></tr>`;
             }
         }
 
@@ -531,20 +561,18 @@
 
 
         // ==========================================
-        // BAHAGIAN 2: PENGURUSAN PEGAWAI PPD
+        // BAHAGIAN 2: PENGURUSAN PEGAWAI PPD (PUKAL & PENAPIS)
         // ==========================================
 
         function paparJadualPPD(kataKunci = "") {
             const tbody = document.getElementById('jadual-ppd');
             tbody.innerHTML = '';
             
-            // Cari pengguna yang mendaftar stesen mereka sebagai PPD
             let pegawaiPPD = semuaPeserta.filter(p => {
                 const stesen = (p.station || '').toUpperCase();
                 return stesen.includes('PPD MIRI') || stesen.includes('PEJABAT PENDIDIKAN DAERAH');
             });
             
-            // Tapis mengikut carian
             if(kataKunci.trim() !== '') {
                 pegawaiPPD = pegawaiPPD.filter(p => 
                     p.name.toLowerCase().includes(kataKunci.toLowerCase()) || 
@@ -552,76 +580,150 @@
                 );
             }
 
+            // PENAPIS STATUS (SAH/BELUM)
+            const filterStatus = document.getElementById('filter-status-ppd').value;
+            if (filterStatus === 'sah') {
+                pegawaiPPD = pegawaiPPD.filter(p => senaraiSahPPD[p.ic]);
+            } else if (filterStatus === 'belum') {
+                pegawaiPPD = pegawaiPPD.filter(p => !senaraiSahPPD[p.ic]);
+            }
+
             if (pegawaiPPD.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="4" class="px-6 py-4 text-center text-gray-500 italic">Tiada rekod warga PPD dijumpai.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-4 text-center text-gray-500 italic">Tiada rekod warga PPD dijumpai untuk carian/penapis ini.</td></tr>`;
+                document.getElementById('check-all-ppd').disabled = true;
                 return;
             }
             
-            // Susun nama mengikut abjad
+            document.getElementById('check-all-ppd').disabled = false;
             pegawaiPPD.sort((a, b) => a.name.localeCompare(b.name));
 
             pegawaiPPD.forEach((p, index) => {
-                const isVerified = senaraiSahPPD[p.ic] === true;
+                const verifiedSector = senaraiSahPPD[p.ic]; // String sektor jika sah, undefined jika belum
                 
                 let statusHtml = '';
                 let actionBtnHtml = '';
 
-                if (isVerified) {
+                // Escape variables for HTML injection
+                const safeName = p.name.replace(/'/g, "\\'").replace(/"/g, "&quot;");
+                const safePos = (p.position || '').replace(/'/g, "\\'").replace(/"/g, "&quot;");
+
+                if (verifiedSector) {
                     statusHtml = `
-                        <span class="inline-flex items-center gap-1 bg-green-50 text-green-700 border border-green-200 px-2 py-1 rounded-md text-xs font-bold uppercase tracking-wider">
-                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-                            Sah
-                        </span>
+                        <div class="flex flex-col items-center">
+                            <span class="inline-flex items-center gap-1 bg-green-50 text-green-700 border border-green-200 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider">
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                                Sah
+                            </span>
+                            <span class="text-[9px] font-bold text-gray-600 mt-1 uppercase text-center">${verifiedSector}</span>
+                        </div>
                     `;
                     actionBtnHtml = `
-                        <button onclick="batalSahPPD('${p.ic}')" class="btn border border-red-300 text-red-600 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 w-full justify-center">
+                        <button onclick="batalSahPPD('${p.ic}')" class="btn border border-red-300 text-red-600 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-1 w-full">
                             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                             Batal Sah
                         </button>
                     `;
                 } else {
                     statusHtml = `
-                        <span class="inline-block bg-gray-100 text-gray-500 border border-gray-200 px-2 py-1 rounded-md text-xs font-semibold">
+                        <span class="inline-block bg-gray-100 text-gray-500 border border-gray-200 px-2 py-1 rounded-md text-[10px] font-semibold uppercase tracking-wider">
                             Belum Disahkan
                         </span>
                     `;
-                    // Encode data to safely pass to function
-                    const safeName = p.name.replace(/'/g, "\\'");
-                    const safePos = (p.position || '').replace(/'/g, "\\'");
-                    const safeSec = (p.sector || p.unit || '').replace(/'/g, "\\'");
-
+                    // Mini dropdown for individual verification
                     actionBtnHtml = `
-                        <button onclick="sahkanPPD('${p.ic}', '${safeName}', '${safePos}', '${safeSec}')" class="btn bg-indigo-600 text-white hover:bg-indigo-700 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 w-full justify-center shadow-sm">
+                        <select id="sec-${p.ic}" class="block w-full rounded border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-[10px] p-1.5 border mb-1.5 bg-gray-50 uppercase font-medium">
+                            <option value="">-- Pilih Sektor --</option>
+                            <option value="SEKTOR PENGURUSAN">PENGURUSAN</option>
+                            <option value="SEKTOR PENGURUSAN SEKOLAH">PENGURUSAN SEKOLAH</option>
+                            <option value="SEKTOR PEMBELAJARAN">PEMBELAJARAN</option>
+                            <option value="SEKTOR PENTAKSIRAN DAN PEPERIKSAAN">PENTAKSIRAN</option>
+                            <option value="SEKTOR PEMBANGUNAN MURID">PEMBANGUNAN MURID</option>
+                            <option value="SEKTOR PERANCANGAN">PERANCANGAN</option>
+                            <option value="SEKTOR PSIKOLOGI DAN KAUNSELING">PSIKOLOGI</option>
+                            <option value="LAIN-LAIN">LAIN-LAIN</option>
+                        </select>
+                        <button onclick="sahkanPPD('${p.ic}', '${safeName}', '${safePos}', 'sec-${p.ic}')" class="btn bg-indigo-600 text-white hover:bg-indigo-700 px-3 py-1.5 rounded shadow-sm text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-1 w-full">
                             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-                            Sahkan Pegawai
+                            Sahkan
                         </button>
                     `;
                 }
 
                 tbody.innerHTML += `
-                    <tr class="hover:bg-gray-50 transition-colors ${isVerified ? 'bg-green-50/20' : ''}">
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 align-top">${index + 1}</td>
-                        <td class="px-6 py-4 align-top">
+                    <tr class="hover:bg-gray-50 transition-colors ${verifiedSector ? 'bg-green-50/20' : ''}">
+                        <td class="px-4 py-4 whitespace-nowrap text-center align-middle">
+                            <input type="checkbox" class="ppd-check w-4 h-4 text-indigo-600 border-gray-300 rounded cursor-pointer focus:ring-indigo-500" value="${p.ic}" data-nama="${safeName}" data-pos="${safePos}">
+                        </td>
+                        <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500 align-middle">${index + 1}</td>
+                        <td class="px-6 py-4 align-middle">
                             <div class="font-bold text-gray-900 text-sm">${p.name}</div>
                             <div class="text-xs text-gray-500 font-mono mt-0.5">${p.ic}</div>
-                            <div class="text-[0.65rem] font-bold text-indigo-600 uppercase tracking-wider mt-1.5">${p.position || 'Tiada Jawatan'} • ${p.sector || p.unit || 'Tiada Sektor'}</div>
+                            <div class="text-[0.65rem] font-bold text-indigo-600 uppercase tracking-wider mt-1.5">${p.position || 'Tiada Jawatan'} • Asal: ${p.sector || p.unit || 'Tiada'}</div>
                         </td>
-                        <td class="px-6 py-4 text-center align-top whitespace-nowrap">
+                        <td class="px-6 py-4 text-center align-middle">
                             ${statusHtml}
                         </td>
-                        <td class="px-6 py-4 text-right align-top w-40">
+                        <td class="px-6 py-4 text-right align-middle w-56">
                             ${actionBtnHtml}
                         </td>
                     </tr>
                 `;
             });
+
+            // Reattach event listeners for individual checkboxes
+            document.querySelectorAll('.ppd-check').forEach(cb => {
+                cb.addEventListener('change', kemaskiniBulkAction);
+            });
+            // Reset main checkbox
+            document.getElementById('check-all-ppd').checked = false;
+            kemaskiniBulkAction();
         }
 
+        // Event Listeners Header PPD
         document.getElementById('carian-ppd').addEventListener('input', (e) => paparJadualPPD(e.target.value));
+        document.getElementById('filter-status-ppd').addEventListener('change', () => paparJadualPPD(document.getElementById('carian-ppd').value));
 
-        window.sahkanPPD = async function(ic, nama, jawatan, sektor) {
+        // CHECKBOX KAWALAN KESELURUHAN
+        document.getElementById('check-all-ppd').addEventListener('change', function(e) {
+            const isChecked = e.target.checked;
+            document.querySelectorAll('.ppd-check').forEach(cb => {
+                cb.checked = isChecked;
+            });
+            kemaskiniBulkAction();
+        });
+
+        // FUNGSI KEMASKINI UI BULK PANEL
+        function kemaskiniBulkAction() {
+            const checkedBoxes = document.querySelectorAll('.ppd-check:checked');
+            const panel = document.getElementById('bulk-action-panel');
+            const countSpan = document.getElementById('bulk-count');
+            
+            countSpan.textContent = checkedBoxes.length;
+            
+            if (checkedBoxes.length > 0) {
+                panel.classList.remove('hidden');
+                panel.classList.add('flex');
+            } else {
+                panel.classList.add('hidden');
+                panel.classList.remove('flex');
+            }
+
+            // Sync master checkbox state
+            const allBoxes = document.querySelectorAll('.ppd-check');
+            if (allBoxes.length > 0) {
+                document.getElementById('check-all-ppd').checked = (checkedBoxes.length === allBoxes.length);
+            }
+        }
+
+        // --- FUNGSI PENGESAHAN INDIVIDU ---
+        window.sahkanPPD = async function(ic, nama, jawatan, selectId) {
+            const sektor = document.getElementById(selectId).value;
+            if(!sektor) {
+                alert("Sila pilih sektor dari senarai (dropdown) di atas butang Sahkan terlebih dahulu.");
+                return;
+            }
+
             try {
-                // Simpan ke KOLEKSI BARU (spark_verified_ppd)
                 const docRef = doc(db, `artifacts/${appId}/public/data/spark_verified_ppd`, ic);
                 await setDoc(docRef, {
                     ic: ic,
@@ -631,7 +733,7 @@
                     timestamp: new Date().toISOString()
                 });
                 
-                senaraiSahPPD[ic] = true;
+                senaraiSahPPD[ic] = sektor;
                 paparJadualPPD(document.getElementById('carian-ppd').value);
                 
             } catch (error) {
@@ -653,6 +755,76 @@
             } catch (error) {
                 console.error("Gagal batal pengesahan PPD:", error);
                 alert("Gagal membatalkan pengesahan. Sila cuba lagi.");
+            }
+        }
+
+        // --- FUNGSI PENGESAHAN PUKAL (BULK) ---
+        window.sahkanPukal = async function() {
+            const checkboxes = document.querySelectorAll('.ppd-check:checked');
+            if (checkboxes.length === 0) return;
+            
+            const sektor = document.getElementById('bulk-sector-select').value;
+            if (!sektor) {
+                alert('Sila pilih Sektor untuk pengesahan pukal dari menu dropdown di atas!');
+                return;
+            }
+
+            if (!confirm(`Anda pasti mahu mengesahkan ${checkboxes.length} pegawai ini ke dalam ${sektor}?`)) return;
+
+            try {
+                const promises = [];
+                checkboxes.forEach(cb => {
+                    const ic = cb.value;
+                    const nama = cb.dataset.nama;
+                    const pos = cb.dataset.pos;
+                    
+                    const docRef = doc(db, `artifacts/${appId}/public/data/spark_verified_ppd`, ic);
+                    promises.push(setDoc(docRef, {
+                        ic: ic,
+                        name: nama,
+                        position: pos,
+                        sector: sektor,
+                        timestamp: new Date().toISOString()
+                    }));
+                    senaraiSahPPD[ic] = sektor;
+                });
+
+                await Promise.all(promises);
+                alert('Pengesahan pukal berjaya disimpan!');
+                
+                // Reset UI
+                document.getElementById('bulk-sector-select').value = '';
+                paparJadualPPD(document.getElementById('carian-ppd').value);
+                
+            } catch(e) {
+                console.error("Ralat pengesahan pukal:", e);
+                alert('Berlaku ralat semasa menyimpan pengesahan pukal.');
+            }
+        }
+
+        window.batalSahPukal = async function() {
+            const checkboxes = document.querySelectorAll('.ppd-check:checked');
+            if (checkboxes.length === 0) return;
+
+            if (!confirm(`Anda pasti mahu membatalkan pengesahan bagi ${checkboxes.length} pegawai yang dipilih?`)) return;
+
+            try {
+                const promises = [];
+                checkboxes.forEach(cb => {
+                    const ic = cb.value;
+                    const docRef = doc(db, `artifacts/${appId}/public/data/spark_verified_ppd`, ic);
+                    promises.push(deleteDoc(docRef));
+                    delete senaraiSahPPD[ic];
+                });
+
+                await Promise.all(promises);
+                alert('Batal pengesahan pukal berjaya!');
+                
+                paparJadualPPD(document.getElementById('carian-ppd').value);
+                
+            } catch(e) {
+                console.error("Ralat batal sah pukal:", e);
+                alert('Berlaku ralat semasa membatalkan pengesahan pukal.');
             }
         }
 
