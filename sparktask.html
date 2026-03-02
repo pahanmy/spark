@@ -196,45 +196,6 @@
             </button>
         </div>
         
-        <div id="dashboard-cards-container" class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 transition-all duration-300">
-            <div class="card p-4 flex items-center justify-between">
-                <div>
-                    <p class="text-sm font-medium text-gray-500">Jumlah Tugasan</p>
-                    <p id="total-tugasan" class="text-3xl font-bold text-indigo-600">0</p>
-                </div>
-                <div class="bg-indigo-100 p-3 rounded-full">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
-                </div>
-            </div>
-            <div class="card p-4 flex items-center justify-between">
-                <div>
-                    <p id="label-telah-selesai" class="text-sm font-medium text-gray-500">Telah Selesai</p>
-                    <p id="total-selesai" class="text-3xl font-bold text-green-600">0</p>
-                </div>
-                <div class="bg-green-100 p-3 rounded-full">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                </div>
-            </div>
-            <div class="card p-4 flex items-center justify-between">
-                <div>
-                    <p id="label-belum-selesai" class="text-sm font-medium text-gray-500">Belum Selesai</p>
-                    <p id="total-belum" class="text-3xl font-bold text-amber-600">0</p>
-                </div>
-                <div class="bg-amber-100 p-3 rounded-full">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                </div>
-            </div>
-            <div id="card-capai-100" class="card p-4 items-center justify-between hidden border-l-4 border-emerald-500">
-                <div>
-                    <p class="text-sm font-medium text-gray-500">Capai 100%</p>
-                    <p id="total-capai-100" class="text-3xl font-bold text-emerald-600">0</p>
-                </div>
-                <div class="bg-emerald-100 p-3 rounded-full">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>
-                </div>
-            </div>
-        </div>
-        
         <div class="card mb-6 p-5 border border-gray-100">
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
                 <div class="relative">
@@ -581,8 +542,12 @@
             <form id="borang-tag-rakan">
                 <label class="block text-sm font-medium text-gray-700 mb-2">Senarai Warga Stesen (Maksima 3)</label>
                 
+                <div class="mb-3">
+                    <input type="text" id="carian-rakan-tag" placeholder="🔍 Cari nama rakan..." autocomplete="off" class="block w-full rounded-lg border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500 sm:text-sm py-2 px-3 bg-white">
+                </div>
+                
                 <div id="tag-selects-wrapper" class="space-y-3 mb-3">
-                    </div>
+                </div>
                 
                 <button type="button" id="tambah-tag-btn" class="text-xs text-purple-700 font-bold hover:text-purple-900 flex items-center gap-1 mb-6 bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-lg border border-purple-200 transition-colors">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
@@ -637,7 +602,9 @@
         let currentActionIntent = null;
         let currentPage = 1;
         let itemsPerPage = 10;
-        let globalRakanOptionsHtml = ''; // Untuk select rakan berganda
+        
+        let rakanDataList = []; // Simpan data rakan stesen
+        let globalRakanOptionsHtml = ''; 
 
         try {
             const app = initializeApp(firebaseConfig);
@@ -712,9 +679,6 @@
         const itemsPerPageSelect = document.getElementById('items-per-page');
         const paginationControls = document.getElementById('pagination-controls');
         const sektorFilter = document.getElementById('sektor-filter');
-        const totalTugasanEl = document.getElementById('total-tugasan');
-        const totalSelesaiEl = document.getElementById('total-selesai');
-        const totalBelumEl = document.getElementById('total-belum');
 
         // --- FUNGSI BANTUAN ---
         function normalizeName(name) {
@@ -880,31 +844,10 @@
             const btnTambah = document.getElementById('btn-tambah-tugasan');
             const isWargaPPD = (currentUserData.sector && currentUserData.sector.toUpperCase().includes("SEKTOR")) || (currentUserData.ic === "890522135381");
             
-            const containerCards = document.getElementById('dashboard-cards-container');
-            const cardCapai100 = document.getElementById('card-capai-100');
-            const labelSelesai = document.getElementById('label-telah-selesai');
-            const labelBelum = document.getElementById('label-belum-selesai');
-
             if (isWargaPPD) {
                 btnTambah.classList.remove('hidden');
-                if(containerCards) {
-                    containerCards.classList.remove('md:grid-cols-3');
-                    containerCards.classList.add('md:grid-cols-4');
-                    cardCapai100.classList.remove('hidden');
-                    cardCapai100.classList.add('flex');
-                    labelSelesai.textContent = "Tugasan Ditutup";
-                    labelBelum.textContent = "Tugasan Aktif";
-                }
             } else {
                 btnTambah.classList.add('hidden');
-                if(containerCards) {
-                    containerCards.classList.add('md:grid-cols-3');
-                    containerCards.classList.remove('md:grid-cols-4');
-                    cardCapai100.classList.add('hidden');
-                    cardCapai100.classList.remove('flex');
-                    labelSelesai.textContent = "Selesai Dijawab";
-                    labelBelum.textContent = "Belum Dijawab";
-                }
             }
         }
 
@@ -1008,9 +951,6 @@
                 return searchMatch && sektorMatch && bulanMatch && isAuthorized;
             });
             
-            let totalSelesaiCount = 0;
-            let totalBelumCount = 0;
-            let totalCapai100Count = 0;
             let newTaskCount = 0; 
             
             const listWithProgress = filteredList.map(tugasan => {
@@ -1086,22 +1026,6 @@
 
                 const isPenyelaras = (tugasan.penyelaras_ic && currentUserData && tugasan.penyelaras_ic === currentUserData.ic) || tugasan.userId === userId;
                 
-                // --- LOGIK KIRAAN KAD METRIK ---
-                if (isPenyelaras) {
-                    // Penyelaras: Tengok progress keseluruhan
-                    if (isTrulyCompleted) totalSelesaiCount++;
-                    else totalBelumCount++;
-
-                    if (peratus === 100) totalCapai100Count++;
-                } else {
-                    // Biasa: Hanya tengok Selesai Dijawab. Kalau tak jawab, kira Belum Selesai.
-                    if (myCompletionRecord) {
-                        totalSelesaiCount++; 
-                    } else {
-                        totalBelumCount++; 
-                    }
-                }
-
                 return { ...tugasan, progress: { jumlahSelesai, total, peratus, isTrulyCompleted }, myCompletionRecord, isMyScope, requiresAction, bakiInfo, isPenyelaras };
             });
             
@@ -1136,12 +1060,6 @@
                 return dateB - dateA;
             });
 
-            totalTugasanEl.textContent = filteredList.length;
-            totalSelesaiEl.textContent = totalSelesaiCount;
-            totalBelumEl.textContent = totalBelumCount;
-            const capai100El = document.getElementById('total-capai-100');
-            if (capai100El) capai100El.textContent = totalCapai100Count;
-
             const totalItems = listWithProgress.length;
             const totalPages = Math.ceil(totalItems / itemsPerPage);
             if (currentPage > totalPages) currentPage = totalPages;
@@ -1170,7 +1088,6 @@
                 } else if (isPenyelaras && (peratus === 100 || tugasan.isClosedByAdmin)) {
                     baris.className = "bg-gray-50 opacity-80 hover:opacity-100 transition-colors duration-150 border-l-4 border-gray-400";
                 } else if (!isPenyelaras && (data.bakiInfo.isOverdue || tugasan.isClosedByAdmin)) {
-                    // Warna merah untuk sasaran jika terlepas tarikh akhir tanpa jawab
                     baris.className = "bg-red-50 hover:bg-red-100 transition-colors duration-150 border-l-4 border-red-500";
                 } else {
                     baris.className = "bg-white hover:bg-gray-50 transition-colors duration-150";
@@ -1291,7 +1208,6 @@
                     myStatusHtml = `<span class="text-[10px] text-gray-400 italic">Pemerhati / Penyelaras</span>`;
                 }
 
-                // Masukkan semua data ke dalam baris jadual
                 baris.innerHTML = `
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono align-top">${startIndex + index + 1}</td>
                     <td class="px-6 py-4 max-w-md align-top"> 
@@ -1373,8 +1289,10 @@
             const stationNameDisplay = document.getElementById('tag-station-name');
             const btnSimpanTag = document.getElementById('simpan-tag-btn');
             const btnTambahTag = document.getElementById('tambah-tag-btn');
+            const carianInputTag = document.getElementById('carian-rakan-tag');
             
             stationNameDisplay.textContent = currentUserData.station;
+            carianInputTag.value = ''; // Reset carian
             
             // Reset wrapper to 1 initial disabled select
             wrapper.innerHTML = `
@@ -1394,20 +1312,22 @@
                 const qRakan = query(collection(db, `artifacts/${appId}/public/data/spark_participants`), where("station", "==", currentUserData.station));
                 const snapRakan = await getDocs(qRakan);
                 
-                globalRakanOptionsHtml = '<option value="">-- Sila Pilih Rakan Sekerja --</option>';
-                let count = 0;
-                
+                rakanDataList = [];
                 snapRakan.forEach(doc => {
                     const rakan = doc.data();
                     if (rakan.ic !== currentUserData.ic) { 
-                        globalRakanOptionsHtml += `<option value="${rakan.ic}">${rakan.name} (${rakan.position || 'Tiada Jawatan'})</option>`;
-                        count++;
+                        rakanDataList.push(rakan);
                     }
+                });
+                
+                globalRakanOptionsHtml = '<option value="">-- Sila Pilih Rakan Sekerja --</option>';
+                rakanDataList.forEach(rakan => {
+                    globalRakanOptionsHtml += `<option value="${rakan.ic}">${rakan.name} (${rakan.position || 'Tiada Jawatan'})</option>`;
                 });
                 
                 const firstSelect = wrapper.querySelector('.tag-rakan-select');
                 
-                if (count === 0) {
+                if (rakanDataList.length === 0) {
                     firstSelect.innerHTML = '<option value="">Tiada rakan sekerja lain mendaftar di stesen ini.</option>';
                     firstSelect.disabled = true;
                     btnSimpanTag.disabled = true;
@@ -1416,7 +1336,7 @@
                     firstSelect.innerHTML = globalRakanOptionsHtml;
                     firstSelect.disabled = false;
                     btnSimpanTag.disabled = false;
-                    if (count > 1) {
+                    if (rakanDataList.length > 1) {
                         btnTambahTag.classList.remove('hidden');
                     }
                 }
@@ -1428,6 +1348,42 @@
             }
         }
         
+        // Logik Carian Rakan secara Dinamik
+        document.getElementById('carian-rakan-tag').addEventListener('input', (e) => {
+            const term = e.target.value.toLowerCase();
+            const selects = document.querySelectorAll('.tag-rakan-select');
+            
+            // Bina semula string option HTML yang ditapis
+            let filteredOptionsHtml = '<option value="">-- Sila Pilih Rakan Sekerja --</option>';
+            rakanDataList.forEach(rakan => {
+                const label = `${rakan.name} (${rakan.position || 'Tiada Jawatan'})`;
+                if (label.toLowerCase().includes(term)) {
+                    filteredOptionsHtml += `<option value="${rakan.ic}">${label}</option>`;
+                }
+            });
+            
+            // Kemaskini semua select yang ada, dan kekalkan pilihan (value) sedia ada jika masih relevan
+            selects.forEach(select => {
+                const currentValue = select.value;
+                select.innerHTML = filteredOptionsHtml;
+                
+                if (currentValue) {
+                    const optExists = Array.from(select.options).some(o => o.value === currentValue);
+                    if (!optExists) {
+                        // Jika nilai yang sudah dipilih hilang akibat carian, masukkan ia semula sementara
+                        const selectedRakan = rakanDataList.find(r => r.ic === currentValue);
+                        if (selectedRakan) {
+                            select.innerHTML += `<option value="${selectedRakan.ic}" style="display:none;">${selectedRakan.name} (${selectedRakan.position || 'Tiada Jawatan'})</option>`;
+                        }
+                    }
+                    select.value = currentValue;
+                }
+            });
+            
+            // Kemaskini pembolehubah global agar butang "Tambah Rakan" pakai list yang telah di-filter juga
+            globalRakanOptionsHtml = filteredOptionsHtml;
+        });
+
         // Logik Butang Tambah Rakan
         document.getElementById('tambah-tag-btn').addEventListener('click', () => {
             const wrapper = document.getElementById('tag-selects-wrapper');
