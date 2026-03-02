@@ -40,7 +40,7 @@
                 </div>
                 <div>
                     <h1 class="text-xl font-bold text-emerald-600">Semakan Respon Sekolah</h1>
-                    <p class="text-xs text-gray-500">Arkib Jawapan Anda</p>
+                    <p class="text-xs text-gray-500">Arkib Jawapan Sekolah Anda</p>
                 </div>
             </div>
             
@@ -54,7 +54,7 @@
         
         <div id="loading-spinner" class="flex flex-col items-center justify-center py-20">
             <svg class="animate-spin h-10 w-10 text-emerald-600 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-            <p class="text-gray-500 font-medium">Memuatkan rekod jawapan anda...</p>
+            <p class="text-gray-500 font-medium">Memuatkan rekod jawapan sekolah anda...</p>
         </div>
 
         <div id="error-message" class="hidden card p-8 text-center border-l-4 border-red-500 bg-red-50">
@@ -81,10 +81,10 @@
             </div>
 
             <div class="card p-5 mb-6 bg-emerald-50 border border-emerald-100">
-                <h3 class="text-xs font-bold text-emerald-800 uppercase tracking-wider mb-3">Maklumat Responden (Sekolah)</h3>
+                <h3 class="text-xs font-bold text-emerald-800 uppercase tracking-wider mb-3">Maklumat Responden (Mewakili Sekolah)</h3>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                     <div>
-                        <p class="text-gray-500 text-xs mb-0.5">Nama Pegawai / Guru:</p>
+                        <p class="text-gray-500 text-xs mb-0.5">Nama Pegawai / Guru Menjawab:</p>
                         <p class="font-bold text-gray-900 uppercase" id="respon-nama"></p>
                     </div>
                     <div>
@@ -103,7 +103,7 @@
             </div>
 
             <div class="card p-6">
-                <h3 class="text-lg font-bold text-gray-900 mb-4 border-b pb-2">Butiran Jawapan Anda</h3>
+                <h3 class="text-lg font-bold text-gray-900 mb-4 border-b pb-2">Butiran Jawapan Sekolah Anda</h3>
                 <div id="senarai-jawapan-container" class="space-y-6 mt-4">
                     </div>
             </div>
@@ -117,7 +117,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM",
@@ -136,6 +136,21 @@
             db = getFirestore(app);
         } catch (e) {
             console.error("Error Firebase:", e);
+        }
+
+        // Fungsi bantuan menormalkan nama untuk carian yang tepat
+        function normalizeName(name) {
+            if (typeof name !== 'string') return '';
+            let normalized = name.toUpperCase();
+            normalized = normalized.replace(/\b(BIN|BINTI|BT)\b\s*/g, '');
+            normalized = normalized.replace(/\b(B\s*I\s*N|B\s*I\s*N\s*T\s*I|B\s*T)\b\s*/g, '');
+            normalized = normalized.replace(/\bSG\./g, 'SUNGAI'); 
+            normalized = normalized.replace(/\bSG\b/g, 'SUNGAI'); 
+            normalized = normalized.replace(/\s*\([^)]*(CINA|C)\s*[^)]*\)\s*/g, ''); 
+            normalized = normalized.replace(/\bCINA\b\s*/g, '');
+            normalized = normalized.replace(/[.,]/g, ''); 
+            normalized = normalized.replace(/\s+/g, ''); 
+            return normalized.trim();
         }
 
         function formatDateTime(isoString) {
@@ -161,6 +176,28 @@
             }
 
             try {
+                // 1. Kenal pasti Sekolah/Stesen Pengguna Semasa
+                const qUser = query(collection(db, `artifacts/${appId}/public/data/spark_participants`), where("ic", "==", userIc));
+                const snapUser = await getDocs(qUser);
+                
+                if (snapUser.empty) {
+                    throw new Error("Sila daftar dan log masuk semula.");
+                }
+                const currentUserData = snapUser.docs[0].data();
+                
+                let myStations = [];
+                if (currentUserData.station) {
+                    myStations.push(normalizeName(currentUserData.station));
+                }
+
+                // 2. Jika Guru Besar, dapatkan senarai sekolah pentadbirannya
+                const qAdmin = query(collection(db, `artifacts/${appId}/public/data/spark_school_principals`), where("ic", "==", userIc));
+                const snapAdmin = await getDocs(qAdmin);
+                snapAdmin.forEach(doc => {
+                    myStations.push(normalizeName(doc.data().sekolah));
+                });
+
+                // 3. Tarik Rekod Tugasan
                 const docRef = doc(db, `artifacts/${appId}/public/data/spark_tasks`, taskId);
                 const docSnap = await getDoc(docRef);
 
@@ -171,11 +208,14 @@
                 const tugasan = docSnap.data();
                 const allRekod = tugasan.rekodSelesai || [];
 
-                // Cari rekod yang sepadan dengan IC pengguna
-                const myRecord = allRekod.find(r => r.ic_pengesah === userIc);
+                // 4. Cari rekod berdasarkan NAMA SEKOLAH (Atau IC sendiri jika ada kepincangan stesen)
+                const myRecord = allRekod.find(r => {
+                    const rekodStesen = normalizeName(r.stesen_pengesah || '');
+                    return myStations.includes(rekodStesen) || r.ic_pengesah === userIc;
+                });
 
                 if (!myRecord) {
-                    throw new Error("Tiada rekod jawapan dijumpai untuk IC anda bagi tugasan ini.");
+                    throw new Error("Tiada rekod jawapan dijumpai untuk sekolah anda bagi tugasan ini.");
                 }
 
                 // --- PENGISIAN DATA KE DALAM UI ---
@@ -185,7 +225,7 @@
                 document.getElementById('papar-pegawai').textContent = tugasan.pegawai || 'N/A';
                 document.getElementById('papar-sektor').textContent = tugasan.sektor || 'N/A';
 
-                // 2. Info Responden
+                // 2. Info Responden (Pewakil Sekolah)
                 document.getElementById('respon-nama').textContent = myRecord.nama_pengesah || 'N/A';
                 document.getElementById('respon-stesen').textContent = myRecord.stesen_pengesah || 'N/A';
                 document.getElementById('respon-masa').textContent = formatDateTime(myRecord.timestamp);
