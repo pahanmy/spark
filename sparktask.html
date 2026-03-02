@@ -76,14 +76,8 @@
         }
 
         .bg-pattern {
-            background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+            background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
         }
-        
-        /* Scrollbar styling for autocomplete */
-        .tag-autocomplete-list::-webkit-scrollbar { width: 6px; }
-        .tag-autocomplete-list::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 8px; }
-        .tag-autocomplete-list::-webkit-scrollbar-thumb { background: #c7d2fe; border-radius: 8px; }
-        .tag-autocomplete-list::-webkit-scrollbar-thumb:hover { background: #818cf8; }
     </style>
 </head>
 <body class="bg-gray-50 text-gray-900 flex flex-col min-h-screen">
@@ -587,7 +581,9 @@
             <form id="borang-tag-rakan">
                 <label class="block text-sm font-medium text-gray-700 mb-2">Pilih Individu (Maksimum 3)</label>
                 
-                <div id="tag-selects-wrapper" class="space-y-3 mb-3 relative">
+                <datalist id="senarai-rakan-datalist"></datalist>
+
+                <div id="tag-selects-wrapper" class="space-y-3 mb-3">
                     </div>
                 
                 <button type="button" id="tambah-tag-btn" class="text-xs text-purple-700 font-bold hover:text-purple-900 flex items-center gap-1 mb-6 bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-lg border border-purple-200 transition-colors">
@@ -980,8 +976,7 @@
                 const isGuruBesar = currentUserSchools && currentUserSchools.length > 0;
                 
                 // ======================================================================
-                // BLOK 1: HARD BLOCK UNTUK GURU BIASA
-                // Jika dia guru sekolah, BUKAN Guru Besar, BUKAN Penyelaras, BUKAN di-tag
+                // HARD BLOCK: SEKATAN KETAT UNTUK GURU BIASA
                 // ======================================================================
                 const myStationRaw = (currentUserData.station || '').toUpperCase();
                 const myNameNormalized = normalizeName(currentUserData.name);
@@ -1085,23 +1080,30 @@
                 
                 let myCompletionRecord = null;
                 if (allRekodSelesai.length > 0) {
+                    // Semak jika ada rekod penyelesaian yang dihantar oleh pengguna ATAU stesen ini
+                    const myAdminSchools = (currentUserSchools || []).map(normalizeName);
+                    const myStation = normalizeName(currentUserData.station || '');
+                    
                     myCompletionRecord = allRekodSelesai.find(r => {
-                        // 1. Saya dah respon
-                        if (r.ic_pengesah === currentUserData.ic) return true; 
+                        if (r.ic_pengesah === currentUserData.ic) return true; // Saya jawab sendiri
                         
-                        // 2. Mana-mana orang dari sekolah itu telah respon (Cikgu lain wakilkan sekolah)
                         const rekodStesen = normalizeName(r.stesen_pengesah || '');
-                        const rekodNama = normalizeName(r.nama_pengesah || '');
-                        
-                        if (rekodStesen !== '' && userSkopKeys.includes(rekodStesen)) return true;
-                        if (rekodNama !== '' && userSkopKeys.includes(rekodNama)) return true;
+                        if (myAdminSchools.includes(rekodStesen)) return true; // Cikgu lain di sekolah saya jawab
+                        if (rekodStesen === myStation && (myStation.includes("PPD") || myStation.includes("PEJABAT"))) return true; // PPD jawab
                         
                         return false;
                     });
                 }
 
-                let isMyScope = true; 
+                let isMyScope = true; // Akan sentiasa true kerana ia telah ditapis ketat di atas
+
                 const bakiInfo = kiraBakiHari(tugasan.tarikhSiap, peratus, isCompletedAdmin);
+                
+                let requiresAction = false;
+                if (!myCompletionRecord && !isCompletedAdmin && peratus < 100 && !bakiInfo.isOverdue) {
+                    requiresAction = true;
+                }
+
                 const isPenyelaras = (tugasan.penyelaras_ic && currentUserData && tugasan.penyelaras_ic === currentUserData.ic) || tugasan.userId === userId;
                 
                 // MENGIRA DATA METRIK (KAD STATISTIK ATAS)
@@ -1117,7 +1119,7 @@
                     else totalBelumCount++;
                 }
 
-                return { ...tugasan, progress: { jumlahSelesai, total, peratus, isTrulyCompleted }, myCompletionRecord, isMyScope, bakiInfo, isPenyelaras };
+                return { ...tugasan, progress: { jumlahSelesai, total, peratus, isTrulyCompleted }, myCompletionRecord, isMyScope, requiresAction, bakiInfo, isPenyelaras };
             });
             
             // KEMASKINI BANNER ALERT
@@ -1149,6 +1151,9 @@
                 
                 if (!aDone && bDone) return -1;
                 if (aDone && !bDone) return 1;
+
+                if (a.requiresAction && !b.requiresAction) return -1;
+                if (!a.requiresAction && b.requiresAction) return 1;
 
                 const dateA = a.createdAt && a.createdAt.toDate ? a.createdAt.toDate().getTime() : 0;
                 const dateB = b.createdAt && b.createdAt.toDate ? b.createdAt.toDate().getTime() : 0;
@@ -1479,6 +1484,17 @@
                     wrapper.innerHTML = '<p class="text-sm text-red-500 italic bg-red-50 p-3 rounded border border-red-100">Tiada rakan sekerja lain mendaftar di stesen ini.</p>';
                     btnSimpanTag.disabled = true;
                 } else {
+                    
+                    // Bina datalist secara dinamik untuk stesen ini
+                    const dataList = document.getElementById('senarai-rakan-datalist');
+                    dataList.innerHTML = '';
+                    rakanDataList.forEach(r => {
+                        const opt = document.createElement('option');
+                        opt.value = r.name;
+                        opt.textContent = r.position || 'Tiada Jawatan';
+                        dataList.appendChild(opt);
+                    });
+
                     renderTagRow(); // Masukkan baris pertama
                     btnSimpanTag.disabled = false;
                 }
@@ -1489,7 +1505,7 @@
             }
         }
         
-        // Fungsi bina baris carian (Autocomplete custom)
+        // Fungsi bina baris carian (Guna Datalist HTML Natively)
         function renderTagRow() {
             const wrapper = document.getElementById('tag-selects-wrapper');
             const rowCount = wrapper.querySelectorAll('.tag-row').length;
@@ -1499,9 +1515,7 @@
             row.className = 'tag-row relative flex items-start gap-2 mb-3';
             row.innerHTML = `
                 <div class="relative flex-grow">
-                    <input type="text" class="tag-search-input block w-full rounded-lg border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500 sm:text-sm py-2.5 px-3 bg-white" placeholder="🔍 Cari dan pilih nama rakan..." autocomplete="off">
-                    <input type="hidden" class="tag-ic-value">
-                    <ul class="tag-autocomplete-list absolute z-20 w-full bg-white border border-gray-200 shadow-lg rounded-lg mt-1 max-h-48 overflow-y-auto hidden"></ul>
+                    <input type="text" list="senarai-rakan-datalist" class="tag-search-input block w-full rounded-lg border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500 sm:text-sm py-2.5 px-3 bg-white" placeholder="🔍 Taip dan pilih nama rakan..." autocomplete="off" required>
                 </div>
                 <button type="button" class="btn-remove-tag text-red-500 hover:text-red-700 p-2.5 bg-red-50 hover:bg-red-100 rounded-lg border border-red-200 transition-colors ${rowCount === 0 ? 'hidden' : ''}" title="Buang rujukan">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
@@ -1523,69 +1537,12 @@
             }
         }
 
-        // --- EVENTS UNTUK AUTOCOMPLETE ---
-        
-        // 1. Apabila pengguna menaip
-        document.getElementById('tag-selects-wrapper').addEventListener('input', (e) => {
-            if (e.target.classList.contains('tag-search-input')) {
-                const term = e.target.value.toLowerCase();
-                const list = e.target.nextElementSibling.nextElementSibling; // <ul>
-                const hiddenInput = e.target.nextElementSibling; // <input hidden>
-                
-                hiddenInput.value = '';
-
-                if (term.length < 1) {
-                    list.classList.add('hidden');
-                    return;
-                }
-
-                const matches = rakanDataList.filter(r => 
-                    r.name.toLowerCase().includes(term) || 
-                    (r.position && r.position.toLowerCase().includes(term))
-                );
-                
-                if (matches.length === 0) {
-                    list.innerHTML = `<li class="px-3 py-2 text-sm text-gray-500 italic">Tiada padanan ditemui.</li>`;
-                } else {
-                    list.innerHTML = matches.map(r => `
-                        <li class="autocomplete-item px-3 py-2 text-sm hover:bg-purple-50 cursor-pointer border-b border-gray-100 last:border-0 transition-colors" data-ic="${r.ic}" data-name="${r.name}">
-                            <div class="font-bold text-gray-800">${r.name}</div>
-                            <div class="text-[10px] text-gray-500 uppercase">${r.position || 'Tiada Jawatan'}</div>
-                        </li>
-                    `).join('');
-                }
-                list.classList.remove('hidden');
-            }
-        });
-
-        // 2. Apabila pengguna klik nama pada senarai dropdown / klik butang buang
+        // Padam Rakan dari senarai form
         document.getElementById('tag-selects-wrapper').addEventListener('click', (e) => {
-            const item = e.target.closest('.autocomplete-item');
-            if (item) {
-                const row = item.closest('.relative');
-                const input = row.querySelector('.tag-search-input');
-                const hidden = row.querySelector('.tag-ic-value');
-                const list = row.querySelector('.tag-autocomplete-list');
-
-                input.value = item.dataset.name;
-                hidden.value = item.dataset.ic;
-                list.classList.add('hidden');
-                return;
-            }
-
             const removeBtn = e.target.closest('.btn-remove-tag');
             if (removeBtn) {
                 removeBtn.closest('.tag-row').remove();
                 updateTambahRakanBtn();
-            }
-        });
-
-        // 3. Sembunyikan senarai jika klik di luar kawasan
-        document.addEventListener('click', (e) => {
-            if (!e.target.closest('.tag-row')) {
-                document.querySelectorAll('.tag-autocomplete-list').forEach(list => {
-                    list.classList.add('hidden');
-                });
             }
         });
 
@@ -1604,26 +1561,29 @@
             let isValid = true;
 
             rows.forEach(row => {
-                const searchInput = row.querySelector('.tag-search-input');
-                const hiddenInput = row.querySelector('.tag-ic-value');
+                const val = row.querySelector('.tag-search-input').value.trim();
                 
-                if (searchInput.value.trim() !== '' && !hiddenInput.value) {
-                    alert(`Nama "${searchInput.value}" belum dipilih dengan betul. Sila klik nama dari senarai carian yang terpapar.`);
-                    isValid = false;
-                    return;
-                }
+                if (val !== '') {
+                    // Cari IC berdasarkan nama yang dipilih dari datalist
+                    const rakanMatched = rakanDataList.find(r => r.name === val);
+                    
+                    if (!rakanMatched) {
+                        alert(`Nama "${val}" tidak dijumpai. Sila pastikan anda memilih nama daripada senarai cadangan (dropdown).`);
+                        isValid = false;
+                        return;
+                    }
 
-                if (hiddenInput.value) {
-                    if (selectedIcs.has(hiddenInput.value)) {
+                    if (selectedIcs.has(rakanMatched.ic)) {
                         alert("Terdapat pilihan individu yang sama lebih daripada sekali. Sila periksa semula.");
                         isValid = false;
                         return;
                     }
-                    selectedIcs.add(hiddenInput.value);
+                    
+                    selectedIcs.add(rakanMatched.ic);
                     
                     tagDataArray.push({
-                        ic: hiddenInput.value,
-                        name: searchInput.value,
+                        ic: rakanMatched.ic,
+                        name: rakanMatched.name,
                         station: currentUserData.station,
                         taggedByIc: currentUserData.ic,
                         taggedByName: currentUserData.name,
@@ -1918,7 +1878,7 @@
                     detailsHtml = `<p class="text-xs text-gray-600 mt-1.5 pl-1.5 border-l-2 border-indigo-200 bg-indigo-50/50 py-1"><b>Pilihan:</b> ${tugas.options.join(', ')}</p>`;
                 } else if (tugas.scaleData) {
                      const s = tugas.scaleData;
-                     const labelStr = (s.minLabel || s.maxLabel) ? ` (${s.min}=${s.minLabel || ''}, ${s.max}=${s.maxLabel || ''})` : '';
+                     const labelStr = (s.minLabel || s.maxLabel) ? ` (${s.minLabel || ''} - ${s.maxLabel || ''})` : '';
                      detailsHtml = `<p class="text-xs text-gray-600 mt-1.5 pl-1.5 border-l-2 border-purple-200 bg-purple-50/50 py-1"><b>Julat Skala:</b> ${s.min} hingga ${s.max}${labelStr}</p>`;
                 }
 
