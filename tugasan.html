@@ -629,23 +629,35 @@
         async function loadPpdOfficers() {
             try {
                 const officersRef = collection(db, `artifacts/${appId}/public/data/spark_ppd_officers`);
-                const q = query(officersRef, where("category", "==", "pegawai"), where("station", "==", "PEJABAT PENDIDIKAN DAERAH"), orderBy("name", "asc"));
+                // Buang orderBy untuk mengelakkan ralat komposit indeks Firebase
+                const q = query(officersRef, where("category", "==", "pegawai"), where("station", "==", "PEJABAT PENDIDIKAN DAERAH"));
                 const querySnapshot = await getDocs(q);
                 ppdOfficers = [];
                 querySnapshot.forEach(doc => {
                     const officer = doc.data();
-                    ppdOfficers.push({ name: officer.name.toUpperCase(), ic: officer.ic && officer.ic.length === 12 ? officer.ic : null }); 
+                    if(officer.name) {
+                        ppdOfficers.push({ name: officer.name.toUpperCase(), ic: officer.ic && officer.ic.length === 12 ? officer.ic : null }); 
+                    }
                 });
+                // Susun nama mengikut abjad secara manual
+                ppdOfficers.sort((a, b) => a.name.localeCompare(b.name));
             } catch (error) { console.error("Ralat muat PPD Officers: ", error); }
         }
 
         async function loadPpdSectors() {
             try {
                 const sectorsRef = collection(db, `artifacts/${appId}/public/data/spark_ppd_officers`);
-                const q = query(sectorsRef, where("category", "==", "sektor"), where("station", "==", "PEJABAT PENDIDIKAN DAERAH"), orderBy("name", "asc"));
+                // Buang orderBy untuk mengelakkan ralat komposit indeks Firebase
+                const q = query(sectorsRef, where("category", "==", "sektor"), where("station", "==", "PEJABAT PENDIDIKAN DAERAH"));
                 const querySnapshot = await getDocs(q);
                 ppdSectors = [];
-                querySnapshot.forEach(doc => ppdSectors.push(doc.data().name.toUpperCase()));
+                querySnapshot.forEach(doc => {
+                    if(doc.data().name) {
+                        ppdSectors.push(doc.data().name.toUpperCase());
+                    }
+                });
+                // Susun abjad secara manual
+                ppdSectors.sort();
             } catch (error) { console.error("Ralat muat Sektor: ", error); }
         }
 
@@ -786,7 +798,7 @@
                 if (tugas.options && tugas.options.length > 0) detailsHtml = `<p class="text-xs text-gray-600 mt-1.5 pl-1.5 border-l-2 border-indigo-200 bg-indigo-50/50 py-1"><b>Pilihan:</b> ${tugas.options.join(', ')}</p>`;
                 if (tugas.scaleData) {
                     const s = tugas.scaleData;
-                    const labelStr = (s.minLabel || s.maxLabel) ? ` (${s.min}=${s.minLabel || ''}, ${s.max}=${s.maxLabel || ''})` : '';
+                    const labelStr = (s.minLabel || s.maxLabel) ? ` (${s.minLabel || ''} - ${s.maxLabel || ''})` : '';
                     detailsHtml = `<p class="text-xs text-gray-600 mt-1.5 pl-1.5 border-l-2 border-purple-200 bg-purple-50/50 py-1"><b>Julat Skala:</b> ${s.min} hingga ${s.max}${labelStr}</p>`;
                 }
 
