@@ -940,7 +940,7 @@
             const bulanTerm = document.getElementById('bulan-filter').value;
             itemsPerPage = parseInt(itemsPerPageSelect.value, 10);
 
-            // Filter Global untuk Carian/Kebenaran (RBAC HARD BLOCK)
+            // Filter Global untuk Carian/Kebenaran (RBAC KETAT)
             const filteredList = senaraiTugasan.filter(tugasan => {
                 const searchMatch = tugasan.nama.toLowerCase().includes(searchTerm);
                 const sektorMatch = (sektorTerm === "") ? true : (tugasan.sektor === sektorTerm);
@@ -980,7 +980,8 @@
                 const isGuruBesar = currentUserSchools && currentUserSchools.length > 0;
                 
                 // ======================================================================
-                // HARD BLOCK: SEKATAN KETAT UNTUK GURU BIASA
+                // BLOK 1: HARD BLOCK UNTUK GURU BIASA
+                // Jika dia guru sekolah, BUKAN Guru Besar, BUKAN Penyelaras, BUKAN di-tag
                 // ======================================================================
                 const myStationRaw = (currentUserData.station || '').toUpperCase();
                 const myNameNormalized = normalizeName(currentUserData.name);
@@ -992,7 +993,7 @@
 
                     // Guru biasa HANYA nampak jika namanya ditaip terus dlm skop ATAU skop dikosongkan (umum)
                     if (!adaNamaSendiri && !tugasanUmum) {
-                        return false; // SEMBUNYIKAN TERUS. RETURN FALSE.
+                        return false; // SEMBUNYIKAN TERUS DARI GURU BIASA
                     }
                 }
                 
@@ -1084,16 +1085,16 @@
                 
                 let myCompletionRecord = null;
                 if (allRekodSelesai.length > 0) {
-                    // Semak jika ada rekod penyelesaian yang dihantar oleh pengguna ATAU stesen ini
-                    const myAdminSchools = (currentUserSchools || []).map(normalizeName);
-                    const myStation = normalizeName(currentUserData.station || '');
-                    
                     myCompletionRecord = allRekodSelesai.find(r => {
-                        if (r.ic_pengesah === currentUserData.ic) return true; // Saya jawab sendiri
+                        // 1. Saya dah respon
+                        if (r.ic_pengesah === currentUserData.ic) return true; 
                         
+                        // 2. Mana-mana orang dari sekolah itu telah respon (Cikgu lain wakilkan sekolah)
                         const rekodStesen = normalizeName(r.stesen_pengesah || '');
-                        if (myAdminSchools.includes(rekodStesen)) return true; // Cikgu lain di sekolah saya jawab
-                        if (rekodStesen === myStation && (myStation.includes("PPD") || myStation.includes("PEJABAT"))) return true; // PPD jawab
+                        const rekodNama = normalizeName(r.nama_pengesah || '');
+                        
+                        if (rekodStesen !== '' && userSkopKeys.includes(rekodStesen)) return true;
+                        if (rekodNama !== '' && userSkopKeys.includes(rekodNama)) return true;
                         
                         return false;
                     });
@@ -1101,26 +1102,22 @@
 
                 let isMyScope = true; 
                 const bakiInfo = kiraBakiHari(tugasan.tarikhSiap, peratus, isCompletedAdmin);
-                
-                let requiresAction = false;
-                if (!myCompletionRecord && !isCompletedAdmin && peratus < 100 && !bakiInfo.isOverdue) {
-                    requiresAction = true;
-                }
-
                 const isPenyelaras = (tugasan.penyelaras_ic && currentUserData && tugasan.penyelaras_ic === currentUserData.ic) || tugasan.userId === userId;
                 
                 // MENGIRA DATA METRIK (KAD STATISTIK ATAS)
                 if (isPenyelaras) {
+                    // PENYELARAS: Semak sama ada tugasan 100% selesai oleh semua sasaran
                     if (isTrulyCompleted) totalSelesaiCount++;
                     else totalBelumCount++;
 
                     if (peratus === 100) totalCapai100Count++;
                 } else {
+                    // GURU BESAR / PENGETUA / LAIN-LAIN: Semak jika sekolah/diri sendiri dah respon
                     if (myCompletionRecord) totalSelesaiCount++;
                     else totalBelumCount++;
                 }
 
-                return { ...tugasan, progress: { jumlahSelesai, total, peratus, isTrulyCompleted }, myCompletionRecord, isMyScope, requiresAction, bakiInfo, isPenyelaras };
+                return { ...tugasan, progress: { jumlahSelesai, total, peratus, isTrulyCompleted }, myCompletionRecord, isMyScope, bakiInfo, isPenyelaras };
             });
             
             // KEMASKINI BANNER ALERT
@@ -1153,9 +1150,6 @@
                 if (!aDone && bDone) return -1;
                 if (aDone && !bDone) return 1;
 
-                if (a.requiresAction && !b.requiresAction) return -1;
-                if (!a.requiresAction && b.requiresAction) return 1;
-
                 const dateA = a.createdAt && a.createdAt.toDate ? a.createdAt.toDate().getTime() : 0;
                 const dateB = b.createdAt && b.createdAt.toDate ? b.createdAt.toDate().getTime() : 0;
                 return dateB - dateA;
@@ -1179,7 +1173,7 @@
                 const { jumlahSelesai, total, peratus, isTrulyCompleted } = data.progress;
                 const tugasan = data;
                 
-                const isPenyelaras = (tugasan.penyelaras_ic && currentUserData && tugasan.penyelaras_ic === currentUserData.ic);
+                const isPenyelaras = data.isPenyelaras;
                 const isGuruBesar = currentUserSchools && currentUserSchools.length > 0;
                 
                 const baris = document.createElement('tr');
@@ -1268,7 +1262,7 @@
                     if (isResponDisabled) {
                         responBtnHtml = `
                             <button disabled class="btn bg-gray-100 text-gray-500 border border-gray-200 px-3 py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 w-full shadow-sm cursor-not-allowed opacity-70">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6.41-1.35a.37.37 0 01.52 0l1.72 1.72a.37.37 0 00.52 0l1.72-1.72a.37.37 0 01.52 0l1.72 1.72a.37.37 0 00.52 0l1.72-1.72a.37.37 0 01.52 0zM21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6.41-1.35a.37.37 0 01.52 0l1.72 1.72a.37.37 0 00.52 0l1.72-1.72a.37.37 0 01.52 0l1.72-1.72a.37.37 0 00.52 0l1.72-1.72a.37.37 0 01.52 0zM21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                                 DITUTUP
                             </button>
                         `;
