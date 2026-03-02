@@ -876,7 +876,7 @@
             const bulanTerm = document.getElementById('bulan-filter').value;
             itemsPerPage = parseInt(itemsPerPageSelect.value, 10);
 
-            // Filter Global untuk Carian/Kebenaran
+            // Filter Global untuk Carian/Kebenaran (RBAC)
             const filteredList = senaraiTugasan.filter(tugasan => {
                 const searchMatch = tugasan.nama.toLowerCase().includes(searchTerm);
                 const sektorMatch = (sektorTerm === "") ? true : (tugasan.sektor === sektorTerm);
@@ -926,45 +926,44 @@
                         return String(s);
                     }).map(normalizeName);
 
-                    let inScope = false;
-                    if (taskSkopNames.length > 0) {
-                        inScope = taskSkopNames.some(key => userSkopKeys.includes(key));
-                    } else {
-                        inScope = true; // Jika skop kosong, ia dianggap tugas umum / terbuka
-                    }
-                    
-                    if (inScope) {
-                        // Semak jika pengguna ialah Pengetua / Guru Besar
-                        const isGuruBesar = currentUserSchools && currentUserSchools.length > 0;
-                        
-                        // Semak adakah stesen pengguna merujuk kepada sebuah sekolah
-                        const userStation = currentUserData.station ? currentUserData.station.toUpperCase() : "";
-                        const isSchoolStaff = userStation.match(/^(SK |SMK |SJK|KOLEJ |KV |SMAP |SABK |SRK |SRC |SRB )/);
-                        
-                        // Semak adakah tugasan ini khusus untuk sekolah (berdasarkan sasaran)
-                        const isSchoolTask = taskSkopNames.some(key => {
-                            if (currentUserSchools.map(normalizeName).includes(key)) return true;
-                            return key.match(/^(SK|SMK|SJK|KOLEJ|KV|SMAP|SABK|SRK|SRC|SRB)/);
-                        });
+                    const myNormalizedName = normalizeName(currentUserData.name);
+                    const myNormalizedStation = normalizeName(currentUserData.station);
+                    const myAdminSchools = currentUserSchools ? currentUserSchools.map(normalizeName) : [];
 
-                        if (isSchoolTask) {
-                            if (isGuruBesar || iAmDelegator) {
-                                // Pengetua, Guru Besar atau tukang tag akan sentiasa nampak tugas sekolah mereka
-                                isAuthorized = true;
-                            } else if (isSchoolStaff) {
-                                // STAFF SEKOLAH BIASA: HANYA nampak jika di-tag (telah dicover di atas via `isTaggedForMe`)
-                                isAuthorized = false;
+                    if (taskSkopNames.length === 0) {
+                        // Jika skop kosong, ia dianggap tugas umum / terbuka
+                        isAuthorized = true;
+                    } else {
+                        // Semak jika pengguna berkait secara spesifik
+                        if (taskSkopNames.includes(myNormalizedName)) {
+                            // Tugasan di-assign secara spesifik ke atas nama individu
+                            isAuthorized = true;
+                        } else if (myAdminSchools.some(sch => taskSkopNames.includes(sch))) {
+                            // Tugasan sekolah, dan pengguna ini adalah Pengetua / Guru Besar untuk sekolah tersebut
+                            isAuthorized = true;
+                        } else if (taskSkopNames.includes(myNormalizedStation)) {
+                            // Sasaran adalah stesen/sekolah pengguna
+                            const isPPD = myNormalizedStation.includes("PEJABAT") || myNormalizedStation.includes("PPD");
+                            
+                            if (isPPD) {
+                                // Jika staf PPD
+                                if (isTaskTaggedForMyStation && !isTaggedForMe && !iAmDelegator) {
+                                    isAuthorized = false; // Ditag rahsia untuk orang lain di PPD
+                                } else {
+                                    isAuthorized = true;
+                                }
                             } else {
-                                // PPD yang termasuk dalam skop
-                                isAuthorized = true; 
+                                // JIKA GURU BIASA STESEN SEKOLAH (Kerana bukan Admin/GB dan bukan PPD)
+                                // Mereka HANYA boleh nampak jika di-tag atau mereka yg tukang tag
+                                if (iAmDelegator) {
+                                    isAuthorized = true;
+                                } else {
+                                    isAuthorized = false; // SEMBUNYIKAN tugas sekolah dari guru biasa
+                                }
                             }
                         } else {
-                            // Bukan tugas sekolah (cth: Tugas staf PPD)
-                            if (isTaskTaggedForMyStation && !isTaggedForMe && !iAmDelegator) {
-                                isAuthorized = false; // Ditag ke orang lain di stesen/unit PPD sama, bukan dia
-                            } else {
-                                isAuthorized = true; 
-                            }
+                            // Tiada kaitan langsung
+                            isAuthorized = false;
                         }
                     }
                 }
@@ -1358,7 +1357,7 @@
             row.className = 'tag-row relative flex items-start gap-2 mb-3';
             row.innerHTML = `
                 <div class="relative flex-grow">
-                    <input type="text" class="tag-search-input block w-full rounded-lg border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500 sm:text-sm py-2.5 px-3 bg-white" placeholder="🔍 Cari nama rakan..." autocomplete="off">
+                    <input type="text" class="tag-search-input block w-full rounded-lg border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500 sm:text-sm py-2.5 px-3 bg-white" placeholder="🔍 Cari dan pilih nama rakan..." autocomplete="off">
                     <input type="hidden" class="tag-ic-value">
                     <ul class="tag-autocomplete-list absolute z-20 w-full bg-white border border-gray-200 shadow-lg rounded-lg mt-1 max-h-48 overflow-y-auto hidden"></ul>
                 </div>
@@ -1375,7 +1374,6 @@
             const rowCount = wrapper.querySelectorAll('.tag-row').length;
             const btn = document.getElementById('tambah-tag-btn');
             
-            // Sembunyikan jika capai had ATAU jika rakanDataList kurang dari jumlah kotak
             if (rowCount >= 3 || rowCount >= rakanDataList.length) {
                 btn.classList.add('hidden');
             } else {
@@ -1392,7 +1390,6 @@
                 const list = e.target.nextElementSibling.nextElementSibling; // <ul>
                 const hiddenInput = e.target.nextElementSibling; // <input hidden>
                 
-                // Kosongkan nilai IC tersembunyi setiap kali teks diubah supaya wajib klik dari senarai
                 hiddenInput.value = '';
 
                 if (term.length < 1) {
@@ -1468,9 +1465,8 @@
                 const searchInput = row.querySelector('.tag-search-input');
                 const hiddenInput = row.querySelector('.tag-ic-value');
                 
-                // Semak jika pengguna taip tapi tak pilih dari dropdown
                 if (searchInput.value.trim() !== '' && !hiddenInput.value) {
-                    alert(`Nama "${searchInput.value}" belum dipilih dengan betul. Sila pilih nama dari senarai carian yang terpapar.`);
+                    alert(`Nama "${searchInput.value}" belum dipilih dengan betul. Sila klik nama dari senarai carian yang terpapar.`);
                     isValid = false;
                     return;
                 }
