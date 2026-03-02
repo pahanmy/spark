@@ -567,7 +567,6 @@
                 }).map(normalizeName).filter(s => s !== '');
 
                 const myNameNormalized = normalizeName(currentUserData.name);
-                const myStationNormalized = normalizeName(currentUserData.station || '');
                 const myAdminSchools = (currentUserSchools || []).map(normalizeName);
                 const isGuruBesar = currentUserSchools && currentUserSchools.length > 0;
 
@@ -581,19 +580,23 @@
                     iAmDelegator = tugasan.taggedUsers.some(t => t.taggedByIc === currentUserData.ic);
                 }
                 
-                let inMyScope = false;
-                if (taskSkopNames.includes(myNameNormalized)) inMyScope = true;
-                if (myStationNormalized !== '' && taskSkopNames.includes(myStationNormalized)) inMyScope = true;
+                // STRICT RBAC
+                let isAuthorized = false;
+
+                // A: Guru Besar - Nampak jika mana2 sekolah dia tersenarai
                 if (isGuruBesar) {
                     for (let sch of myAdminSchools) {
-                        if (taskSkopNames.includes(sch)) { inMyScope = true; break; }
+                        if (taskSkopNames.includes(sch)) { isAuthorized = true; break; }
                     }
                 }
+
+                // B: Nampak jika namanya dipanggil secara spesifik dlm senarai sasaran
+                if (taskSkopNames.includes(myNameNormalized)) {
+                    isAuthorized = true;
+                }
                 
-                // STRICT RBAC: Hanya benarkan jika dalam skop, ditag, atau yg mendelagasi.
-                // General tasks (kosong skop) disembunyikan supaya tak serabut sekolah.
-                let isAuthorized = false;
-                if (inMyScope || isTaggedForMe || iAmDelegator) {
+                // C: Nampak jika telah ditag atau dia yang menugaskan
+                if (isTaggedForMe || iAmDelegator) {
                     isAuthorized = true;
                 }
 
