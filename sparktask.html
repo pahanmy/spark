@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SparkTask - Sistem Pengurusan Tugasan</title>
+    <title>SparkTask - Papan Pemuka Penyelaras (PPD)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -112,7 +112,7 @@
                 </div>
                 <div>
                     <h1 class="text-2xl font-bold text-indigo-600">SparkTask</h1>
-                    <p class="text-sm text-gray-500">Sistem Pengurusan Tugasan Bersepadu</p>
+                    <p class="text-sm text-gray-500">Papan Pemuka Penyelaras (PPD)</p>
                 </div>
             </div>
             
@@ -149,8 +149,8 @@
                 <div class="inline-block bg-indigo-50 p-4 rounded-full mb-4">
                     <svg class="w-10 h-10 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.39-2.823 1.07-4"></path></svg>
                 </div>
-                <h2 class="text-2xl font-bold text-gray-800">Log Masuk SparkTask</h2>
-                <p class="text-sm text-gray-500 mt-2">Sila sahkan identiti untuk menyemak tugasan yang dikhaskan untuk anda atau sekolah anda.</p>
+                <h2 class="text-2xl font-bold text-gray-800">Log Masuk Penyelaras</h2>
+                <p class="text-sm text-gray-500 mt-2">Sila sahkan identiti untuk menyemak dan menguruskan tugasan PPD.</p>
             </div>
             <form id="form-login-ic">
                 <input type="password" id="login-ic-input" placeholder="Contoh: 900101135555" maxlength="12" class="block w-full px-4 py-4 rounded-xl border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-center text-xl tracking-[0.2em] font-mono mb-2 bg-gray-50">
@@ -847,8 +847,21 @@
                 currentUserData = snapUser.docs[0].data();
                 localStorage.setItem('user_ic', ic);
 
+                // --- MULA LOGIK PENGASINGAN (REDIRECT) ---
                 const qAdmin = query(collection(db, `artifacts/${appId}/public/data/spark_school_principals`), where("ic", "==", ic));
                 const snapAdmin = await getDocs(qAdmin);
+                
+                const qPPD = query(collection(db, `artifacts/${appId}/public/data/spark_verified_ppd`), where("ic", "==", ic));
+                const snapPPD = await getDocs(qPPD);
+                
+                const isPPDStation = currentUserData.station && (currentUserData.station.toUpperCase().includes("PPD") || currentUserData.station.toUpperCase().includes("PEJABAT PENDIDIKAN"));
+
+                // Jika pengguna adalah Guru Besar/Pengetua ATAU (Bukan warga PPD & tiada pengesahan PPD & Bukan Admin Utama)
+                if (!snapAdmin.empty || (!isPPDStation && snapPPD.empty && ic !== "890522135381")) {
+                    window.location.href = 'sparktask-sekolah.html';
+                    return; // Hentikan pelaksanaan kod di halaman ini
+                }
+                // --- TAMAT LOGIK PENGASINGAN ---
 
                 currentUserSchools = [];
                 if (!snapAdmin.empty) {
@@ -923,7 +936,7 @@
             }
             
             const btnTambah = document.getElementById('btn-tambah-tugasan');
-            isWargaPPD = (currentUserData.sector && currentUserData.sector.toUpperCase().includes("SEKTOR")) || (currentUserData.ic === "890522135381");
+            isWargaPPD = true; // Sesiapa yang lolos ke sini disahkan sebagai PPD
             
             if (isWargaPPD) {
                 btnTambah.classList.remove('hidden');
@@ -2109,7 +2122,7 @@
         // --- EVENT LISTENERS DOMContentLoaded ---
         document.addEventListener('DOMContentLoaded', () => {
             const versionInfo = document.getElementById('version-info');
-            if(versionInfo) versionInfo.textContent = `Versi 2.1 (${new Date().getFullYear()})`;
+            if(versionInfo) versionInfo.textContent = `Versi 2.1 PPD (${new Date().getFullYear()})`;
             
             const currentMonth = new Date().getMonth() + 1;
             const formattedMonth = currentMonth < 10 ? '0' + currentMonth : '' + currentMonth;
