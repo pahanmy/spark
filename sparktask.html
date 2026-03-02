@@ -876,7 +876,7 @@
             const bulanTerm = document.getElementById('bulan-filter').value;
             itemsPerPage = parseInt(itemsPerPageSelect.value, 10);
 
-            // Filter Global untuk Carian/Kebenaran (RBAC)
+            // Filter Global untuk Carian/Kebenaran (RBAC KETAT)
             const filteredList = senaraiTugasan.filter(tugasan => {
                 const searchMatch = tugasan.nama.toLowerCase().includes(searchTerm);
                 const sektorMatch = (sektorTerm === "") ? true : (tugasan.sektor === sektorTerm);
@@ -894,8 +894,6 @@
                 let isAuthorized = false;
                 let isTaggedForMe = false;
                 let taggedByInfo = null;
-                let isTaskTaggedForMyStation = false;
-                let iAmDelegator = false;
 
                 // LOGIK PRIVASI PENUGASAN SULIT (TAGGING)
                 if (tugasan.taggedUsers && Array.isArray(tugasan.taggedUsers)) {
@@ -904,22 +902,21 @@
                         isTaggedForMe = true;
                         taggedByInfo = myTag;
                     }
-                    
-                    const tagForMyStation = tugasan.taggedUsers.find(t => t.station === currentUserData.station);
-                    if (tagForMyStation) {
-                        isTaskTaggedForMyStation = true;
-                    }
-                    
-                    iAmDelegator = tugasan.taggedUsers.some(t => t.taggedByIc === currentUserData.ic);
                 }
 
                 const isPenyelaras = tugasan.penyelaras_ic === currentUserData.ic || tugasan.userId === userId;
+                const isGuruBesar = currentUserSchools && currentUserSchools.length > 0;
 
+                // 1. Jika dia Penyelaras (Pemberi Tugasan) -> Nampak
                 if (isPenyelaras) {
                     isAuthorized = true; 
-                } else if (isTaggedForMe) {
+                } 
+                // 2. Jika dia Di-tag (Ditugaskan) -> Nampak
+                else if (isTaggedForMe) {
                     isAuthorized = true; 
-                } else {
+                } 
+                // 3. Semak jika dia Guru Besar / Pengetua ATAU staf PPD
+                else {
                     const rawSkop = Array.isArray(tugasan.skopSenaraiSekolah) ? tugasan.skopSenaraiSekolah : [];
                     const taskSkopNames = rawSkop.map(s => {
                         if(typeof s === 'object' && s !== null) return String(s.nama || '');
@@ -927,45 +924,28 @@
                     }).map(normalizeName);
 
                     const myNormalizedName = normalizeName(currentUserData.name);
-                    const myNormalizedStation = normalizeName(currentUserData.station);
                     const myAdminSchools = currentUserSchools ? currentUserSchools.map(normalizeName) : [];
+                    const myNormalizedStation = normalizeName(currentUserData.station);
 
-                    if (taskSkopNames.length === 0) {
-                        // Jika skop kosong, ia dianggap tugas umum / terbuka
+                    // Jika tugasan ditujukan khusus pada nama individu ini
+                    if (taskSkopNames.includes(myNormalizedName)) {
                         isAuthorized = true;
-                    } else {
-                        // Semak jika pengguna berkait secara spesifik
-                        if (taskSkopNames.includes(myNormalizedName)) {
-                            // Tugasan di-assign secara spesifik ke atas nama individu
+                    }
+                    // Jika dia Guru Besar / Pengetua, dan sekolahnya ada dalam skop
+                    else if (isGuruBesar && myAdminSchools.some(sch => taskSkopNames.includes(sch))) {
+                        isAuthorized = true;
+                    }
+                    // Jika dia Staf PPD (Sektor/PPD), dan stesennya ada dalam skop
+                    else if (myNormalizedStation.includes("PPD") || myNormalizedStation.includes("PEJABAT")) {
+                        if (taskSkopNames.includes(myNormalizedStation)) {
                             isAuthorized = true;
-                        } else if (myAdminSchools.some(sch => taskSkopNames.includes(sch))) {
-                            // Tugasan sekolah, dan pengguna ini adalah Pengetua / Guru Besar untuk sekolah tersebut
-                            isAuthorized = true;
-                        } else if (taskSkopNames.includes(myNormalizedStation)) {
-                            // Sasaran adalah stesen/sekolah pengguna
-                            const isPPD = myNormalizedStation.includes("PEJABAT") || myNormalizedStation.includes("PPD");
-                            
-                            if (isPPD) {
-                                // Jika staf PPD
-                                if (isTaskTaggedForMyStation && !isTaggedForMe && !iAmDelegator) {
-                                    isAuthorized = false; // Ditag rahsia untuk orang lain di PPD
-                                } else {
-                                    isAuthorized = true;
-                                }
-                            } else {
-                                // JIKA GURU BIASA STESEN SEKOLAH (Kerana bukan Admin/GB dan bukan PPD)
-                                // Mereka HANYA boleh nampak jika di-tag atau mereka yg tukang tag
-                                if (iAmDelegator) {
-                                    isAuthorized = true;
-                                } else {
-                                    isAuthorized = false; // SEMBUNYIKAN tugas sekolah dari guru biasa
-                                }
-                            }
-                        } else {
-                            // Tiada kaitan langsung
-                            isAuthorized = false;
                         }
                     }
+                    // Jika skop kosong (tugasan umum), semua nampak
+                    else if (taskSkopNames.length === 0) {
+                        isAuthorized = true;
+                    }
+                    // Selain daripada kriteria di atas (cth: Guru Biasa yang tidak ditag) -> Sembunyi (kekal false)
                 }
                 
                 tugasan._isTaggedForMe = isTaggedForMe;
@@ -1029,6 +1009,8 @@
                     );
                 }
 
+                // Kerana userSkopKeys merangkumi Nama, Stesen dan Sekolah,
+                // logik ini mencukupi untuk menentukan jika mereka boleh mengambil tindakan
                 let isMyScope = false;
                 if (originalTotalSkop.length > 0) {
                     const taskSkopNames = originalTotalSkop.map(s => {
