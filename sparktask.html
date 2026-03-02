@@ -876,7 +876,7 @@
             const bulanTerm = document.getElementById('bulan-filter').value;
             itemsPerPage = parseInt(itemsPerPageSelect.value, 10);
 
-            // Filter Global untuk Carian/Kebenaran (RBAC KETAT)
+            // Filter Global untuk Carian/Kebenaran (RBAC HARD BLOCK)
             const filteredList = senaraiTugasan.filter(tugasan => {
                 const searchMatch = tugasan.nama.toLowerCase().includes(searchTerm);
                 const sektorMatch = (sektorTerm === "") ? true : (tugasan.sektor === sektorTerm);
@@ -891,6 +891,7 @@
                     }
                 }
 
+                // Susun maklumat skop
                 const rawSkop = Array.isArray(tugasan.skopSenaraiSekolah) ? tugasan.skopSenaraiSekolah : [];
                 const taskSkopNames = rawSkop.map(s => {
                     if(typeof s === 'object' && s !== null) return String(s.nama || '');
@@ -913,25 +914,29 @@
 
                 const isPenyelaras = (tugasan.penyelaras_ic === currentUserData.ic) || (tugasan.userId === userId);
                 const isGuruBesar = currentUserSchools && currentUserSchools.length > 0;
-                
-                // ==========================================
-                // HARD BLOCK: SEKATAN KETAT UNTUK GURU BIASA
-                // ==========================================
                 const myStationRaw = (currentUserData.station || '').toUpperCase();
                 const myNameNormalized = normalizeName(currentUserData.name);
+                
+                // Semak jika stesen dia adalah stesen sekolah (contoh: SK, SMK dll)
                 const isSchoolStaff = myStationRaw.match(/^(SK|SMK|SJK|KOLEJ|KV|SMAP|SABK|SRK|SRC|SRB)/);
 
+                // ======================================================================
+                // BLOK 1: HARD BLOCK UNTUK GURU BIASA
+                // Jika dia guru sekolah, BUKAN Guru Besar, BUKAN Penyelaras, BUKAN di-tag
+                // ======================================================================
                 if (isSchoolStaff && !isGuruBesar && !isPenyelaras && !isTaggedForMe && !iAmDelegator) {
                     const adaNamaSendiri = taskSkopNames.includes(myNameNormalized);
                     const tugasanUmum = taskSkopNames.length === 0;
 
                     // Guru biasa HANYA nampak jika namanya ditaip terus dlm skop ATAU skop dikosongkan (umum)
                     if (!adaNamaSendiri && !tugasanUmum) {
-                        return false; // TOLAK KELUAR! (Sembunyi terus)
+                        return false; // SEMBUNYIKAN TERUS. RETURN FALSE.
                     }
                 }
-                // ==========================================
-
+                
+                // ======================================================================
+                // BLOK 2: KELULUSAN AKSES UNTUK PIHAK BERKENAAN
+                // ======================================================================
                 let isAuthorized = false;
 
                 if (isPenyelaras || isTaggedForMe || iAmDelegator) {
@@ -939,17 +944,23 @@
                 } else if (taskSkopNames.length === 0) {
                     isAuthorized = true; // Tugasan Umum
                 } else {
-                    const myStation = normalizeName(currentUserData.station || '');
+                    const myStationNormalized = normalizeName(currentUserData.station || '');
                     const myAdminSchools = (currentUserSchools || []).map(normalizeName);
-                    const isPPD = myStation.includes("PPD") || myStation.includes("PEJABAT");
+                    const isPPD = myStationNormalized.includes("PPD") || myStationNormalized.includes("PEJABAT");
 
                     for (let skop of taskSkopNames) {
                         if (skop === myNameNormalized) {
-                            isAuthorized = true; break;
+                            // Nama kena seru secara spesifik
+                            isAuthorized = true; 
+                            break;
                         } else if (isGuruBesar && myAdminSchools.includes(skop)) {
-                            isAuthorized = true; break;
-                        } else if (isPPD && skop === myStation) {
-                            isAuthorized = true; break;
+                            // Dia adalah Guru Besar bagi sekolah yang ditugaskan
+                            isAuthorized = true; 
+                            break;
+                        } else if (isPPD && skop === myStationNormalized) {
+                            // Pegawai PPD boleh nampak tugasan untuk PPD
+                            isAuthorized = true; 
+                            break;
                         }
                     }
                 }
@@ -1008,15 +1019,22 @@
                 
                 let myCompletionRecord = null;
                 if (allRekodSelesai.length > 0) {
-                    myCompletionRecord = allRekodSelesai.find(r => 
-                        r.ic_pengesah === currentUserData.ic || 
-                        userSkopKeys.includes(normalizeName(r.stesen_pengesah)) || 
-                        userSkopKeys.includes(normalizeName(r.nama_pengesah))
-                    );
+                    // Semak jika ada rekod penyelesaian yang dihantar oleh pengguna ATAU stesen ini
+                    const myAdminSchools = (currentUserSchools || []).map(normalizeName);
+                    const myStation = normalizeName(currentUserData.station || '');
+                    
+                    myCompletionRecord = allRekodSelesai.find(r => {
+                        if (r.ic_pengesah === currentUserData.ic) return true; // Saya jawab sendiri
+                        
+                        const rekodStesen = normalizeName(r.stesen_pengesah || '');
+                        if (myAdminSchools.includes(rekodStesen)) return true; // Cikgu lain di sekolah saya jawab
+                        if (rekodStesen === myStation && (myStation.includes("PPD") || myStation.includes("PEJABAT"))) return true; // PPD jawab
+                        
+                        return false;
+                    });
                 }
 
-                let isMyScope = true;
-
+                let isMyScope = true; // Akan sentiasa true kerana ia telah ditapis ketat di atas
                 const bakiInfo = kiraBakiHari(tugasan.tarikhSiap, peratus, isCompletedAdmin);
                 
                 let requiresAction = false;
@@ -1079,6 +1097,7 @@
                 const tugasan = data;
                 
                 const isPenyelaras = (tugasan.penyelaras_ic && currentUserData && tugasan.penyelaras_ic === currentUserData.ic);
+                const isGuruBesar = currentUserSchools && currentUserSchools.length > 0;
                 
                 const baris = document.createElement('tr');
                 
@@ -1114,18 +1133,29 @@
                      </div>
                      <div class="text-center text-xs mt-1"><span class="font-medium ${progressTextColorClass}">${peratus}%</span> (${jumlahSelesai}/${total})</div>`;
 
+                // --- LOGIK BUTANG TINDAKAN ---
                 let tagBtnHtml = '';
-                const isGuruBesar = currentUserSchools && currentUserSchools.length > 0;
+                let disableTagging = false;
+                
+                if (isPenyelaras) {
+                    if (peratus === 100 || tugasan.isClosedByAdmin || data.bakiInfo.isOverdue) disableTagging = true;
+                } else {
+                    if (data.myCompletionRecord || data.bakiInfo.isOverdue || tugasan.isClosedByAdmin) disableTagging = true;
+                }
+
+                const tagBtnClass = disableTagging 
+                    ? "btn bg-gray-100 text-gray-400 border border-gray-200 px-3 py-1.5 rounded-lg text-[10px] font-bold flex items-center gap-1 w-full justify-center mt-2 shadow-sm uppercase tracking-wider cursor-not-allowed opacity-60"
+                    : "btn bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 px-3 py-1.5 rounded-lg text-[10px] font-bold flex items-center gap-1 w-full justify-center mt-2 shadow-sm butang-tag uppercase tracking-wider";
+
                 if (isPenyelaras || isGuruBesar) {
                     tagBtnHtml = `
-                        <button class="btn bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 px-3 py-1.5 rounded-lg text-[10px] font-bold flex items-center gap-1 w-full justify-center mt-2 shadow-sm butang-tag uppercase tracking-wider" data-id="${tugasan.id}" title="Tugaskan kepada individu tertentu di stesen anda">
+                        <button class="${tagBtnClass}" ${disableTagging ? 'disabled' : `data-id="${tugasan.id}"`} title="Tugaskan kepada individu tertentu di stesen anda">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path d="M8 9a3 3 0 100-6 3 3 0 000 6zM8 11a6 6 0 016 6H2a6 6 0 016-6zM16 7a1 1 0 10-2 0v1h-1a1 1 0 100 2h1v1a1 1 0 102 0v-1h1a1 1 0 100-2h-1V7z" /></svg>
                             Penugasan Tugas
                         </button>
                     `;
                 }
 
-                // 2. KEMASKINI BUTANG TINDAKAN
                 let tindakanHtml = '';
                 
                 if (isPenyelaras) {
@@ -1149,63 +1179,121 @@
                         </div>
                     `;
                 } else {
-                    tindakanHtml = `
-                        <div class="flex flex-col">
-                            <a href="task.html?id=${tugasan.id}" class="btn bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 px-3 py-2.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 w-full shadow-sm">
+                    let isResponDisabled = !!data.myCompletionRecord || data.bakiInfo.isOverdue || tugasan.isClosedByAdmin;
+                    let responBtnHtml = '';
+
+                    if (isResponDisabled) {
+                        responBtnHtml = `
+                            <button disabled class="btn bg-gray-100 text-gray-500 border border-gray-200 px-3 py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 w-full shadow-sm cursor-not-allowed opacity-70">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6.41-1.35a.37.37 0 01.52 0l1.72 1.72a.37.37 0 00.52 0l1.72-1.72a.37.37 0 01.52 0l1.72 1.72a.37.37 0 00.52 0l1.72-1.72a.37.37 0 01.52 0zM21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                DITUTUP
+                            </button>
+                        `;
+                    } else {
+                        responBtnHtml = `
+                            <a href="task.html?id=${tugasan.id}" class="btn bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 px-3 py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 w-full shadow-sm">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
                                 RESPON
                             </a>
+                        `;
+                    }
+
+                    tindakanHtml = `
+                        <div class="flex flex-col">
+                            ${responBtnHtml}
                             ${tagBtnHtml}
                         </div>
                     `;
                 }
                 
+                // --- LOGIK STATUS ANDA ---
                 let myStatusHtml = '';
-
                 let assignedBadge = '';
                 if (tugasan._isTaggedForMe) {
-                     assignedBadge = `<div class="mt-1.5 inline-block px-2 py-1 rounded text-[9px] font-bold bg-purple-100 text-purple-700 border border-purple-200 leading-snug w-full text-center">
+                     assignedBadge = `<div class="mt-1.5 inline-block px-2 py-1 rounded text-[9px] font-bold bg-purple-100 text-purple-700 border border-purple-200 leading-snug w-full text-center uppercase">
                         DITUGASKAN OLEH:<br>${tugasan._taggedByInfo.taggedByName.toUpperCase()}
                      </div>`;
                 }
 
-                if (data.myCompletionRecord) {
-                    const rekod = data.myCompletionRecord;
-                    const isMe = rekod.ic_pengesah === currentUserData.ic; 
-                    
-                    let responderInfo = '';
-                    if (isMe) {
-                        responderInfo = `<div class="text-[11px] text-emerald-700 font-bold mt-1.5">Anda telah selesai menjawab</div>`;
+                if (isPenyelaras) {
+                    if (peratus === 100 || tugasan.isClosedByAdmin) {
+                        myStatusHtml = `
+                            <div class="flex flex-col items-center justify-center bg-emerald-50 border border-emerald-200 rounded-md p-2 w-full shadow-sm">
+                                <span class="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 leading-snug uppercase">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                                    100% Selesai
+                                </span>
+                            </div>
+                        `;
+                    } else if (data.bakiInfo.isOverdue) {
+                        myStatusHtml = `
+                            <div class="flex flex-col items-center justify-center bg-red-50 border border-red-200 rounded-md p-2 w-full shadow-sm">
+                                <span class="inline-flex items-center gap-1 text-[11px] font-bold text-red-800 leading-snug uppercase text-center">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                    Tidak Selesai
+                                </span>
+                                <span class="font-medium text-[9px] mt-0.5 text-red-600 text-center">Tamat Tempoh</span>
+                            </div>
+                        `;
                     } else {
-                        responderInfo = `
-                            <div class="text-[11px] text-gray-700 font-bold mt-1.5 leading-tight break-words uppercase">${rekod.nama_pengesah || 'N/A'}</div>
-                            <div class="text-[10px] text-gray-500 uppercase mt-0.5 leading-tight">${rekod.jawatan_pengesah || 'Tiada Jawatan'}</div>
+                        myStatusHtml = `
+                            <div class="flex flex-col items-center justify-center bg-blue-50 border border-blue-200 rounded-md p-2 w-full shadow-sm">
+                                <span class="inline-flex items-center gap-1 text-[11px] font-bold text-blue-800 leading-snug uppercase">
+                                    <svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                                    Sedang Berjalan
+                                </span>
+                            </div>
                         `;
                     }
-
-                    myStatusHtml = `
-                        <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-bold bg-green-100 text-green-700 border border-green-200 shadow-sm">
-                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-                            SELESAI DIJAWAB
-                        </span>
-                        ${responderInfo}
-                        <div class="text-[10px] text-gray-400 font-medium mt-1.5 flex items-center gap-1">
-                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                            ${formatDateTime(rekod.timestamp)}
-                        </div>
-                    `;
-                    if (assignedBadge) myStatusHtml += assignedBadge;
-                    
-                } else if (data.isMyScope) {
-                    if (data.bakiInfo.isCompleted || data.bakiInfo.isOverdue || tugasan.isClosedByAdmin) {
-                         myStatusHtml = `<span class="inline-block px-2.5 py-1 rounded-md text-[10px] font-bold bg-red-100 text-red-700 border border-red-200 w-full text-center mb-1 leading-snug">TERLEPAS (TIDAK DIJAWAB)<br><span class="font-medium text-[9px] mt-0.5 block text-red-600">Hubungi Penyelaras untuk respon segera.</span></span>`;
-                         if (assignedBadge) myStatusHtml += assignedBadge;
-                    } else {
-                         myStatusHtml = `<span class="inline-block px-2.5 py-1.5 rounded-md text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-200 animate-pulse shadow-sm tracking-wider w-full text-center mb-1">TINDAKAN DIPERLUKAN</span>`;
-                         if (assignedBadge) myStatusHtml += assignedBadge;
-                    }
                 } else {
-                    myStatusHtml = `<span class="text-[10px] text-gray-400 italic">Pemerhati / Penyelaras</span>`;
+                    if (data.myCompletionRecord) {
+                        const rekod = data.myCompletionRecord;
+                        const isMe = rekod.ic_pengesah === currentUserData.ic; 
+                        
+                        let responderInfo = '';
+                        if (isMe) {
+                            responderInfo = `<div class="text-[11px] text-emerald-700 font-bold mt-1.5 text-center">Anda telah selesai menjawab</div>`;
+                        } else {
+                            responderInfo = `
+                                <div class="text-[10px] text-gray-600 mt-1.5 text-center">Dijawab oleh:</div>
+                                <div class="text-[11px] text-gray-800 font-bold leading-tight break-words uppercase text-center">${rekod.nama_pengesah || 'N/A'}</div>
+                            `;
+                        }
+
+                        myStatusHtml = `
+                            <div class="flex flex-col items-center justify-center bg-emerald-50 border border-emerald-200 rounded-md p-2 w-full shadow-sm">
+                                <span class="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 leading-snug uppercase">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                                    Selesai Dijawab
+                                </span>
+                                ${responderInfo}
+                                <div class="text-[9px] text-emerald-600 font-medium mt-1 flex items-center gap-1">
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                    ${formatDateTime(rekod.timestamp)}
+                                </div>
+                            </div>
+                        `;
+                        if (assignedBadge) myStatusHtml += assignedBadge;
+                        
+                    } else if (data.bakiInfo.isOverdue || tugasan.isClosedByAdmin) {
+                        myStatusHtml = `
+                            <div class="flex flex-col items-center justify-center bg-red-50 border border-red-200 rounded-md p-2 w-full shadow-sm">
+                                <span class="inline-flex items-center gap-1 text-[11px] font-bold text-red-700 leading-snug uppercase">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                    Tidak Selesai
+                                </span>
+                                <span class="font-medium text-[9px] mt-0.5 text-red-600 text-center">Tugasan telah ditutup.</span>
+                            </div>
+                        `;
+                        if (assignedBadge) myStatusHtml += assignedBadge;
+                    } else {
+                        myStatusHtml = `
+                            <span class="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-md text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-200 animate-pulse shadow-sm tracking-wider w-full text-center mb-1">
+                                TINDAKAN DIPERLUKAN
+                            </span>
+                        `;
+                        if (assignedBadge) myStatusHtml += assignedBadge;
+                    }
                 }
 
                 baris.innerHTML = `
