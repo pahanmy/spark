@@ -32,6 +32,10 @@
         .bg-pattern {
             background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
         }
+        .tag-autocomplete-list::-webkit-scrollbar { width: 6px; }
+        .tag-autocomplete-list::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 8px; }
+        .tag-autocomplete-list::-webkit-scrollbar-thumb { background: #a7f3d0; border-radius: 8px; }
+        .tag-autocomplete-list::-webkit-scrollbar-thumb:hover { background: #34d399; }
     </style>
 </head>
 <body class="bg-gray-50 text-gray-900 flex flex-col min-h-screen">
@@ -294,7 +298,7 @@
 
     <footer class="text-center py-4 mt-8 border-t border-gray-200">
         <p class="text-sm text-gray-600">Projek Inovasi oleh <a href="https://pahanmy.github.io/works/" target="_blank" class="font-semibold text-emerald-500 hover:underline">Pahan</a></p>
-        <p class="text-xs text-gray-500">Versi Sekolah 2.1 (${new Date().getFullYear()})</p>
+        <p id="version-info" class="text-xs text-gray-500"></p>
     </footer>
 
     <script type="module">
@@ -521,16 +525,10 @@
             const bulanTerm = document.getElementById('bulan-filter').value;
             itemsPerPage = parseInt(itemsPerPageSelect.value, 10);
 
+            // 1. Filter Permulaan (RBAC & Carian Teks Sahaja)
             const filteredList = senaraiTugasan.filter(tugasan => {
                 const searchMatch = tugasan.nama.toLowerCase().includes(searchTerm);
                 const sektorMatch = (sektorTerm === "") ? true : (tugasan.sektor === sektorTerm);
-                let bulanMatch = true;
-                if (bulanTerm !== "") {
-                    if (tugasan.tarikhMula) {
-                        const m = tugasan.tarikhMula.split('-')[1]; 
-                        bulanMatch = (m === bulanTerm);
-                    } else bulanMatch = false; 
-                }
 
                 const rawSkop = Array.isArray(tugasan.skopSenaraiSekolah) ? tugasan.skopSenaraiSekolah : [];
                 const taskSkopNames = rawSkop.map(s => {
@@ -575,10 +573,11 @@
                 tugasan._isTaggedForMe = isTaggedForMe;
                 tugasan._taggedByInfo = taggedByInfo;
 
-                return searchMatch && sektorMatch && bulanMatch && isAuthorized;
+                return searchMatch && sektorMatch && isAuthorized;
             });
             
-            const listWithProgress = filteredList.map(tugasan => {
+            // 2. Pemetaan dan Pengiraan Status
+            let listWithProgress = filteredList.map(tugasan => {
                 const originalTotalSkop = Array.isArray(tugasan.skopSenaraiSekolah) ? tugasan.skopSenaraiSekolah : [];
                 const allRekodSelesai = tugasan.rekodSelesai || [];
                 
@@ -627,7 +626,17 @@
 
                 return { ...tugasan, progress: { jumlahSelesai, total, peratus }, myCompletionRecord, requiresAction, bakiInfo };
             });
+
+            // 3. Tapis Mengikut Bulan (Dengan Pengecualian Untuk Tugasan Belum Selesai)
+            listWithProgress = listWithProgress.filter(data => {
+                if (bulanTerm === "") return true;
+                let m = data.tarikhMula ? data.tarikhMula.split('-')[1] : null;
+                
+                // Paparkan jika bulan sama ATAU jika pengguna BELUM selesaikan tugasan tersebut (supaya tak terlepas pandang)
+                return (m === bulanTerm) || (!data.myCompletionRecord); 
+            });
             
+            // 4. Pengiraan Kad Statistik Metrik
             let totalSelesaiCount = 0; let totalBelumCount = 0;
             listWithProgress.forEach(data => {
                 if (data.myCompletionRecord) totalSelesaiCount++; else totalBelumCount++;
@@ -637,6 +646,7 @@
             if (totalSelesaiEl) totalSelesaiEl.textContent = totalSelesaiCount;
             if (totalBelumEl) totalBelumEl.textContent = totalBelumCount;
 
+            // 5. Susun Jadual
             listWithProgress.sort((a, b) => {
                 const aDone = !!a.myCompletionRecord; const bDone = !!b.myCompletionRecord;
                 if (!aDone && bDone) return -1;
@@ -648,6 +658,7 @@
                 return dateB - dateA;
             });
 
+            // 6. Pagination & Cetak ke Skrin
             const totalItems = listWithProgress.length;
             const totalPages = Math.ceil(totalItems / itemsPerPage);
             if (currentPage > totalPages) currentPage = totalPages;
@@ -776,11 +787,6 @@
         window.goToPage = function(page) { currentPage = page; paparkanTugasan(); }
         window.changeItemsPerPage = function() { itemsPerPage = parseInt(itemsPerPageSelect.value, 10); currentPage = 1; paparkanTugasan(); }
 
-        carianInput.addEventListener('input', () => { currentPage = 1; paparkanTugasan(); });
-        itemsPerPageSelect.addEventListener('change', window.changeItemsPerPage);
-        sektorFilter.addEventListener('change', () => { currentPage = 1; paparkanTugasan(); });
-        document.getElementById('bulan-filter').addEventListener('change', () => { currentPage = 1; paparkanTugasan(); });
-
         // --- FUNGSI TAG RAKAN SEKERJA / PENUGASAN TUGAS ---
         async function handleTagButtonClick(taskId) {
             currentTagTaskId = taskId;
@@ -885,6 +891,31 @@
             const tagBtn = event.target.closest('.butang-tag');
             if (tagBtn && tagBtn.dataset.id) handleTagButtonClick(tagBtn.dataset.id);
         });
+
+        // --- PERSEDIAAN SEMASA LAMAN DIMUAT (DOM Content Loaded) ---
+        document.addEventListener('DOMContentLoaded', () => {
+            // Set footer version dengan tahun semasa
+            const versionInfo = document.getElementById('version-info');
+            if(versionInfo) versionInfo.textContent = `Versi Sekolah 2.1 (${new Date().getFullYear()})`;
+
+            // Pilih Bulan Semasa Secara Automatik
+            const currentMonth = new Date().getMonth() + 1;
+            const formattedMonth = currentMonth < 10 ? '0' + currentMonth : '' + currentMonth;
+            const filterBulanDropdown = document.getElementById('bulan-filter');
+            
+            if (filterBulanDropdown) {
+                filterBulanDropdown.value = formattedMonth;
+            }
+
+            // Pasang event listener untuk penapis
+            carianInput.addEventListener('input', () => { currentPage = 1; paparkanTugasan(); });
+            itemsPerPageSelect.addEventListener('change', window.changeItemsPerPage);
+            sektorFilter.addEventListener('change', () => { currentPage = 1; paparkanTugasan(); });
+            if(filterBulanDropdown) {
+                filterBulanDropdown.addEventListener('change', () => { currentPage = 1; paparkanTugasan(); });
+            }
+        });
+
     </script>
 </body>
 </html>
