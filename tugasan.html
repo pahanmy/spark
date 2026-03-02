@@ -628,10 +628,9 @@
         
         async function loadPpdOfficers() {
             try {
-                const officersRef = collection(db, `artifacts/${appId}/public/data/spark_ppd_officers`);
-                // Buang orderBy untuk mengelakkan ralat komposit indeks Firebase
-                const q = query(officersRef, where("category", "==", "pegawai"), where("station", "==", "PEJABAT PENDIDIKAN DAERAH"));
-                const querySnapshot = await getDocs(q);
+                // MUAT DARI KOLEKSI BARU (spark_verified_ppd)
+                const officersRef = collection(db, `artifacts/${appId}/public/data/spark_verified_ppd`);
+                const querySnapshot = await getDocs(officersRef);
                 ppdOfficers = [];
                 querySnapshot.forEach(doc => {
                     const officer = doc.data();
@@ -646,18 +645,19 @@
 
         async function loadPpdSectors() {
             try {
-                const sectorsRef = collection(db, `artifacts/${appId}/public/data/spark_ppd_officers`);
-                // Buang orderBy untuk mengelakkan ralat komposit indeks Firebase
-                const q = query(sectorsRef, where("category", "==", "sektor"), where("station", "==", "PEJABAT PENDIDIKAN DAERAH"));
-                const querySnapshot = await getDocs(q);
-                ppdSectors = [];
+                // EKSTRAK SEKTOR SECARA DINAMIK DARI KOLEKSI BARU (spark_verified_ppd)
+                const sectorsRef = collection(db, `artifacts/${appId}/public/data/spark_verified_ppd`);
+                const querySnapshot = await getDocs(sectorsRef);
+                const uniqueSectors = new Set();
+                
                 querySnapshot.forEach(doc => {
-                    if(doc.data().name) {
-                        ppdSectors.push(doc.data().name.toUpperCase());
+                    const data = doc.data();
+                    if(data.sector && data.sector.trim() !== '') {
+                        uniqueSectors.add(data.sector.toUpperCase());
                     }
                 });
-                // Susun abjad secara manual
-                ppdSectors.sort();
+                
+                ppdSectors = Array.from(uniqueSectors).sort();
             } catch (error) { console.error("Ralat muat Sektor: ", error); }
         }
 
