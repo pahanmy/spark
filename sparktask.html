@@ -592,6 +592,7 @@
         
         let currentUserData = null;
         let currentUserSchools = []; 
+        let userSkopKeys = []; 
         let isSubmitting = false;
         let selectedSubTugasanType = ''; 
         let senaraiTugasan = [];
@@ -776,6 +777,10 @@
                     });
                 }
 
+                userSkopKeys = [normalizeName(currentUserData.name)];
+                currentUserSchools.forEach(sch => userSkopKeys.push(normalizeName(sch)));
+                if(currentUserData.station) userSkopKeys.push(normalizeName(currentUserData.station));
+
                 renderProfileBanner();
                 document.getElementById('ic-modal').classList.remove('buka');
                 document.getElementById('main-dashboard-content').classList.remove('hidden');
@@ -886,12 +891,17 @@
                     }
                 }
 
-                let isAuthorized = false;
+                const rawSkop = Array.isArray(tugasan.skopSenaraiSekolah) ? tugasan.skopSenaraiSekolah : [];
+                const taskSkopNames = rawSkop.map(s => {
+                    if(typeof s === 'object' && s !== null) return String(s.nama || '');
+                    return String(s);
+                }).map(normalizeName).filter(s => s !== '');
+
+                // LOGIK PRIVASI PENUGASAN SULIT (TAGGING)
                 let isTaggedForMe = false;
                 let taggedByInfo = null;
                 let iAmDelegator = false;
 
-                // LOGIK PRIVASI PENUGASAN SULIT (TAGGING)
                 if (tugasan.taggedUsers && Array.isArray(tugasan.taggedUsers)) {
                     const myTag = tugasan.taggedUsers.find(t => t.ic === currentUserData.ic);
                     if (myTag) {
@@ -901,45 +911,49 @@
                     iAmDelegator = tugasan.taggedUsers.some(t => t.taggedByIc === currentUserData.ic);
                 }
 
-                // LOGIK WHITELIST KEIZINAN AKSES KETAT
                 const isPenyelaras = (tugasan.penyelaras_ic === currentUserData.ic) || (tugasan.userId === userId);
+                const isGuruBesar = currentUserSchools && currentUserSchools.length > 0;
                 
+                // ==========================================
+                // HARD BLOCK: SEKATAN KETAT UNTUK GURU BIASA
+                // ==========================================
+                const myStationRaw = (currentUserData.station || '').toUpperCase();
+                const myNameNormalized = normalizeName(currentUserData.name);
+                const isSchoolStaff = myStationRaw.match(/^(SK|SMK|SJK|KOLEJ|KV|SMAP|SABK|SRK|SRC|SRB)/);
+
+                if (isSchoolStaff && !isGuruBesar && !isPenyelaras && !isTaggedForMe && !iAmDelegator) {
+                    const adaNamaSendiri = taskSkopNames.includes(myNameNormalized);
+                    const tugasanUmum = taskSkopNames.length === 0;
+
+                    // Guru biasa HANYA nampak jika namanya ditaip terus dlm skop ATAU skop dikosongkan (umum)
+                    if (!adaNamaSendiri && !tugasanUmum) {
+                        return false; // TOLAK KELUAR! (Sembunyi terus)
+                    }
+                }
+                // ==========================================
+
+                let isAuthorized = false;
+
                 if (isPenyelaras || isTaggedForMe || iAmDelegator) {
                     isAuthorized = true;
+                } else if (taskSkopNames.length === 0) {
+                    isAuthorized = true; // Tugasan Umum
                 } else {
-                    const rawSkop = Array.isArray(tugasan.skopSenaraiSekolah) ? tugasan.skopSenaraiSekolah : [];
-                    const taskSkopNames = rawSkop.map(s => {
-                        if(typeof s === 'object' && s !== null) return String(s.nama || '');
-                        return String(s);
-                    }).map(normalizeName).filter(s => s !== '');
+                    const myStation = normalizeName(currentUserData.station || '');
+                    const myAdminSchools = (currentUserSchools || []).map(normalizeName);
+                    const isPPD = myStation.includes("PPD") || myStation.includes("PEJABAT");
 
-                    if (taskSkopNames.length === 0) {
-                        // Jika skop kosong, tugasan UMUM terbuka kepada semua
-                        isAuthorized = true;
-                    } else {
-                        const myName = normalizeName(currentUserData.name);
-                        const myStation = normalizeName(currentUserData.station || '');
-                        const myAdminSchools = (currentUserSchools || []).map(normalizeName);
-                        const isWargaPPD = myStation.includes("PPD") || myStation.includes("PEJABAT PENDIDIKAN");
-
-                        for (let skop of taskSkopNames) {
-                            if (skop === myName) {
-                                // Nama kena seru secara spesifik
-                                isAuthorized = true; 
-                                break;
-                            } else if (myAdminSchools.includes(skop)) {
-                                // Pengguna ini adalah Guru Besar / Pengetua berdaftar untuk sekolah sasaran
-                                isAuthorized = true; 
-                                break;
-                            } else if (isWargaPPD && skop === myStation) {
-                                // Pegawai PPD boleh nampak tugasan untuk PPD
-                                isAuthorized = true; 
-                                break;
-                            }
+                    for (let skop of taskSkopNames) {
+                        if (skop === myNameNormalized) {
+                            isAuthorized = true; break;
+                        } else if (isGuruBesar && myAdminSchools.includes(skop)) {
+                            isAuthorized = true; break;
+                        } else if (isPPD && skop === myStation) {
+                            isAuthorized = true; break;
                         }
                     }
                 }
-                
+
                 tugasan._isTaggedForMe = isTaggedForMe;
                 tugasan._taggedByInfo = taggedByInfo;
 
@@ -994,22 +1008,14 @@
                 
                 let myCompletionRecord = null;
                 if (allRekodSelesai.length > 0) {
-                    // Semak jika ada rekod penyelesaian yang dihantar oleh pengguna/stesen ini
-                    const myAdminSchools = (currentUserSchools || []).map(normalizeName);
-                    const myStation = normalizeName(currentUserData.station || '');
-                    
-                    myCompletionRecord = allRekodSelesai.find(r => {
-                        if (r.ic_pengesah === currentUserData.ic) return true;
-                        
-                        const rekodStesen = normalizeName(r.stesen_pengesah || '');
-                        if (myAdminSchools.includes(rekodStesen)) return true;
-                        if (rekodStesen === myStation && (myStation.includes("PPD") || myStation.includes("PEJABAT"))) return true;
-                        
-                        return false;
-                    });
+                    myCompletionRecord = allRekodSelesai.find(r => 
+                        r.ic_pengesah === currentUserData.ic || 
+                        userSkopKeys.includes(normalizeName(r.stesen_pengesah)) || 
+                        userSkopKeys.includes(normalizeName(r.nama_pengesah))
+                    );
                 }
 
-                let isMyScope = true; // Akan sentiasa true kerana ia telah ditapis ketat di atas
+                let isMyScope = true;
 
                 const bakiInfo = kiraBakiHari(tugasan.tarikhSiap, peratus, isCompletedAdmin);
                 
