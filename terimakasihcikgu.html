@@ -55,12 +55,6 @@
 </head>
 <body class="bg-moving-gradient min-h-screen flex flex-col items-center overflow-x-hidden">
 
-    <audio id="bgm-audio" loop preload="auto" class="hidden">
-        <source src="https://raw.githubusercontent.com/pahanmy/spark/main/Piano%2C%20sad%2C%20touching%2C%20majestic%2C%20nature%2C%20movie%20-%20Arachang.mp3" type="audio/mpeg" id="mp3-source">
-    </audio>
-    
-    <div id="yt-player" style="position: absolute; width: 0; height: 0; top: -9999px; left: -9999px;"></div>
-
     <button id="music-toggle-btn" class="fixed top-4 left-4 z-[150] bg-white/80 backdrop-blur-md p-3 rounded-full shadow-lg border border-gray-200 hidden hover:scale-110 transition-transform">
         <span id="music-icon" class="text-xl">🎵</span>
     </button>
@@ -128,7 +122,7 @@
             <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/10"></div>
         </div>
 
-        <div class="w-full px-4 -mt-20 z-20 relative mb-12">
+        <div class="w-full px-4 -mt-20 z-20 relative mb-6">
             <div class="bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl w-full border border-white/60 ring-1 ring-[#bf953f]/20 overflow-hidden">
                 
                 <div id="capture-area" class="p-6 md:p-10 pb-4 bg-transparent relative">
@@ -261,6 +255,13 @@
             </div>
         </div>
 
+        <div class="w-full flex flex-col items-center justify-center mb-8 opacity-40 hover:opacity-100 transition-opacity duration-500 z-10">
+            <p class="text-[9px] text-gray-500 font-bold tracking-widest uppercase mb-2 bg-white/50 px-3 py-1 rounded-full backdrop-blur-sm">Audio Latar Belakang</p>
+            <div id="yt-player-container" class="rounded-xl overflow-hidden border border-white/40 shadow-sm pointer-events-auto bg-white/20 p-1 backdrop-blur-md">
+                <div id="yt-player-div"></div>
+            </div>
+        </div>
+
         <div id="wishes-container" class="w-full max-w-6xl px-4 z-10 relative">
             
             <div id="wish-counter-container" class="text-center mb-8 hidden">
@@ -274,7 +275,7 @@
             </div>
         </div>
 
-        <footer class="w-full text-center mt-20 mb-8 text-gray-500 text-xs z-10 relative drop-shadow-sm">
+        <footer class="w-full text-center mt-12 mb-8 text-gray-500 text-xs z-10 relative drop-shadow-sm">
             <p class="font-bold text-gray-600 text-sm tracking-widest">SPARK</p>
             <p class="text-xs mt-1">Percikan Inovasi Kehadiran Digital</p>
             <p class="mt-2 text-xs font-medium">Projek Inovasi oleh <a href="https://pahanmy.github.io/works/" target="_blank" class="text-[#bf953f] hover:underline">Pahan</a></p>
@@ -326,48 +327,34 @@
             { text: "Jasamu dikenang, budimu disanjung. Terima kasih atas dedikasi dan amanah yang ditunjukkan sepanjang perkhidmatan.", quote: "Pemimpin yang hebat meninggalkan jejak yang takkan terpadam oleh masa." }
         ];
 
-        // --- YOUTUBE & AUDIO PLAYER LOGIC ---
+        // --- YOUTUBE PLAYER LOGIC (MINIMALIST DI BAWAH) ---
         let ytPlayer;
         let isYtReady = false;
-        let activeAudioType = 'none'; 
+        let defaultVideoId = 'fj7fptSyDXM'; // Lagu default dari Pahan (Nature/Majestic)
 
         window.onYouTubeIframeAPIReady = function() {
             isYtReady = true;
+            initYouTubePlayer(defaultVideoId);
         }
 
         function extractVideoID(url) {
+            if(!url) return null;
             var regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
             var match = url.match(regExp);
             return (match && match[2].length == 11) ? match[2] : null;
         }
 
-        function initAudio(audioUrl) {
-            if (!audioUrl) {
-                const audioEl = document.getElementById('bgm-audio');
-                if (audioEl && audioEl.querySelector('source').src && audioEl.querySelector('source').src !== window.location.href) {
-                    activeAudioType = 'mp3';
-                }
+        function initYouTubePlayer(videoId) {
+            if (ytPlayer && typeof ytPlayer.loadVideoById === 'function') {
+                ytPlayer.loadVideoById(videoId);
                 return;
             }
-
-            const ytId = extractVideoID(audioUrl);
-            if (ytId) {
-                activeAudioType = 'youtube';
-                if (isYtReady) {
-                    ytPlayer = new YT.Player('yt-player', {
-                        height: '0', width: '0', videoId: ytId,
-                        playerVars: { 'autoplay': 0, 'controls': 0, 'loop': 1, 'playlist': ytId }
-                    });
-                } else {
-                    setTimeout(() => initAudio(audioUrl), 500);
-                }
-            } else {
-                activeAudioType = 'mp3';
-                const audioEl = document.getElementById('bgm-audio');
-                const sourceEl = document.getElementById('mp3-source');
-                sourceEl.src = audioUrl;
-                audioEl.load();
-            }
+            ytPlayer = new YT.Player('yt-player-div', {
+                height: '110', 
+                width: '220',
+                videoId: videoId,
+                playerVars: { 'autoplay': 0, 'controls': 1, 'loop': 1, 'playlist': videoId, 'modestbranding': 1, 'fs': 0 }
+            });
         }
         // --- TAMAT YOUTUBE LOGIC ---
 
@@ -383,10 +370,13 @@
                     const name = retireeData.name;
                     const dob = retireeData.dob;
                     
+                    // Semak jika Admin ada tukar lagu YouTube
                     if(retireeData.audioUrl) {
-                        initAudio(retireeData.audioUrl);
-                    } else {
-                        initAudio(""); 
+                        const newId = extractVideoID(retireeData.audioUrl);
+                        if(newId) {
+                            if(isYtReady && ytPlayer) ytPlayer.loadVideoById(newId);
+                            else defaultVideoId = newId; 
+                        }
                     }
                     
                     const beautifulName = toTitleCase(name.toLowerCase());
@@ -502,18 +492,12 @@
                 document.getElementById('main-content').classList.add('fade-in');
                 document.getElementById('share-card-btn').classList.remove('hidden');
                 
-                if (activeAudioType === 'youtube' && ytPlayer && typeof ytPlayer.playVideo === 'function') {
+                // Mula Mainkan Audio YouTube
+                if (ytPlayer && typeof ytPlayer.playVideo === 'function') {
                     ytPlayer.playVideo();
                     isMusicPlaying = true;
                     musicBtn.classList.remove('hidden');
                     musicIcon.classList.add('spin-slow');
-                } else if (activeAudioType === 'mp3') {
-                    const bgmAudio = document.getElementById('bgm-audio');
-                    bgmAudio.play().then(() => {
-                        isMusicPlaying = true;
-                        musicBtn.classList.remove('hidden');
-                        musicIcon.classList.add('spin-slow');
-                    }).catch(e => console.log('Audio Autoplay Blocked:', e));
                 }
 
                 setTimeout(() => { startPremiumFireworks(); }, 400);
@@ -522,15 +506,11 @@
 
             musicBtn.addEventListener('click', () => {
                 if(isMusicPlaying) {
-                    if (activeAudioType === 'youtube' && ytPlayer) ytPlayer.pauseVideo();
-                    else if (activeAudioType === 'mp3') document.getElementById('bgm-audio').pause();
-                    
+                    if (ytPlayer) ytPlayer.pauseVideo();
                     musicIcon.classList.remove('spin-slow');
                     musicIcon.textContent = '🔈';
                 } else {
-                    if (activeAudioType === 'youtube' && ytPlayer) ytPlayer.playVideo();
-                    else if (activeAudioType === 'mp3') document.getElementById('bgm-audio').play();
-                    
+                    if (ytPlayer) ytPlayer.playVideo();
                     musicIcon.classList.add('spin-slow');
                     musicIcon.textContent = '🎵';
                 }
