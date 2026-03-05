@@ -1,0 +1,101 @@
+window.addEventListener('load', async () => {
+            startFireworks();
+            
+            // KITA BACA DARI DATABASE ADMIN, BUKAN DARI URL
+            document.getElementById('birthday-date-display').innerText = `⏳ MEMUATKAN DATA PESARA...`;
+            document.getElementById('recipient-name-display').textContent = "...";
+            
+            // Tunggu DB ready
+            while(!dbReady) { await new Promise(r => setTimeout(r, 100)); }
+
+            try {
+                import { doc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+                
+                const settingRef = doc(db, `artifacts/${appId}/public/data/spark_settings`, 'active_retiree');
+                const docSnap = await getDoc(settingRef);
+
+                if (docSnap.exists()) {
+                    const retireeData = docSnap.data();
+                    const name = retireeData.name;
+                    const dob = retireeData.dob;
+                    const photoUrl = retireeData.imageUrl;
+
+                    document.getElementById('recipient-name-display').textContent = name.toUpperCase();
+                    document.getElementById('recipient-name-hidden').value = name;
+                    document.getElementById('recipient-dob').value = dob;
+
+                    // Letak gambar pesara di header
+                    if(photoUrl) {
+                        const headerDiv = document.querySelector('.text-center.mb-6');
+                        const imgHTML = `<img src="${photoUrl}" crossorigin="anonymous" class="w-32 h-32 md:w-40 md:h-40 mx-auto rounded-full object-cover border-4 border-amber-400 shadow-xl mb-4 hover:scale-105 transition-transform">`;
+                        headerDiv.insertAdjacentHTML('afterbegin', imgHTML);
+                    }
+
+                    if(dob) {
+                        const dateObj = new Date(dob);
+                        const formattedDate = dateObj.toLocaleDateString('ms-MY', { day: 'numeric', month: 'long', year: 'numeric' });
+                        document.getElementById('birthday-date-display').innerText = `🎓 LAHIR: ${formattedDate}`;
+                    }
+
+                    recipientNameFromUrl = name;
+                    recipientDobFromUrl = dob;
+
+                    // Load Random Wish
+                    const randomIndex = Math.floor(Math.random() * wishCollections.length);
+                    const selectedWish = wishCollections[randomIndex] || wishCollections[0];
+                    document.getElementById('random-wish-container').innerHTML = `
+                        <p class="text-base text-gray-700"><a href="#" target="_blank" class="font-bold text-amber-700 hover:underline">PPD CLUB</a> mewakili semua mendoakan:</p>
+                        <p class="text-gray-800 font-medium italic mt-2">"${selectedWish.text}"</p>
+                        <blockquote class="pt-3 border-t border-amber-200 mt-3"><p class="text-sm italic text-amber-600 font-medium">${selectedWish.quote}</p></blockquote>
+                    `;
+
+                    // Muat ucapan dari database berdasarkan nama & dob pesara
+                    loadWishes(recipientNameFromUrl, recipientDobFromUrl);
+
+                } else {
+                    document.getElementById('birthday-date-display').innerText = `⚠️ TIADA DATA PESARA`;
+                    document.getElementById('recipient-name-display').textContent = "SILA SET DI ADMIN";
+                }
+            } catch (error) {
+                console.error("Error fetching retiree:", error);
+            }
+
+            document.getElementById('share-card-btn').addEventListener('click', shareBirthdayCard); 
+            document.getElementById('check-ic-btn').addEventListener('click', checkUserIc);
+            document.getElementById('wish-form').addEventListener('submit', handleFormSubmit);
+            document.getElementById('trigger-upload-btn').addEventListener('click', () => document.getElementById('photo-upload-input').click());
+            document.getElementById('photo-upload-input').addEventListener('change', handlePhotoSelect);
+            document.getElementById('sender-ic').addEventListener('input', () => {
+                document.getElementById('manual-info-section').classList.add('hidden');
+                document.getElementById('user-info-display').classList.add('hidden');
+                toggleWishFields(false);
+                document.getElementById('ic-check-status').textContent = '';
+                document.getElementById('wish-message').placeholder = "Sila semak No. IC anda dahulu...";
+                foundUserData = null;
+            });
+            document.getElementById('manual-info-section').classList.add('hidden');
+            toggleWishFields(false);
+
+            document.querySelectorAll('.emoji-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const textarea = document.getElementById('wish-message');
+                    if (!textarea.disabled) {
+                        textarea.value += btn.textContent;
+                        textarea.focus();
+                    }
+                });
+            });
+            const giftSelector = document.getElementById('gift-selector');
+            giftSelector.addEventListener('click', (e) => {
+                if (e.target.classList.contains('gift-btn')) {
+                    if (e.target.classList.contains('gift-selected')) {
+                        e.target.classList.remove('gift-selected');
+                        document.getElementById('selected-gift').value = '';
+                    } else {
+                        giftSelector.querySelectorAll('.gift-btn').forEach(btn => btn.classList.remove('gift-selected'));
+                        e.target.classList.add('gift-selected');
+                        document.getElementById('selected-gift').value = e.target.dataset.gift;
+                    }
+                }
+            });
+        });
