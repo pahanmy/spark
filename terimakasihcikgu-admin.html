@@ -1,101 +1,212 @@
-window.addEventListener('load', async () => {
-            startFireworks();
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - Tetapan Pesara SPARK</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Poppins', sans-serif; background-color: #f3f4f6; }
+        .paste-area { border: 2px dashed #cbd5e1; transition: all 0.3s; }
+        .paste-area:focus-within, .paste-area:hover { border-color: #3b82f6; background-color: #eff6ff; }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+
+    <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-lg border-t-8 border-indigo-600">
+        <h1 class="text-2xl font-bold text-gray-800 mb-2">Tetapan Halaman Persaraan</h1>
+        <p class="text-sm text-gray-500 mb-6">Cari IC pegawai, masukkan gambar, dan sistem akan kemaskini halaman utama secara automatik.</p>
+
+        <div class="space-y-5">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">1. Cari No. IC Pegawai Bersara</label>
+                <div class="flex">
+                    <input type="text" id="search-ic" placeholder="Cth: 650101011234" class="flex-grow px-4 py-2 border border-gray-300 rounded-l-md focus:ring-indigo-500 focus:border-indigo-500" maxlength="12">
+                    <button id="btn-search" class="bg-indigo-600 text-white px-4 py-2 rounded-r-md hover:bg-indigo-700 font-medium">Cari</button>
+                </div>
+                <p id="search-status" class="text-xs mt-2"></p>
+            </div>
+
+            <div id="retiree-info" class="hidden bg-indigo-50 p-4 rounded-lg border border-indigo-100">
+                <p class="text-xs text-indigo-500 font-bold mb-1 uppercase tracking-wider">Maklumat Dijumpai:</p>
+                <p class="font-bold text-lg text-indigo-900" id="retiree-name"></p>
+                <p class="text-sm text-indigo-700" id="retiree-position"></p>
+                <p class="text-sm mt-2"><span class="font-semibold text-gray-600">Tarikh Lahir Auto-Kira:</span> <span id="retiree-dob" class="font-bold text-pink-600"></span></p>
+                <input type="hidden" id="hidden-name">
+                <input type="hidden" id="hidden-dob">
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">2. Gambar Pegawai (Wajib)</label>
+                <div class="paste-area p-6 rounded-lg text-center cursor-pointer bg-gray-50 relative" id="drop-zone">
+                    <input type="file" id="file-upload" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept="image/*">
+                    <div id="upload-placeholder">
+                        <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true"><path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                        <p class="mt-1 text-sm text-gray-600">Klik untuk muat naik atau <strong class="text-indigo-600">Paste (Ctrl+V)</strong> gambar di sini</p>
+                    </div>
+                    <img id="image-preview" src="" class="mx-auto max-h-48 rounded shadow-sm hidden">
+                </div>
+                <p id="upload-status" class="text-xs text-center mt-2 font-medium"></p>
+                <input type="hidden" id="image-url">
+            </div>
+
+            <hr>
+
+            <button id="btn-save" class="w-full bg-green-600 text-white py-3 rounded-lg font-bold text-lg hover:bg-green-700 disabled:bg-gray-400 transition" disabled>
+                SIMPAN & KEMASKINI HALAMAN
+            </button>
+            <p id="save-status" class="text-center text-sm mt-2 font-bold hidden"></p>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, query, where, getDocs, limit, doc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const firebaseConfig = { apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM", authDomain: "myqrhadir.firebaseapp.com", projectId: "myqrhadir", storageBucket: "myqrhadir.appspot.com", messagingSenderId: "799691133747", appId: "1:799691133747:web:835a5e3e9413eace806446" };
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        const IMGBB_API_KEY = "a7c600ac733fe14649cacd8e65619c4b";
+
+        signInAnonymously(auth);
+
+        // --- FUNGSI KIRA DOB DARI IC ---
+        function calculateDobFromIc(ic) {
+            let yearStr = ic.substring(0, 2);
+            let monthStr = ic.substring(2, 4);
+            let dayStr = ic.substring(4, 6);
             
-            // KITA BACA DARI DATABASE ADMIN, BUKAN DARI URL
-            document.getElementById('birthday-date-display').innerText = `⏳ MEMUATKAN DATA PESARA...`;
-            document.getElementById('recipient-name-display').textContent = "...";
+            // Asumsi pesara lahir pada 19XX
+            let year = 1900 + parseInt(yearStr);
+            return `${year}-${monthStr}-${dayStr}`; 
+        }
+
+        // --- CARIAN IC ---
+        document.getElementById('btn-search').addEventListener('click', async () => {
+            const ic = document.getElementById('search-ic').value.replace(/[^0-9]/g, '');
+            const statusEl = document.getElementById('search-status');
             
-            // Tunggu DB ready
-            while(!dbReady) { await new Promise(r => setTimeout(r, 100)); }
-
-            try {
-                import { doc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-                
-                const settingRef = doc(db, `artifacts/${appId}/public/data/spark_settings`, 'active_retiree');
-                const docSnap = await getDoc(settingRef);
-
-                if (docSnap.exists()) {
-                    const retireeData = docSnap.data();
-                    const name = retireeData.name;
-                    const dob = retireeData.dob;
-                    const photoUrl = retireeData.imageUrl;
-
-                    document.getElementById('recipient-name-display').textContent = name.toUpperCase();
-                    document.getElementById('recipient-name-hidden').value = name;
-                    document.getElementById('recipient-dob').value = dob;
-
-                    // Letak gambar pesara di header
-                    if(photoUrl) {
-                        const headerDiv = document.querySelector('.text-center.mb-6');
-                        const imgHTML = `<img src="${photoUrl}" crossorigin="anonymous" class="w-32 h-32 md:w-40 md:h-40 mx-auto rounded-full object-cover border-4 border-amber-400 shadow-xl mb-4 hover:scale-105 transition-transform">`;
-                        headerDiv.insertAdjacentHTML('afterbegin', imgHTML);
-                    }
-
-                    if(dob) {
-                        const dateObj = new Date(dob);
-                        const formattedDate = dateObj.toLocaleDateString('ms-MY', { day: 'numeric', month: 'long', year: 'numeric' });
-                        document.getElementById('birthday-date-display').innerText = `🎓 LAHIR: ${formattedDate}`;
-                    }
-
-                    recipientNameFromUrl = name;
-                    recipientDobFromUrl = dob;
-
-                    // Load Random Wish
-                    const randomIndex = Math.floor(Math.random() * wishCollections.length);
-                    const selectedWish = wishCollections[randomIndex] || wishCollections[0];
-                    document.getElementById('random-wish-container').innerHTML = `
-                        <p class="text-base text-gray-700"><a href="#" target="_blank" class="font-bold text-amber-700 hover:underline">PPD CLUB</a> mewakili semua mendoakan:</p>
-                        <p class="text-gray-800 font-medium italic mt-2">"${selectedWish.text}"</p>
-                        <blockquote class="pt-3 border-t border-amber-200 mt-3"><p class="text-sm italic text-amber-600 font-medium">${selectedWish.quote}</p></blockquote>
-                    `;
-
-                    // Muat ucapan dari database berdasarkan nama & dob pesara
-                    loadWishes(recipientNameFromUrl, recipientDobFromUrl);
-
-                } else {
-                    document.getElementById('birthday-date-display').innerText = `⚠️ TIADA DATA PESARA`;
-                    document.getElementById('recipient-name-display').textContent = "SILA SET DI ADMIN";
-                }
-            } catch (error) {
-                console.error("Error fetching retiree:", error);
+            if (ic.length !== 12) {
+                statusEl.textContent = "Sila masukkan 12 digit IC yang sah."; statusEl.className = "text-xs mt-2 text-red-500"; return;
             }
 
-            document.getElementById('share-card-btn').addEventListener('click', shareBirthdayCard); 
-            document.getElementById('check-ic-btn').addEventListener('click', checkUserIc);
-            document.getElementById('wish-form').addEventListener('submit', handleFormSubmit);
-            document.getElementById('trigger-upload-btn').addEventListener('click', () => document.getElementById('photo-upload-input').click());
-            document.getElementById('photo-upload-input').addEventListener('change', handlePhotoSelect);
-            document.getElementById('sender-ic').addEventListener('input', () => {
-                document.getElementById('manual-info-section').classList.add('hidden');
-                document.getElementById('user-info-display').classList.add('hidden');
-                toggleWishFields(false);
-                document.getElementById('ic-check-status').textContent = '';
-                document.getElementById('wish-message').placeholder = "Sila semak No. IC anda dahulu...";
-                foundUserData = null;
-            });
-            document.getElementById('manual-info-section').classList.add('hidden');
-            toggleWishFields(false);
+            statusEl.textContent = "Mencari data..."; statusEl.className = "text-xs mt-2 text-blue-500";
+            document.getElementById('retiree-info').classList.add('hidden');
 
-            document.querySelectorAll('.emoji-btn').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const textarea = document.getElementById('wish-message');
-                    if (!textarea.disabled) {
-                        textarea.value += btn.textContent;
-                        textarea.focus();
-                    }
-                });
-            });
-            const giftSelector = document.getElementById('gift-selector');
-            giftSelector.addEventListener('click', (e) => {
-                if (e.target.classList.contains('gift-btn')) {
-                    if (e.target.classList.contains('gift-selected')) {
-                        e.target.classList.remove('gift-selected');
-                        document.getElementById('selected-gift').value = '';
-                    } else {
-                        giftSelector.querySelectorAll('.gift-btn').forEach(btn => btn.classList.remove('gift-selected'));
-                        e.target.classList.add('gift-selected');
-                        document.getElementById('selected-gift').value = e.target.dataset.gift;
-                    }
-                }
-            });
+            const staffRef = collection(db, `artifacts/${firebaseConfig.projectId}/public/data/spark_participants`);
+            const q = query(staffRef, where("ic", "==", ic), limit(1));
+            const querySnapshot = await getDocs(q);
+
+            if (!querySnapshot.empty) {
+                const data = querySnapshot.docs[0].data();
+                const dobYMD = calculateDobFromIc(ic);
+                
+                // Format cantik untuk dipaparkan
+                const dateObj = new Date(dobYMD);
+                const dobFormatted = dateObj.toLocaleDateString('ms-MY', { day: 'numeric', month: 'long', year: 'numeric' });
+
+                document.getElementById('retiree-name').textContent = data.name;
+                document.getElementById('retiree-position').textContent = `${data.position || ''} - ${data.station || ''}`;
+                document.getElementById('retiree-dob').textContent = dobFormatted;
+                
+                document.getElementById('hidden-name').value = data.name;
+                document.getElementById('hidden-dob').value = dobYMD;
+                
+                document.getElementById('retiree-info').classList.remove('hidden');
+                statusEl.textContent = "Data ditemui!"; statusEl.className = "text-xs mt-2 text-green-600 font-bold";
+                checkEnableSave();
+            } else {
+                statusEl.textContent = "IC tidak dijumpai dalam sistem PPD Club."; statusEl.className = "text-xs mt-2 text-red-500";
+            }
         });
+
+        // --- UPLOAD / PASTE GAMBAR ---
+        const fileInput = document.getElementById('file-upload');
+        fileInput.addEventListener('change', (e) => handleImage(e.target.files[0]));
+        
+        document.addEventListener('paste', (e) => {
+            const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+            for (let index in items) {
+                const item = items[index];
+                if (item.kind === 'file') {
+                    const blob = item.getAsFile();
+                    handleImage(blob);
+                }
+            }
+        });
+
+        async function handleImage(file) {
+            if (!file) return;
+            const statusEl = document.getElementById('upload-status');
+            const preview = document.getElementById('image-preview');
+            const placeholder = document.getElementById('upload-placeholder');
+            
+            // Tunjuk preview sementara
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                preview.src = e.target.result;
+                preview.classList.remove('hidden');
+                placeholder.classList.add('hidden');
+            };
+            reader.readAsDataURL(file);
+
+            statusEl.textContent = "Memuat naik gambar ke server..."; statusEl.className = "text-xs mt-2 text-blue-600 animate-pulse";
+            
+            const formData = new FormData();
+            formData.append("image", file, "retiree.jpg");
+
+            try {
+                const response = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, { method: "POST", body: formData });
+                const data = await response.json();
+                if (data.success) {
+                    document.getElementById('image-url').value = data.data.url;
+                    statusEl.textContent = "✅ Gambar berjaya dimuat naik!"; statusEl.className = "text-xs mt-2 text-green-600 font-bold";
+                    checkEnableSave();
+                } else { throw new Error("Gagal"); }
+            } catch (error) {
+                statusEl.textContent = "❌ Gagal muat naik gambar."; statusEl.className = "text-xs mt-2 text-red-600";
+            }
+        }
+
+        function checkEnableSave() {
+            const name = document.getElementById('hidden-name').value;
+            const imgUrl = document.getElementById('image-url').value;
+            document.getElementById('btn-save').disabled = !(name && imgUrl);
+        }
+
+        // --- SIMPAN KE FIRESTORE SEBAGAI "ACTIVE RETIREE" ---
+        document.getElementById('btn-save').addEventListener('click', async () => {
+            const btn = document.getElementById('btn-save');
+            const statusEl = document.getElementById('save-status');
+            
+            btn.disabled = true; btn.textContent = "Menyimpan...";
+            
+            const data = {
+                name: document.getElementById('hidden-name').value,
+                dob: document.getElementById('hidden-dob').value,
+                imageUrl: document.getElementById('image-url').value,
+                position: document.getElementById('retiree-position').textContent,
+                updatedAt: serverTimestamp()
+            };
+
+            try {
+                // Simpan dalam setting khusus
+                const settingRef = doc(db, `artifacts/${firebaseConfig.projectId}/public/data/spark_settings`, 'active_retiree');
+                await setDoc(settingRef, data);
+                
+                statusEl.textContent = "✅ Halaman persaraan berjaya dikemaskini!";
+                statusEl.className = "text-center text-sm mt-2 text-green-600 font-bold";
+                btn.textContent = "SELESAI";
+            } catch (err) {
+                console.error(err);
+                statusEl.textContent = "❌ Ralat penyimpanan data.";
+                statusEl.className = "text-center text-sm mt-2 text-red-600 font-bold";
+                btn.disabled = false; btn.textContent = "CUBA LAGI";
+            }
+        });
+    </script>
+</body>
+</html>
