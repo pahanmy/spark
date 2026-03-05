@@ -13,6 +13,8 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
     
+    <script src="https://www.youtube.com/iframe_api"></script>
+
     <style>
         body { font-family: 'Poppins', sans-serif; overflow-x: hidden; background-color: #fdfaf6; }
         .font-script { font-family: 'Great Vibes', cursive; }
@@ -53,11 +55,8 @@
 </head>
 <body class="bg-moving-gradient min-h-screen flex flex-col items-center overflow-x-hidden">
 
-    <audio id="bgm-audio" loop preload="auto">
-        <source src="LETAK_LINK_AUDIO_ANDA_DI_SINI.mp3" type="audio/mpeg">
-    </audio>
-
-    <button id="music-toggle-btn" class="fixed top-4 left-4 z-[150] bg-white/80 backdrop-blur-md p-3 rounded-full shadow-lg border border-gray-200 hidden hover:scale-110 transition-transform">
+    <audio id="bgm-audio" loop preload="auto" class="hidden"></audio>
+    <div id="yt-player" class="hidden"></div> <button id="music-toggle-btn" class="fixed top-4 left-4 z-[150] bg-white/80 backdrop-blur-md p-3 rounded-full shadow-lg border border-gray-200 hidden hover:scale-110 transition-transform">
         <span id="music-icon" class="text-xl">🎵</span>
     </button>
 
@@ -89,10 +88,10 @@
                         Kerana jasa dan kenangan,<br>
                         Akan terus hidup dalam ingatan.<br><br>
                         
-                        Terima kasih atas segala pengorbanan,<br>
-                        Yang tidak pernah meminta balasan.<br>
-                        Namamu akan sentiasa dikenang,<br>
-                        Dalam doa dan sanjungan sepanjang zaman.
+                        Pemimpin berjiwa rakyat,<br>
+                        Amanah dipikul tanpa syarat.<br>
+                        Teladanmu kekal bersemi,<br>
+                        Di hati kami, selamanya.
                     </p>
                 </div>
                 
@@ -145,10 +144,6 @@
                         <p class="font-serif-elegant text-sm font-bold text-gray-700 mb-4 tracking-wide uppercase">Koleksi Hadiah Simbolik</p>
                         <div id="summary-gift-list" class="flex flex-wrap justify-center gap-3 text-3xl"></div>
                         <p id="no-gift-text" class="text-xs text-gray-400 italic hidden">Belum ada memori. Jadilah yang pertama!</p>
-                    </div>
-                    
-                    <div class="text-center mt-6 pb-2">
-                        <p class="text-[9px] text-gray-400 uppercase tracking-widest font-serif-elegant">Dijana oleh SPARK PPD CLUB</p>
                     </div>
                 </div>
 
@@ -247,7 +242,7 @@
                         
                         <div class="bg-amber-50/50 p-4 rounded-xl border border-amber-200 mt-6">
                             <p class="text-xs text-amber-800 leading-relaxed text-center">
-                                📢 <strong>Makluman PPD Club:</strong> Tinta kenangan dan gambar yang anda kongsikan di sini akan dijadikan <strong>bahan tayangan (montaj)</strong> secara lansung semasa majlis perpisahan rasmi kelak. Hantarkan yang terbaik! ✨
+                                📢 <strong>Makluman:</strong> Tinta kenangan dan gambar yang anda kongsikan di sini akan dijadikan <strong>bahan tayangan (montaj)</strong> secara lansung semasa majlis perpisahan rasmi kelak. Hantarkan yang terbaik! ✨
                             </p>
                         </div>
 
@@ -277,7 +272,7 @@
         <footer class="w-full text-center mt-20 mb-8 text-gray-500 text-xs z-10 relative drop-shadow-sm">
             <p class="font-bold text-gray-600 text-sm tracking-widest">SPARK</p>
             <p class="text-xs mt-1">Percikan Inovasi Kehadiran Digital</p>
-            <p class="mt-2 text-xs font-medium">Projek Inovasi oleh Pahan</p>
+            <p class="mt-2 text-xs font-medium">Projek Inovasi oleh <a href="https://pahanmy.github.io/works/" target="_blank" class="text-[#bf953f] hover:underline">Pahan</a></p>
         </footer>
     </div>
 
@@ -315,11 +310,8 @@
         let foundUserData = null;
         let cropper = null;
 
-        let baseSlideImages = [
-            "https://images.unsplash.com/photo-1577805947697-89e18249d767?q=80&w=2070&auto=format&fit=crop",
-            "https://images.unsplash.com/photo-1541339907198-e08756dedf3f?q=80&w=2070&auto=format&fit=crop"
-        ];
-        let slideImages = [...baseSlideImages]; 
+        let baseSlideImages = []; // Akan dimuatkan dari database Admin
+        let slideImages = []; 
 
         const wishesRef = collection(db, `artifacts/${appId}/public/data/spark_wishes`);
         const staffRef = collection(db, `artifacts/${appId}/public/data/spark_participants`);
@@ -328,6 +320,45 @@
             { text: "Terima kasih atas segala bimbingan, tunjuk ajar dan inspirasi yang telah diberikan sepanjang perkhidmatan. Selamat melangkah ke alam persaraan dengan penuh ketenangan.", quote: "Sebuah legasi kepimpinan yang hebat tidak akan terhenti, ia terus mekar menjadi inspirasi." },
             { text: "Jasamu dikenang, budimu disanjung. Terima kasih atas dedikasi dan amanah yang ditunjukkan sepanjang perkhidmatan.", quote: "Pemimpin yang hebat meninggalkan jejak yang takkan terpadam oleh masa." }
         ];
+
+        // --- YOUTUBE PLAYER LOGIC ---
+        let ytPlayer;
+        let isYtReady = false;
+        let isMusicPlaying = false;
+        let activeAudioType = 'none'; // 'none', 'mp3', or 'youtube'
+
+        window.onYouTubeIframeAPIReady = function() {
+            isYtReady = true;
+        }
+
+        function extractVideoID(url) {
+            var regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+            var match = url.match(regExp);
+            return (match && match[2].length == 11) ? match[2] : null;
+        }
+
+        function initAudio(audioUrl) {
+            if (!audioUrl) return;
+
+            const ytId = extractVideoID(audioUrl);
+            if (ytId) {
+                activeAudioType = 'youtube';
+                if (isYtReady) {
+                    ytPlayer = new YT.Player('yt-player', {
+                        height: '0', width: '0', videoId: ytId,
+                        playerVars: { 'autoplay': 0, 'controls': 0, 'loop': 1, 'playlist': ytId }
+                    });
+                } else {
+                    // Jika API belum sedia, tunggu
+                    setTimeout(() => initAudio(audioUrl), 500);
+                }
+            } else {
+                activeAudioType = 'mp3';
+                const audioEl = document.getElementById('bgm-audio');
+                audioEl.src = audioUrl;
+            }
+        }
+        // --- TAMAT YOUTUBE LOGIC ---
 
         function toTitleCase(str) { return str.replace(/\w\S*/g, function(txt){return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();}); }
 
@@ -340,10 +371,13 @@
                     const retireeData = docSnap.data();
                     const name = retireeData.name;
                     const dob = retireeData.dob;
-                    const photoUrl = retireeData.imageUrl;
+                    
+                    // Set Audio dari Admin
+                    if(retireeData.audioUrl) {
+                        initAudio(retireeData.audioUrl);
+                    }
                     
                     const beautifulName = toTitleCase(name.toLowerCase());
-
                     document.getElementById('cover-name-display').textContent = beautifulName;
                     
                     if(dob) {
@@ -356,10 +390,21 @@
                     document.getElementById('recipient-name-hidden').value = name;
                     document.getElementById('recipient-dob').value = dob;
 
-                    if(photoUrl) {
-                        baseSlideImages.unshift(photoUrl); 
-                        slideImages = [...baseSlideImages];
+                    // Load Slideshow Images dari Admin
+                    baseSlideImages = [];
+                    if(retireeData.imageUrl) baseSlideImages.push(retireeData.imageUrl); // Utama
+                    if(retireeData.slideshowImages && Array.isArray(retireeData.slideshowImages)) {
+                        baseSlideImages = baseSlideImages.concat(retireeData.slideshowImages);
                     }
+                    
+                    // Fallback jika Admin tak letak gambar
+                    if(baseSlideImages.length === 0) {
+                        baseSlideImages = [
+                            "https://images.unsplash.com/photo-1577805947697-89e18249d767?q=80&w=2070&auto=format&fit=crop",
+                            "https://images.unsplash.com/photo-1541339907198-e08756dedf3f?q=80&w=2070&auto=format&fit=crop"
+                        ];
+                    }
+                    slideImages = [...baseSlideImages];
 
                     currentRetireeName = name;
                     currentRetireeDob = dob;
@@ -433,10 +478,8 @@
 
         window.addEventListener('load', () => {
             
-            const bgmAudio = document.getElementById('bgm-audio');
             const musicBtn = document.getElementById('music-toggle-btn');
             const musicIcon = document.getElementById('music-icon');
-            let isMusicPlaying = false;
 
             document.getElementById('open-card-btn').addEventListener('click', () => {
                 const cover = document.getElementById('welcome-cover');
@@ -448,11 +491,20 @@
                 document.getElementById('main-content').classList.add('fade-in');
                 document.getElementById('share-card-btn').classList.remove('hidden');
                 
-                bgmAudio.play().then(() => {
+                // Mula Mainkan Audio Jika Ada
+                if (activeAudioType === 'youtube' && ytPlayer) {
+                    ytPlayer.playVideo();
                     isMusicPlaying = true;
                     musicBtn.classList.remove('hidden');
                     musicIcon.classList.add('spin-slow');
-                }).catch(e => console.log('Audio sedia.'));
+                } else if (activeAudioType === 'mp3') {
+                    const bgmAudio = document.getElementById('bgm-audio');
+                    bgmAudio.play().then(() => {
+                        isMusicPlaying = true;
+                        musicBtn.classList.remove('hidden');
+                        musicIcon.classList.add('spin-slow');
+                    }).catch(e => console.log('Audio Autoplay Blocked.'));
+                }
 
                 setTimeout(() => { startPremiumFireworks(); }, 400);
                 setTimeout(() => { cover.style.display = 'none'; }, 1200);
@@ -460,11 +512,17 @@
 
             musicBtn.addEventListener('click', () => {
                 if(isMusicPlaying) {
-                    bgmAudio.pause();
+                    // PAUSE
+                    if (activeAudioType === 'youtube' && ytPlayer) ytPlayer.pauseVideo();
+                    else if (activeAudioType === 'mp3') document.getElementById('bgm-audio').pause();
+                    
                     musicIcon.classList.remove('spin-slow');
                     musicIcon.textContent = '🔈';
                 } else {
-                    bgmAudio.play();
+                    // PLAY
+                    if (activeAudioType === 'youtube' && ytPlayer) ytPlayer.playVideo();
+                    else if (activeAudioType === 'mp3') document.getElementById('bgm-audio').play();
+                    
                     musicIcon.classList.add('spin-slow');
                     musicIcon.textContent = '🎵';
                 }
@@ -520,8 +578,7 @@
 
             if (!captureArea) return alert("Ralat: Kawasan tidak dijumpai.");
             
-            const originalText = btn.innerHTML;
-            btn.innerHTML = '⏳'; btn.disabled = true;
+            btn.classList.add('hidden'); // Sorok butang share masa screenshot
 
             const shareText = `🕊️ *TINTA KENANGAN & PENGHARGAAN* ✨\n\nBersama kita hargai jasa bakti dan kenangan indah bersama: *${name}*\n\nSudikanlah menitipkan doa dan ucapan ikhlas anda. Klik pautan di bawah untuk membuka naskhah kenangan ini:\n🔗 ${currentUrl}`;
 
@@ -535,7 +592,7 @@
                 });
 
                 canvas.toBlob(async (blob) => {
-                    btn.innerHTML = originalText; btn.disabled = false;
+                    btn.classList.remove('hidden'); // Tunjuk balik
                     
                     if (!blob) return alert("Gagal menjana gambar. Sila cuba lagi.");
 
@@ -548,7 +605,7 @@
                         catch (err) { alert("Gambar dimuat turun."); }
                     }
                 }, 'image/png');
-            } catch (error) { alert("Ralat sistem: " + error.message); btn.innerHTML = originalText; btn.disabled = false; }
+            } catch (error) { alert("Ralat sistem: " + error.message); btn.classList.remove('hidden'); }
         }
 
         window.handlePhotoSelect = function(e) {
@@ -623,8 +680,9 @@
 
                 if (!querySnapshot.empty) {
                     const userData = querySnapshot.docs[0].data();
-                    // Gunakan profileImageUrl atau profilePic yang wujud di Firebase
-                    const userProfilePic = userData.profileImageUrl || userData.profilePic || '';
+                    
+                    // PASTIKAN IA MENARIK URL GAMBAR DARI DATABASE
+                    const userProfilePic = userData.profileImageUrl || userData.profilePic || userData.photoUrl || '';
                     
                     foundUserData = { 
                         name: userData.name || '', 
@@ -735,15 +793,18 @@
 
                         const messageEl = document.createElement('p'); messageEl.className = "text-gray-800 text-base italic flex-grow whitespace-pre-wrap font-serif-elegant leading-loose"; messageEl.textContent = `"${wish.message}"`; card.appendChild(messageEl);
 
-                        const senderContainer = document.createElement('div'); senderContainer.className = "flex justify-end items-center mt-6 pt-4 border-t border-gray-200/60 gap-4";
+                        const senderContainer = document.createElement('div'); senderContainer.className = "flex items-center justify-end mt-6 pt-4 border-t border-gray-200/60 gap-4";
+                        
                         const textDiv = document.createElement('div'); textDiv.className = "text-right";
                         
                         let beautifulSenderName = toTitleCase(wish.senderName.toLowerCase());
-                        let senderNameHTML = `<span class="font-bold text-sm text-[#bf953f] font-serif-elegant">${beautifulSenderName}</span>`; if (wish.senderIsPro) { senderNameHTML += ` <span class="text-[9px] bg-gray-800 text-white px-1.5 py-0.5 rounded font-bold shadow-sm inline-block transform -translate-y-0.5 ml-1">PRO</span>`; }
+                        let senderNameHTML = `<span class="font-bold text-sm text-[#bf953f] font-serif-elegant">${beautifulSenderName}</span>`; 
+                        if (wish.senderIsPro) { senderNameHTML += ` <span class="text-[9px] bg-gray-800 text-white px-1.5 py-0.5 rounded font-bold shadow-sm inline-block transform -translate-y-0.5 ml-1">PRO</span>`; }
                         textDiv.innerHTML += `<p>${senderNameHTML}</p>`;
 
                         let detailsText = []; if (wish.senderPosition) detailsText.push(wish.senderPosition); if (wish.senderStation) detailsText.push(wish.senderStation);
                         textDiv.innerHTML += `<p class="text-[10px] text-gray-500 font-medium leading-snug mt-1">${detailsText.join('<br>')}</p>`;
+                        
                         senderContainer.appendChild(textDiv);
 
                         // TAMBAH GAMBAR PROFIL PENGUCAP JIKA ADA
@@ -751,7 +812,6 @@
                             const avatar = document.createElement('img'); 
                             avatar.crossOrigin = "anonymous"; 
                             avatar.src = wish.senderPhotoUrl; 
-                            // Styling khas kalau dia pengguna Pro
                             const borderStyle = wish.senderIsPro ? "border-[#bf953f] shadow-md border-2" : "border-gray-200 border";
                             avatar.className = `w-10 h-10 rounded-full object-cover p-0.5 bg-white ${borderStyle}`; 
                             senderContainer.appendChild(avatar); 
