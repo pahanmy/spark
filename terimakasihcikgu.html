@@ -12,8 +12,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
-    
-    <script src="https://www.youtube.com/iframe_api"></script>
 
     <style>
         body { font-family: 'Poppins', sans-serif; overflow-x: hidden; background-color: #fdfaf6; }
@@ -51,11 +49,18 @@
         
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        /* Hidden iframe container */
+        #youtube-iframe-container { position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: 0.01; pointer-events: none; bottom: 0; }
     </style>
 </head>
 <body class="bg-moving-gradient min-h-screen flex flex-col items-center overflow-x-hidden">
 
-    <div id="yt-player" style="position: absolute; width: 0; height: 0; top: -9999px; left: -9999px;"></div>
+    <div id="youtube-iframe-container"></div>
+
+    <audio id="bgm-audio" loop preload="auto" class="hidden">
+        <source src="" type="audio/mpeg" id="mp3-source">
+    </audio>
 
     <button id="music-toggle-btn" class="fixed top-4 left-4 z-[150] bg-white/80 backdrop-blur-md p-3 rounded-full shadow-lg border border-gray-200 hidden hover:scale-110 transition-transform">
         <span id="music-icon" class="text-xl">🎵</span>
@@ -322,20 +327,9 @@
             { text: "Jasamu dikenang, budimu disanjung. Terima kasih atas dedikasi dan amanah yang ditunjukkan sepanjang perkhidmatan.", quote: "Pemimpin yang hebat meninggalkan jejak yang takkan terpadam oleh masa." }
         ];
 
-        // --- AUDIO PLAYER LOGIC (DIRECT MP3 VIA JSDELIVR) ---
-        // Kita menggunakan objek Audio JavaScript terus supaya kebal dari sebarang sekatan
+        // --- SISTEM AUDIO (IFRAME DIRECT ATAU MP3 FALLBACK) ---
         let activeAudioType = 'none'; 
-        let bgmAudio = new Audio();
-        bgmAudio.loop = true;
-
-        // Lagu default (Direct MP3 dari GitHub pahanmy yang dibaca melalui jsDelivr supaya tak kena block)
-        const defaultMp3Url = "https://cdn.jsdelivr.net/gh/pahanmy/spark@main/Piano%2C%20sad%2C%20touching%2C%20majestic%2C%20nature%2C%20movie%20-%20Arachang.mp3";
-
-        let ytPlayer;
-        let isYtReady = false;
-        window.onYouTubeIframeAPIReady = function() {
-            isYtReady = true;
-        }
+        let currentVideoId = 'fj7fptSyDXM'; 
 
         function extractVideoID(url) {
             if(!url) return null;
@@ -345,27 +339,21 @@
         }
 
         function initAudio(audioUrl) {
-            // Kalau admin tak masukkan lagu, kita pakai lagu Nature Pahan!
-            const finalAudioUrl = audioUrl || defaultMp3Url;
-            
-            const ytId = extractVideoID(finalAudioUrl);
+            const ytId = extractVideoID(audioUrl);
             
             if (ytId) {
-                // Admin guna YouTube
                 activeAudioType = 'youtube';
-                if (isYtReady) {
-                    ytPlayer = new YT.Player('yt-player', {
-                        height: '0', width: '0', videoId: ytId,
-                        playerVars: { 'autoplay': 0, 'controls': 0, 'loop': 1, 'playlist': ytId }
-                    });
-                } else {
-                    setTimeout(() => initAudio(finalAudioUrl), 500);
-                }
-            } else {
-                // Admin/Default guna MP3
+                currentVideoId = ytId;
+            } else if (audioUrl && audioUrl.includes('.mp3')) {
                 activeAudioType = 'mp3';
-                bgmAudio.src = finalAudioUrl;
-                bgmAudio.load();
+                const sourceEl = document.getElementById('mp3-source');
+                const audioEl = document.getElementById('bgm-audio');
+                sourceEl.src = audioUrl;
+                audioEl.load();
+            } else {
+                // Default kepada lagu YouTube Pahan jika Admin tak letak / salah letak format
+                activeAudioType = 'youtube';
+                currentVideoId = 'fj7fptSyDXM';
             }
         }
         // --- TAMAT AUDIO LOGIC ---
@@ -382,7 +370,6 @@
                     const name = retireeData.name;
                     const dob = retireeData.dob;
                     
-                    // Inisialisasi Audio
                     initAudio(retireeData.audioUrl);
                     
                     const beautifulName = toTitleCase(name.toLowerCase());
@@ -424,8 +411,7 @@
 
                     loadWishes(currentRetireeName, currentRetireeDob);
                 } else {
-                    // Kalau DB takde lagi, letak lagu default
-                    initAudio(defaultMp3Url);
+                    initAudio(); // Gunakan default
                 }
             } catch (error) { console.error(error); }
         }
@@ -502,19 +488,21 @@
                 document.getElementById('share-card-btn').classList.remove('hidden');
                 
                 // Mula Mainkan Audio
-                if (activeAudioType === 'youtube' && ytPlayer && typeof ytPlayer.playVideo === 'function') {
-                    ytPlayer.playVideo();
+                if (activeAudioType === 'youtube') {
+                    // Masukkan iframe YouTube untuk paksa autoplay selepas interaksi pengguna
+                    document.getElementById('youtube-iframe-container').innerHTML = `<iframe width="10" height="10" src="https://www.youtube.com/embed/${currentVideoId}?autoplay=1&loop=1&playlist=${currentVideoId}" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
                     isMusicPlaying = true;
                     musicBtn.classList.remove('hidden');
                     musicIcon.classList.add('spin-slow');
                 } else if (activeAudioType === 'mp3') {
+                    const bgmAudio = document.getElementById('bgm-audio');
                     bgmAudio.play().then(() => {
                         isMusicPlaying = true;
                         musicBtn.classList.remove('hidden');
                         musicIcon.classList.add('spin-slow');
                     }).catch(e => {
                         console.log('Audio Autoplay Blocked:', e);
-                        musicBtn.classList.remove('hidden'); // Biar user play manual kalau browser masih block
+                        musicBtn.classList.remove('hidden'); 
                     });
                 }
 
@@ -522,16 +510,23 @@
                 setTimeout(() => { cover.style.display = 'none'; }, 1200);
             });
 
+            // Butang Toggle Muzik
             musicBtn.addEventListener('click', () => {
                 if(isMusicPlaying) {
-                    if (activeAudioType === 'youtube' && ytPlayer) ytPlayer.pauseVideo();
-                    else if (activeAudioType === 'mp3') bgmAudio.pause();
+                    if (activeAudioType === 'youtube') {
+                        document.getElementById('youtube-iframe-container').innerHTML = ''; // Padam iframe untuk pause
+                    } else if (activeAudioType === 'mp3') {
+                        document.getElementById('bgm-audio').pause();
+                    }
                     
                     musicIcon.classList.remove('spin-slow');
                     musicIcon.textContent = '🔈';
                 } else {
-                    if (activeAudioType === 'youtube' && ytPlayer) ytPlayer.playVideo();
-                    else if (activeAudioType === 'mp3') bgmAudio.play();
+                    if (activeAudioType === 'youtube') {
+                        document.getElementById('youtube-iframe-container').innerHTML = `<iframe width="10" height="10" src="https://www.youtube.com/embed/${currentVideoId}?autoplay=1&loop=1&playlist=${currentVideoId}" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
+                    } else if (activeAudioType === 'mp3') {
+                        document.getElementById('bgm-audio').play();
+                    }
                     
                     musicIcon.classList.add('spin-slow');
                     musicIcon.textContent = '🎵';
