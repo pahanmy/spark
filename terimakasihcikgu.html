@@ -20,7 +20,6 @@
         .font-script { font-family: 'Great Vibes', cursive; }
         .font-serif-elegant { font-family: 'Playfair Display', serif; }
         
-        /* Premium Moving Background */
         .bg-moving-gradient {
             background: linear-gradient(-45deg, #fdfaf6, #f3e5d8, #e8c3b9, #fdfaf6, #ebd5c1);
             background-size: 400% 400%;
@@ -55,8 +54,12 @@
 </head>
 <body class="bg-moving-gradient min-h-screen flex flex-col items-center overflow-x-hidden">
 
-    <audio id="bgm-audio" loop preload="auto" class="hidden"></audio>
-    <div id="yt-player" class="hidden"></div> <button id="music-toggle-btn" class="fixed top-4 left-4 z-[150] bg-white/80 backdrop-blur-md p-3 rounded-full shadow-lg border border-gray-200 hidden hover:scale-110 transition-transform">
+    <audio id="bgm-audio" loop preload="auto" class="hidden">
+        <source src="" type="audio/mpeg" id="mp3-source">
+    </audio>
+    <div id="yt-player" style="position: absolute; width: 0; height: 0; top: -9999px; left: -9999px;"></div>
+
+    <button id="music-toggle-btn" class="fixed top-4 left-4 z-[150] bg-white/80 backdrop-blur-md p-3 rounded-full shadow-lg border border-gray-200 hidden hover:scale-110 transition-transform">
         <span id="music-icon" class="text-xl">🎵</span>
     </button>
 
@@ -310,7 +313,7 @@
         let foundUserData = null;
         let cropper = null;
 
-        let baseSlideImages = []; // Akan dimuatkan dari database Admin
+        let baseSlideImages = [];
         let slideImages = []; 
 
         const wishesRef = collection(db, `artifacts/${appId}/public/data/spark_wishes`);
@@ -321,11 +324,10 @@
             { text: "Jasamu dikenang, budimu disanjung. Terima kasih atas dedikasi dan amanah yang ditunjukkan sepanjang perkhidmatan.", quote: "Pemimpin yang hebat meninggalkan jejak yang takkan terpadam oleh masa." }
         ];
 
-        // --- YOUTUBE PLAYER LOGIC ---
+        // --- YOUTUBE & AUDIO PLAYER LOGIC ---
         let ytPlayer;
         let isYtReady = false;
-        let isMusicPlaying = false;
-        let activeAudioType = 'none'; // 'none', 'mp3', or 'youtube'
+        let activeAudioType = 'none'; 
 
         window.onYouTubeIframeAPIReady = function() {
             isYtReady = true;
@@ -338,7 +340,14 @@
         }
 
         function initAudio(audioUrl) {
-            if (!audioUrl) return;
+            if (!audioUrl) {
+                // Cuba fallback ke source tag jika ada
+                const audioEl = document.getElementById('bgm-audio');
+                if (audioEl && audioEl.querySelector('source').src && audioEl.querySelector('source').src !== window.location.href) {
+                    activeAudioType = 'mp3';
+                }
+                return;
+            }
 
             const ytId = extractVideoID(audioUrl);
             if (ytId) {
@@ -349,13 +358,14 @@
                         playerVars: { 'autoplay': 0, 'controls': 0, 'loop': 1, 'playlist': ytId }
                     });
                 } else {
-                    // Jika API belum sedia, tunggu
                     setTimeout(() => initAudio(audioUrl), 500);
                 }
             } else {
                 activeAudioType = 'mp3';
                 const audioEl = document.getElementById('bgm-audio');
-                audioEl.src = audioUrl;
+                const sourceEl = document.getElementById('mp3-source');
+                sourceEl.src = audioUrl;
+                audioEl.load();
             }
         }
         // --- TAMAT YOUTUBE LOGIC ---
@@ -372,9 +382,10 @@
                     const name = retireeData.name;
                     const dob = retireeData.dob;
                     
-                    // Set Audio dari Admin
                     if(retireeData.audioUrl) {
                         initAudio(retireeData.audioUrl);
+                    } else {
+                        initAudio(""); // Akan guna fallback
                     }
                     
                     const beautifulName = toTitleCase(name.toLowerCase());
@@ -390,14 +401,12 @@
                     document.getElementById('recipient-name-hidden').value = name;
                     document.getElementById('recipient-dob').value = dob;
 
-                    // Load Slideshow Images dari Admin
                     baseSlideImages = [];
-                    if(retireeData.imageUrl) baseSlideImages.push(retireeData.imageUrl); // Utama
+                    if(retireeData.imageUrl) baseSlideImages.push(retireeData.imageUrl);
                     if(retireeData.slideshowImages && Array.isArray(retireeData.slideshowImages)) {
                         baseSlideImages = baseSlideImages.concat(retireeData.slideshowImages);
                     }
                     
-                    // Fallback jika Admin tak letak gambar
                     if(baseSlideImages.length === 0) {
                         baseSlideImages = [
                             "https://images.unsplash.com/photo-1577805947697-89e18249d767?q=80&w=2070&auto=format&fit=crop",
@@ -480,6 +489,7 @@
             
             const musicBtn = document.getElementById('music-toggle-btn');
             const musicIcon = document.getElementById('music-icon');
+            let isMusicPlaying = false;
 
             document.getElementById('open-card-btn').addEventListener('click', () => {
                 const cover = document.getElementById('welcome-cover');
@@ -491,8 +501,8 @@
                 document.getElementById('main-content').classList.add('fade-in');
                 document.getElementById('share-card-btn').classList.remove('hidden');
                 
-                // Mula Mainkan Audio Jika Ada
-                if (activeAudioType === 'youtube' && ytPlayer) {
+                // Mula Mainkan Audio
+                if (activeAudioType === 'youtube' && ytPlayer && typeof ytPlayer.playVideo === 'function') {
                     ytPlayer.playVideo();
                     isMusicPlaying = true;
                     musicBtn.classList.remove('hidden');
@@ -503,7 +513,7 @@
                         isMusicPlaying = true;
                         musicBtn.classList.remove('hidden');
                         musicIcon.classList.add('spin-slow');
-                    }).catch(e => console.log('Audio Autoplay Blocked.'));
+                    }).catch(e => console.log('Audio Autoplay Blocked:', e));
                 }
 
                 setTimeout(() => { startPremiumFireworks(); }, 400);
@@ -512,14 +522,12 @@
 
             musicBtn.addEventListener('click', () => {
                 if(isMusicPlaying) {
-                    // PAUSE
                     if (activeAudioType === 'youtube' && ytPlayer) ytPlayer.pauseVideo();
                     else if (activeAudioType === 'mp3') document.getElementById('bgm-audio').pause();
                     
                     musicIcon.classList.remove('spin-slow');
                     musicIcon.textContent = '🔈';
                 } else {
-                    // PLAY
                     if (activeAudioType === 'youtube' && ytPlayer) ytPlayer.playVideo();
                     else if (activeAudioType === 'mp3') document.getElementById('bgm-audio').play();
                     
@@ -578,7 +586,7 @@
 
             if (!captureArea) return alert("Ralat: Kawasan tidak dijumpai.");
             
-            btn.classList.add('hidden'); // Sorok butang share masa screenshot
+            btn.classList.add('hidden'); 
 
             const shareText = `🕊️ *TINTA KENANGAN & PENGHARGAAN* ✨\n\nBersama kita hargai jasa bakti dan kenangan indah bersama: *${name}*\n\nSudikanlah menitipkan doa dan ucapan ikhlas anda. Klik pautan di bawah untuk membuka naskhah kenangan ini:\n🔗 ${currentUrl}`;
 
@@ -592,7 +600,7 @@
                 });
 
                 canvas.toBlob(async (blob) => {
-                    btn.classList.remove('hidden'); // Tunjuk balik
+                    btn.classList.remove('hidden'); 
                     
                     if (!blob) return alert("Gagal menjana gambar. Sila cuba lagi.");
 
@@ -681,7 +689,6 @@
                 if (!querySnapshot.empty) {
                     const userData = querySnapshot.docs[0].data();
                     
-                    // PASTIKAN IA MENARIK URL GAMBAR DARI DATABASE
                     const userProfilePic = userData.profileImageUrl || userData.profilePic || userData.photoUrl || '';
                     
                     foundUserData = { 
@@ -807,7 +814,6 @@
                         
                         senderContainer.appendChild(textDiv);
 
-                        // TAMBAH GAMBAR PROFIL PENGUCAP JIKA ADA
                         if (wish.senderPhotoUrl) { 
                             const avatar = document.createElement('img'); 
                             avatar.crossOrigin = "anonymous"; 
