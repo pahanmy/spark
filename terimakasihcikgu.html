@@ -243,14 +243,12 @@
                                         </div>
                                     </div>
                                 </div>
-                                
                                 <div id="warga-station-miri-container">
                                     <label for="warga-station-select" class="block text-sm font-medium text-gray-700">Pilih Sekolah/Stesen</label>
                                     <select id="warga-station-select" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-[#bf953f] focus:border-[#bf953f]">
                                         <option value="">-- Sila Pilih --</option>
                                     </select>
                                 </div>
-
                                 <div id="warga-station-luar-container" class="hidden space-y-4">
                                     <div>
                                         <label for="warga-station-manual" class="block text-sm font-medium text-gray-700">Nama Sekolah/Stesen</label>
@@ -261,7 +259,6 @@
                                         <input type="text" id="warga-district-manual" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-[#bf953f] focus:border-[#bf953f] uppercase" placeholder="CONTOH: BINTULU, SARAWAK">
                                     </div>
                                 </div>
-
                                 <div>
                                     <label for="warga-position" class="block text-sm font-medium text-gray-700">Jawatan</label>
                                     <select id="warga-position" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-[#bf953f] focus:border-[#bf953f]">
@@ -431,6 +428,31 @@
             </div>
         </div>
     </div>
+    
+    <div id="edit-auth-modal" class="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm hidden">
+        <div class="bg-white rounded-3xl p-6 md:p-8 w-full max-w-sm mx-4 shadow-2xl relative text-center border border-white">
+            <h3 class="text-xl font-bold text-gray-800 font-serif-elegant mb-2">Pengesahan Penulis</h3>
+            <p class="text-xs text-gray-500 mb-6 leading-relaxed">Sila masukkan No. IC anda untuk menyunting ucapan ini.</p>
+            <input type="hidden" id="edit-doc-id">
+            <input type="text" id="edit-ic-input" placeholder="No. Kad Pengenalan" class="w-full text-center px-4 py-3.5 border border-gray-300 rounded-xl mb-3 focus:ring-[#bf953f] focus:border-[#bf953f] outline-none tracking-widest font-medium" maxlength="12" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+            <p id="edit-auth-error" class="text-red-500 text-xs hidden mb-4 font-semibold"></p>
+            <div class="flex justify-center gap-3 mt-4">
+                <button type="button" onclick="document.getElementById('edit-auth-modal').classList.add('hidden')" class="w-full py-3 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 font-bold text-sm transition">Batal</button>
+                <button type="button" id="verify-edit-btn" onclick="verifyEditIc()" class="w-full py-3 gold-foil text-white rounded-xl font-bold text-sm shadow-md hover:scale-105 transition">Sahkan</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="edit-message-modal" class="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm hidden">
+        <div class="bg-white/95 backdrop-blur-xl rounded-3xl p-6 md:p-8 w-full max-w-lg mx-4 shadow-2xl relative border border-white">
+            <h3 class="text-xl font-bold text-gray-800 font-serif-elegant mb-4 text-center">Sunting Tinta Kenangan</h3>
+            <textarea id="edit-message-textarea" rows="5" class="w-full px-4 py-3 border border-gray-300 rounded-xl shadow-sm focus:outline-none focus:ring-[#bf953f] focus:border-[#bf953f] transition text-sm bg-white" required></textarea>
+            <div class="flex justify-end gap-3 mt-6">
+                <button type="button" onclick="document.getElementById('edit-message-modal').classList.add('hidden')" class="px-6 py-2.5 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 font-bold text-sm transition">Batal</button>
+                <button type="button" id="save-edit-btn" onclick="submitEditMessage()" class="px-6 py-2.5 gold-foil text-white rounded-xl font-bold text-sm shadow-md hover:scale-105 transition">Simpan Perubahan</button>
+            </div>
+        </div>
+    </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
@@ -456,6 +478,7 @@
         let isRetireeAuthed = false;
         let baseSlideImages = [];
         let slideImages = []; 
+        window.loadedWishes = {}; // Variabel global untuk menyimpan data ucapan sementara
 
         const wishesRef = collection(db, `artifacts/${appId}/public/data/spark_wishes`);
         const staffRef = collection(db, `artifacts/${appId}/public/data/spark_participants`);
@@ -541,7 +564,6 @@
             dbReady = true; 
             fetchActiveRetiree();
             
-            // Muat Data Dropdown Pendaftaran
             loadSchoolsIntoDropdowns();
             loadPositionsIntoDropdown();
         });
@@ -620,7 +642,6 @@
             }
         }
 
-        // Animasi Tinta/UI
         function startTopSlideshow() {
             if(slideImages.length === 0) return;
             document.getElementById('top-slideshow-container').classList.remove('hidden');
@@ -713,7 +734,6 @@
                 }
             });
 
-            // Pastikan kategori sedia ada yang betul difokus
             handleCategoryChange();
         });
 
@@ -820,7 +840,7 @@
                     statusEl.textContent = 'Data ditemui. Sila coretkan kenangan anda di bawah.'; statusEl.className = 'text-sm mt-2 text-green-600 font-medium';
                 } else {
                     document.getElementById('manual-info-section').classList.remove('hidden'); 
-                    handleCategoryChange(); // Memastikan bahagian pendaftaran dibuka dengan susunan betul
+                    handleCategoryChange(); 
                     statusEl.innerHTML = 'Rekod tiada. Sila lengkapkan profil di bawah untuk <strong>didaftarkan ke SPARK secara automatik!</strong> 🎉'; statusEl.className = 'text-sm mt-2 text-blue-600 font-medium';
                 }
                 toggleWishFields(true); document.getElementById('wish-message').placeholder = "Catatkan doa, memori manis atau ucapan ringkas di sini...";
@@ -836,7 +856,6 @@
             const submitBtn = document.getElementById('submit-btn'); const successMsg = document.getElementById('success-msg'); const errorMsg = document.getElementById('error-msg');
             let senderName, senderPosition, senderStation, senderPhotoUrl = '', senderIsPro = false;
             
-            // Logik Tarik Data Pengguna
             if (foundUserData) {
                 senderName = foundUserData.name; senderPosition = foundUserData.position; senderStation = foundUserData.station; senderPhotoUrl = foundUserData.photoUrl; senderIsPro = foundUserData.isPro;
             } else {
@@ -867,7 +886,6 @@
             try {
                 const enteredIc = document.getElementById('sender-ic').value.replace(/[^0-9]/g, '');
                 
-                // 1. PENDAFTARAN AUTOMATIK (Hanya jika tiada dalam rekod)
                 if (!foundUserData) {
                     await addDoc(staffRef, {
                         ic: enteredIc, name: senderName.toUpperCase(), position: senderPosition.toUpperCase(), station: senderStation.toUpperCase(),
@@ -875,8 +893,8 @@
                     });
                 }
 
-                // 2. SIMPAN UCAPAN KE PANGKALAN DATA
                 await addDoc(wishesRef, {
+                    senderIc: enteredIc, // SIMPAN IC PENULIS UNTUK FUNGSI SUNTING (EDIT) KELAK
                     recipientName: document.getElementById('recipient-name-hidden').value, recipientDob: document.getElementById('recipient-dob').value,
                     senderName: senderName.toUpperCase(), senderPosition: senderPosition.toUpperCase(), senderStation: senderStation.toUpperCase(),
                     senderPhotoUrl: senderPhotoUrl || '', senderIsPro: senderIsPro, message: message, gift: selectedGift || '', imageUrl: photoUrl || '', 
@@ -891,17 +909,14 @@
             finally { submitBtn.disabled = false; submitBtn.textContent = "HANTAR TINTA KENANGAN"; toggleWishFields(false); }
         }
         
+        // --- FUNGSI REAKSI & BALASAN PESARA ---
         window.addReaction = async function(docId, type) {
             const btn = document.getElementById(`react-${type}-${docId}`);
             if(btn) {
-                const countSpan = btn.querySelector('span');
-                countSpan.innerText = parseInt(countSpan.innerText || 0) + 1;
+                const countSpan = btn.querySelector('span'); countSpan.innerText = parseInt(countSpan.innerText || 0) + 1;
                 btn.classList.add('scale-110'); setTimeout(() => btn.classList.remove('scale-110'), 150);
             }
-            try {
-                const docRef = doc(db, `artifacts/${appId}/public/data/spark_wishes`, docId);
-                await updateDoc(docRef, { [`reactions.${type}`]: increment(1) });
-            } catch(e) { console.error("Ralat menambah reaksi: ", e); }
+            try { const docRef = doc(db, `artifacts/${appId}/public/data/spark_wishes`, docId); await updateDoc(docRef, { [`reactions.${type}`]: increment(1) }); } catch(e) {}
         }
         
         window.promptRetireeReply = function(docId) {
@@ -912,47 +927,75 @@
             const ic = document.getElementById('retiree-ic-input').value.replace(/[^0-9]/g, '');
             const errorEl = document.getElementById('retiree-auth-error');
             if(ic.length !== 12) { errorEl.classList.remove('hidden'); errorEl.textContent = "Sila masukkan No. IC 12 digit."; return; }
-
-            errorEl.classList.add('hidden');
-            const btn = document.getElementById('verify-retiree-btn');
-            btn.textContent = "Menyemak..."; btn.disabled = true;
+            errorEl.classList.add('hidden'); const btn = document.getElementById('verify-retiree-btn'); btn.textContent = "Menyemak..."; btn.disabled = true;
 
             try {
-                const q = query(staffRef, where("ic", "==", ic), limit(1));
-                const snap = await getDocs(q);
-                
+                const q = query(staffRef, where("ic", "==", ic), limit(1)); const snap = await getDocs(q);
                 if(!snap.empty) {
-                    const data = snap.docs[0].data();
-                    const currentRecipient = document.getElementById('recipient-name-hidden').value.toUpperCase();
-                    
+                    const data = snap.docs[0].data(); const currentRecipient = document.getElementById('recipient-name-hidden').value.toUpperCase();
                     if(data.name && data.name.toUpperCase() === currentRecipient) {
-                        isRetireeAuthed = true;
-                        document.getElementById('retiree-auth-modal').classList.add('hidden');
-                        const docId = document.getElementById('reply-doc-id').value;
-                        showReplyBox(docId);
+                        isRetireeAuthed = true; document.getElementById('retiree-auth-modal').classList.add('hidden');
+                        showReplyBox(document.getElementById('reply-doc-id').value);
                     } else { errorEl.classList.remove('hidden'); errorEl.textContent = "Maaf, IC ini bukan milik pesara yang diraikan."; }
                 } else { errorEl.classList.remove('hidden'); errorEl.textContent = "IC anda tiada dalam rekod profil pengguna."; }
-            } catch(e) { errorEl.classList.remove('hidden'); errorEl.textContent = "Ralat semakan. Cuba sebentar lagi.";
-            } finally { btn.textContent = "Sahkan"; btn.disabled = false; }
+            } catch(e) { errorEl.classList.remove('hidden'); errorEl.textContent = "Ralat semakan. Cuba sebentar lagi."; } finally { btn.textContent = "Sahkan"; btn.disabled = false; }
         }
         
-        window.showReplyBox = function(docId) {
-            document.querySelectorAll('[id^="reply-container-"]').forEach(el => el.classList.add('hidden'));
-            document.getElementById(`reply-container-${docId}`).classList.remove('hidden');
-            document.getElementById(`reply-input-${docId}`).focus();
-        }
+        window.showReplyBox = function(docId) { document.querySelectorAll('[id^="reply-container-"]').forEach(el => el.classList.add('hidden')); document.getElementById(`reply-container-${docId}`).classList.remove('hidden'); document.getElementById(`reply-input-${docId}`).focus(); }
         
         window.submitRetireeReply = async function(docId) {
-            const input = document.getElementById(`reply-input-${docId}`);
-            const text = input.value.trim();
-            if(!text) return;
-
-            const wishDocRef = doc(db, `artifacts/${appId}/public/data/spark_wishes`, docId);
-            try {
-                await updateDoc(wishDocRef, { reply: text, replyAt: serverTimestamp() });
-            } catch (e) { alert("Gagal menghantar balasan. Sila periksa rangkaian internet."); }
+            const input = document.getElementById(`reply-input-${docId}`); const text = input.value.trim(); if(!text) return;
+            try { await updateDoc(doc(db, `artifacts/${appId}/public/data/spark_wishes`, docId), { reply: text, replyAt: serverTimestamp() }); } catch (e) { alert("Gagal menghantar balasan."); }
         }
 
+        // --- FUNGSI SUNTING (EDIT) UCAPAN ---
+        window.promptEditAuth = function(docId) {
+            document.getElementById('edit-doc-id').value = docId;
+            document.getElementById('edit-ic-input').value = '';
+            document.getElementById('edit-auth-error').classList.add('hidden');
+            document.getElementById('edit-auth-modal').classList.remove('hidden');
+        }
+
+        window.verifyEditIc = function() {
+            const enteredIc = document.getElementById('edit-ic-input').value;
+            const docId = document.getElementById('edit-doc-id').value;
+            const errorEl = document.getElementById('edit-auth-error');
+            const wishData = window.loadedWishes[docId];
+
+            if (!wishData || !wishData.senderIc) {
+                errorEl.textContent = "Maaf, komen lama anda tidak mempunyai rekod IC untuk disemak.";
+                errorEl.classList.remove('hidden'); return;
+            }
+
+            if (enteredIc === wishData.senderIc) {
+                document.getElementById('edit-auth-modal').classList.add('hidden');
+                document.getElementById('edit-message-textarea').value = wishData.message;
+                document.getElementById('edit-message-modal').classList.remove('hidden');
+            } else {
+                errorEl.textContent = "No. IC tidak sepadan dengan penulis ucapan asal.";
+                errorEl.classList.remove('hidden');
+            }
+        }
+
+        window.submitEditMessage = async function() {
+            const docId = document.getElementById('edit-doc-id').value;
+            const newMessage = document.getElementById('edit-message-textarea').value.trim();
+            const btn = document.getElementById('save-edit-btn');
+            
+            if (!newMessage) return;
+            btn.textContent = "Menyimpan..."; btn.disabled = true;
+
+            try {
+                await updateDoc(doc(db, `artifacts/${appId}/public/data/spark_wishes`, docId), {
+                    message: newMessage,
+                    editedAt: serverTimestamp()
+                });
+                document.getElementById('edit-message-modal').classList.add('hidden');
+            } catch (e) { alert("Gagal menyimpan perubahan. Sila cuba lagi."); } 
+            finally { btn.textContent = "Simpan Perubahan"; btn.disabled = false; }
+        }
+
+        // --- BINA SEMULA GRID KAD ---
         function loadWishes(name, dob) {
             const q = query(wishesRef, where("recipientName", "==", name), where("recipientDob", "==", dob), orderBy("sentAt", "desc"));
             const grid = document.getElementById('wishes-grid'); const loadingMsg = document.getElementById('loading-wishes'); const summaryBox = document.getElementById('happiness-summary'); const summaryGiftList = document.getElementById('summary-gift-list'); const noGiftText = document.getElementById('no-gift-text');
@@ -966,22 +1009,29 @@
                 else {
                     grid.innerHTML = ''; summaryBox.classList.remove('hidden'); let collectedGifts = [];
                     slideImages = [...baseSlideImages]; 
+                    window.loadedWishes = {}; 
 
-                    snapshot.docs.forEach((doc, index) => {
-                        const wish = doc.data(); const docId = doc.id;
+                    snapshot.docs.forEach((docSnap) => {
+                        const wish = docSnap.data(); const docId = docSnap.id;
+                        window.loadedWishes[docId] = wish; 
+                        
                         if(wish.gift) { collectedGifts.push(giftEmojis[wish.gift] || '🎁'); }
                         if(wish.imageUrl) { slideImages.push(wish.imageUrl); }
 
-                        // Kembalikan ke styling Kad asal (putih, glassmorphism)
                         const card = document.createElement('div'); 
-                        card.className = `wish-card rounded-2xl p-6 bg-white/90 backdrop-blur-md border border-white/50 shadow-lg flex flex-col break-inside-avoid relative overflow-hidden`;
+                        card.className = `wish-card rounded-2xl p-6 bg-white/90 backdrop-blur-md border border-white/50 shadow-lg flex flex-col break-inside-avoid relative overflow-hidden group`;
                         
                         let contentHTML = `<div class="absolute left-0 top-0 bottom-0 w-1 gold-foil opacity-80"></div>`;
+                        
+                        // Butang Edit Tersembunyi (Akan Muncul Bila Hover)
+                        contentHTML += `<button onclick="promptEditAuth('${docId}')" class="absolute top-4 right-4 text-gray-300 hover:text-[#bf953f] transition bg-white/80 hover:bg-white p-2 rounded-full shadow-[0_2px_4px_rgba(0,0,0,0.05)] border border-gray-100 z-10 opacity-0 group-hover:opacity-100 focus:opacity-100" title="Sunting Ucapan"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg></button>`;
 
                         if (wish.imageUrl) { contentHTML += `<div class="mb-5 rounded-xl overflow-hidden shadow-sm border border-gray-100"><img src="${wish.imageUrl}" class="w-full h-auto object-cover max-h-64 hover:scale-105 transition-transform duration-700" crossorigin="anonymous"></div>`; }
                         if (wish.gift) { contentHTML += `<div class="text-center mb-5 pb-5 border-b border-gray-200"><span class="text-3xl drop-shadow-sm">${giftEmojis[wish.gift] || '🎁'}</span><p class="text-[10px] font-medium text-gray-500 mt-2 uppercase tracking-widest">Tanda Ingatan: <span class="text-[#bf953f] font-bold">${wish.gift}</span></p></div>`; }
 
-                        contentHTML += `<p class="text-gray-800 text-base italic flex-grow whitespace-pre-wrap font-serif-elegant leading-loose">"${wish.message}"</p>`;
+                        // Teks (Ditambah perkataan disunting jika pernah diedit)
+                        let editedTag = wish.editedAt ? `<span class="text-[10px] text-gray-400 font-sans font-medium ml-1 bg-gray-100 px-1.5 py-0.5 rounded">(Disunting)</span>` : '';
+                        contentHTML += `<p class="text-gray-800 text-base italic flex-grow whitespace-pre-wrap font-serif-elegant leading-loose">"${wish.message}"${editedTag}</p>`;
 
                         if (wish.reply) {
                             contentHTML += `<div class="mt-4 p-4 bg-[#bf953f]/10 rounded-xl border border-[#bf953f]/20 relative"><div class="absolute -top-3 left-4 bg-white/95 px-3 py-0.5 rounded-full shadow-sm border border-[#bf953f]/30"><span class="text-[9px] font-bold text-[#bf953f] tracking-widest uppercase">Balasan Srikandi</span></div><p class="text-[13px] text-gray-800 italic mt-1 font-serif-elegant leading-relaxed">"${wish.reply}"</p></div>`;
@@ -997,10 +1047,8 @@
                             avatarHTML = `<img crossorigin="anonymous" src="${wish.senderPhotoUrl}" class="w-10 h-10 rounded-full object-cover p-0.5 bg-white ${borderStyle}">`; 
                         }
 
-                        // Susunan profil pengirim
                         contentHTML += `<div class="flex items-center justify-end mt-6 pt-4 border-t border-gray-200/60 gap-4"><div class="text-right"><p>${senderNameHTML}</p><p class="text-[10px] text-gray-500 font-medium leading-snug mt-1">${detailsText.join('<br>')}</p></div>${avatarHTML}</div>`;
 
-                        // Reaksi tanpa had & Butang Balas
                         const reactions = wish.reactions || {};
                         contentHTML += `
                             <div class="flex items-center gap-2 mt-4 pt-3 border-t border-gray-100">
