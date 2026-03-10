@@ -212,6 +212,9 @@
         let selectedAttendanceDate = null;
         const appId = firebaseConfig.projectId;
 
+        // SENARAI PERANAN YANG LAYAK DAPAT SIJIL PENGHARGAAN
+        const specialRoles = ['Penceramah', 'Fasilitator', 'Urusetia', 'Pengacara Bengkel', 'Pembaca Doa', 'Teknikal Siaraya'];
+
         try {
             const app = initializeApp(firebaseConfig);
             db = getFirestore(app);
@@ -243,7 +246,7 @@
             const versionInfo = document.getElementById('version-info');
             if(versionInfo) {
                 const year = new Date().getFullYear();
-                versionInfo.textContent = `Versi 2.3 (${year})`;
+                versionInfo.textContent = `Versi 2.4 (${year})`;
             }
         }
 
@@ -263,7 +266,7 @@
                     document.getElementById('program-time').textContent = formatTimeRange(currentProgram.startTime, currentProgram.endTime);
                     
                     populateStationFilter();
-                    renderDateTabsAndAttendance(); // Kemas kini Tab dan Kehadiran
+                    renderDateTabsAndAttendance(); 
                 } else {
                     document.getElementById('loading-state').innerHTML = `<p class="text-red-500">Program dengan kunci "${programKey}" tidak ditemui.</p>`;
                 }
@@ -273,7 +276,6 @@
             });
         }
         
-        // --- FUNGSI UNTUK TAB TARIKH & STATISTIK HARIAN ---
         function formatDate(date) { 
             if (!date) return ''; 
             const d = typeof date === 'string' ? new Date(date.split('T')[0] + 'T00:00:00') : (date.toDate ? date.toDate() : date); 
@@ -308,7 +310,6 @@
                     const dateStr = date.toISOString().split('T')[0];
                     const isActive = dateStr === selectedAttendanceDate;
                     
-                    // Kira statistik kehadiran untuk tarikh ini
                     const dailyCount = allParticipants.filter(p => p.time && p.time.startsWith(dateStr)).length;
                     let statText = `${dailyCount} Hadir`;
                     if (kuota > 0) {
@@ -368,7 +369,6 @@
             currentPage = 1;
             renderParticipantTable();
         }
-        // --- TAMAT FUNGSI TAB TARIKH ---
 
         function formatTimeMalay(timeString) {
             if (!timeString) return '';
@@ -406,7 +406,6 @@
             
             let filtered = [...allParticipants];
 
-            // Tapis mengikut tarikh tab yang dipilih
             const isSingleDayProgram = currentProgram.startDate === currentProgram.endDate;
             if (!isSingleDayProgram && selectedAttendanceDate) {
                 filtered = filtered.filter(p => p.time && p.time.startsWith(selectedAttendanceDate));
@@ -445,9 +444,7 @@
             } else {
                 listBody.innerHTML = paginatedItems.map((p, index) => {
                     const role = p.role || 'Peserta';
-                    const isAppreciationEligible = ['Penceramah', 'Fasilitator', 'Urusetia'].includes(role);
-                    
-                    // Format masa rekod
+                    const isAppreciationEligible = specialRoles.includes(role);
                     const timeRecord = p.time ? new Date(p.time).toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit' }) : '-';
 
                     return `
@@ -468,15 +465,16 @@
                             ${maskIc(p.ic)}<br>
                             <span class="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">${timeRecord}</span>
                         </td>
-                        <td class="px-6 py-4 text-sm">
-                            <div class="flex w-full items-center justify-center">
-                                <div class="inline-flex items-center bg-gray-200 rounded-lg p-1 space-x-1">
-                                    <button title="Peserta" onclick="updateParticipantRole('${p.ic}', 'Peserta')" class="btn rounded-md px-2 py-1 text-xs font-semibold transition-colors duration-200 ${role === 'Peserta' ? 'bg-white text-indigo-700 shadow' : 'bg-transparent text-gray-600 hover:bg-gray-300'}">Peserta</button>
-                                    <button title="Fasilitator" onclick="updateParticipantRole('${p.ic}', 'Fasilitator')" class="btn rounded-md px-2 py-1 text-xs font-semibold transition-colors duration-200 ${role === 'Fasilitator' ? 'bg-white text-indigo-700 shadow' : 'bg-transparent text-gray-600 hover:bg-gray-300'}">Fasi</button>
-                                    <button title="Urusetia" onclick="updateParticipantRole('${p.ic}', 'Urusetia')" class="btn rounded-md px-2 py-1 text-xs font-semibold transition-colors duration-200 ${role === 'Urusetia' ? 'bg-white text-indigo-700 shadow' : 'bg-transparent text-gray-600 hover:bg-gray-300'}">Urusetia</button>
-                                    <button title="Penceramah" onclick="updateParticipantRole('${p.ic}', 'Penceramah')" class="btn rounded-md px-2 py-1 text-xs font-semibold transition-colors duration-200 ${role === 'Penceramah' ? 'bg-white text-indigo-700 shadow' : 'bg-transparent text-gray-600 hover:bg-gray-300'}">Penceramah</button>
-                                </div>
-                            </div>
+                        <td class="px-6 py-4 text-sm text-center">
+                            <select onchange="updateParticipantRole('${p.ic}', this.value)" class="mt-1 block w-full px-3 py-1.5 text-xs border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 font-semibold text-gray-700">
+                                <option value="Peserta" ${role === 'Peserta' ? 'selected' : ''}>Peserta</option>
+                                <option value="Penceramah" ${role === 'Penceramah' ? 'selected' : ''}>Penceramah</option>
+                                <option value="Fasilitator" ${role === 'Fasilitator' ? 'selected' : ''}>Fasilitator</option>
+                                <option value="Urusetia" ${role === 'Urusetia' ? 'selected' : ''}>Urusetia</option>
+                                <option value="Pengacara Bengkel" ${role === 'Pengacara Bengkel' ? 'selected' : ''}>Pengacara Bengkel</option>
+                                <option value="Pembaca Doa" ${role === 'Pembaca Doa' ? 'selected' : ''}>Pembaca Doa</option>
+                                <option value="Teknikal Siaraya" ${role === 'Teknikal Siaraya' ? 'selected' : ''}>Teknikal Siaraya</option>
+                            </select>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
                             <button onclick="promptDeleteParticipant('${p.ic}', '${p.name}')" class="text-gray-400 hover:text-red-600 p-2 rounded-full" title="Padam Peserta">
@@ -575,7 +573,11 @@
                 switch (role) {
                     case 'Penceramah': return 1;
                     case 'Fasilitator': return 2;
-                    case 'Urusetia': return 3;
+                    case 'Urusetia':
+                    case 'Pengacara Bengkel':
+                    case 'Pembaca Doa':
+                    case 'Teknikal Siaraya':
+                         return 3;
                     case 'Peserta': 
                     default:
                         return 8;
@@ -852,7 +854,6 @@
             const compareBy = document.querySelector('input[name="compare-by"]:checked').value;
             const pastedRows = pastedData.split('\n').filter(row => row.trim() !== '');
 
-            // Gunakan senarai yang telah ditapis mengikut tab tarikh
             const availableAttendees = [...getFilteredAndSortedParticipants()];
 
             if (compareBy === 'station') {
@@ -1058,11 +1059,13 @@
             
             .event-title-label { font-size: 14px; color: #555; }
             .event-title { font-size: 20px; font-weight: 700; font-style: italic; margin: 10px 0; color: #111; }
-            .event-date { font-size: 14px; font-weight: 500; margin-bottom: 30px; color: #444; text-transform: uppercase; }
+            .event-date { font-size: 14px; font-weight: 500; margin-bottom: 5px; color: #444; text-transform: uppercase; }
+            .duration-text { font-size: 15px; font-weight: 700; color: #d4af37; margin-bottom: 25px; letter-spacing: 1.5px; }
             
             .divider { width: 100px; height: 2px; background: linear-gradient(90deg, #d4af37, #4B40FF); margin: 0 auto 10px auto; border: none; }
             
             .signature-section { margin-top: auto; padding-bottom: 10px; }
+            .signatory-name { font-weight: 700; font-size: 16px; letter-spacing: 1px; text-transform: uppercase; background: linear-gradient(90deg, #4B40FF, #3a32cc); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; text-fill-color: transparent; }
             .signatory-title { font-size: 12px; font-weight: 500; color: #333; line-height: 1.4; margin-bottom: 8px; }
             .digital-disclaimer { font-size: 10px; font-style: italic; color: #777; margin: 0; }
             
@@ -1072,11 +1075,13 @@
             
             @media print { 
                 body { background: none; -webkit-print-color-adjust: exact; print-color-adjust: exact; } 
-                .certificate-container { box-shadow: none; margin: 0; page-break-after: always; }
+                .certificate-container { box-shadow: none; margin: 0 auto; transform: scale(0.9); transform-origin: top center; page-break-after: always; }
                 h1 { background: none !important; -webkit-text-fill-color: #4B40FF !important; color: #4B40FF !important; text-shadow: none !important; }
                 .role-badge { color: #d4af37 !important; }
                 .certificate-content { border: 6px solid #4B40FF !important; }
                 .divider { background: #4B40FF !important; }
+                .signatory-name { background: none !important; -webkit-text-fill-color: #4B40FF !important; color: #4B40FF !important; }
+                @page { size: A4 portrait; margin: 0; }
             }
         `;
 
@@ -1093,6 +1098,44 @@
                 dateStr = `PADA ${sDate.toLocaleDateString('ms-MY', { day: '2-digit', month: 'long', year: 'numeric' }).toUpperCase()}`;
             } else {
                 dateStr = `DARI ${sDate.toLocaleDateString('ms-MY', { day: '2-digit', month: '2-digit' })} HINGGA ${eDate.toLocaleDateString('ms-MY', { day: '2-digit', month: 'long', year: 'numeric' }).toUpperCase()}`;
+            }
+
+            // --- PENGIRAAN JAM KREDIT AUTOMATIK ---
+            let jumlahJam = 0;
+            if (currentProgram.jam || currentProgram.hours || currentProgram.masa) {
+                jumlahJam = parseFloat(currentProgram.jam || currentProgram.hours || currentProgram.masa);
+            } else if (currentProgram.startTime && currentProgram.endTime) {
+                try {
+                    const parseTime = (timeStr) => {
+                        const [h, m] = String(timeStr).split(':').map(Number);
+                        return h + (m ? (m / 60) : 0);
+                    };
+                    const jamMula = parseTime(currentProgram.startTime);
+                    const jamTamat = parseTime(currentProgram.endTime);
+                    let jamSehari = jamTamat - jamMula;
+                    if (jamSehari > 0) {
+                        const diffTime = Math.abs(eDate.getTime() - sDate.getTime());
+                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+                        jumlahJam = Math.round((jamSehari * diffDays) * 10) / 10;
+                    }
+                } catch(e) { console.error("Ralat mengira jam:", e); }
+            }
+            const masaHTML = jumlahJam > 0 ? `<p class="duration-text">JUMLAH JAM KREDIT: ${jumlahJam} JAM</p>` : '';
+
+            // --- LOGIK TANDATANGAN ---
+            const tarikhProgram = new Date(currentProgram.startDate);
+            const tarikhBersara = new Date('2026-03-05');
+            let signatureHTML = "";
+            if (tarikhProgram <= tarikhBersara) {
+                signatureHTML = `
+                    <p class="signatory-name">MARIAM HAJI MONEK</p>
+                    <p class="signatory-title">PEGAWAI PENDIDIKAN DAERAH,<br>PEJABAT PENDIDIKAN DAERAH MIRI.</p>
+                `;
+            } else {
+                signatureHTML = `
+                    <p class="signatory-name" style="color: transparent; user-select: none;">-</p>
+                    <p class="signatory-title">PEGAWAI PENDIDIKAN DAERAH,<br>PEJABAT PENDIDIKAN DAERAH MIRI.</p>
+                `;
             }
             
             const serial = `SPK-H/${currentProgram.id.substring(0,4)}/${ic.slice(-4)}`;
@@ -1117,10 +1160,12 @@
                     <p class="event-title">${course}</p>
                     <p class="event-date">${dateStr}</p>
                     
+                    ${masaHTML}
+                    
                     <hr class="divider">
                     
                     <div class="signature-section">
-                        <p class="signatory-title">PEGAWAI PENDIDIKAN DAERAH,<br>PEJABAT PENDIDIKAN DAERAH MIRI.</p>
+                        ${signatureHTML}
                         <p class="digital-disclaimer">(Sijil ini dijana secara digital dan tidak memerlukan tandatangan)</p>
                     </div>
                     
@@ -1142,9 +1187,9 @@
         };
 
         window.downloadAllAppreciationCertificates = function() {
-            // Gunakan list yang sedang di-filter supaya ia menyokong cetakan pukal ikut tab
-            const list = getFilteredAndSortedParticipants().filter(p => ['Penceramah', 'Fasilitator', 'Urusetia'].includes(p.role));
-            if(list.length === 0) return alert("Tiada Penceramah, Fasilitator atau Urusetia dalam tab/senarai ini untuk dicetak.");
+            const list = getFilteredAndSortedParticipants().filter(p => specialRoles.includes(p.role));
+            if(list.length === 0) return alert("Tiada Penceramah, Fasilitator, Urusetia atau AJK dalam tab/senarai ini untuk dicetak.");
+            
             const printWindow = window.open('', '_blank');
             let content = `<html><head><title>Sijil Pukal - ${currentProgram.name}</title><style>${certificateStyles}</style></head><body>`;
             list.forEach(p => { content += generateCertificateHTMLString(p); });
@@ -1172,6 +1217,22 @@
                 dateStr = `DARI ${sDate.toLocaleDateString('ms-MY', { day: '2-digit', month: '2-digit' })} HINGGA ${eDate.toLocaleDateString('ms-MY', { day: '2-digit', month: 'long', year: 'numeric' }).toUpperCase()}`;
             }
             
+            // --- LOGIK TANDATANGAN ---
+            const tarikhProgram = new Date(currentProgram.startDate);
+            const tarikhBersara = new Date('2026-03-05');
+            let signatureHTML = "";
+            if (tarikhProgram <= tarikhBersara) {
+                signatureHTML = `
+                    <p class="signatory-name">MARIAM HAJI MONEK</p>
+                    <p class="signatory-title">PEGAWAI PENDIDIKAN DAERAH,<br>PEJABAT PENDIDIKAN DAERAH MIRI.</p>
+                `;
+            } else {
+                signatureHTML = `
+                    <p class="signatory-name" style="color: transparent; user-select: none;">-</p>
+                    <p class="signatory-title">PEGAWAI PENDIDIKAN DAERAH,<br>PEJABAT PENDIDIKAN DAERAH MIRI.</p>
+                `;
+            }
+
             const serial = `SPK-K/${currentProgram.id.substring(0,4)}/KHAS`;
             const qr = `https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=VERIFIED-${encodeURIComponent(role)}-${encodeURIComponent(name)}`;
 
@@ -1196,7 +1257,7 @@
                     <hr class="divider">
                     
                     <div class="signature-section">
-                        <p class="signatory-title">PEGAWAI PENDIDIKAN DAERAH,<br>PEJABAT PENDIDIKAN DAERAH MIRI.</p>
+                        ${signatureHTML}
                         <p class="digital-disclaimer">(Sijil ini dijana secara digital dan tidak memerlukan tandatangan)</p>
                     </div>
                     
