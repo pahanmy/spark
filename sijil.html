@@ -254,7 +254,6 @@
             if (locked > 0) summaryEl.innerHTML += ` <br><span class="text-xs text-gray-500 mt-2 inline-block bg-gray-100 px-3 py-1.5 rounded-lg border border-gray-200 leading-snug">Terdapat <b>${locked} sijil arkib</b>. <a href="sponsor.html" class="text-indigo-600 font-bold">Ketahui Lanjut</a></span>`;
         }
 
-        // --- FUNGSI KRITIKAL YANG DIPERBAIKI ---
         function getCertificateStatus(prog, part, isPro) {
             let result = { isRelevant: false, isLocked: false, html: '', btn: '', type: 'NONE' };
             
@@ -263,7 +262,6 @@
             const isSpecial = ['penceramah', 'fasilitator', 'urusetia'].includes(roleRaw);
             
             // 2. CHECK UTAMA: Jika Penceramah/Fasi/Urusetia, TERUS BAGI SIJIL (Bypass semua sekatan)
-            // Ini untuk selesaikan masalah anda dimana sijil tak keluar.
             if (isSpecial) {
                 result.isRelevant = true;
                 result.type = 'DOWNLOAD';
@@ -271,7 +269,7 @@
                 result.btn = `<button onclick="printCertificate('${prog.key}')" class="w-full flex items-center justify-center gap-1 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold rounded shadow-sm uppercase transition-all">
                     <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg> Muat Turun
                 </button>`;
-                return result; // <--- RETURN TERUS, TAK PERLU CEK TARIKH ATAU BORANG
+                return result; 
             }
 
             // 3. Jika BUKAN Special, baru masuk logik biasa (Peserta)
@@ -291,7 +289,7 @@
                 const evals = prog.evaluations || [];
                 const hasEvaluated = evals.some(e => e.ic === part.ic);
 
-                // Logik Penilaian (Hanya untuk Peserta Biasa)
+                // Logik Penilaian
                 if (prog.evaluationNeeded === true && !hasEvaluated) {
                     result.isRelevant = true;
                     result.type = 'EVAL';
@@ -328,7 +326,6 @@
                 const dateStr = dateObj.toLocaleDateString('ms-MY', { day: 'numeric', month: 'short' });
                 const yearStr = dateObj.getFullYear();
                 
-                // Debugging Role - Paparkan role sebenar di sebelah nama program
                 const roleRaw = item.participant.role ? item.participant.role.toUpperCase() : 'PESERTA';
                 const roleBadge = (roleRaw !== 'PESERTA') 
                     ? `<span class="ml-2 px-1.5 py-0.5 rounded bg-amber-50 text-amber-600 border border-amber-100 text-[9px] font-bold uppercase tracking-wider">${roleRaw}</span>` 
@@ -362,10 +359,34 @@
             const participantIC = participant.ic;
             const courseName = program.name.toUpperCase();
             
-            // --- REKOD MASA / JAM ---
-            // Kod ini akan mencari field 'jam', 'hours', atau 'masa' dalam Firestore anda. 
-            const rekodMasa = program.jam || program.hours || program.masa || ""; 
-            const masaHTML = rekodMasa ? `<p class="duration-text">JUMLAH JAM: ${rekodMasa} JAM</p>` : '';
+            // --- 1. PENGIRAAN JAM KREDIT AUTOMATIK ---
+            let jumlahJam = 0;
+            
+            if (program.jam || program.hours || program.masa) {
+                jumlahJam = parseFloat(program.jam || program.hours || program.masa);
+            } else if (program.startTime && program.endTime) {
+                try {
+                    const parseTime = (timeStr) => {
+                        const [h, m] = String(timeStr).split(':').map(Number);
+                        return h + (m ? (m / 60) : 0);
+                    };
+                    
+                    const jamMula = parseTime(program.startTime);
+                    const jamTamat = parseTime(program.endTime);
+                    let jamSehari = jamTamat - jamMula;
+                    
+                    if (jamSehari > 0) {
+                        const sDateObj = new Date(program.startDate);
+                        const eDateObj = new Date(program.endDate || program.startDate);
+                        const diffTime = Math.abs(eDateObj.getTime() - sDateObj.getTime());
+                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+                        
+                        jumlahJam = Math.round((jamSehari * diffDays) * 10) / 10; 
+                    }
+                } catch(e) { console.error("Ralat mengira jam:", e); }
+            }
+            
+            const masaHTML = jumlahJam > 0 ? `<p class="duration-text">JUMLAH JAM KREDIT: ${jumlahJam} JAM</p>` : '';
             
             // Logic Role
             const roleRaw = participant.role ? String(participant.role).trim().toLowerCase() : 'peserta';
@@ -381,6 +402,27 @@
             let dateString = sDate.getTime() === eDate.getTime() 
                 ? `pada ${sDate.toLocaleDateString('ms-MY', { day: '2-digit', month: 'long', year: 'numeric' }).toUpperCase()}`
                 : `pada ${sDate.toLocaleDateString('ms-MY', { day: '2-digit' })} hingga ${eDate.toLocaleDateString('ms-MY', { day: '2-digit', month: 'long', year: 'numeric' }).toUpperCase()}`;
+
+            // --- 2. LOGIK TANDATANGAN (BERSARA SELEPAS 5 MAC 2026) ---
+            const tarikhProgram = new Date(program.startDate); 
+            const tarikhBersara = new Date('2026-03-05');
+            let signatureHTML = "";
+            
+            if (tarikhProgram <= tarikhBersara) {
+                signatureHTML = `
+                    <div class="signature-section">
+                        <p class="signatory-name">MARIAM HAJI MONEK</p>
+                        <p class="signatory-title">PEGAWAI PENDIDIKAN DAERAH,<br>PEJABAT PENDIDIKAN DAERAH MIRI.</p>
+                    </div>
+                `;
+            } else {
+                signatureHTML = `
+                    <div class="signature-section">
+                        <p class="signatory-name" style="color: transparent; user-select: none;">-</p>
+                        <p class="signatory-title">PEGAWAI PENDIDIKAN DAERAH,<br>PEJABAT PENDIDIKAN DAERAH MIRI.</p>
+                    </div>
+                `;
+            }
 
             const prefix = isSpecial ? "SPK-H" : "SPK";
             const serialNumber = `${prefix}/${program.key || 'GEN'}/${participantIC.slice(-4)}`;
@@ -411,7 +453,7 @@
                         .recipient-ic { font-size: 16px; font-weight: 500; margin-bottom: 30px; color: #444; }
                         .event-title { font-size: 22px; font-weight: 700; font-style: italic; margin: 10px 0; color: #111; }
                         .event-date { font-size: 16px; font-weight: 500; margin-bottom: 5px; color: #444; }
-                        .duration-text { font-size: 14px; font-weight: 700; color: #d4af37; margin-bottom: 30px; letter-spacing: 1px; }
+                        .duration-text { font-size: 15px; font-weight: 700; color: #d4af37; margin-bottom: 25px; letter-spacing: 1.5px; }
                         .divider { width: 100px; height: 2px; background: linear-gradient(90deg, #d4af37, #4B40FF); margin: 0 auto 30px auto; border: none; }
                         .signature-section { margin-top: auto; }
                         .signatory-name { font-weight: 700; font-size: 16px; text-transform: uppercase; color: #4B40FF; }
@@ -419,19 +461,10 @@
                         .footer-note { font-size: 10px; font-style: italic; margin-top: 30px; color: #999; }
                         .gen-timestamp { position: absolute; bottom: 5px; right: 10px; font-size: 9px; color: #aaa; }
                         
-                        /* --- SETTING PRINT SKALA 90% --- */
+                        /* --- 3. SETTING PRINT SKALA 90% --- */
                         @media print { 
-                            body { 
-                                background: none; 
-                                -webkit-print-color-adjust: exact;
-                                print-color-adjust: exact;
-                            } 
-                            .certificate-container { 
-                                box-shadow: none; 
-                                margin: 0 auto; 
-                                transform: scale(0.9); 
-                                transform-origin: top center; 
-                            } 
+                            body { background: none; -webkit-print-color-adjust: exact; print-color-adjust: exact; } 
+                            .certificate-container { box-shadow: none; margin: 0 auto; transform: scale(0.9); transform-origin: top center; } 
                         }
                     </style>
                 </head>
@@ -451,12 +484,11 @@
                             <p class="intro-text">${eventLabel}</p>
                             <p class="event-title">${courseName}</p>
                             <p class="event-date">${dateString}</p>
+                            
                             ${masaHTML}
+                            
                             <hr class="divider">
-                            <div class="signature-section">
-                                <p class="signatory-name">MARIAM HAJI MONEK</p>
-                                <p class="signatory-title">PEGAWAI PENDIDIKAN DAERAH,<br>PEJABAT PENDIDIKAN DAERAH MIRI.</p>
-                            </div>
+                            ${signatureHTML}
                             <p class="footer-note">Sijil ini adalah cetakan komputer, tandatangan tidak diperlukan.</p>
                             <div class="gen-timestamp">Dijana: ${genDate}</div>
                         </div>
