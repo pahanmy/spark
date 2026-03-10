@@ -177,7 +177,6 @@
         
         onAuthStateChanged(auth, async (user) => { if (user) main(); else { try { await signInAnonymously(auth); } catch (error) { console.error("Error signing in:", error); } } });
 
-        // Helper untuk format tarikh & masa dengan betulan masa tempatan (Zon Waktu)
         function getLocalDateString(d) {
             const year = d.getFullYear();
             const month = String(d.getMonth() + 1).padStart(2, '0');
@@ -228,7 +227,6 @@
                 document.getElementById('program-location').textContent = currentProgram.location;
                 document.getElementById('program-time').textContent = formatTimeRange(currentProgram.startTime, currentProgram.endTime);
                 
-                // Paparkan tarikh yang spesifik jika ada, kalau tiada papar julat tarikh
                 if (evaluationDate) {
                     document.getElementById('program-date').textContent = formatShortDate(evaluationDate);
                 } else {
@@ -238,7 +236,7 @@
                 document.getElementById('loading-state').classList.add('hidden');
                 document.getElementById('ic-card').classList.remove('hidden');
                 
-                renderStats(); // Panggil paparan statistik mini
+                renderStats(); 
             } else { showMessage('error', 'Penilaian Tidak Ditemui', 'Sila pastikan anda menggunakan pautan yang betul.'); }
         }
 
@@ -246,10 +244,8 @@
             const container = document.getElementById('mini-stats-container');
             if (!currentProgram) return;
 
-            // 1. Tentukan tarikh sasaran
             const targetDate = evaluationDate || getLocalDateString(new Date());
 
-            // 2. Kira jumlah kehadiran (attendance) untuk hari tersebut
             const attendanceList = currentProgram.attendance || [];
             const dailyAttendance = attendanceList.filter(a => {
                 if (!a.time) return false;
@@ -257,25 +253,21 @@
             });
             const totalAttendance = dailyAttendance.length;
 
-            // 3. Kira jumlah borang dijawab (evaluations) untuk hari tersebut
             const evaluations = currentProgram.evaluations || [];
             const dailyEvals = evaluations.filter(ev => ev.evalDate === targetDate);
             const totalEvals = dailyEvals.length;
 
-            // Sembunyikan jika tiada kehadiran langsung pada hari tersebut
             if (totalAttendance === 0 && totalEvals === 0) {
                 container.classList.add('hidden');
                 return;
             }
 
-            // 4. Kira Peratusan
             let pct = 0;
             if (totalAttendance > 0) {
                 pct = Math.round((totalEvals / totalAttendance) * 100);
-                if (pct > 100) pct = 100; // Langkah berjaga-jaga
+                if (pct > 100) pct = 100; 
             }
 
-            // 5. Paparan UI Mini dan Kompak
             container.innerHTML = `
                 <div class="bg-purple-50 rounded-xl p-3 border border-purple-100 shadow-sm">
                     <div class="flex justify-between items-end mb-2">
@@ -347,7 +339,6 @@
                 return p.ic === ic; 
             });
 
-            // Beri makluman boleh muat turun Sijil dari Halaman Utama (jika sudah daftar)
             if (isAlreadyEvaluated) { 
                 const currentYear = new Date().getFullYear();
                 return showMessage('warning', 'Telah Menjawab', `Anda telah pun memberi maklum balas penilaian pada tarikh ini.<br><br>Sijil penyertaan atau penghargaan anda boleh disemak dan dimuat turun melalui <a href="index.html" class="text-purple-600 font-bold hover:underline">Halaman Utama SPARK</a> sepanjang tahun <b>${currentYear}</b>.`); 
@@ -369,7 +360,7 @@
             renderEvaluationForm();
             document.getElementById('evaluator-name').innerHTML = `PENILAI: <span class="font-bold text-purple-700 ml-1 uppercase border-b-2 border-purple-200 pb-0.5">${participantInfo.name}</span>`;
             document.getElementById('ic-card').classList.add('hidden');
-            document.getElementById('mini-stats-container').classList.add('hidden'); // Sembunyikan ketika menjawab
+            document.getElementById('mini-stats-container').classList.add('hidden'); 
             document.getElementById('evaluation-form-card').classList.remove('hidden');
         }
 
@@ -412,12 +403,10 @@
             try {
                 await updateDoc(programRef, { evaluations: arrayUnion(newEvaluation) });
                 
-                // Kemas kini array di lokal memori dan jana carta terkini
                 if(!currentProgram.evaluations) currentProgram.evaluations = [];
                 currentProgram.evaluations.push(newEvaluation);
                 renderStats();
 
-                // Beri makluman boleh muat turun Sijil dari Halaman Utama (selepas berjaya nilai)
                 const currentYear = new Date().getFullYear();
                 if (currentProgram.eCertificateNeeded) {
                     const successTitle = `Tahniah, ${participantInfo.name}!`;
@@ -445,7 +434,7 @@
             const msgTitle = document.getElementById('message-title');
             const msgBody = document.getElementById('message-body');
             msgTitle.textContent = title;
-            msgBody.innerHTML = body; // Tukar innerHTML untuk pautan html
+            msgBody.innerHTML = body; 
             
             const certButtonContainer = document.getElementById('cert-button-container');
             if (showCertButton) {
@@ -480,6 +469,49 @@
                 dateString = `pada ${startDate.toLocaleDateString('ms-MY', { day: '2-digit' })} hingga ${endDate.toLocaleDateString('ms-MY', { day: '2-digit', month: 'long', year: 'numeric' }).toUpperCase()}`;
             }
 
+            // --- 1. PENGIRAAN JAM KREDIT AUTOMATIK ---
+            let jumlahJam = 0;
+            if (currentProgram.jam || currentProgram.hours || currentProgram.masa) {
+                jumlahJam = parseFloat(currentProgram.jam || currentProgram.hours || currentProgram.masa);
+            } else if (currentProgram.startTime && currentProgram.endTime) {
+                try {
+                    const parseTime = (timeStr) => {
+                        const [h, m] = String(timeStr).split(':').map(Number);
+                        return h + (m ? (m / 60) : 0);
+                    };
+                    const jamMula = parseTime(currentProgram.startTime);
+                    const jamTamat = parseTime(currentProgram.endTime);
+                    let jamSehari = jamTamat - jamMula;
+                    if (jamSehari > 0) {
+                        const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
+                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+                        jumlahJam = Math.round((jamSehari * diffDays) * 10) / 10;
+                    }
+                } catch(e) { console.error("Ralat mengira jam:", e); }
+            }
+            const masaHTML = jumlahJam > 0 ? `<p class="duration-text">JUMLAH JAM KREDIT: ${jumlahJam} JAM</p>` : '';
+
+            // --- 2. LOGIK TANDATANGAN (BERSARA SELEPAS 5 MAC 2026) ---
+            const tarikhProgram = new Date(currentProgram.startDate); 
+            const tarikhBersara = new Date('2026-03-05');
+            let signatureHTML = "";
+            
+            if (tarikhProgram <= tarikhBersara) {
+                signatureHTML = `
+                    <div class="signature-section">
+                        <p class="signatory-name">MARIAM HAJI MONEK</p>
+                        <p class="signatory-title">PEGAWAI PENDIDIKAN DAERAH,<br>PEJABAT PENDIDIKAN DAERAH MIRI.</p>
+                    </div>
+                `;
+            } else {
+                signatureHTML = `
+                    <div class="signature-section">
+                        <p class="signatory-name" style="color: transparent; user-select: none;">-</p>
+                        <p class="signatory-title">PEGAWAI PENDIDIKAN DAERAH,<br>PEJABAT PENDIDIKAN DAERAH MIRI.</p>
+                    </div>
+                `;
+            }
+
             const serialNumber = `SPK/${currentProgram.id}/${participantIC.slice(-4)}`;
             const validationUrl = `${window.location.origin}${window.location.pathname.replace('penilaianprogram.html', 'sijil.html')}?siri=${encodeURIComponent(serialNumber)}`;
             const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(validationUrl)}`;
@@ -510,7 +542,8 @@
                         .recipient-ic { font-size: 16px; font-weight: 500; margin-bottom: 30px; color: #444; }
                         .event-title-label { font-size: 16px; color: #555; }
                         .event-title { font-size: 22px; font-weight: 700; font-style: italic; margin: 10px 0; color: #111; }
-                        .event-date { font-size: 16px; font-weight: 500; margin-top: 10px; margin-bottom: 40px; color: #444; }
+                        .event-date { font-size: 16px; font-weight: 500; margin-top: 10px; margin-bottom: 5px; color: #444; }
+                        .duration-text { font-size: 15px; font-weight: 700; color: #d4af37; margin-bottom: 25px; letter-spacing: 1.5px; }
                         .divider { width: 100px; height: 2px; background: linear-gradient(90deg, #d4af37, #4B40FF); margin: 0 auto 20px auto; border: none; }
                         .signature-section { margin-top: auto; }
                         .signatory-name { font-weight: 700; font-size: 16px; letter-spacing: 1px; text-transform: uppercase; background: linear-gradient(90deg, #4B40FF, #3a32cc); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; text-fill-color: transparent; }
@@ -519,9 +552,11 @@
                         .spark-section { margin-top: 15px; }
                         .spark-title { font-weight: 700; font-size: 14px; letter-spacing: 2px; background: linear-gradient(90deg, #4B40FF, #3a32cc); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; text-fill-color: transparent; }
                         .spark-subtitle { font-size: 10px; color: #555; margin: 4px 0 0 0; font-style: italic; }
+                        
+                        /* --- 3. SETTING PRINT SKALA 90% --- */
                         @media print {
-                            body { background-color: white; }
-                            .certificate-container { box-shadow: none; margin: 0; }
+                            body { background: none; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                            .certificate-container { box-shadow: none; margin: 0 auto; transform: scale(0.9); transform-origin: top center; }
                             @page { size: A4 portrait; margin: 0; }
                         }
                     </style>
@@ -541,11 +576,13 @@
                             <p class="event-title-label">telah mengikuti</p>
                             <p class="event-title">${courseName}</p>
                             <p class="event-date">${dateString}</p>
+                            
+                            ${masaHTML}
+                            
                             <hr class="divider">
-                            <div class="signature-section">
-                                <p class="signatory-name">MARIAM HAJI MONEK</p>
-                                <p class="signatory-title">PEGAWAI PENDIDIKAN DAERAH,<br>PEJABAT PENDIDIKAN DAERAH MIRI.</p>
-                            </div>
+                            
+                            ${signatureHTML}
+                            
                             <p class="footer-note">Sijil ini adalah cetakan komputer, tandatangan tidak diperlukan.</p>
                             <div class="spark-section">
                                 <p class="spark-title">SPARK</p>
