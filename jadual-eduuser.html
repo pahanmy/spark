@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SPARK Edu – Takwim Sekolah</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Poppins', sans-serif; background-color: #f8f9fa; }
+        .card { background-color: white; border-radius: 0.75rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); }
+        .btn { transition: background-color 0.3s, transform 0.2s; }
+        .btn:hover { transform: translateY(-2px); }
+        .calendar-day { 
+            min-height: 110px;
+            max-height: 110px;
+            display: flex;
+            flex-direction: column;
+        }
+        .event-list { overflow-y: auto; flex-grow: 1; }
+        
+        /* Event Colors - Ditukar ke Biru & Cyan untuk Sekolah */
+        .calendar-day.has-events { background-color: #eff6ff; cursor: pointer; } /* Program Rasmi Sekolah - Blue */
+        .calendar-day.has-events:hover { background-color: #dbeafe; }
+        
+        .calendar-day.has-planner { background-color: #ecfeff; cursor: pointer; } /* Aktiviti Umum - Cyan */
+        .calendar-day.has-planner:hover { background-color: #cffafe; }
+        
+        .calendar-day.has-birthdays { background-color: #fff1f2; cursor: pointer; } /* Birthday - Pink */
+        .calendar-day.has-birthdays:hover { background-color: #ffe4e6; }
+
+        /* Gaji - Amber/Gold */
+        .calendar-day.has-salary { 
+            background-color: #fffbeb; 
+            border-color: #fcd34d; 
+            cursor: pointer; 
+        } 
+        .calendar-day.has-salary:hover { 
+            background-color: #fef3c7; 
+        }
+
+        .calendar-day.mixed-events { background-color: #f3f4f6; cursor: pointer; }
+
+        .calendar-day.selected { border-width: 2px; border-color: #2563eb; background-color: #bfdbfe; }
+        .calendar-day.is-today { background-color: #fef9c3; border: 1px solid #facc15; }
+        .modal-backdrop { background-color: rgba(0,0,0,0.5); }
+        
+        /* Scrollbar hide */
+        .event-list::-webkit-scrollbar { width: 2px; }
+        .event-list::-webkit-scrollbar-track { background: transparent; }
+        .event-list::-webkit-scrollbar-thumb { background: #cbd5e1; }
+    </style>
+</head>
+<body class="bg-slate-50 flex flex-col min-h-screen">
+
+    <header class="bg-white shadow-sm sticky top-0 z-10 border-b border-blue-50">
+        <div class="max-w-screen-2xl mx-auto py-4 px-4 sm:px-6 lg:px-8 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="bg-blue-600 p-2 rounded-lg">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="text-white">
+                        <path d="M12 3L1 9L5 11.18V17.18L12 21L19 17.18V11.18L21 10.09V17H23V9L12 3ZM18.82 9L12 12.72L5.18 9L12 5.28L18.82 9Z" fill="currentColor"></path>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-bold text-blue-700">SPARK EDU</h1>
+                    <p class="text-sm text-gray-500">Takwim Rasmi <span id="school-name-header">Sekolah</span></p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="window.location.href='edu-user.html'" class="btn bg-slate-100 text-gray-700 font-semibold py-2 px-4 rounded-lg shadow-sm border border-gray-200 hover:bg-slate-200 flex items-center gap-2 text-sm capitalize">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
+                    </svg>
+                    Kembali
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-screen-2xl mx-auto py-6 sm:px-6 lg:px-8 flex-grow w-full">
+        
+        <div id="loading-indicator" class="text-center py-10">
+            <svg class="animate-spin h-10 w-10 text-blue-600 mx-auto mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <p class="text-gray-500 font-medium animate-pulse">Menyelaraskan Takwim Sekolah Anda...</p>
+        </div>
+
+        <div id="main-content" class="grid grid-cols-1 lg:grid-cols-3 lg:gap-8 hidden">
+            
+            <div class="lg:col-span-2">
+                
+                <div class="grid grid-cols-4 gap-2 mb-6 text-center">
+                    <div class="bg-blue-50 border border-blue-100 p-2 rounded-xl shadow-sm">
+                        <h4 class="text-[10px] font-bold text-blue-500 uppercase">Program</h4>
+                        <p id="stat-official" class="text-2xl font-extrabold text-blue-700">0</p>
+                    </div>
+                    <div class="bg-cyan-50 border border-cyan-100 p-2 rounded-xl shadow-sm">
+                        <h4 class="text-[10px] font-bold text-cyan-500 uppercase">Aktiviti</h4>
+                        <p id="stat-planner" class="text-2xl font-extrabold text-cyan-700">0</p>
+                    </div>
+                    <div class="bg-pink-50 border border-pink-100 p-2 rounded-xl shadow-sm">
+                        <h4 class="text-[10px] font-bold text-pink-500 uppercase">Birthday</h4>
+                        <p id="stat-birthday" class="text-2xl font-extrabold text-pink-700">0</p>
+                    </div>
+                    <div class="bg-amber-50 border border-amber-100 p-2 rounded-xl shadow-sm">
+                        <h4 class="text-[10px] font-bold text-amber-600 uppercase">Gaji</h4>
+                        <p id="stat-salary" class="text-2xl font-extrabold text-amber-700">0</p>
+                    </div>
+                </div>
+
+                <div class="card p-6 border border-gray-100">
+                    <div class="flex flex-wrap items-end gap-4 mb-6 bg-slate-50 p-4 rounded-lg border border-slate-200">
+                        <div class="flex-grow md:flex-grow-0">
+                            <label for="month-select" class="block text-sm font-medium text-gray-700">Bulan</label>
+                            <select id="month-select" class="mt-1 block w-full pl-3 pr-10 py-2 border-gray-300 rounded-md sm:text-sm"></select>
+                        </div>
+                        <div class="flex-grow md:flex-grow-0">
+                            <label for="year-select" class="block text-sm font-medium text-gray-700">Tahun</label>
+                            <select id="year-select" class="mt-1 block w-full pl-3 pr-10 py-2 border-gray-300 rounded-md sm:text-sm"></select>
+                        </div>
+                        <div class="flex-grow">
+                            <label for="search-input" class="block text-sm font-medium text-gray-700">Carian</label>
+                            <input type="text" id="search-input" placeholder="Taip nama program..." class="mt-1 block w-full px-3 py-2 border-gray-300 rounded-md sm:text-sm">
+                        </div>
+                    </div>
+                    
+                    <div class="flex flex-wrap gap-4 mb-4 text-xs font-semibold uppercase justify-center sm:justify-start">
+                        <div class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-blue-500"></span> Program Sekolah</div>
+                        <div class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-cyan-500"></span> Aktiviti Umum</div>
+                        <div class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-pink-500"></span> Birthday</div>
+                        <div class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-amber-500"></span> Gaji</div>
+                    </div>
+
+                    <div class="flex justify-between items-center mb-4">
+                        <button id="prev-month-btn" class="p-2 rounded-full hover:bg-gray-100">&lt;</button>
+                        <h2 id="calendar-header" class="text-xl font-bold text-slate-800 uppercase"></h2>
+                        <button id="next-month-btn" class="p-2 rounded-full hover:bg-gray-100">&gt;</button>
+                    </div>
+
+                    <div id="calendar-weekdays" class="grid grid-cols-7 gap-2 text-center font-semibold text-sm text-slate-600 mb-2 uppercase">
+                        <div>Ahad</div><div>Isnin</div><div>Selasa</div><div>Rabu</div><div>Khamis</div><div>Jumaat</div><div>Sabtu</div>
+                    </div>
+                    <div id="calendar-grid" class="grid grid-cols-7 gap-2">
+                    </div>
+                </div>
+            </div>
+
+            <div class="lg:col-span-1">
+                <div id="program-list-container" class="mt-8 lg:mt-0">
+                    <div class="card p-6 h-full border border-gray-100">
+                        <h3 class="text-xl font-bold text-slate-800 mb-4 uppercase">Agenda <span id="selected-date-text"></span></h3>
+                        <div id="program-list-content" class="space-y-4"></div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+    
+    <footer class="text-center py-4 mt-8 border-t border-blue-100 bg-white">
+        <p class="text-sm text-gray-600">Projek Inovasi oleh <a href="https://pahanmy.github.io/works/" target="_blank" class="font-semibold text-blue-600 hover:underline">Pahan</a></p>
+        <p id="version-info" class="text-xs text-gray-500">Versi Takwim Sekolah 2.0</p>
+    </footer>
+
+    <div id="salary-modal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop hidden">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-sm p-0 overflow-hidden transform transition-all scale-100">
+            <div class="bg-amber-500 p-6 text-center relative">
+                <button onclick="closeModal('salary-modal')" class="absolute top-3 right-3 text-amber-100 hover:text-white">
+                    <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+                <div class="bg-white/20 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-3 backdrop-blur-sm">
+                    <span class="text-4xl">💰</span>
+                </div>
+                <h3 class="text-xl font-bold text-white uppercase tracking-wide">Info Gaji</h3>
+            </div>
+            <div class="p-6 text-center">
+                <h4 id="salary-modal-title" class="text-lg font-bold text-gray-800 mb-1">Gaji Bulan Ini</h4>
+                <p id="salary-modal-date" class="text-sm text-gray-500 mb-6 border-b border-gray-100 pb-4">00 Bulan 0000</p>
+                <div class="bg-gray-50 rounded-lg p-4 border border-gray-100">
+                    <p class="text-xs text-gray-400 uppercase font-semibold mb-1">Status Pembayaran</p>
+                    <p id="salary-modal-countdown" class="text-xl font-bold text-amber-600">5 Hari Lagi</p>
+                </div>
+                <button onclick="closeModal('salary-modal')" class="mt-6 w-full btn bg-slate-800 text-white font-semibold py-3 px-4 rounded-lg hover:bg-slate-900 transition-colors">Tutup</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="activity-info-modal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop hidden">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-md p-6 m-4 max-h-[90vh] overflow-y-auto">
+            <h3 id="modal-activity-title" class="text-lg font-bold text-cyan-700 uppercase mb-2"></h3>
+            <div class="space-y-3 text-sm text-gray-700">
+                <p id="modal-activity-time" class="flex items-center gap-2 font-semibold"></p>
+                <p id="modal-activity-location" class="flex items-center gap-2"></p>
+                
+                <div class="bg-cyan-50 p-3 rounded border border-cyan-100">
+                    <p class="text-xs font-bold text-cyan-600 uppercase mb-1 flex items-center gap-1">
+                        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                        Yang Terlibat
+                    </p>
+                    <p id="modal-activity-participants" class="uppercase text-xs leading-relaxed font-medium"></p>
+                </div>
+
+                <div id="modal-activity-notes-container" class="bg-slate-50 p-3 rounded border border-slate-200 hidden">
+                    <p class="text-xs font-bold text-gray-400 uppercase mb-1">Catatan</p>
+                    <p id="modal-activity-notes" class="whitespace-pre-wrap"></p>
+                </div>
+
+                <div id="modal-activity-image-container" class="hidden mt-2">
+                    <img id="modal-activity-image" src="" alt="Lampiran" class="w-full rounded border border-slate-200">
+                </div>
+            </div>
+            <div class="mt-6 flex justify-end space-x-3">
+                 <a id="modal-activity-link" href="#" target="_blank" class="hidden btn bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg uppercase text-xs flex items-center">
+                    Buka Pautan
+                </a>
+                <button type="button" onclick="closeModal('activity-info-modal')" class="btn bg-slate-200 text-slate-800 font-semibold py-2 px-4 rounded-lg uppercase text-xs">Tutup</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, onSnapshot, query, orderBy, where, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const firebaseConfig = { apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM", authDomain: "myqrhadir.firebaseapp.com", projectId: "myqrhadir", storageBucket: "myqrhadir.appspot.com", messagingSenderId: "799691133747", appId: "1:799691133747:web:835a5e3e9413eace806446" };
+        
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        const appId = firebaseConfig.projectId;
+        
+        let allPrograms = [];     
+        let allBirthdays = [];    
+        let allPlannerActivities = []; 
+        let allSalaryDates = []; 
+        
+        let currentDate = new Date();
+        let selectedDateElement = null;
+        let isInitialLoad = true;
+
+        // V2.0 Context Sekolah
+        let currentUserIc = new URLSearchParams(window.location.search).get('ic') || localStorage.getItem('user_ic');
+        let currentUserStation = "";
+        let schoolMemberIcs = [];
+
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                await fetchUserSchoolContext();
+                main();
+            } else { 
+                try { await signInAnonymously(auth); } catch (error) { console.error("Gagal daftar masuk:", error); } 
+            }
+        });
+
+        // Tapis IC mengikut Sekolah
+        async function fetchUserSchoolContext() {
+            if (!currentUserIc) return;
+            try {
+                const userRef = collection(db, `artifacts/${appId}/public/data/spark_participants`);
+                const qUser = query(userRef, where("ic", "==", currentUserIc));
+                const userSnap = await getDocs(qUser);
+                
+                if (!userSnap.empty) {
+                    currentUserStation = userSnap.docs[0].data().station;
+                    if (currentUserStation && currentUserStation !== "-") {
+                        document.getElementById('school-name-header').textContent = currentUserStation.toUpperCase();
+                    }
+                }
+
+                // Ambil semua IC yang berdaftar di bawah sekolah yang sama
+                if (currentUserStation && currentUserStation !== "-" && currentUserStation !== "BUKAN PPD") {
+                    const qMembers = query(userRef, where("station", "==", currentUserStation));
+                    const memberSnap = await getDocs(qMembers);
+                    schoolMemberIcs = memberSnap.docs.map(doc => doc.data().ic);
+                } else {
+                    schoolMemberIcs = [currentUserIc]; 
+                }
+
+            } catch(e) {
+                console.error("Ralat memuatkan konteks sekolah:", e);
+                schoolMemberIcs = [currentUserIc];
+            }
+
+            // Sembunyikan loading, tunjuk main content
+            document.getElementById('loading-indicator').classList.add('hidden');
+            document.getElementById('main-content').classList.remove('hidden');
+        }
+
+        function main() {
+            setupEventListeners();
+            populateMonthFilter();
+            initializeRightPanel();
+            
+            listenForProgramChanges();
+            listenForBirthdayChanges();
+            listenForPlannerChanges();
+            listenForSalaryChanges();
+        }
+
+        function setupEventListeners() {
+            document.getElementById('month-select').addEventListener('change', updateCalendarView);
+            document.getElementById('year-select').addEventListener('change', updateCalendarView);
+            document.getElementById('search-input').addEventListener('input', () => {
+                renderCalendar(currentDate.getFullYear(), currentDate.getMonth());
+                if (selectedDateElement) {
+                    const date = parseDateString(selectedDateElement.dataset.date);
+                    displayProgramsForDate(date, selectedDateElement);
+                } else {
+                    displayTodaysPrograms();
+                }
+            });
+            document.getElementById('prev-month-btn').addEventListener('click', () => changeMonth(-1));
+            document.getElementById('next-month-btn').addEventListener('click', () => changeMonth(1));
+        }
+
+        function initializeRightPanel() {
+            const programListContent = document.getElementById('program-list-content');
+            document.getElementById('selected-date-text').textContent = "HARI INI";
+            programListContent.innerHTML = `<div class="border-2 border-dashed border-gray-300 rounded-xl p-5 text-center text-gray-500 h-full flex flex-col justify-center items-center"><p class="mt-4 text-sm font-semibold">Tiada Agenda Hari Ini</p></div>`;
+        }
+        
+        // --- LISTENERS DENGAN PENAPISAN SEKOLAH ---
+        function listenForProgramChanges() {
+            const q = query(collection(db, `artifacts/${appId}/public/data/spark_programs`), orderBy("startDate", "asc"));
+            onSnapshot(q, (snap) => { 
+                const allP = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                // Tapis program yang dicipta oleh warga sekolah yang sama
+                allPrograms = allP.filter(p => schoolMemberIcs.includes(p.penyelaras_ic));
+                refreshView(); 
+            });
+        }
+
+        function listenForBirthdayChanges() {
+            const q = query(collection(db, `artifacts/${appId}/public/data/spark_birthdays`), orderBy("dob", "asc"));
+            onSnapshot(q, (snap) => { 
+                const allB = snap.docs.map(d => ({ id: d.id, ...d.data() })); 
+                // Tapis hari jadi warga sekolah sahaja (Jika IC wujud dalam spark_birthdays)
+                allBirthdays = allB.filter(b => b.ic ? schoolMemberIcs.includes(b.ic) : false);
+                refreshView(); 
+            });
+        }
+
+        function listenForPlannerChanges() {
+            const q = query(collection(db, `artifacts/${appId}/public/data/spark_planner`), where("isPublic", "==", true));
+            onSnapshot(q, (snap) => { 
+                const allP = snap.docs.map(d => ({ id: d.id, ...d.data() })); 
+                // Tapis aktiviti umum (planner) sekolah sahaja
+                allPlannerActivities = allP.filter(p => schoolMemberIcs.includes(p.ic));
+                refreshView(); 
+            });
+        }
+
+        function listenForSalaryChanges() {
+            const q = query(collection(db, `artifacts/${appId}/public/data/spark_salary`), orderBy("date", "asc"));
+            onSnapshot(q, (snap) => { 
+                allSalaryDates = snap.docs.map(d => ({ id: d.id, ...d.data() })); 
+                refreshView(); 
+            });
+        }
+        
+        function refreshView() {
+            const year = currentDate.getFullYear();
+            const month = currentDate.getMonth();
+            renderCalendar(year, month);
+            updateMonthlyStats(year, month);
+            if (isInitialLoad) { displayTodaysPrograms(); isInitialLoad = false; }
+            else if (selectedDateElement) { displayProgramsForDate(parseDateString(selectedDateElement.dataset.date), selectedDateElement); }
+        }
+
+        function getSalaryForDate(date) {
+            const dateString = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+            return allSalaryDates.find(s => s.date === dateString);
+        }
+
+        function updateMonthlyStats(year, month) {
+            let officialCount = 0, plannerCount = 0, birthdayCount = 0, salaryCount = 0;
+            const firstDay = new Date(year, month, 1);
+            const lastDay = new Date(year, month + 1, 0);
+
+            allPrograms.forEach(p => { if (parseDateString(p.startDate) >= firstDay && parseDateString(p.startDate) <= lastDay) officialCount++; });
+            allPlannerActivities.forEach(p => { if (parseDateString(p.startDate) >= firstDay && parseDateString(p.startDate) <= lastDay) plannerCount++; });
+            allBirthdays.forEach(b => { if(b.dob && (parseInt(b.dob.split('-')[1])-1) === month) birthdayCount++; });
+            allSalaryDates.forEach(s => { if (parseDateString(s.date) >= firstDay && parseDateString(s.date) <= lastDay) salaryCount++; });
+
+            document.getElementById('stat-official').textContent = officialCount;
+            document.getElementById('stat-planner').textContent = plannerCount;
+            document.getElementById('stat-birthday').textContent = birthdayCount;
+            document.getElementById('stat-salary').textContent = salaryCount;
+        }
+
+        function renderCalendar(year, month) {
+            const calendarGrid = document.getElementById('calendar-grid');
+            document.getElementById('calendar-header').textContent = `${["Januari", "Februari", "Mac", "April", "Mei", "Jun", "Julai", "Ogos", "September", "Oktober", "November", "Disember"][month]} ${year}`.toUpperCase();
+            calendarGrid.innerHTML = '';
+
+            const firstDay = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+            for (let i = 0; i < firstDay; i++) calendarGrid.insertAdjacentHTML('beforeend', '<div class="border border-slate-100 rounded-md bg-slate-50"></div>');
+
+            for (let day = 1; day <= daysInMonth; day++) {
+                const date = new Date(year, month, day);
+                const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+                const programs = getProgramsForDate(date);
+                const birthdays = getBirthdaysForDate(date);
+                const activities = getPlannerForDate(date);
+                const salary = getSalaryForDate(date);
+
+                const isToday = new Date().toDateString() === date.toDateString();
+                
+                let dayClasses = 'calendar-day border rounded-md p-2 transition-colors relative';
+                let eventHtml = '';
+                let indicatorsHtml = '';
+
+                let hasOfficial = programs.length > 0;
+                let hasPlanner = activities.length > 0;
+                let hasBirthday = birthdays.length > 0;
+                let hasSalary = salary !== undefined;
+
+                if (hasSalary) dayClasses += ' has-salary';
+                else if (hasOfficial && hasPlanner) dayClasses += ' mixed-events';
+                else if (hasOfficial) dayClasses += ' has-events';
+                else if (hasPlanner) dayClasses += ' has-planner';
+                else if (hasBirthday) dayClasses += ' has-birthdays';
+                
+                if (isToday) dayClasses += ' is-today';
+
+                // Indicators (Color Adjusted to Blue/Cyan)
+                if (hasSalary) indicatorsHtml += `<div class="absolute top-1 left-1 text-lg">💰</div>`;
+                if (hasOfficial) indicatorsHtml += `<div class="absolute top-1 right-1 bg-blue-500 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full shadow">${programs.length}</div>`;
+                if (hasPlanner) {
+                    const offset = hasOfficial ? 'right-6' : 'right-1';
+                    indicatorsHtml += `<div class="absolute top-1 ${offset} bg-cyan-500 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full shadow">${activities.length}</div>`;
+                }
+
+                if (hasSalary) eventHtml += `<div class="bg-amber-100 text-amber-800 text-[10px] rounded px-1 truncate mb-0.5 font-bold border border-amber-200">💰 GAJI</div>`;
+                eventHtml += programs.map(p => `<div class="bg-blue-100 text-blue-800 text-[10px] rounded px-1 truncate mb-0.5 font-medium">${p.name.toUpperCase()}</div>`).join('');
+                eventHtml += activities.map(a => `<div class="bg-cyan-100 text-cyan-800 text-[10px] rounded px-1 truncate mb-0.5 font-medium">${a.title.toUpperCase()}</div>`).join('');
+                eventHtml += birthdays.map(b => `<div class="bg-pink-100 text-pink-800 text-[10px] rounded px-1 truncate mb-0.5">🎂 ${b.name.split(' ')[0].toUpperCase()}</div>`).join('');
+
+                calendarGrid.insertAdjacentHTML('beforeend', `
+                    <div class="${dayClasses} border-slate-200" data-date="${dateString}">
+                        ${indicatorsHtml}
+                        <div class="font-semibold text-slate-800 text-sm mb-1 ${hasSalary ? 'ml-6' : ''}">${day}</div>
+                        <div class="event-list">${eventHtml}</div>
+                    </div>
+                `);
+            }
+            
+            calendarGrid.querySelectorAll('.calendar-day').forEach(el => {
+                el.addEventListener('click', (e) => {
+                    const target = e.currentTarget;
+                    const date = parseDateString(target.dataset.date);
+                    displayProgramsForDate(date, target);
+                });
+            });
+        }
+
+        function parseDateString(dateString) { const parts = dateString.split('-'); return new Date(parts[0], parts[1] - 1, parts[2]); }
+        
+        function getProgramsForDate(date) {
+            const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+            return allPrograms.filter(p => d >= parseDateString(p.startDate) && d <= (p.endDate ? parseDateString(p.endDate) : parseDateString(p.startDate)));
+        }
+
+        function getPlannerForDate(date) {
+            const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+            return allPlannerActivities.filter(p => d >= parseDateString(p.startDate) && d <= (p.isOneDay || !p.endDate ? parseDateString(p.startDate) : parseDateString(p.endDate)));
+        }
+
+        function getBirthdaysForDate(date) {
+            return allBirthdays.filter(b => b.dob && parseInt(b.dob.split('-')[1]) === date.getMonth() + 1 && parseInt(b.dob.split('-')[2]) === date.getDate());
+        }
+        
+        function displayTodaysPrograms() {
+            const today = new Date();
+            const dateString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+            const cell = document.querySelector(`.calendar-day[data-date="${dateString}"]`);
+            if (cell) displayProgramsForDate(today, cell);
+            else initializeRightPanel();
+        }
+
+        window.openSalaryModal = (title, dateStr) => {
+            const modal = document.getElementById('salary-modal');
+            document.getElementById('salary-modal-title').textContent = title;
+            const payDate = new Date(dateStr);
+            document.getElementById('salary-modal-date').textContent = payDate.toLocaleDateString('ms-MY', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+            
+            const today = new Date(); today.setHours(0,0,0,0);
+            const target = new Date(dateStr); target.setHours(0,0,0,0);
+            const diffDays = Math.ceil((target - today) / (1000 * 60 * 60 * 24));
+            
+            const countEl = document.getElementById('salary-modal-countdown');
+            if (diffDays > 0) { countEl.textContent = `${diffDays} Hari Lagi ⏳`; countEl.className = "text-xl font-bold text-amber-600"; } 
+            else if (diffDays === 0) { countEl.textContent = "HARI INI! 🤑"; countEl.className = "text-xl font-bold text-blue-600 animate-pulse"; } 
+            else { countEl.textContent = `Telah Dibayar (${Math.abs(diffDays)} hari lepas) ✅`; countEl.className = "text-xl font-bold text-gray-500"; }
+            modal.classList.remove('hidden');
+        }
+
+        // --- FUNGSI PAPARAN KANAN (UPDATED KE BLUE/CYAN) ---
+        function displayProgramsForDate(date, element) {
+            if (selectedDateElement) selectedDateElement.classList.remove('selected');
+            selectedDateElement = element;
+            selectedDateElement.classList.add('selected');
+            
+            const content = document.getElementById('program-list-content');
+            const term = document.getElementById('search-input').value.toLowerCase();
+            
+            let fullHtml = '';
+
+            // 1. GAJI
+            const salary = getSalaryForDate(date);
+            if (salary) {
+                fullHtml += `
+                    <div onclick="openSalaryModal('${salary.title}', '${salary.date}')" class="bg-amber-50 border border-amber-200 rounded-xl p-4 text-gray-800 mb-4 shadow-sm flex items-center justify-between cursor-pointer hover:bg-amber-100 transition-colors">
+                        <div class="flex items-center gap-3">
+                            <div class="bg-amber-100 p-2 rounded-full text-2xl border border-amber-200">💰</div>
+                            <div>
+                                <p class="font-bold text-md text-amber-800 uppercase">${salary.title}</p>
+                                <p class="text-xs text-amber-600">Klik info lanjut</p>
+                            </div>
+                        </div>
+                        <div><svg class="w-5 h-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></div>
+                    </div>`;
+            }
+
+            // 2. BIRTHDAYS
+            const birthdays = getBirthdaysForDate(date);
+            if (birthdays.length > 0) {
+                fullHtml += `<h4 class="text-sm font-bold text-pink-600 uppercase mb-2">Sambutan Hari Jadi</h4><div class="space-y-3 mb-4">` + 
+                birthdays.map(b => {
+                    const encodedDob = btoa(b.dob);
+                    return `
+                    <div class="bg-pink-50 border border-pink-200 rounded-xl p-3 text-gray-800 flex items-center justify-between">
+                        <div class="flex items-center gap-3 overflow-hidden">
+                            <span class="text-xl">🎂</span>
+                            <div class="truncate"><p class="font-bold text-sm text-pink-700 truncate">${b.name.toUpperCase()}</p></div>
+                        </div>
+                         <a href="birthday.html?name=${encodeURIComponent(b.name)}&dob=${encodedDob}" target="_blank" class="flex-shrink-0 bg-pink-500 hover:bg-pink-600 text-white text-[10px] font-bold py-1.5 px-3 rounded-lg uppercase">Hantar Ucapan</a>
+                    </div>`
+                }).join('') + '</div>';
+            }
+
+            // 3. OFFICIAL PROGRAMS (BLUE)
+            const programs = getProgramsForDate(date).filter(p => p.name.toLowerCase().includes(term));
+            if (programs.length > 0) {
+                 fullHtml += `<h4 class="text-sm font-bold text-blue-600 uppercase mb-2 mt-4">Program Sekolah</h4><div class="space-y-3">` + 
+                 programs.map(p => {
+                    const isMyProgram = (currentUserIc && p.penyelaras_ic === currentUserIc);
+                    let actionHtml = '';
+
+                    if (isMyProgram) {
+                        actionHtml = `
+                        <a href="program.html?kod=${p.id}" class="mt-3 flex items-center justify-center w-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-2 px-2 rounded border border-blue-600 uppercase transition-colors shadow-sm">
+                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                            Urus / Lihat Laporan
+                        </a>`;
+                    } else {
+                        actionHtml = `
+                        <div class="mt-2 pt-2 border-t border-blue-100 flex items-start gap-2">
+                            <span class="bg-blue-100 text-blue-600 text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider">Info</span>
+                            <p class="text-[10px] text-slate-500 italic">Paparan umum. Hubungi penyelaras untuk maklumat lanjut.</p>
+                        </div>`;
+                    }
+
+                    return `
+                    <div class="bg-white border-l-4 border-blue-500 shadow-sm rounded-r-lg p-3 text-slate-800 border border-y-slate-100 border-r-slate-100">
+                        <p class="font-bold text-sm text-blue-700 uppercase leading-tight">${p.name.toUpperCase()}</p>
+                        <div class="text-xs text-slate-600 mt-2 space-y-1.5">
+                             <p class="flex items-center gap-2"><span class="w-4 text-center">📍</span> <span class="font-medium">${p.location.toUpperCase()}</span></p>
+                             <p class="flex items-center gap-2"><span class="w-4 text-center">👤</span> <span>${p.penyelaras_name ? p.penyelaras_name.toUpperCase() : 'PENYELARAS'}</span></p>
+                             <p class="flex items-center gap-2"><span class="w-4 text-center">🕒</span> <span>${p.startTime} - ${p.endTime}</span></p>
+                        </div>
+                        ${actionHtml}
+                    </div>`
+                }).join('') + '</div>';
+            }
+
+            // 4. PLANNER ACTIVITIES (CYAN)
+            const activities = getPlannerForDate(date).filter(p => p.title.toLowerCase().includes(term));
+            if (activities.length > 0) {
+                 fullHtml += `<h4 class="text-sm font-bold text-cyan-600 uppercase mb-2 mt-4">Aktiviti Umum Sekolah</h4><div class="space-y-3">` + 
+                 activities.map(a => {
+                    const dataString = encodeURIComponent(JSON.stringify(a));
+                    return `
+                    <div class="bg-cyan-50 border-l-4 border-cyan-500 shadow-sm rounded-r-lg p-3 text-slate-800 border border-y-cyan-100 border-r-cyan-100">
+                        <p class="font-bold text-sm text-cyan-800 uppercase leading-tight">${a.title.toUpperCase()}</p>
+                        <div class="text-xs text-slate-600 mt-2 space-y-1">
+                             <p class="flex items-center gap-1">📍 ${a.location.toUpperCase()}</p>
+                             <p class="flex items-center gap-1">🕒 ${a.startTime} - ${a.endTime || '...'}</p>
+                             <p class="flex items-start gap-1 mt-1.5 pt-1.5 border-t border-cyan-200"><span class="font-bold text-cyan-700">Terlibat:</span> ${a.participants ? a.participants.toUpperCase() : "Tiada Maklumat"}</p>
+                        </div>
+                        <button onclick="openActivityModal('${dataString}')" class="mt-2 w-full bg-white hover:bg-cyan-50 text-cyan-700 text-xs font-bold py-1.5 px-2 rounded border border-cyan-200 uppercase transition-colors">Info Lanjut</button>
+                    </div>`
+                }).join('') + '</div>';
+            }
+            
+            document.getElementById('selected-date-text').textContent = date.toDateString() === new Date().toDateString() ? 'HARI INI' : date.toLocaleDateString('ms-MY', { day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase();
+            
+            if (fullHtml === '') content.innerHTML = `<div class="border-2 border-dashed border-gray-300 rounded-xl p-5 text-center text-gray-500 h-full flex flex-col justify-center items-center"><p class="mt-4 text-sm font-semibold">Tiada sebarang aktiviti pada tarikh ini.</p></div>`;
+            else content.innerHTML = fullHtml;
+        }
+
+
+        function populateMonthFilter() {
+            const monthSelect = document.getElementById('month-select');
+            monthSelect.innerHTML = '';
+            const months = ["Januari", "Februari", "Mac", "April", "Mei", "Jun", "Julai", "Ogos", "September", "Oktober", "November", "Disember"];
+            
+            months.forEach((month, index) => {
+                const option = document.createElement('option');
+                option.value = index;
+                option.textContent = month;
+                if (index === currentDate.getMonth()) option.selected = true;
+                monthSelect.appendChild(option);
+            });
+            populateYearFilter();
+        }
+
+        function populateYearFilter() {
+            const yearSelect = document.getElementById('year-select');
+            yearSelect.innerHTML = '';
+            const currentYear = new Date().getFullYear();
+            
+            for (let i = currentYear - 2; i <= currentYear + 2; i++) {
+                const option = document.createElement('option');
+                option.value = i;
+                option.textContent = i;
+                if (i === currentDate.getFullYear()) option.selected = true;
+                yearSelect.appendChild(option);
+            }
+        }
+
+        function updateCalendarView() {
+            const selectedMonth = parseInt(document.getElementById('month-select').value);
+            const selectedYear = parseInt(document.getElementById('year-select').value);
+            
+            currentDate = new Date(selectedYear, selectedMonth, 1);
+            refreshView();
+        }
+
+        function changeMonth(offset) {
+            currentDate.setMonth(currentDate.getMonth() + offset);
+            document.getElementById('month-select').value = currentDate.getMonth();
+            document.getElementById('year-select').value = currentDate.getFullYear();
+            
+            if (document.getElementById('year-select').value === "") {
+                populateYearFilter();
+                document.getElementById('year-select').value = currentDate.getFullYear();
+            }
+            refreshView();
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.add('hidden');
+        }
+
+        function openActivityModal(dataString) {
+            try {
+                const data = JSON.parse(decodeURIComponent(dataString));
+                document.getElementById('modal-activity-title').textContent = data.title;
+                document.getElementById('modal-activity-time').textContent = `🕒 ${data.startTime} - ${data.endTime || '...'}`;
+                document.getElementById('modal-activity-location').textContent = `📍 ${data.location}`;
+                document.getElementById('modal-activity-participants').textContent = data.participants || '-';
+                
+                const noteContainer = document.getElementById('modal-activity-notes-container');
+                if (data.notes) {
+                    document.getElementById('modal-activity-notes').textContent = data.notes;
+                    noteContainer.classList.remove('hidden');
+                } else {
+                    noteContainer.classList.add('hidden');
+                }
+
+                const imgContainer = document.getElementById('modal-activity-image-container');
+                if (data.imageUrl) {
+                    document.getElementById('modal-activity-image').src = data.imageUrl;
+                    imgContainer.classList.remove('hidden');
+                } else {
+                    imgContainer.classList.add('hidden');
+                }
+
+                document.getElementById('activity-info-modal').classList.remove('hidden');
+            } catch (e) {
+                console.error("Error opening modal", e);
+            }
+        }
+
+        function copyShareText(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                alert("Teks disalin!");
+            });
+        }
+
+        window.populateYearFilter = populateYearFilter;
+        window.populateMonthFilter = populateMonthFilter;
+        window.updateCalendarView = updateCalendarView;
+        window.changeMonth = changeMonth;
+        window.closeModal = closeModal;
+        window.copyShareText = copyShareText;
+        window.openActivityModal = openActivityModal;
+        window.openSalaryModal = openSalaryModal;
+
+    </script>
+</body>
+</html>
