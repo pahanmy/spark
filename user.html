@@ -682,18 +682,7 @@
             <h3 class="text-lg font-bold text-gray-900 mb-2 uppercase">Kemaskini Profil</h3>
             <p class="text-xs text-gray-500 mb-4">Adakah anda pegawai/staf di Pejabat Pendidikan Daerah (PPD) Miri?</p>
             
-            <div id="sector-question-step">
-                <div class="flex flex-col gap-2">
-                    <button type="button" onclick="showSectorDropdowns()" class="w-full bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700 uppercase text-sm shadow-sm">
-                        Ya, Saya Warga PPD
-                    </button>
-                    <button type="button" onclick="saveNonPPDUser()" class="w-full bg-white text-gray-700 border border-gray-300 font-bold py-2 px-4 rounded-lg hover:bg-gray-50 uppercase text-sm">
-                        Bukan (Sekolah/Luar)
-                    </button>
-                </div>
-            </div>
-
-            <form id="sector-form-step" onsubmit="saveSector(event)" class="hidden mt-4">
+          <form id="sector-form-step" onsubmit="saveSector(event)" class="mt-2">
                 <div class="mb-4">
                     <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Pilih Sektor Anda</label>
                     <select id="user-sector-select" onchange="populateUnits(this.value)" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-teal-500 focus:border-teal-500 text-xs uppercase" required>
@@ -1113,7 +1102,21 @@ let quickLinks = [];
         async function loadUserData(ic) {
             try {
                 const cleanUserIc = normalizeIc(ic);
+                const adminIC = "890522135381";
                 
+                // ============================================================
+                // GATEKEEPER: SEMAKAN WARGA PPD
+                // ============================================================
+                const verifiedRef = doc(db, `artifacts/${appId}/public/data/spark_verified_ppd`, cleanUserIc);
+                const verifiedSnap = await getDoc(verifiedRef);
+
+                // Jika BUKAN Admin DAN tiada rekod dalam senarai PPD yang disahkan
+                if (cleanUserIc !== adminIC && !verifiedSnap.exists()) {
+                    console.log("Bukan pegawai PPD yang disahkan. Menghalakan ke SPARK Edu...");
+                    window.location.replace(`edu-user.html?ic=${cleanUserIc}`);
+                    return; // Berhentikan proses di sini
+                }
+                // ============================================================
                 const usersRef = collection(db, `artifacts/${appId}/public/data/spark_participants`);
                 const qUser = query(usersRef, where("ic", "==", cleanUserIc));
                 const userSnap = await getDocs(qUser);
