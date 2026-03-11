@@ -108,10 +108,6 @@
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M2 5a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V5zm2 1v2h12V6H4zm0 4v2h12v-2H4zm0 4v2h12v-2H4z" /></svg>
                         <span>Excel</span>
                     </button>
-                     <button onclick="exportToSplkpm()" title="Format SPLG-KPM" class="btn text-xs bg-sky-100 text-sky-800 font-bold uppercase tracking-wide py-2 px-3 rounded-lg hover:bg-sky-200 flex items-center gap-1 shadow-sm border border-sky-200">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" /></svg>
-                        <span>SPLKPM</span>
-                    </button>
                     <button onclick="exportToPdf()" title="Eksport ke PDF" class="btn text-xs bg-red-100 text-red-800 font-bold uppercase tracking-wide py-2 px-3 rounded-lg hover:bg-red-200 flex items-center gap-1 shadow-sm border border-red-200">
                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd" /></svg>
                        <span>PDF</span>
@@ -161,9 +157,9 @@
                 <table class="w-full divide-y divide-gray-200">
                     <thead class="bg-gray-100">
                         <tr>
-                            <th class="px-6 py-3 text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider">Bil.</th>
+                            <th class="px-6 py-3 text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider w-12">Bil.</th>
                             <th class="px-6 py-3 text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider">Peserta & Stesyen</th>
-                            <th class="px-6 py-3 text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider">Maklumat Kehadiran</th>
+                            <th class="px-6 py-3 text-center text-[11px] font-bold text-gray-500 uppercase tracking-wider w-40">Masa Hadir</th>
                             <th class="px-6 py-3 text-center text-[11px] font-bold text-gray-500 uppercase tracking-wider w-48">Peranan Semasa</th>
                             <th class="px-6 py-3 text-center text-[11px] font-bold text-gray-500 uppercase tracking-wider w-16">Padam</th>
                         </tr>
@@ -456,11 +452,6 @@
         }
         function formatTimeRange(start, end) { return `${formatTimeMalay(start)} - ${formatTimeMalay(end)}`; }
 
-        function maskIc(ic) {
-            if (!ic || ic.length < 8) return ic;
-            return `${ic.substring(0, 4)}******${ic.substring(ic.length - 4)}`;
-        }
-
         function populateStationFilter() {
             const stationFilter = document.getElementById('station-filter');
             const stations = [...new Set(allParticipants.map(p => p.station.toUpperCase()))];
@@ -531,9 +522,8 @@
                                 <span>${p.station}</span>
                             </div>
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">
-                            ${maskIc(p.ic)}<br>
-                            <span class="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">${timeRecord}</span>
+                        <td class="px-6 py-4 whitespace-nowrap text-center">
+                            <span class="text-[11px] text-gray-600 font-bold bg-gray-100 px-2.5 py-1 rounded-md border border-gray-200 shadow-sm">${timeRecord}</span>
                         </td>
                         <td class="px-6 py-4 text-sm text-center">
                             <select onchange="updateParticipantRole('${p.ic}', this.value)" class="mt-1 block w-full px-3 py-1.5 text-[10px] uppercase font-bold border rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 ${badgeColor}">
@@ -633,36 +623,6 @@
             const workbook = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(workbook, worksheet, "Senarai Peserta");
             XLSX.writeFile(workbook, `${getExportFilename('Senarai Peserta')}.xlsx`);
-        }
-
-        function exportToSplkpm() {
-            const participants = getFilteredAndSortedParticipants();
-            if (participants.length === 0) return alert('Tiada data untuk dieksport.');
-
-            const getStatusCode = (role) => {
-                switch (role) {
-                    case 'Penceramah': return 1;
-                    case 'Fasilitator': return 2;
-                    case 'Urusetia':
-                    case 'Pengacara Bengkel':
-                    case 'Pembaca Doa':
-                    case 'Teknikal Siaraya':
-                         return 3;
-                    case 'Peserta': 
-                    default:
-                        return 8;
-                }
-            };
-
-            const dataToExport = participants.map(p => ({
-                kputama: p.ic,
-                status: getStatusCode(p.role)
-            }));
-            
-            const worksheet = XLSX.utils.json_to_sheet(dataToExport, { header: ["kputama", "status"], skipHeader: false });
-            const workbook = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(workbook, worksheet, "SPLG-KPM");
-            XLSX.writeFile(workbook, `${getExportFilename('SPLG-KPM')}.xlsx`);
         }
 
         async function exportToPdf() {
@@ -1206,7 +1166,6 @@
                     
                     <p class="intro-text" style="font-size: 14px; color: #555; margin-bottom: 10px; text-align: center;">${introText}</p>
                     <p class="recipient-name" style="font-family: 'Playfair Display', serif; font-size: 28px; font-weight: 700; margin: 5px 0; color: #111; text-align: center;">${name}</p>
-                    <p class="recipient-ic" style="font-size: 16px; margin-bottom: 20px; color: #444; letter-spacing: 1px; text-align: center;">${ic}</p>
                     
                     <p class="event-title-label" style="font-size: 14px; color: #555; text-align: center;">${eventLabel}</p>
                     <p class="event-title" style="font-size: 20px; font-weight: 700; font-style: italic; margin: 10px 0; color: #111; text-align: center;">${course}</p>
@@ -1397,7 +1356,7 @@
         };
 
         Object.assign(window, { 
-            updateParticipantRole, exportToExcel, exportToPdf, exportToSplkpm,
+            updateParticipantRole, exportToExcel, exportToPdf,
             showLateAttendanceModal, closeModal, findLateParticipant, registerLateParticipant,
             resetLateModal, changeItemsPerPage, prevPage, nextPage, promptDeleteParticipant,
             showCompareModal, performComparison, copyResults,
