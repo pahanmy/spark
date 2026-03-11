@@ -441,20 +441,44 @@
                         </div>
                     </div>
 
-                    <div id="view-locked-task" class="hidden">
-                         <div class="card p-10 text-center flex flex-col items-center justify-center min-h-[300px] border border-gray-100 shadow-lg">
-                            <div class="bg-blue-100 p-5 rounded-full mb-6">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                                </svg>
-                            </div>
-                            <h3 class="text-2xl font-bold text-gray-800 uppercase mb-2">Tugasan Sekolah Dikunci</h3>
-                            <p class="text-gray-500 mb-6 text-sm">Modul penerimaan tugasan untuk pihak sekolah akan diaktifkan tidak lama lagi.</p>
-                            <span class="bg-gradient-to-r from-yellow-400 to-yellow-600 text-white px-5 py-2 rounded-full text-xs font-bold uppercase shadow-md tracking-wider">
-                                Eksklusif untuk Pengurusan
-                            </span>
-                        </div>
-                    </div>
+                    <div id="tab-sparktask" class="tab-content hidden space-y-6">
+    
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+        <div>
+            <h2 class="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
+                Tugasan Sekolah
+            </h2>
+            <p class="text-sm text-gray-500 mt-1">Tugasan PPD untuk: <span id="sparktask-station-name" class="font-bold text-indigo-600 uppercase">Memuatkan...</span></p>
+        </div>
+        <a href="sparktasksekolah.html" target="_blank" class="btn w-full sm:w-auto bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg shadow-sm hover:bg-indigo-700 flex items-center justify-center gap-2 text-sm transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+            Mod Semakan Penuh
+        </a>
+    </div>
+
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="bg-amber-50 border border-amber-200 p-4 rounded-xl shadow-sm text-center col-span-2">
+            <p class="text-xs font-bold text-amber-600 uppercase tracking-wider">Belum Selesai</p>
+            <p id="st-count-pending" class="text-3xl font-extrabold text-amber-700 mt-1">0</p>
+        </div>
+        <div class="bg-green-50 border border-green-200 p-4 rounded-xl shadow-sm text-center col-span-2">
+            <p class="text-xs font-bold text-green-600 uppercase tracking-wider">Telah Selesai</p>
+            <p id="st-count-completed" class="text-3xl font-extrabold text-green-700 mt-1">0</p>
+        </div>
+    </div>
+
+    <div>
+        <h3 class="text-lg font-bold text-gray-800 mb-3">Senarai Menunggu Tindakan</h3>
+        <div id="sparktask-list-container" class="space-y-3">
+            <div class="text-center py-8">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mb-2"></div>
+                <p class="text-gray-500 text-sm">Menyemak tugasan...</p>
+            </div>
+        </div>
+    </div>
+
+</div>
 
                     <div id="view-planner" class="">
                         <div class="card p-6 bg-white border border-gray-100 shadow-lg">
@@ -2341,7 +2365,7 @@
                     const userDoc = querySnapshot.docs[0];
                     const userData = userDoc.data();
                     participantDocId = userDoc.id; 
-                    
+                    listenForSparkTasks();
                     if (!userData.phone) {
                         document.getElementById('phone-modal').classList.remove('hidden');
                     } else if (!userData.station || !userData.position) {
@@ -2801,6 +2825,122 @@
                 await batch.commit();
             } catch(e) { console.error("Error mark all read:", e); }
         }
+
+
+// ==========================================
+        // FUNGSI SPARKTASK (SEKOLAH) UNTUK DASHBOARD
+        // ==========================================
+        let sparkTasksData = [];
+
+        // Panggil fungsi ini selepas pengguna log masuk dan profil (currentApplicant) dijumpai
+        function listenForSparkTasks() {
+            if (!currentApplicant || !currentApplicant.station) return;
+            
+            const myStation = currentApplicant.station.toUpperCase();
+            document.getElementById('sparktask-station-name').textContent = myStation;
+
+            const tasksRef = collection(db, `artifacts/${appId}/public/data/spark_tasks`);
+            const q = query(tasksRef, orderBy("createdAt", "desc"));
+            
+            onSnapshot(q, (snapshot) => {
+                sparkTasksData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderSparkTasksToDashboard(myStation);
+            }, (error) => {
+                console.error("Ralat memuat turun SparkTask: ", error);
+            });
+        }
+
+        function renderSparkTasksToDashboard(myStation) {
+            const container = document.getElementById('sparktask-list-container');
+            let pendingCount = 0;
+            let completedCount = 0;
+            let html = '';
+
+            sparkTasksData.forEach(task => {
+                // Pastikan format array adalah betul dan huruf besar
+                const senaraiSekolah = (Array.isArray(task.skopSenaraiSekolah) ? task.skopSenaraiSekolah : []).map(s => String(s).toUpperCase());
+                const sekolahSelesai = (Array.isArray(task.skopSelesai) ? task.skopSelesai : []).map(s => String(s).toUpperCase());
+
+                // Semak jika sekolah pengguna tersenarai di dalam tugasan ini
+                if (senaraiSekolah.includes(myStation)) {
+                    if (sekolahSelesai.includes(myStation)) {
+                        completedCount++; // Sudah buat
+                    } else {
+                        pendingCount++; // Belum buat
+                        
+                        const baki = kiraBakiHariTugasan(task.tarikhSiap);
+                        
+                        html += `
+                            <div class="bg-white border border-gray-200 border-l-4 border-l-amber-500 rounded-xl p-4 md:p-5 shadow-sm hover:shadow-md transition duration-200">
+                                <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 mb-3">
+                                    <div>
+                                        <h4 class="font-bold text-gray-900 text-base md:text-lg">${task.nama}</h4>
+                                        <p class="text-xs text-gray-500 mt-0.5">Pegawai: <span class="font-medium text-gray-700">${task.pegawai}</span> • Sektor: ${task.sektor}</p>
+                                    </div>
+                                    <span class="bg-amber-100 text-amber-800 text-[10px] font-bold px-2.5 py-1 rounded border border-amber-200 uppercase whitespace-nowrap">Belum Selesai</span>
+                                </div>
+                                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-t border-gray-100 pt-3 gap-3">
+                                    <div class="flex flex-col">
+                                        <span class="text-[10px] text-gray-400 uppercase font-bold tracking-wider">Tarikh Tutup</span>
+                                        <span class="text-sm font-medium ${baki.warna}">${formatTarikhTugasan(task.tarikhSiap)} (${baki.teks})</span>
+                                    </div>
+                                    <a href="task.html?id=${task.id}" target="_blank" class="w-full sm:w-auto text-center bg-indigo-50 text-indigo-700 hover:bg-indigo-600 hover:text-white px-4 py-2 rounded-lg text-xs font-bold border border-indigo-200 transition-colors">
+                                        Buka Papan Pemuka Tugasan
+                                    </a>
+                                </div>
+                            </div>
+                        `;
+                    }
+                }
+            });
+
+            // Kemas kini statistik
+            document.getElementById('st-count-pending').textContent = pendingCount;
+            document.getElementById('st-count-completed').textContent = completedCount;
+
+            // Papar UI
+            if (pendingCount === 0) {
+                container.innerHTML = `
+                    <div class="bg-green-50 border-2 border-dashed border-green-300 rounded-xl p-8 text-center">
+                        <div class="bg-green-200 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-3">
+                            <svg class="w-8 h-8 text-green-700" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+                        </div>
+                        <p class="text-green-800 font-bold text-lg">Syabas & Tahniah!</p>
+                        <p class="text-green-600 text-sm mt-1">Stesen anda tidak mempunyai sebarang tugasan PPD yang tertunggak pada masa ini.</p>
+                    </div>`;
+            } else {
+                container.innerHTML = html;
+            }
+        }
+
+        // Fungsi Bantuan untuk SparkTask
+        function kiraBakiHariTugasan(tarikhString) {
+            const tarikhSiap = new Date(tarikhString);
+            if (isNaN(tarikhSiap.getTime())) return { teks: '-', warna: 'text-gray-500' };
+            
+            const hariIni = new Date();
+            hariIni.setHours(0, 0, 0, 0);
+            const tarikhSiapTengahMalam = new Date(tarikhString);
+            tarikhSiapTengahMalam.setHours(0, 0, 0, 0);
+            
+            const bezaMasa = tarikhSiapTengahMalam.getTime() - hariIni.getTime();
+            const bezaHari = Math.ceil(bezaMasa / (1000 * 60 * 60 * 24));
+
+            if (bezaHari > 0) {
+                return { teks: `${bezaHari} hari lagi`, warna: 'text-gray-700' };
+            } else if (bezaHari === 0) {
+                return { teks: 'Hari Ini', warna: 'text-orange-600 font-bold' };
+            } else {
+                return { teks: `Terlewat ${Math.abs(bezaHari)} hari`, warna: 'text-red-600 font-bold' };
+            }
+        }
+
+        function formatTarikhTugasan(tarikhString) {
+            if (!tarikhString) return 'N/A';
+            const [tahun, bulan, hari] = tarikhString.split('-');
+            return `${hari}/${bulan}/${tahun}`;
+        }
+
         
     </script>
 <footer class="text-center py-4 mt-8 border-t border-blue-100 bg-white">
