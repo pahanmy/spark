@@ -137,7 +137,7 @@
         let globalUserStation = ""; 
         let globalIsPro = false;
         let currentActiveTab = 'PPD'; 
-        let verifiedPpdIcs = []; 
+        let verifiedPpdIcs = []; // Array simpan IC warga PPD yang disahkan
 
         auth.onAuthStateChanged(async (user) => {
             if (user) {
@@ -157,7 +157,7 @@
         async function initPage(icRaw) {
             const icNumber = icRaw.trim().replace(/[^0-9]/g, '');
             try {
-                // Ambil senarai warga PPD yang disahkan terlebih dahulu
+                // MUAT TURUN SENARAI IC PEGAWAI PPD YANG DISAHKAN
                 const ppdRef = db.collection(`artifacts/${appId}/public/data/spark_verified_ppd`);
                 const ppdSnap = await ppdRef.get();
                 verifiedPpdIcs = [];
@@ -259,27 +259,30 @@
             filteredData.forEach(item => {
                 let isSchoolProgram = true;
                 
-                // Semak adakah pembuat (createdBy) wujud dalam senarai PPD yang disahkan
-                if (item.program.createdBy) {
-                    isSchoolProgram = !verifiedPpdIcs.includes(String(item.program.createdBy));
+                // LOGIK UTAMA BARU: Semak IC pembuat program
+                // Sistem mencuba pelbagai kemungkinan field bergantung bagaimana pangkalan data anda menyimpannya
+                const pembuatIc = String(item.program.ownerIc || item.program.owner || item.program.createdBy || item.program.hostIc || item.program.adminIc || item.program.ic || "").trim();
+                
+                if (pembuatIc !== "") {
+                    // JIKA IC pembuat ditemui DAN wujud dalam senarai warga PPD yang disahkan, ia BUKAN program sekolah (ia Program PPD)
+                    isSchoolProgram = !verifiedPpdIcs.includes(pembuatIc);
                 } else {
-                    // Fallback untuk program lama yang tiada rekod 'createdBy'
+                    // FALLBACK: Jika program terlampau lama dan tiada rekod IC pembuat, ia semak secara teks sektor
                     const sectorRaw = item.program.sector ? String(item.program.sector).toUpperCase().trim() : '';
-                    const ppdSectors = [
-                        "SEKTOR PENGURUSAN", "SEKTOR PENGURUSAN SEKOLAH", "SEKTOR PEMBELAJARAN",
-                        "SEKTOR PENTAKSIRAN DAN PEPERIKSAAN", "SEKTOR PEMBANGUNAN MURID",
-                        "SEKTOR PERANCANGAN", "SEKTOR PSIKOLOGI DAN KAUNSELING", "LAIN-LAIN", "PPD MIRI", "PPD"
-                    ];
+                    const ppdSectors = ["SEKTOR PENGURUSAN", "SEKTOR PENGURUSAN SEKOLAH", "SEKTOR PEMBELAJARAN", "SEKTOR PENTAKSIRAN DAN PEPERIKSAAN", "SEKTOR PEMBANGUNAN MURID", "SEKTOR PERANCANGAN", "SEKTOR PSIKOLOGI DAN KAUNSELING", "LAIN-LAIN", "PPD MIRI", "PPD"];
                     isSchoolProgram = !(ppdSectors.includes(sectorRaw) || sectorRaw.startsWith('SEKTOR'));
                 }
                 
                 // Asingkan data mengikut tab yang dipilih
                 if ((currentActiveTab === 'SEKOLAH' && isSchoolProgram) || (currentActiveTab === 'PPD' && !isSchoolProgram)) {
-                    const status = getCertificateStatus(item.program, item.participant, globalIsPro);
+                    // Beri isSchoolProgram ke dalam getCertificateStatus
+                    const status = getCertificateStatus(item.program, item.participant, globalIsPro, isSchoolProgram);
                     if (status.isRelevant) {
                         if (status.isLocked) totalLocked++;
                         else if (status.type === 'DOWNLOAD') totalAvailable++;
-                        targetList.push({ ...item, status: status, isSchoolProgram });
+                        
+                        // Simpan isSchoolProgram di dalam targetList supaya printCertificate boleh gunakannya
+                        targetList.push({ ...item, status: status, isSchoolProgram: isSchoolProgram });
                     }
                 }
             });
@@ -310,25 +313,9 @@
             if (locked > 0) summaryEl.innerHTML += ` <br><span class="text-xs text-gray-500 mt-2 inline-block bg-gray-100 px-3 py-1.5 rounded-lg border border-gray-200 leading-snug">Terdapat <b>${locked} sijil arkib</b>. <a href="sponsor.html" class="text-indigo-600 font-bold">Ketahui Lanjut</a></span>`;
         }
 
-        function getCertificateStatus(prog, part, isPro) {
+        // isSchoolProgram ditambah sebagai parameter
+        function getCertificateStatus(prog, part, isPro, isSchoolProgram) {
             let result = { isRelevant: false, isLocked: false, html: '', btn: '', type: 'NONE' };
-            
-            let isSchoolProgram = true;
-            
-            // Semak adakah pembuat wujud dalam senarai PPD
-            if (prog.createdBy) {
-                isSchoolProgram = !verifiedPpdIcs.includes(String(prog.createdBy));
-            } else {
-                // Fallback program lama
-                const sectorRaw = prog.sector ? String(prog.sector).toUpperCase().trim() : '';
-                const ppdSectors = [
-                    "SEKTOR PENGURUSAN", "SEKTOR PENGURUSAN SEKOLAH", "SEKTOR PEMBELAJARAN",
-                    "SEKTOR PENTAKSIRAN DAN PEPERIKSAAN", "SEKTOR PEMBANGUNAN MURID",
-                    "SEKTOR PERANCANGAN", "SEKTOR PSIKOLOGI DAN KAUNSELING", "LAIN-LAIN", "PPD MIRI", "PPD"
-                ];
-                isSchoolProgram = !(ppdSectors.includes(sectorRaw) || sectorRaw.startsWith('SEKTOR'));
-            }
-
             const btnColor = isSchoolProgram ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-indigo-600 hover:bg-indigo-700';
 
             const roleRaw = part.role ? String(part.role).trim().toLowerCase() : 'peserta';
@@ -423,6 +410,7 @@
             const dataItem = window.certificateData.find(d => d.program.key === key);
             if(!dataItem) return alert("Ralat data.");
 
+            // Mengambil maklumat sijil PPD vs Sekolah dari item (yang disahkan melalui IC Pembuat Program)
             const { program, participant, isSchoolProgram } = dataItem;
             const participantName = participant.name.toUpperCase();
             const participantIC = participant.ic;
