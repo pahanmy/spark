@@ -93,6 +93,7 @@
                     <div class="bg-slate-100 border border-slate-200 p-4 rounded-xl shadow-sm flex items-center justify-between">
                         <div>
                             <h4 class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Warga Sekolah</h4>
+                            <p class="text-[9px] text-slate-400 mt-0.5 leading-tight font-medium">Yang telah sertai SPARK</p>
                             <p id="stat-staff" class="text-3xl font-extrabold text-slate-700 mt-1">0</p>
                         </div>
                         <div class="bg-slate-200 p-3 rounded-full">
@@ -162,7 +163,7 @@
     
     <footer class="text-center py-4 mt-8 border-t border-gray-200">
         <p class="text-sm text-gray-600">Projek Inovasi oleh <a href="https://pahanmy.github.io/works/" target="_blank" class="font-semibold text-blue-600 hover:underline">Pahan</a></p>
-        <p id="version-info" class="text-xs text-gray-500">Versi Takwim Sekolah 2.1 (2025)</p>
+        <p id="version-info" class="text-xs text-gray-500">Versi Takwim Sekolah 2.2 (2025)</p>
     </footer>
 
     <div id="salary-modal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop hidden">
@@ -203,7 +204,7 @@
         let allPrograms = [];     
         let allSalaryDates = [];
         let myStation = "TIADA STESEN";
-        let stationICs = []; // Menyimpan semua IC guru/staf dari sekolah yang sama
+        let stationICs = []; 
         
         let currentDate = new Date();
         let selectedDateElement = null;
@@ -241,24 +242,24 @@
                 }
 
                 const userData = pSnap.docs[0].data();
-                // Simpan stesen tanpa mengubah formatnya lagi bagi tujuan carian
                 myStation = userData.station ? userData.station.toUpperCase() : "TIADA STESEN";
 
-                // PENTING: Semak adakah stesen pengguna wujud dalam senarai rasmi spark_schools
+                // Semak dengan senarai rasmi sekolah PPD Miri
                 const schoolQuery = query(collection(db, `artifacts/${appId}/public/data/spark_schools`));
                 const schoolSnap = await getDocs(schoolQuery);
                 const validSchools = schoolSnap.docs.map(doc => doc.data().name.toUpperCase());
 
                 if (!validSchools.includes(myStation)) {
-                    alert(`MAKLUMAN PENTING:\n\nNama stesen kerja anda (${myStation}) tidak tepat atau tidak wujud dalam senarai rasmi sekolah PPD Miri.\n\nSila kemas kini profil anda dan pilih nama sekolah dari senarai (dropdown) yang disediakan untuk mengakses Jadual Sekolah.`);
-                    window.location.href = `edit.html?ic=${currentUserIc}`;
-                    return;
+                    const proceed = confirm(`MAKLUMAN PENTING:\n\nNama stesen kerja anda (${myStation}) tidak ditemui dalam senarai rasmi PPD Miri.\n\nAdakah ejaan nama sekolah ini sudah betul dan tepat?\n\n- Klik "OK" jika anda pasti nama ini betul untuk teruskan.\n- Klik "Cancel/Batal" untuk kembali dan kemas kini ejaan nama sekolah di Profil anda.`);
+                    if (!proceed) {
+                        window.location.href = `edit.html?ic=${currentUserIc}`;
+                        return;
+                    }
                 }
 
                 document.getElementById('station-title').textContent = myStation;
 
-                // FUNGSI PENAPISAN YANG DIBETULKAN (Case-Insensitive)
-                // Ambil semua participants dan filter menggunakan Javascript bagi mengelakkan isu huruf kecil/besar di Database
+                // Ambil semua participants dan cari jumlah warga sekolah yang sama
                 const allParticipantsSnap = await getDocs(collection(db, `artifacts/${appId}/public/data/spark_participants`));
                 stationICs = allParticipantsSnap.docs
                     .map(doc => doc.data())
@@ -305,7 +306,6 @@
             programListContent.innerHTML = `<div class="border-2 border-dashed border-gray-300 bg-gray-50 rounded-xl p-5 text-center text-gray-500 h-full flex flex-col justify-center items-center min-h-[200px]"><p class="mt-2 text-sm font-semibold">Tiada Aktiviti Hari Ini</p></div>`;
         }
         
-        // Memantau program yang HANYA dicipta oleh warga stesen ini
         function listenForSchoolPrograms() {
             if (stationICs.length === 0) {
                 allPrograms = [];
