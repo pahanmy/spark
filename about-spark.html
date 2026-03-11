@@ -12,7 +12,7 @@
     <style>
         body { font-family: 'Poppins', sans-serif; background-color: #f8f9fa; color: #1f2937; scroll-behavior: smooth; overflow-x: hidden; }
         
-        /* Tema Warna SPARK (Indigo/Purple) */
+        /* Tema Warna SPARK */
         .text-gradient-spark {
             background: linear-gradient(135deg, #4f46e5 0%, #9333ea 100%);
             -webkit-background-clip: text;
@@ -274,10 +274,10 @@
                 <span class="text-indigo-600 font-bold uppercase tracking-widest text-sm">Apa Kata Orang Ramai</span>
                 <h2 class="text-3xl md:text-5xl font-black text-gray-900 mt-2">Maklum Balas & Impak</h2>
                 <div class="w-20 h-1 bg-indigo-500 mx-auto mt-6 rounded-full"></div>
-                <p class="text-gray-500 mt-4 max-w-2xl mx-auto text-sm">Maklum balas telus pengguna kami ditarik secara 'Live'. Leret ke kiri dan kanan untuk membaca lebih lanjut.</p>
+                <p class="text-gray-500 mt-4 max-w-2xl mx-auto text-sm">Koleksi komen telus yang ditarik secara rawak (Live) dari pangkalan data kami.</p>
             </div>
             
-            <div id="live-feedback-container" class="flex flex-row gap-6 overflow-x-auto pb-10 pt-4 px-4 md:px-12 snap-x snap-mandatory hide-scrollbar">
+            <div id="live-feedback-container" class="flex flex-row gap-6 overflow-x-auto pb-10 pt-4 px-4 md:px-12 snap-x snap-mandatory hide-scrollbar scroll-smooth">
                 <div class="shrink-0 w-[300px] md:w-[350px] snap-center bg-white p-6 rounded-2xl border border-indigo-100 shadow-sm animate-pulse h-56"></div>
                 <div class="shrink-0 w-[300px] md:w-[350px] snap-center bg-white p-6 rounded-2xl border border-indigo-100 shadow-sm animate-pulse h-56"></div>
                 <div class="shrink-0 w-[300px] md:w-[350px] snap-center bg-white p-6 rounded-2xl border border-indigo-100 shadow-sm animate-pulse h-56"></div>
@@ -560,7 +560,6 @@
     </footer>
 
     <script type="module">
-        // Import Firebase modules for querying Live Feedback and Stats
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getFirestore, collection, getDocs, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
@@ -614,9 +613,6 @@
 
             } catch (error) {
                 console.error("Error fetching live stats:", error);
-                document.getElementById('live-users').textContent = "1500+";
-                document.getElementById('live-attendance').textContent = "10k+";
-                document.getElementById('live-programs').textContent = "200+";
             }
         }
 
@@ -637,43 +633,79 @@
             window.requestAnimationFrame(step);
         }
 
-        // FUNGSI UNTUK MENARIK DATA MAKLUM BALAS SECARA LIVE DARI FIREBASE
         function escapeHtml(unsafe) {
             if (unsafe == null) return ''; 
             const str = String(unsafe);
             return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
         }
 
+        let autoScrollInterval;
+        function startAutoScroll() {
+            const container = document.getElementById('live-feedback-container');
+            if (!container) return;
+
+            if (autoScrollInterval) clearInterval(autoScrollInterval);
+
+            autoScrollInterval = setInterval(() => {
+                // Semak jika sudah sampai hujung
+                if (container.scrollLeft + container.clientWidth >= container.scrollWidth - 10) {
+                    container.scrollTo({ left: 0, behavior: 'smooth' });
+                } else {
+                    // Tatal sejauh anggaran satu kad + gap (contoh: 350px + 24px = 374px)
+                    container.scrollBy({ left: 350, behavior: 'smooth' });
+                }
+            }, 3000); // 3 saat
+
+            // Henti masa hover atau sentuh
+            container.addEventListener('mouseenter', () => clearInterval(autoScrollInterval));
+            container.addEventListener('mouseleave', startAutoScroll);
+            container.addEventListener('touchstart', () => clearInterval(autoScrollInterval));
+            container.addEventListener('touchend', startAutoScroll);
+        }
+
         async function fetchLiveFeedbacks() {
             const container = document.getElementById('live-feedback-container');
             if (!container) return;
 
-            // Menarik sehingga 20 maklum balas terkini untuk discroll mendatar
-            const q = query(collection(db, `artifacts/${appId}/public/data/spark_feedback`), orderBy("timestamp", "desc"), limit(20));
+            const q = query(collection(db, `artifacts/${appId}/public/data/spark_feedback`), orderBy("timestamp", "desc"), limit(40));
             
             try {
                 const snapshot = await getDocs(q);
                 if (snapshot.empty) {
-                    container.innerHTML = '<p class="text-sm text-center text-gray-500 italic p-4">Belum ada maklum balas yang direkodkan.</p>';
+                    container.innerHTML = '<p class="text-sm text-center text-gray-500 italic p-4 w-full">Belum ada maklum balas yang direkodkan.</p>';
                     return;
                 }
 
                 let items = [];
                 snapshot.forEach(doc => {
                     const data = doc.data();
-                    // Pastikan ia mempunyai komen yang sah
                     if (data.name && data.comment && data.comment.length > 0) {
                         items.push(data);
                     }
                 });
 
                 if (items.length === 0) {
-                     container.innerHTML = '<p class="text-sm text-center text-gray-500 italic p-4">Belum ada maklum balas yang sah.</p>';
+                     container.innerHTML = '<p class="text-sm text-center text-gray-500 italic p-4 w-full">Belum ada maklum balas yang sah.</p>';
                      return;
                 }
 
-                // Bina HTML untuk Kad Maklum Balas (Mendatar & Teks dipendekkan)
-                container.innerHTML = items.map(item => {
+                // Filter komen positif sahaja
+                const positiveItems = items.filter(i => 
+                    (i.feeling === '😍' || i.feeling === '😊' || i.feeling === '🤩' || i.reply?.status === "Penambahbaikan telah dibuat")
+                );
+
+                let displayItems = positiveItems.length > 5 ? positiveItems : items;
+
+                // Fungsi kocok (Shuffle) secara rawak
+                for (let i = displayItems.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [displayItems[i], displayItems[j]] = [displayItems[j], displayItems[i]];
+                }
+
+                // Ambil 15 rawak untuk dipapar
+                displayItems = displayItems.slice(0, 15);
+
+                container.innerHTML = displayItems.map(item => {
                     const firstComment = Array.isArray(item.comment) ? item.comment[0] : item.comment;
                     const feelingEmoji = item.feeling ? escapeHtml(item.feeling) : '😊';
                     const encodedName = encodeURIComponent(item.name);
@@ -703,9 +735,11 @@
                     `;
                 }).join('');
 
+                startAutoScroll();
+
             } catch (error) {
                 console.error("Error loading live feedbacks:", error);
-                container.innerHTML = '<p class="text-sm text-center text-red-500 p-4">Gagal memuatkan maklum balas pengguna.</p>';
+                container.innerHTML = '<p class="text-sm text-center text-red-500 p-4 w-full">Gagal memuatkan maklum balas pengguna.</p>';
             }
         }
 
@@ -770,110 +804,6 @@
             fetchLiveStats();
             renderRadarChart();
             fetchLiveFeedbacks(); 
-        });
-    </script>
-
-    <script>
-        function revealOnScroll() {
-            var reveals = document.querySelectorAll(".reveal");
-            for (var i = 0; i < reveals.length; i++) {
-                var windowHeight = window.innerHeight;
-                var elementTop = reveals[i].getBoundingClientRect().top;
-                var elementVisible = 100;
-                if (elementTop < windowHeight - elementVisible) {
-                    reveals[i].classList.add("active");
-                }
-            }
-        }
-        window.addEventListener("scroll", revealOnScroll);
-        revealOnScroll();
-
-        function switchPerspective(type) {
-            const btnPenganjur = document.getElementById('btn-penganjur');
-            const btnPeserta = document.getElementById('btn-peserta');
-            const contentPenganjur = document.getElementById('content-penganjur');
-            const contentPeserta = document.getElementById('content-peserta');
-
-            if (type === 'penganjur') {
-                btnPenganjur.className = "flex-1 sm:flex-none px-6 py-3 rounded-full text-sm font-bold uppercase tracking-wider transition-all bg-white text-indigo-700 shadow-sm border border-gray-200";
-                btnPeserta.className = "flex-1 sm:flex-none px-6 py-3 rounded-full text-sm font-bold uppercase tracking-wider transition-all text-gray-500 hover:text-gray-800";
-                contentPeserta.classList.remove('active');
-                contentPenganjur.classList.add('active');
-            } else {
-                btnPeserta.className = "flex-1 sm:flex-none px-6 py-3 rounded-full text-sm font-bold uppercase tracking-wider transition-all bg-white text-indigo-700 shadow-sm border border-gray-200";
-                btnPenganjur.className = "flex-1 sm:flex-none px-6 py-3 rounded-full text-sm font-bold uppercase tracking-wider transition-all text-gray-500 hover:text-gray-800";
-                contentPenganjur.classList.remove('active');
-                contentPeserta.classList.add('active');
-            }
-        }
-
-        let isPresenting = false;
-        let currentHighlight = 0;
-        const totalMetrics = 8;
-        const metricsSection = document.getElementById('kecekapan-section');
-        const controls = document.getElementById('presentation-controls');
-        const counterEl = document.getElementById('metric-counter');
-
-        function startPresentation() {
-            isPresenting = true;
-            currentHighlight = 1;
-            document.getElementById('start-presentation-btn').classList.add('hidden');
-            controls.classList.remove('hidden');
-            document.body.style.overflow = 'hidden';
-            metricsSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            updateMetricsHighlight();
-        }
-
-        function stopPresentation() {
-            isPresenting = false;
-            currentHighlight = 0;
-            document.getElementById('start-presentation-btn').classList.remove('hidden');
-            controls.classList.add('hidden');
-            document.body.style.overflow = 'auto';
-            updateMetricsHighlight();
-        }
-
-        function nextMetric() {
-            if (currentHighlight < totalMetrics) {
-                currentHighlight++;
-                updateMetricsHighlight();
-            } else { stopPresentation(); }
-        }
-
-        function prevMetric() {
-            if (currentHighlight > 1) {
-                currentHighlight--;
-                updateMetricsHighlight();
-            }
-        }
-
-        function updateMetricsHighlight() {
-            counterEl.textContent = currentHighlight;
-            
-            for (let i = 1; i <= totalMetrics; i++) {
-                const card = document.getElementById(`metric-${i}`);
-                if (currentHighlight === 0) {
-                    card.classList.remove('metric-active', 'metric-dimmed');
-                } else if (i === currentHighlight) {
-                    card.classList.remove('metric-dimmed');
-                    card.classList.add('metric-active');
-                    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                } else {
-                    card.classList.remove('metric-active');
-                    card.classList.add('metric-dimmed');
-                }
-            }
-        }
-
-        document.addEventListener('keydown', (e) => {
-            if (!isPresenting) return;
-            if (e.key === 'ArrowDown' || e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') {
-                e.preventDefault(); nextMetric();
-            } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft' || e.key === 'PageUp') {
-                e.preventDefault(); prevMetric();
-            } else if (e.key === 'Escape') {
-                stopPresentation();
-            }
         });
     </script>
 </body>
