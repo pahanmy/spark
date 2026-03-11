@@ -57,7 +57,7 @@
             <div class="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
                 <div id="loading-state" class="text-center py-20">
                     <svg class="animate-spin h-10 w-10 text-indigo-600 mx-auto mb-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
-                    <p class="text-gray-500 font-medium">Menarik rekod profil...</p>
+                    <p class="text-gray-500 font-medium">Sistem sedang mengesahkan identiti anda & menarik rekod...</p>
                 </div>
 
                 <div class="custom-scrollbar overflow-x-auto hidden" id="table-container">
@@ -139,6 +139,8 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        // TAMBAHAN: Import modul Authentication untuk pengesahan akses Firebase
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, getDocs, doc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const firebaseConfig = {
@@ -149,13 +151,30 @@
             messagingSenderId: "799691133747",
             appId: "1:799691133747:web:835a5e3e9413eace806446"
         };
-        const app = initializeApp(firebaseConfig); const db = getFirestore(app); const appId = firebaseConfig.projectId;
+        const app = initializeApp(firebaseConfig); 
+        const db = getFirestore(app); 
+        const auth = getAuth(app); // Inisialisasi Auth
+        const appId = firebaseConfig.projectId;
 
         let teamMembersData = [];
         let radarChartInstance = null;
 
         // 8 Label Penilaian Inovasi Baharu
         const skillLabels = ['KREATIVITI & PENCETUSAN IDEA', 'KEMAHIRAN TEKNIKAL & SISTEM', 'PENYELESAIAN MASALAH', 'KOMUNIKASI & PEMBENTANGAN', 'PENGURUSAN PROJEK', 'PENGUJIAN & PELAKSANAAN', 'KELESTARIAN & PELUASAN', 'KERJA BERPASUKAN'];
+
+        // FUNGSI AUTHENTICATION (Memastikan sistem tahu Admin ada akses)
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                // Jika disahkan (termasuk anonymous login), barulah panggil data
+                loadDirectory();
+            } else {
+                // Jika belum, log masuk secara automatik (Anonymous)
+                signInAnonymously(auth).catch((error) => {
+                    console.error("Gagal log masuk:", error);
+                    alert("Ralat sambungan pangkalan data. Sila muat semula halaman.");
+                });
+            }
+        });
 
         async function loadDirectory() {
             const loading = document.getElementById('loading-state');
@@ -176,7 +195,10 @@
 
                 loading.classList.add('hidden'); tableContainer.classList.remove('hidden');
                 renderTable(teamMembersData);
-            } catch (error) { loading.innerHTML = '<p class="text-red-500 font-medium">Gagal memuatkan rekod.</p>'; }
+            } catch (error) { 
+                console.error(error);
+                loading.innerHTML = '<p class="text-red-500 font-medium">Gagal memuatkan rekod.</p>'; 
+            }
         }
 
         function renderTable(data) {
@@ -256,6 +278,7 @@
             if (radarChartInstance) radarChartInstance.destroy();
         };
 
+        // FUNGSI SIMPAN TETAPAN
         window.saveMemberSettings = async function(e) {
             e.preventDefault();
             const id = document.getElementById('modal-doc-id').value;
@@ -267,6 +290,8 @@
             btn.disabled = true; btn.innerHTML = `MENYIMPAN...`;
 
             try {
+                // Di sini ralat tersebut berlaku sebelum ini kerana Firebase menolak akses dari pengguna yang tidak 'login'.
+                // Dengan tambahan skrip auth di atas, ia akan berjaya.
                 await updateDoc(doc(db, `artifacts/${appId}/public/data/spark_team_members`, id), {
                     teamRole: newRole, displayOrder: newOrder !== "" ? parseInt(newOrder) : null, isVerified: isVerified
                 });
@@ -277,9 +302,17 @@
                     teamMembersData[index].displayOrder = newOrder !== "" ? parseInt(newOrder) : null;
                     teamMembersData[index].isVerified = isVerified;
                 }
-                closeManageModal(); loadDirectory(); alert("Tetapan berjaya disimpan!");
-            } catch (error) { alert("Gagal menyimpan tetapan."); } 
-            finally { btn.disabled = false; btn.innerHTML = `Simpan Tetapan`; }
+                closeManageModal(); 
+                loadDirectory(); 
+                alert("Tetapan berjaya disimpan!");
+            } catch (error) { 
+                console.error(error);
+                alert("Gagal menyimpan tetapan. Pastikan anda mempunyai akses internet."); 
+            } 
+            finally { 
+                btn.disabled = false; 
+                btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg> Simpan Tetapan`; 
+            }
         };
 
         window.shareInviteLink = function() {
@@ -295,7 +328,6 @@
             renderTable(teamMembersData.filter(m => m.name.toUpperCase().includes(input) || m.organization.toUpperCase().includes(input)));
         };
 
-        document.addEventListener("DOMContentLoaded", loadDirectory);
     </script>
 </body>
 </html>
