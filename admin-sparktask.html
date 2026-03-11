@@ -49,7 +49,7 @@
         <div class="flex space-x-2 sm:space-x-4 mb-6 border-b border-gray-200 overflow-x-auto custom-scrollbar">
             <button onclick="switchTab('sekolah')" id="btn-tab-sekolah" class="px-4 py-3 border-b-2 border-indigo-600 text-indigo-600 font-bold whitespace-nowrap transition-colors flex items-center gap-2">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m-1 4h1m4-8h1m-1 4h1m-1 4h1" /></svg>
-                Pentadbir Sekolah
+                Pentadbir Sekolah & Sijil
             </button>
             <button onclick="switchTab('ppd')" id="btn-tab-ppd" class="px-4 py-3 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium whitespace-nowrap transition-colors flex items-center gap-2">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
@@ -60,8 +60,8 @@
         <div id="tab-sekolah" class="card p-6 mb-6 block">
             <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
                 <div>
-                    <h2 class="text-xl font-bold text-gray-800">Senarai Guru Besar / Pengetua</h2>
-                    <p class="text-sm text-gray-600 mt-1">Sistem akan mengesan pendaftaran berjawatan Pengetua/Guru Besar secara automatik.</p>
+                    <h2 class="text-xl font-bold text-gray-800">Senarai Pentadbir & Penyelaras Sijil</h2>
+                    <p class="text-sm text-gray-600 mt-1">Sistem akan mengesan Guru Besar secara automatik. Anda juga boleh menetapkan Penyelaras Sijil.</p>
                 </div>
                 
                 <div class="w-full lg:w-auto flex flex-col sm:flex-row gap-3">
@@ -156,7 +156,7 @@
     <div id="modal-tetapkan" class="modal fixed inset-0 z-50 overflow-y-auto modal-backdrop justify-center items-start pt-10 pb-10 px-4 hidden">
         <div class="bg-white w-full max-w-lg rounded-xl shadow-lg flex flex-col relative my-auto">
             <div class="flex justify-between items-center border-b p-5 shrink-0">
-                <h3 class="text-xl font-medium text-gray-900">Tag Manual Pentadbir Sekolah</h3>
+                <h3 class="text-xl font-medium text-gray-900">Tag Manual Pentadbir / Penyelaras Sijil</h3>
                 <button onclick="tutupModal()" class="text-gray-400 hover:text-gray-600">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
@@ -165,6 +165,14 @@
             <div class="p-6 grow relative pb-8">
                 <p class="text-sm text-gray-600 mb-4">Sekolah: <span id="modal-nama-sekolah" class="font-bold text-indigo-700"></span></p>
                 
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Tetapkan Sebagai:</label>
+                    <select id="pilihan-peranan" class="block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border bg-white font-semibold text-indigo-900">
+                        <option value="gb">Guru Besar / Pengetua</option>
+                        <option value="cert_admin">Penyelaras Sijil (Ubah Design)</option>
+                    </select>
+                </div>
+
                 <div class="relative mb-4">
                     <label for="carian-nama-pentadbir" class="block text-sm font-medium text-gray-700 mb-1">Carian Nama Pegawai</label>
                     <div class="relative">
@@ -285,7 +293,6 @@
         let penggunaDisahkan = null;
         let penapisBelum = false; 
 
-        // Untuk modal tambah IC PPD
         let calonTambahPPD = null;
 
         try {
@@ -333,16 +340,23 @@
                     .map(doc => doc.data().name)
                     .filter(nama => nama.toUpperCase() !== "PEJABAT PENDIDIKAN DAERAH MIRI");
                 
-                // 2. Ambil mapping sedia ada (Sekolah)
+                // 2. Ambil mapping sedia ada (Sekolah - Guru Besar)
                 const qPentadbir = collection(db, `artifacts/${appId}/public/data/spark_school_principals`);
                 const snapPentadbir = await getDocs(qPentadbir);
-                
                 senaraiPentadbir = {};
                 assignedICs = [];
                 snapPentadbir.forEach(doc => {
-                    const data = doc.data();
-                    senaraiPentadbir[doc.id] = data;
-                    if(data.ic) assignedICs.push(data.ic);
+                    senaraiPentadbir[doc.id] = { ...doc.data(), role: 'gb' };
+                    if(doc.data().ic) assignedICs.push(doc.data().ic);
+                });
+
+                // TAMBAHAN: Ambil mapping Penyelaras Sijil
+                const qCertAdmin = collection(db, `artifacts/${appId}/public/data/spark_school_cert_admins`);
+                const snapCertAdmin = await getDocs(qCertAdmin);
+                window.senaraiCertAdmin = {}; 
+                snapCertAdmin.forEach(doc => {
+                    window.senaraiCertAdmin[doc.id] = doc.data();
+                    if(doc.data().ic) assignedICs.push(doc.data().ic); 
                 });
 
                 // 3. Ambil mapping PPD (dari spark_verified_ppd)
@@ -456,6 +470,14 @@
                         butangWarna = "bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100";
                     }
                 }
+
+                // TAMBAHAN: Semak dan Papar Penyelaras Sijil
+                const certAdmin = window.senaraiCertAdmin ? window.senaraiCertAdmin[sekolah] : null;
+                const certAdminHtml = certAdmin 
+                    ? `<div class="mt-2 text-[10px] bg-blue-50 border border-blue-200 p-1.5 rounded text-blue-800 font-medium"><b>Penyelaras Sijil:</b> ${certAdmin.nama}</div>` 
+                    : `<div class="mt-2 text-[10px] text-gray-400 italic">Penyelaras Sijil: Sama spt GB/Pengetua</div>`;
+                
+                paparanPentadbir += certAdminHtml;
                 
                 tbody.innerHTML += `
                     <tr class="hover:bg-gray-50 transition-colors">
@@ -492,29 +514,21 @@
                     dikemaskiniPada: new Date().toISOString()
                 });
                 
-                const oldData = senaraiPentadbir[namaSekolah];
-                if (oldData && oldData.ic) assignedICs = assignedICs.filter(ic => ic !== oldData.ic);
-                
-                assignedICs.push(cadanganData.ic);
-                senaraiPentadbir[namaSekolah] = { ic: cadanganData.ic, nama: cadanganData.name };
-                
-                paparJadualSekolah(document.getElementById('carian-sekolah').value);
+                await muatData(); // Refresh keseluruhan UI
             } catch(error) {
                 console.error("Gagal simpan cadangan:", error);
                 alert("Gagal mengemas kini data.");
             }
         }
 
-        window.bukaModal = function(namaSekolah) {
-            sekolahDipilih = namaSekolah;
-            penggunaDisahkan = null;
-            document.getElementById('modal-nama-sekolah').textContent = namaSekolah;
-            document.getElementById('carian-nama-pentadbir').value = '';
-            document.getElementById('autocomplete-results').classList.add('hidden');
-            document.getElementById('maklumat-pengguna').classList.add('hidden');
-            document.getElementById('btn-simpan').disabled = true;
+        // --- KAWALAN MODAL PERANAN ---
+        document.getElementById('pilihan-peranan').addEventListener('change', function(e) {
+            const peranan = e.target.value;
+            let sediaAda = null;
             
-            const sediaAda = senaraiPentadbir[namaSekolah];
+            if(peranan === 'gb') sediaAda = senaraiPentadbir[sekolahDipilih];
+            else sediaAda = window.senaraiCertAdmin ? window.senaraiCertAdmin[sekolahDipilih] : null;
+
             if (sediaAda) {
                 document.getElementById('btn-padam-rekod').classList.remove('hidden');
                 const profilPenuh = semuaPeserta.find(p => p.ic === sediaAda.ic);
@@ -522,7 +536,27 @@
                 else pilihPeserta({ name: sediaAda.nama, ic: sediaAda.ic, position: 'Maklumat tidak lengkap' }, true);
             } else {
                 document.getElementById('btn-padam-rekod').classList.add('hidden');
+                document.getElementById('carian-nama-pentadbir').value = '';
+                document.getElementById('maklumat-pengguna').classList.add('hidden');
+                penggunaDisahkan = null;
+                document.getElementById('btn-simpan').disabled = true;
             }
+        });
+
+        window.bukaModal = function(namaSekolah) {
+            sekolahDipilih = namaSekolah;
+            penggunaDisahkan = null;
+            
+            document.getElementById('modal-nama-sekolah').textContent = namaSekolah;
+            document.getElementById('carian-nama-pentadbir').value = '';
+            document.getElementById('autocomplete-results').classList.add('hidden');
+            document.getElementById('maklumat-pengguna').classList.add('hidden');
+            document.getElementById('btn-simpan').disabled = true;
+            
+            // Set dropdown ke default (gb) dan trigger event 'change' untuk load data sedia ada
+            const dropdownPeranan = document.getElementById('pilihan-peranan');
+            dropdownPeranan.value = 'gb';
+            dropdownPeranan.dispatchEvent(new Event('change'));
 
             document.getElementById('modal-tetapkan').classList.add('buka');
             setTimeout(() => document.getElementById('carian-nama-pentadbir').focus(), 100);
@@ -537,13 +571,9 @@
             
             if (val.length < 2) { resultsContainer.classList.add('hidden'); return; }
 
-            const currentSchoolAdmin = senaraiPentadbir[sekolahDipilih];
             const matched = semuaPeserta.filter(p => {
                 if (!p.name) return false;
-                const isMatch = p.name.toLowerCase().includes(val) || (p.ic && p.ic.includes(val));
-                const isCurrentSchoolAdmin = currentSchoolAdmin && currentSchoolAdmin.ic === p.ic;
-                const isAlreadyAssigned = assignedICs.includes(p.ic);
-                return isMatch && (!isAlreadyAssigned || isCurrentSchoolAdmin);
+                return p.name.toLowerCase().includes(val) || (p.ic && p.ic.includes(val));
             }).slice(0, 8); 
 
             if (matched.length > 0) {
@@ -558,7 +588,7 @@
             } else {
                 const li = document.createElement('li');
                 li.className = 'px-4 py-4 text-sm text-red-500 italic text-center bg-red-50';
-                li.innerHTML = `<b>Tiada rekod ditemui.</b><br>Mungkin nama salah, atau pegawai ini telah ditag di sekolah lain.`;
+                li.innerHTML = `<b>Tiada rekod ditemui.</b><br>Pastikan guru telah mendaftar profil SPARK mereka.`;
                 resultsContainer.appendChild(li);
                 resultsContainer.classList.remove('hidden');
             }
@@ -584,18 +614,20 @@
         window.simpanTetapan = async function() {
             if(!sekolahDipilih || !penggunaDisahkan) return;
             const btnSimpan = document.getElementById('btn-simpan');
+            const peranan = document.getElementById('pilihan-peranan').value; 
+            
             btnSimpan.textContent = "Menyimpan..."; btnSimpan.disabled = true;
             
             try {
-                const oldData = senaraiPentadbir[sekolahDipilih];
-                const docRef = doc(db, `artifacts/${appId}/public/data/spark_school_principals`, sekolahDipilih);
-                await setDoc(docRef, { sekolah: sekolahDipilih, ic: penggunaDisahkan.ic, nama: penggunaDisahkan.name, dikemaskiniPada: new Date().toISOString() });
+                if(peranan === 'gb') {
+                    const docRef = doc(db, `artifacts/${appId}/public/data/spark_school_principals`, sekolahDipilih);
+                    await setDoc(docRef, { sekolah: sekolahDipilih, ic: penggunaDisahkan.ic, nama: penggunaDisahkan.name, dikemaskiniPada: new Date().toISOString() });
+                } else {
+                    const docRef = doc(db, `artifacts/${appId}/public/data/spark_school_cert_admins`, sekolahDipilih);
+                    await setDoc(docRef, { sekolah: sekolahDipilih, ic: penggunaDisahkan.ic, nama: penggunaDisahkan.name, dikemaskiniPada: new Date().toISOString() });
+                }
                 
-                if (oldData && oldData.ic) assignedICs = assignedICs.filter(ic => ic !== oldData.ic);
-                assignedICs.push(penggunaDisahkan.ic);
-                senaraiPentadbir[sekolahDipilih] = { ic: penggunaDisahkan.ic, nama: penggunaDisahkan.name };
-                
-                paparJadualSekolah(document.getElementById('carian-sekolah').value);
+                await muatData(); 
                 tutupModal();
             } catch (error) {
                 console.error("Gagal simpan:", error); alert("Gagal menyimpan tetapan.");
@@ -605,32 +637,31 @@
         }
 
         window.padamRekod = async function() {
-            if(!confirm(`Anda pasti mahu membuang tag pentadbir untuk ${sekolahDipilih}?`)) return;
+            const peranan = document.getElementById('pilihan-peranan').value;
+            const labelPeranan = peranan === 'gb' ? 'Guru Besar' : 'Penyelaras Sijil';
+
+            if(!confirm(`Anda pasti mahu membuang tag ${labelPeranan} untuk ${sekolahDipilih}?`)) return;
+            
             try {
-                const oldData = senaraiPentadbir[sekolahDipilih];
-                const docRef = doc(db, `artifacts/${appId}/public/data/spark_school_principals`, sekolahDipilih);
+                const collPath = peranan === 'gb' ? 'spark_school_principals' : 'spark_school_cert_admins';
+                const docRef = doc(db, `artifacts/${appId}/public/data/${collPath}`, sekolahDipilih);
                 await deleteDoc(docRef);
                 
-                if (oldData && oldData.ic) assignedICs = assignedICs.filter(ic => ic !== oldData.ic);
-                delete senaraiPentadbir[sekolahDipilih];
-                
-                paparJadualSekolah(document.getElementById('carian-sekolah').value);
+                await muatData(); 
                 tutupModal();
             } catch (error) {
                 console.error("Gagal padam:", error); alert("Gagal memadam tetapan.");
             }
         }
 
-
         // ==========================================
-        // BAHAGIAN 2: PENGURUSAN PEGAWAI PPD (PUKAL, PENAPIS & MANUAL ADD)
+        // BAHAGIAN 2: PENGURUSAN PEGAWAI PPD (KEKAL)
         // ==========================================
 
         function paparJadualPPD(kataKunci = "") {
             const tbody = document.getElementById('jadual-ppd');
             tbody.innerHTML = '';
             
-            // Cari pengguna yang mendaftar stesen mereka sebagai PPD ATAU mereka telah disahkan (membolehkan penambahan stesen pelik/salah ditaip)
             let pegawaiPPD = semuaPeserta.filter(p => {
                 const stesen = (p.station || '').toUpperCase();
                 const isPpdStation = stesen.includes('PPD MIRI') || stesen.includes('PEJABAT PENDIDIKAN DAERAH');
@@ -645,7 +676,6 @@
                 );
             }
 
-            // PENAPIS STATUS (SAH/BELUM)
             const filterStatus = document.getElementById('filter-status-ppd').value;
             if (filterStatus === 'sah') {
                 pegawaiPPD = pegawaiPPD.filter(p => senaraiSahPPD[p.ic]);
@@ -663,12 +693,11 @@
             pegawaiPPD.sort((a, b) => a.name.localeCompare(b.name));
 
             pegawaiPPD.forEach((p, index) => {
-                const verifiedSector = senaraiSahPPD[p.ic]; // String sektor jika sah, undefined jika belum
+                const verifiedSector = senaraiSahPPD[p.ic]; 
                 
                 let statusHtml = '';
                 let actionBtnHtml = '';
 
-                // Escape variables for HTML injection
                 const safeName = p.name.replace(/'/g, "\\'").replace(/"/g, "&quot;");
                 const safePos = (p.position || '').replace(/'/g, "\\'").replace(/"/g, "&quot;");
 
@@ -694,7 +723,6 @@
                             Belum Disahkan
                         </span>
                     `;
-                    // Mini dropdown for individual verification
                     actionBtnHtml = `
                         <select id="sec-${p.ic}" class="block w-full rounded border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-[10px] p-1.5 border mb-1.5 bg-gray-50 uppercase font-medium">
                             <option value="">-- Pilih Sektor --</option>
@@ -735,29 +763,22 @@
                 `;
             });
 
-            // Reattach event listeners for individual checkboxes
             document.querySelectorAll('.ppd-check').forEach(cb => {
                 cb.addEventListener('change', kemaskiniBulkAction);
             });
-            // Reset main checkbox
             document.getElementById('check-all-ppd').checked = false;
             kemaskiniBulkAction();
         }
 
-        // Event Listeners Header PPD
         document.getElementById('carian-ppd').addEventListener('input', (e) => paparJadualPPD(e.target.value));
         document.getElementById('filter-status-ppd').addEventListener('change', () => paparJadualPPD(document.getElementById('carian-ppd').value));
 
-        // CHECKBOX KAWALAN KESELURUHAN
         document.getElementById('check-all-ppd').addEventListener('change', function(e) {
             const isChecked = e.target.checked;
-            document.querySelectorAll('.ppd-check').forEach(cb => {
-                cb.checked = isChecked;
-            });
+            document.querySelectorAll('.ppd-check').forEach(cb => { cb.checked = isChecked; });
             kemaskiniBulkAction();
         });
 
-        // FUNGSI KEMASKINI UI BULK PANEL
         function kemaskiniBulkAction() {
             const checkedBoxes = document.querySelectorAll('.ppd-check:checked');
             const panel = document.getElementById('bulk-action-panel');
@@ -773,105 +794,59 @@
                 panel.classList.remove('flex');
             }
 
-            // Sync master checkbox state
             const allBoxes = document.querySelectorAll('.ppd-check');
             if (allBoxes.length > 0) {
                 document.getElementById('check-all-ppd').checked = (checkedBoxes.length === allBoxes.length);
             }
         }
 
-        // --- FUNGSI PENGESAHAN INDIVIDU ---
         window.sahkanPPD = async function(ic, nama, jawatan, selectId) {
             const sektor = document.getElementById(selectId).value;
-            if(!sektor) {
-                alert("Sila pilih sektor dari senarai (dropdown) di atas butang Sahkan terlebih dahulu.");
-                return;
-            }
-
+            if(!sektor) { alert("Sila pilih sektor dari senarai."); return; }
             try {
                 const docRef = doc(db, `artifacts/${appId}/public/data/spark_verified_ppd`, ic);
-                await setDoc(docRef, {
-                    ic: ic,
-                    name: nama,
-                    position: jawatan,
-                    sector: sektor,
-                    timestamp: new Date().toISOString()
-                });
-                
+                await setDoc(docRef, { ic: ic, name: nama, position: jawatan, sector: sektor, timestamp: new Date().toISOString() });
                 senaraiSahPPD[ic] = sektor;
                 paparJadualPPD(document.getElementById('carian-ppd').value);
-                
-            } catch (error) {
-                console.error("Gagal mengesahkan pegawai PPD:", error);
-                alert("Gagal mengesahkan pegawai. Sila cuba lagi.");
-            }
+            } catch (error) { alert("Gagal mengesahkan pegawai."); }
         }
 
         window.batalSahPPD = async function(ic) {
-            if(!confirm("Anda pasti mahu membatalkan pengesahan pegawai ini? Nama beliau akan dibuang daripada senarai sasaran tugasan PPD.")) return;
-            
+            if(!confirm("Anda pasti mahu membatalkan pengesahan pegawai ini?")) return;
             try {
                 const docRef = doc(db, `artifacts/${appId}/public/data/spark_verified_ppd`, ic);
                 await deleteDoc(docRef);
-                
                 delete senaraiSahPPD[ic];
                 paparJadualPPD(document.getElementById('carian-ppd').value);
-                
-            } catch (error) {
-                console.error("Gagal batal pengesahan PPD:", error);
-                alert("Gagal membatalkan pengesahan. Sila cuba lagi.");
-            }
+            } catch (error) { alert("Gagal membatalkan pengesahan."); }
         }
 
-        // --- FUNGSI PENGESAHAN PUKAL (BULK) ---
         window.sahkanPukal = async function() {
             const checkboxes = document.querySelectorAll('.ppd-check:checked');
             if (checkboxes.length === 0) return;
-            
             const sektor = document.getElementById('bulk-sector-select').value;
-            if (!sektor) {
-                alert('Sila pilih Sektor untuk pengesahan pukal dari menu dropdown di atas!');
-                return;
-            }
-
+            if (!sektor) { alert('Sila pilih Sektor untuk pengesahan pukal!'); return; }
             if (!confirm(`Anda pasti mahu mengesahkan ${checkboxes.length} pegawai ini ke dalam ${sektor}?`)) return;
 
             try {
                 const promises = [];
                 checkboxes.forEach(cb => {
                     const ic = cb.value;
-                    const nama = cb.dataset.nama;
-                    const pos = cb.dataset.pos;
-                    
                     const docRef = doc(db, `artifacts/${appId}/public/data/spark_verified_ppd`, ic);
-                    promises.push(setDoc(docRef, {
-                        ic: ic,
-                        name: nama,
-                        position: pos,
-                        sector: sektor,
-                        timestamp: new Date().toISOString()
-                    }));
+                    promises.push(setDoc(docRef, { ic: ic, name: cb.dataset.nama, position: cb.dataset.pos, sector: sektor, timestamp: new Date().toISOString() }));
                     senaraiSahPPD[ic] = sektor;
                 });
-
                 await Promise.all(promises);
-                alert('Pengesahan pukal berjaya disimpan!');
-                
-                // Reset UI
+                alert('Pengesahan pukal berjaya!');
                 document.getElementById('bulk-sector-select').value = '';
                 paparJadualPPD(document.getElementById('carian-ppd').value);
-                
-            } catch(e) {
-                console.error("Ralat pengesahan pukal:", e);
-                alert('Berlaku ralat semasa menyimpan pengesahan pukal.');
-            }
+            } catch(e) { alert('Ralat semasa pengesahan pukal.'); }
         }
 
         window.batalSahPukal = async function() {
             const checkboxes = document.querySelectorAll('.ppd-check:checked');
             if (checkboxes.length === 0) return;
-
-            if (!confirm(`Anda pasti mahu membatalkan pengesahan bagi ${checkboxes.length} pegawai yang dipilih?`)) return;
+            if (!confirm(`Pasti membatalkan pengesahan bagi ${checkboxes.length} pegawai?`)) return;
 
             try {
                 const promises = [];
@@ -881,20 +856,14 @@
                     promises.push(deleteDoc(docRef));
                     delete senaraiSahPPD[ic];
                 });
-
                 await Promise.all(promises);
                 alert('Batal pengesahan pukal berjaya!');
-                
                 paparJadualPPD(document.getElementById('carian-ppd').value);
-                
-            } catch(e) {
-                console.error("Ralat batal sah pukal:", e);
-                alert('Berlaku ralat semasa membatalkan pengesahan pukal.');
-            }
+            } catch(e) { alert('Ralat batal sah pukal.'); }
         }
 
         // ==========================================
-        // FUNGSI BARU: TAMBAH PEGAWAI PPD MANUAL (GUNA IC)
+        // TAMBAH PEGAWAI PPD MANUAL (KEKAL)
         // ==========================================
         window.bukaModalTambahPPD = function() {
             calonTambahPPD = null;
@@ -904,13 +873,10 @@
             document.getElementById('tambah-sektor-ppd').value = '';
             document.getElementById('btn-simpan-tambah-ppd').disabled = true;
             document.getElementById('modal-tambah-ppd').classList.add('buka');
-            
             setTimeout(() => document.getElementById('carian-ic-ppd').focus(), 100);
         }
 
-        window.tutupModalTambahPPD = function() {
-            document.getElementById('modal-tambah-ppd').classList.remove('buka');
-        }
+        window.tutupModalTambahPPD = function() { document.getElementById('modal-tambah-ppd').classList.remove('buka'); }
 
         window.cariPegawaiPpdIC = function() {
             const inputIC = document.getElementById('carian-ic-ppd').value.trim();
@@ -918,74 +884,49 @@
             const resultBox = document.getElementById('hasil-carian-ic');
             const btnSimpan = document.getElementById('btn-simpan-tambah-ppd');
             
-            errorMsg.classList.add('hidden');
-            resultBox.classList.add('hidden');
-            btnSimpan.disabled = true;
-            calonTambahPPD = null;
+            errorMsg.classList.add('hidden'); resultBox.classList.add('hidden');
+            btnSimpan.disabled = true; calonTambahPPD = null;
 
             if (inputIC.length !== 12 || isNaN(inputIC)) {
-                errorMsg.textContent = "Sila masukkan 12 digit IC yang sah tanpa sengkang (-).";
-                errorMsg.classList.remove('hidden');
-                return;
+                errorMsg.textContent = "Sila masukkan 12 digit IC.";
+                errorMsg.classList.remove('hidden'); return;
             }
 
-            // Cari dari array semuaPeserta yang telah di-fetch
             const calon = semuaPeserta.find(p => p.ic === inputIC);
-
             if (calon) {
                 calonTambahPPD = calon;
                 document.getElementById('tambah-nama-ppd').textContent = calon.name;
                 document.getElementById('tambah-ic-ppd').textContent = calon.ic;
                 document.getElementById('tambah-stesen-ppd').textContent = `Jawatan: ${calon.position || 'Tiada'} | Stesen: ${calon.station || 'Tiada'}`;
-                
-                resultBox.classList.remove('hidden');
-                btnSimpan.disabled = false;
+                resultBox.classList.remove('hidden'); btnSimpan.disabled = false;
             } else {
-                errorMsg.textContent = "Rekod pengguna tidak ditemui di dalam sistem.";
+                errorMsg.textContent = "Rekod pengguna tidak ditemui.";
                 errorMsg.classList.remove('hidden');
             }
         }
 
         window.simpanTambahPPD = async function() {
             if (!calonTambahPPD) return;
-            
             const sektor = document.getElementById('tambah-sektor-ppd').value;
-            if (!sektor) {
-                alert("Sila pilih Sektor Penempatan dari menu dropdown.");
-                document.getElementById('tambah-sektor-ppd').focus();
-                return;
-            }
+            if (!sektor) { alert("Sila pilih Sektor."); return; }
 
             const btnSimpan = document.getElementById('btn-simpan-tambah-ppd');
-            btnSimpan.textContent = "Menyimpan...";
-            btnSimpan.disabled = true;
+            btnSimpan.textContent = "Menyimpan..."; btnSimpan.disabled = true;
 
             try {
                 const ic = calonTambahPPD.ic;
                 const docRef = doc(db, `artifacts/${appId}/public/data/spark_verified_ppd`, ic);
-                
-                await setDoc(docRef, {
-                    ic: ic,
-                    name: calonTambahPPD.name,
-                    position: calonTambahPPD.position || 'Tiada Jawatan',
-                    sector: sektor,
-                    timestamp: new Date().toISOString()
-                });
+                await setDoc(docRef, { ic: ic, name: calonTambahPPD.name, position: calonTambahPPD.position || 'Tiada Jawatan', sector: sektor, timestamp: new Date().toISOString() });
                 
                 senaraiSahPPD[ic] = sektor;
-                alert(`Pegawai ${calonTambahPPD.name} berjaya ditambah dan disahkan ke ${sektor}.`);
-                
+                alert(`Pegawai ${calonTambahPPD.name} berjaya disahkan ke ${sektor}.`);
                 paparJadualPPD(document.getElementById('carian-ppd').value);
                 tutupModalTambahPPD();
-                
             } catch (error) {
-                console.error("Gagal menambah pegawai PPD:", error);
-                alert("Gagal menambah pegawai. Sila cuba lagi.");
-                btnSimpan.textContent = "Sahkan & Masukkan";
-                btnSimpan.disabled = false;
+                alert("Gagal menambah pegawai.");
+                btnSimpan.textContent = "Sahkan & Masukkan"; btnSimpan.disabled = false;
             }
         }
-
     </script>
 </body>
 </html>
