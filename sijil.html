@@ -122,7 +122,7 @@
                     </svg>
                 </div>
                 <h3 class="text-lg font-bold text-gray-900 uppercase">Sijil Format Standard</h3>
-                <p class="text-xs text-gray-500 mt-2 leading-relaxed">Anda akan mencetak sijil menggunakan format standard SPARK tanpa logo sekolah.</p>
+                <p class="text-xs text-gray-500 mt-2 leading-relaxed">Sijil akan dicetak menggunakan tetapan standard SPARK.</p>
             </div>
 
             <div class="bg-indigo-50 border border-indigo-100 rounded-xl p-4 mb-5">
@@ -136,7 +136,7 @@
                     <li class="flex items-center gap-1.5"><svg class="w-3 h-3 text-indigo-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg> Reka bentuk (design) sijil khas sekolah.</li>
                     <li class="flex items-center gap-1.5"><svg class="w-3 h-3 text-indigo-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg> Tandatangan digital rasmi Pengetua/Guru Besar.</li>
                 </ul>
-                <p class="text-[10px] text-indigo-500 italic bg-white/50 p-1.5 rounded">* Nota: Hanya 1 orang penyelaras (admin) diperlukan bagi setiap sekolah.</p>
+                <p class="text-[10px] text-indigo-500 italic bg-white/50 p-1.5 rounded">* Nota: Jika sekolah anda melanggan PRO, Penyelaras Sijil boleh mengubah suai reka bentuk sendiri di halaman tetapan.</p>
             </div>
 
             <div class="flex flex-col gap-2">
@@ -483,196 +483,253 @@
             }
         }
 
-        function executePrintCertificate(dataItem, btnElement) {
+        async function executePrintCertificate(dataItem, btnElement) {
             const { program, participant, isSchoolProgram } = dataItem;
-            const participantName = participant.name.toUpperCase();
-            const participantIC = participant.ic;
-            const courseName = program.name.toUpperCase();
             
+            // 1. Tunjukkan loading UI
             const originalBtnText = btnElement.innerHTML;
-            btnElement.innerHTML = `<svg class="animate-spin h-3 w-3 mr-1" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> MEMPROSES...`;
+            btnElement.innerHTML = `<svg class="animate-spin h-3 w-3 mr-1 inline-block" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> MEMPROSES...`;
             btnElement.disabled = true;
 
-            let jumlahJam = 0;
-            if (program.jam || program.hours || program.masa) {
-                jumlahJam = parseFloat(program.jam || program.hours || program.masa);
-            } else if (program.startTime && program.endTime) {
-                try {
-                    const parseTime = (timeStr) => {
-                        const [h, m] = String(timeStr).split(':').map(Number);
-                        return h + (m ? (m / 60) : 0);
-                    };
-                    const jamMula = parseTime(program.startTime);
-                    const jamTamat = parseTime(program.endTime);
-                    let jamSehari = jamTamat - jamMula;
-                    
-                    if (jamSehari > 0) {
-                        const sDateObj = new Date(program.startDate);
-                        const eDateObj = new Date(program.endDate || program.startDate);
-                        const diffTime = Math.abs(eDateObj.getTime() - sDateObj.getTime());
-                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-                        jumlahJam = Math.round((jamSehari * diffDays) * 10) / 10; 
-                    }
-                } catch(e) { console.error("Ralat mengira jam:", e); }
-            }
-            
-            const primaryColor = isSchoolProgram ? '#065f46' : '#4B40FF'; 
-
-            const masaHTML = jumlahJam > 0 ? `
-                <div class="credit-box">
-                    <div class="credit-label">JUMLAH JAM KREDIT</div>
-                    <div class="credit-value">${jumlahJam} JAM</div>
-                </div>
-            ` : '';
-            
-            const roleRaw = participant.role ? String(participant.role).trim().toLowerCase() : 'peserta';
-            const isSpecial = ['penceramah', 'fasilitator', 'urusetia', 'pengacara bengkel', 'pembaca doa', 'teknikal siaraya'].includes(roleRaw);
-            
-            const certificateTitle = isSpecial ? "Sijil Penghargaan" : "Sijil Penyertaan";
-            const roleBadgeHTML = isSpecial ? `<div class="role-badge">SEBAGAI ${participant.role.toUpperCase()}</div>` : '';
-            const introText = isSpecial ? "Dengan tulus ikhlas merakamkan setinggi-tinggi penghargaan kepada" : "Dengan ini disahkan bahawa";
-            const eventLabel = isSpecial ? "Atas sumbangan bakti dan komitmen menjayakan" : "telah mengikuti";
-            
-            const sDate = new Date(program.startDate + 'T00:00:00');
-            const eDate = new Date(program.endDate + 'T00:00:00');
-            let dateString = sDate.getTime() === eDate.getTime() 
-                ? `pada ${sDate.toLocaleDateString('ms-MY', { day: '2-digit', month: 'long', year: 'numeric' }).toUpperCase()}`
-                : `pada ${sDate.toLocaleDateString('ms-MY', { day: '2-digit' })} hingga ${eDate.toLocaleDateString('ms-MY', { day: '2-digit', month: 'long', year: 'numeric' }).toUpperCase()}`;
-
-            let signatoryName = "";
-            let signatoryTitle = "";
-            let logoHTML = ""; 
-
-            if (isSchoolProgram) {
-                let stesenSijil = (globalUserStation || "").toUpperCase();
-                let isMenengah = stesenSijil.includes("SMK") || stesenSijil.includes("SM ") || stesenSijil.includes("MENENGAH") || stesenSijil.includes("KOLEJ");
-                let gelaranPangkat = isMenengah ? "PENGETUA" : "GURU BESAR";
-
-                signatoryName = gelaranPangkat; 
-                signatoryTitle = stesenSijil || "SEKOLAH KEMENTERIAN PENDIDIKAN MALAYSIA";
-
-                // Kurangkan ketinggian placeholder supaya teks naik ke atas
-                logoHTML = `<div style="height: 40px;"></div>`; 
-            } else {
-                const tarikhProgram = new Date(program.startDate); 
-                const tarikhBersara = new Date('2026-03-05');
-                if (tarikhProgram <= tarikhBersara) {
-                    signatoryName = "MARIAM HAJI MONEK";
-                } else {
-                    signatoryName = '<span style="color: transparent; user-select: none;">-</span>'; 
-                }
-                signatoryTitle = "PEGAWAI PENDIDIKAN DAERAH,<br>PEJABAT PENDIDIKAN DAERAH MIRI.";
-                
-                logoHTML = `<img src="https://i.imgur.com/FQpwGDo.png" class="logo">`;
-            }
-
-            const signatureHTML = `
-                <div class="signature-section">
-                    <p class="signatory-name">${signatoryName}</p>
-                    <p class="signatory-title">${signatoryTitle}</p>
-                </div>
-            `;
-
-            const prefix = isSpecial ? "SPK-H" : "SPK";
-            const serialNumber = `${prefix}/${program.key || 'GEN'}/${participantIC.slice(-4)}`;
-            const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=VERIFIED:${serialNumber}`;
-            const genDate = new Date().toLocaleDateString('ms-MY');
-
-            btnElement.innerHTML = originalBtnText;
-            btnElement.disabled = false;
-
+            // 2. Buka tetingkap awal (Mencegah Popup Blocker kerana kita membukanya secara sinkron pada klik user)
             const printWindow = window.open('', '_blank');
-            printWindow.document.write(`
-                <!DOCTYPE html>
-                <html lang="ms">
-                <head>
-                    <title>${certificateTitle}</title>
-                    <style>
-                        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;700&family=Playfair+Display:wght@700&display=swap');
-                        body { font-family: 'Montserrat', sans-serif; margin: 0; padding: 0; background: #f0f2f5; display: flex; justify-content: center; }
-                        .certificate-container { width: 210mm; height: 297mm; background: white; padding: 12mm; box-sizing: border-box; position: relative; display: flex; flex-direction: column; text-align: center; overflow: hidden; }
-                        .certificate-container::before { content: ''; position: absolute; width: 170px; height: 170px; background: ${primaryColor}; opacity: 0.9; top: -85px; left: -85px; transform: rotate(45deg); }
-                        .certificate-container::after { content: ''; position: absolute; width: 170px; height: 170px; background: ${primaryColor}; opacity: 0.9; bottom: -85px; right: -85px; transform: rotate(45deg); }
-                        .certificate-content { border: 6px solid; border-image-slice: 1; border-image-source: linear-gradient(to right top, #d4af37, ${primaryColor}, #d4af37); height: 100%; padding: 10mm; display: flex; flex-direction: column; z-index: 2; position: relative; }
-                        
-                        .header-section { display: flex; justify-content: space-between; align-items: flex-start; width: 100%; height: 80px; }
-                        .qr-code { width: 65px; height: 65px; }
-                        .serial-section { text-align: right; display: flex; flex-direction: column; align-items: flex-end; }
-                        .barcode-image { height: 30px; margin-bottom: 4px; opacity: 0.8; }
-                        .serial-number { font-family: monospace; font-size: 14px; color: #555; margin: 0; }
-                        
-                        .logo { width: 140px; margin: 0 auto 15px auto; }
-                        h1 { font-family: 'Playfair Display', serif; font-size: 42px; font-weight: 700; margin: 10px 0; text-transform: uppercase; color: ${primaryColor}; }
-                        .role-badge { font-size: 18px; font-weight: 700; color: #d4af37; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 2px; }
-                        .intro-text { font-size: 16px; margin: 20px 0; color: #555; }
-                        .recipient-name { font-family: 'Playfair Display', serif; font-size: 30px; font-weight: 700; margin: 10px 0; color: #111; }
-                        .recipient-ic { font-size: 16px; font-weight: 500; margin-bottom: 30px; color: #444; }
-                        .event-title { font-size: 22px; font-weight: 700; font-style: italic; margin: 10px 0; color: #111; }
-                        .event-date { font-size: 16px; font-weight: 500; margin-bottom: 5px; color: #444; }
-                        
-                        .credit-box { margin: 15px auto 25px auto; padding: 10px 30px; border-top: 2px solid #d4af37; border-bottom: 2px solid #d4af37; display: inline-block; }
-                        .credit-label { font-size: 11px; color: #666; letter-spacing: 2px; margin-bottom: 5px; }
-                        .credit-value { font-size: 18px; font-weight: 700; color: ${primaryColor}; }
+            printWindow.document.write('<html><body style="font-family:sans-serif; display:flex; justify-content:center; align-items:center; height:100vh; background:#f4f4f5; color:#52525b;"><h2>Sila tunggu, sedang menjana sijil...</h2></body></html>');
 
-                        .divider { width: 100px; height: 2px; background: linear-gradient(90deg, #d4af37, ${primaryColor}); margin: 0 auto 30px auto; border: none; }
-                        .signature-section { margin-top: auto; }
-                        .signatory-name { font-weight: 700; font-size: 16px; text-transform: uppercase; color: ${primaryColor}; }
-                        .signatory-title { font-size: 14px; color: #333; }
+            try {
+                const participantName = participant.name.toUpperCase();
+                const participantIC = participant.ic;
+                const courseName = program.name.toUpperCase();
+                
+                let jumlahJam = 0;
+                if (program.jam || program.hours || program.masa) {
+                    jumlahJam = parseFloat(program.jam || program.hours || program.masa);
+                } else if (program.startTime && program.endTime) {
+                    try {
+                        const parseTime = (timeStr) => {
+                            const [h, m] = String(timeStr).split(':').map(Number);
+                            return h + (m ? (m / 60) : 0);
+                        };
+                        const jamMula = parseTime(program.startTime);
+                        const jamTamat = parseTime(program.endTime);
+                        let jamSehari = jamTamat - jamMula;
                         
-                        .footer-bottom { margin-top: 20px; }
-                        .footer-note { font-size: 10px; font-style: italic; margin-bottom: 5px; color: #999; }
-                        .spark-brand-container { margin-top: 5px; }
-                        .spark-title { font-weight: 700; font-size: 12px; letter-spacing: 2px; color: ${primaryColor}; margin: 0; }
-                        .spark-subtitle { font-size: 9px; color: #555; font-style: italic; margin: 0; }
-                        
-                        .gen-timestamp { position: absolute; bottom: 5px; right: 10px; font-size: 9px; color: #aaa; }
-                        
-                        @media print { 
-                            body { background: none; -webkit-print-color-adjust: exact; print-color-adjust: exact; } 
-                            .certificate-container { box-shadow: none; margin: 0 auto; transform: scale(0.9); transform-origin: top center; } 
+                        if (jamSehari > 0) {
+                            const sDateObj = new Date(program.startDate);
+                            const eDateObj = new Date(program.endDate || program.startDate);
+                            const diffTime = Math.abs(eDateObj.getTime() - sDateObj.getTime());
+                            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+                            jumlahJam = Math.round((jamSehari * diffDays) * 10) / 10; 
                         }
-                    </style>
-                </head>
-                <body>
-                    <div class="certificate-container">
-                        <div class="certificate-content">
-                            <div class="header-section">
-                                <img src="${qrCodeUrl}" class="qr-code">
-                                <div class="serial-section">
-                                    <img src="https://bwipjs-api.metafloor.com/?bcid=code128&text=${encodeURIComponent(serialNumber)}" class="barcode-image">
-                                    <p class="serial-number">NO. SIRI: ${serialNumber}</p>
-                                </div>
-                            </div>
-                            ${logoHTML}
-                            <h1>${certificateTitle}</h1>
-                            ${roleBadgeHTML}
-                            <p class="intro-text">${introText}</p>
-                            <p class="recipient-name">${participantName}</p>
-                            <p class="recipient-ic">${participantIC}</p>
-                            <p class="intro-text">${eventLabel}</p>
-                            <p class="event-title">${courseName}</p>
-                            <p class="event-date">${dateString}</p>
-                            
-                            ${masaHTML}
-                            
-                            <hr class="divider">
-                            ${signatureHTML}
-                            
-                            <div class="footer-bottom">
-                                <p class="footer-note">Sijil ini adalah cetakan komputer, tandatangan tidak diperlukan.</p>
-                                <div class="spark-brand-container">
-                                    <p class="spark-title">SPARK</p>
-                                    <p class="spark-subtitle">Percikan Inovasi Kehadiran Digital</p>
-                                </div>
-                            </div>
-                            <div class="gen-timestamp">Dijana: ${genDate}</div>
-                        </div>
+                    } catch(e) { console.error("Ralat mengira jam:", e); }
+                }
+                
+                const primaryColor = isSchoolProgram ? '#065f46' : '#4B40FF'; 
+
+                const masaHTML = jumlahJam > 0 ? `
+                    <div class="credit-box">
+                        <div class="credit-label">JUMLAH JAM KREDIT</div>
+                        <div class="credit-value">${jumlahJam} JAM</div>
                     </div>
-                </body>
-                </html>
-            `);
-            printWindow.document.close();
-            printWindow.onload = () => { printWindow.focus(); printWindow.print(); };
+                ` : '';
+                
+                const roleRaw = participant.role ? String(participant.role).trim().toLowerCase() : 'peserta';
+                const isSpecial = ['penceramah', 'fasilitator', 'urusetia', 'pengacara bengkel', 'pembaca doa', 'teknikal siaraya'].includes(roleRaw);
+                
+                const certificateTitle = isSpecial ? "Sijil Penghargaan" : "Sijil Penyertaan";
+                const roleBadgeHTML = isSpecial ? `<div class="role-badge">SEBAGAI ${participant.role.toUpperCase()}</div>` : '';
+                const introText = isSpecial ? "Dengan tulus ikhlas merakamkan setinggi-tinggi penghargaan kepada" : "Dengan ini disahkan bahawa";
+                const eventLabel = isSpecial ? "Atas sumbangan bakti dan komitmen menjayakan" : "telah mengikuti";
+                
+                const sDate = new Date(program.startDate + 'T00:00:00');
+                const eDate = new Date(program.endDate + 'T00:00:00');
+                let dateString = sDate.getTime() === eDate.getTime() 
+                    ? `pada ${sDate.toLocaleDateString('ms-MY', { day: '2-digit', month: 'long', year: 'numeric' }).toUpperCase()}`
+                    : `pada ${sDate.toLocaleDateString('ms-MY', { day: '2-digit' })} hingga ${eDate.toLocaleDateString('ms-MY', { day: '2-digit', month: 'long', year: 'numeric' }).toUpperCase()}`;
+
+                let signatoryName = "";
+                let signatoryTitle = "";
+                let logoHTML = ""; 
+                let customTemplateCSS = "";
+                let stesenSijil = (globalUserStation || "").toUpperCase();
+
+                if (isSchoolProgram) {
+                    let isMenengah = stesenSijil.includes("SMK") || stesenSijil.includes("SM ") || stesenSijil.includes("MENENGAH") || stesenSijil.includes("KOLEJ");
+                    let gelaranPangkat = isMenengah ? "PENGETUA" : "GURU BESAR";
+
+                    signatoryName = gelaranPangkat; 
+                    signatoryTitle = stesenSijil || "SEKOLAH KEMENTERIAN PENDIDIKAN MALAYSIA";
+                    logoHTML = `<div style="height: 40px;"></div>`; 
+
+                    // --- LOGIK TETAPAN SIJIL SEKOLAH (CUSTOM) ---
+                    try {
+                        const setDoc = await db.doc(`artifacts/${appId}/public/data/spark_school_cert_settings/${stesenSijil}`).get();
+                        if (setDoc.exists) {
+                            let customSettings = setDoc.data();
+                            
+                            // Override Logo
+                            if (customSettings.showLogo && customSettings.logoUrl) {
+                                logoHTML = `<img src="${customSettings.logoUrl}" class="logo" style="max-height: 80px; width: auto; object-fit: contain;">`;
+                            }
+                            
+                            // Override Tandatangan
+                            if (customSettings.showSignature && customSettings.signatureUrl) {
+                                signatoryName = `<img src="${customSettings.signatureUrl}" style="max-height: 60px; object-fit: contain; margin-bottom: 5px;"><br>${signatoryName}`;
+                            }
+
+                            // Tetapan CSS Templat
+                            if (customSettings.templateId === 'template2') { // Klasik
+                                customTemplateCSS = `
+                                    .certificate-container::before, .certificate-container::after { display: none; }
+                                    .certificate-content { border: 8px double #d4af37; background: #faf9f6; }
+                                    h1 { color: #1e3a8a; font-family: 'Playfair Display', serif; }
+                                    .credit-value { color: #1e3a8a; }
+                                    .signatory-name { color: #111; border-top: 1px solid #111; padding-top: 10px; display: inline-block; }
+                                `;
+                            } else if (customSettings.templateId === 'template3') { // Moden
+                                customTemplateCSS = `
+                                    .certificate-container::before, .certificate-container::after { display: none; }
+                                    .certificate-content { border: none; border-left: 20px solid #4f46e5; text-align: left; background: #ffffff; padding-left: 30mm; }
+                                    .header-section { justify-content: flex-start; gap: 20px; flex-direction: row-reverse; }
+                                    .serial-section { align-items: flex-start; text-align: left; margin-right: auto; }
+                                    .logo { margin: 0 0 20px 0; }
+                                    h1 { text-align: left; color: #374151; font-family: 'Montserrat', sans-serif; }
+                                    .divider { margin: 30px 0; background: #e5e7eb; width: 100%; }
+                                    .signature-section { text-align: left; }
+                                `;
+                            }
+                        }
+                    } catch (e) { console.error("Ralat ambil tetapan sijil:", e); }
+                    // ---------------------------------------------
+                } else {
+                    const tarikhProgram = new Date(program.startDate); 
+                    const tarikhBersara = new Date('2026-03-05');
+                    if (tarikhProgram <= tarikhBersara) {
+                        signatoryName = "MARIAM HAJI MONEK";
+                    } else {
+                        signatoryName = '<span style="color: transparent; user-select: none;">-</span>'; 
+                    }
+                    signatoryTitle = "PEGAWAI PENDIDIKAN DAERAH,<br>PEJABAT PENDIDIKAN DAERAH MIRI.";
+                    
+                    logoHTML = `<img src="https://i.imgur.com/FQpwGDo.png" class="logo">`;
+                }
+
+                const signatureHTML = `
+                    <div class="signature-section">
+                        <p class="signatory-name">${signatoryName}</p>
+                        <p class="signatory-title">${signatoryTitle}</p>
+                    </div>
+                `;
+
+                const prefix = isSpecial ? "SPK-H" : "SPK";
+                const serialNumber = `${prefix}/${program.key || 'GEN'}/${participantIC.slice(-4)}`;
+                const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=VERIFIED:${serialNumber}`;
+                const genDate = new Date().toLocaleDateString('ms-MY');
+
+                // Tulis struktur akhir sijil
+                printWindow.document.open();
+                printWindow.document.write(`
+                    <!DOCTYPE html>
+                    <html lang="ms">
+                    <head>
+                        <title>${certificateTitle}</title>
+                        <style>
+                            @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;700&family=Playfair+Display:wght@700&display=swap');
+                            body { font-family: 'Montserrat', sans-serif; margin: 0; padding: 0; background: #f0f2f5; display: flex; justify-content: center; }
+                            .certificate-container { width: 210mm; height: 297mm; background: white; padding: 12mm; box-sizing: border-box; position: relative; display: flex; flex-direction: column; text-align: center; overflow: hidden; }
+                            .certificate-container::before { content: ''; position: absolute; width: 170px; height: 170px; background: ${primaryColor}; opacity: 0.9; top: -85px; left: -85px; transform: rotate(45deg); }
+                            .certificate-container::after { content: ''; position: absolute; width: 170px; height: 170px; background: ${primaryColor}; opacity: 0.9; bottom: -85px; right: -85px; transform: rotate(45deg); }
+                            .certificate-content { border: 6px solid; border-image-slice: 1; border-image-source: linear-gradient(to right top, #d4af37, ${primaryColor}, #d4af37); height: 100%; padding: 10mm; display: flex; flex-direction: column; z-index: 2; position: relative; }
+                            
+                            .header-section { display: flex; justify-content: space-between; align-items: flex-start; width: 100%; height: 80px; }
+                            .qr-code { width: 65px; height: 65px; }
+                            .serial-section { text-align: right; display: flex; flex-direction: column; align-items: flex-end; }
+                            .barcode-image { height: 30px; margin-bottom: 4px; opacity: 0.8; }
+                            .serial-number { font-family: monospace; font-size: 14px; color: #555; margin: 0; }
+                            
+                            .logo { width: 140px; margin: 0 auto 15px auto; }
+                            h1 { font-family: 'Playfair Display', serif; font-size: 42px; font-weight: 700; margin: 10px 0; text-transform: uppercase; color: ${primaryColor}; }
+                            .role-badge { font-size: 18px; font-weight: 700; color: #d4af37; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 2px; }
+                            .intro-text { font-size: 16px; margin: 20px 0; color: #555; }
+                            .recipient-name { font-family: 'Playfair Display', serif; font-size: 30px; font-weight: 700; margin: 10px 0; color: #111; }
+                            .recipient-ic { font-size: 16px; font-weight: 500; margin-bottom: 30px; color: #444; }
+                            .event-title { font-size: 22px; font-weight: 700; font-style: italic; margin: 10px 0; color: #111; }
+                            .event-date { font-size: 16px; font-weight: 500; margin-bottom: 5px; color: #444; }
+                            
+                            .credit-box { margin: 15px auto 25px auto; padding: 10px 30px; border-top: 2px solid #d4af37; border-bottom: 2px solid #d4af37; display: inline-block; }
+                            .credit-label { font-size: 11px; color: #666; letter-spacing: 2px; margin-bottom: 5px; }
+                            .credit-value { font-size: 18px; font-weight: 700; color: ${primaryColor}; }
+
+                            .divider { width: 100px; height: 2px; background: linear-gradient(90deg, #d4af37, ${primaryColor}); margin: 0 auto 30px auto; border: none; }
+                            .signature-section { margin-top: auto; }
+                            .signatory-name { font-weight: 700; font-size: 16px; text-transform: uppercase; color: ${primaryColor}; }
+                            .signatory-title { font-size: 14px; color: #333; }
+                            
+                            .footer-bottom { margin-top: 20px; }
+                            .footer-note { font-size: 10px; font-style: italic; margin-bottom: 5px; color: #999; }
+                            .spark-brand-container { margin-top: 5px; }
+                            .spark-title { font-weight: 700; font-size: 12px; letter-spacing: 2px; color: ${primaryColor}; margin: 0; }
+                            .spark-subtitle { font-size: 9px; color: #555; font-style: italic; margin: 0; }
+                            
+                            .gen-timestamp { position: absolute; bottom: 5px; right: 10px; font-size: 9px; color: #aaa; }
+                            
+                            @media print { 
+                                body { background: none; -webkit-print-color-adjust: exact; print-color-adjust: exact; } 
+                                .certificate-container { box-shadow: none; margin: 0 auto; transform: scale(0.9); transform-origin: top center; } 
+                            }
+                            
+                            /* CUSTOM CSS SEKOLAH (Jika Ada) */
+                            ${customTemplateCSS}
+                        </style>
+                    </head>
+                    <body>
+                        <div class="certificate-container">
+                            <div class="certificate-content">
+                                <div class="header-section">
+                                    <img src="${qrCodeUrl}" class="qr-code">
+                                    <div class="serial-section">
+                                        <img src="https://bwipjs-api.metafloor.com/?bcid=code128&text=${encodeURIComponent(serialNumber)}" class="barcode-image">
+                                        <p class="serial-number">NO. SIRI: ${serialNumber}</p>
+                                    </div>
+                                </div>
+                                ${logoHTML}
+                                <h1>${certificateTitle}</h1>
+                                ${roleBadgeHTML}
+                                <p class="intro-text">${introText}</p>
+                                <p class="recipient-name">${participantName}</p>
+                                <p class="recipient-ic">${participantIC}</p>
+                                <p class="intro-text">${eventLabel}</p>
+                                <p class="event-title">${courseName}</p>
+                                <p class="event-date">${dateString}</p>
+                                
+                                ${masaHTML}
+                                
+                                <hr class="divider">
+                                ${signatureHTML}
+                                
+                                <div class="footer-bottom">
+                                    <p class="footer-note">Sijil ini adalah cetakan komputer, tandatangan tidak diperlukan.</p>
+                                    <div class="spark-brand-container">
+                                        <p class="spark-title">SPARK</p>
+                                        <p class="spark-subtitle">Percikan Inovasi Kehadiran Digital</p>
+                                    </div>
+                                </div>
+                                <div class="gen-timestamp">Dijana: ${genDate}</div>
+                            </div>
+                        </div>
+                    </body>
+                    </html>
+                `);
+                printWindow.document.close();
+                printWindow.onload = () => { printWindow.focus(); printWindow.print(); };
+            } catch (error) {
+                console.error("Ralat semasa janaan PDF:", error);
+                alert("Berlaku ralat semasa menjana sijil. Sila cuba lagi.");
+                if (printWindow) printWindow.close();
+            } finally {
+                // Kembalikan butang kepada keadaan asal
+                btnElement.innerHTML = originalBtnText;
+                btnElement.disabled = false;
+            }
         }
     </script>
 </body>
