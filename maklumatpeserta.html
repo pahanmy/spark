@@ -1209,13 +1209,43 @@
             let targetList = [];
             
             if (type === 'peserta') {
-                targetList = allList.filter(p => !specialRoles.map(r=>r.toLowerCase()).includes(p.role ? p.role.toLowerCase() : 'peserta'));
+                const today = new Date(); 
+                today.setHours(0,0,0,0);
+                const endDate = new Date(currentProgram.endDate + 'T00:00:00');
+                
+                if (today < endDate) {
+                    return alert("AMARAN: Sijil penyertaan pukal hanya boleh dijana SELEPAS atau PADA tarikh program tamat.");
+                }
+
+                const evals = currentProgram.evaluations || [];
+                const normalParticipants = allList.filter(p => !specialRoles.map(r=>r.toLowerCase()).includes(p.role ? p.role.toLowerCase() : 'peserta'));
+                
+                let excludedCount = 0;
+
+                normalParticipants.forEach(p => {
+                    if (currentProgram.evaluationNeeded) {
+                        const hasEvaluated = evals.some(e => e.ic === p.ic);
+                        if (!hasEvaluated) {
+                            excludedCount++; 
+                        } else {
+                            targetList.push(p); 
+                        }
+                    } else {
+                        targetList.push(p); 
+                    }
+                });
+
+                if (excludedCount > 0) {
+                    const confirmProceed = confirm(`Terdapat ${excludedCount} peserta yang BELUM mengisi borang maklum balas.\n\nSijil mereka TIDAK AKAN dijana dalam cetakan pukal ini. Sila arahkan mereka untuk mengisi maklum balas dahulu.\n\nAdakah anda mahu meneruskan cetakan untuk peserta yang telah melengkapkan maklum balas sahaja?`);
+                    if (!confirmProceed) return; 
+                }
+
             } else if (type === 'penghargaan') {
                 targetList = allList.filter(p => specialRoles.map(r=>r.toLowerCase()).includes(p.role ? p.role.toLowerCase() : 'peserta'));
             }
 
             if(targetList.length === 0) {
-                const label = type === 'peserta' ? 'Peserta Biasa' : 'AJK/Penceramah';
+                const label = type === 'peserta' ? 'Peserta Biasa (yang melepasi syarat maklum balas)' : 'AJK/Penceramah';
                 return alert(`Tiada ${label} dalam tab/senarai ini untuk dicetak.`);
             }
             
