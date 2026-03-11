@@ -331,55 +331,71 @@
 
         // --- FUNGSI UTAMA ---
         
-        async function muatData() {
+     async function muatData() {
             try {
+                // Reset jadual kepada status memuatkan
+                document.getElementById('jadual-sekolah').innerHTML = `<tr><td colspan="4" class="px-6 py-4 text-center text-gray-500">Memuatkan data...</td></tr>`;
+                document.getElementById('jadual-ppd').innerHTML = `<tr><td colspan="5" class="px-6 py-4 text-center text-gray-500">Memuatkan data...</td></tr>`;
+
                 // 1. Ambil sekolah
-                const qSekolah = query(collection(db, `artifacts/${appId}/public/data/spark_schools`), orderBy("name"));
-                const snapSekolah = await getDocs(qSekolah);
-                senaraiSekolah = snapSekolah.docs
-                    .map(doc => doc.data().name)
-                    .filter(nama => nama.toUpperCase() !== "PEJABAT PENDIDIKAN DAERAH MIRI");
+                try {
+                    const qSekolah = query(collection(db, `artifacts/${appId}/public/data/spark_schools`), orderBy("name"));
+                    const snapSekolah = await getDocs(qSekolah);
+                    senaraiSekolah = snapSekolah.docs
+                        .map(doc => doc.data().name)
+                        .filter(nama => nama.toUpperCase() !== "PEJABAT PENDIDIKAN DAERAH MIRI");
+                } catch(e) { console.error("Ralat Sekolah:", e); }
                 
                 // 2. Ambil mapping sedia ada (Sekolah - Guru Besar)
-                const qPentadbir = collection(db, `artifacts/${appId}/public/data/spark_school_principals`);
-                const snapPentadbir = await getDocs(qPentadbir);
                 senaraiPentadbir = {};
                 assignedICs = [];
-                snapPentadbir.forEach(doc => {
-                    senaraiPentadbir[doc.id] = { ...doc.data(), role: 'gb' };
-                    if(doc.data().ic) assignedICs.push(doc.data().ic);
-                });
+                try {
+                    const qPentadbir = collection(db, `artifacts/${appId}/public/data/spark_school_principals`);
+                    const snapPentadbir = await getDocs(qPentadbir);
+                    snapPentadbir.forEach(doc => {
+                        senaraiPentadbir[doc.id] = { ...doc.data(), role: 'gb' };
+                        if(doc.data().ic) assignedICs.push(doc.data().ic);
+                    });
+                } catch(e) { console.error("Ralat Guru Besar:", e); }
 
                 // TAMBAHAN: Ambil mapping Penyelaras Sijil
-                const qCertAdmin = collection(db, `artifacts/${appId}/public/data/spark_school_cert_admins`);
-                const snapCertAdmin = await getDocs(qCertAdmin);
                 window.senaraiCertAdmin = {}; 
-                snapCertAdmin.forEach(doc => {
-                    window.senaraiCertAdmin[doc.id] = doc.data();
-                    if(doc.data().ic) assignedICs.push(doc.data().ic); 
-                });
+                try {
+                    const qCertAdmin = collection(db, `artifacts/${appId}/public/data/spark_school_cert_admins`);
+                    const snapCertAdmin = await getDocs(qCertAdmin);
+                    snapCertAdmin.forEach(doc => {
+                        window.senaraiCertAdmin[doc.id] = doc.data();
+                        if(doc.data().ic) assignedICs.push(doc.data().ic); 
+                    });
+                } catch(e) { console.error("Ralat Penyelaras Sijil:", e); }
 
-                // 3. Ambil mapping PPD (dari spark_verified_ppd)
-                const qPPD = collection(db, `artifacts/${appId}/public/data/spark_verified_ppd`);
-                const snapPPD = await getDocs(qPPD);
+                // 3. Ambil mapping PPD
                 senaraiSahPPD = {};
-                snapPPD.forEach(doc => {
-                    const data = doc.data();
-                    senaraiSahPPD[data.ic || doc.id] = data.sector || 'Disahkan'; 
-                });
+                try {
+                    const qPPD = collection(db, `artifacts/${appId}/public/data/spark_verified_ppd`);
+                    const snapPPD = await getDocs(qPPD);
+                    snapPPD.forEach(doc => {
+                        const data = doc.data();
+                        senaraiSahPPD[data.ic || doc.id] = data.sector || 'Disahkan'; 
+                    });
+                } catch(e) { console.error("Ralat PPD:", e); }
 
                 // 4. Ambil semua peserta
-                const qPeserta = collection(db, `artifacts/${appId}/public/data/spark_participants`);
-                const snapPeserta = await getDocs(qPeserta);
-                semuaPeserta = snapPeserta.docs.map(doc => doc.data());
+                semuaPeserta = [];
+                try {
+                    const qPeserta = collection(db, `artifacts/${appId}/public/data/spark_participants`);
+                    const snapPeserta = await getDocs(qPeserta);
+                    semuaPeserta = snapPeserta.docs.map(doc => doc.data());
+                } catch(e) { console.error("Ralat Peserta:", e); }
                 
+                // Panggil jadual selepas semua data dimuatkan
                 paparJadualSekolah();
                 paparJadualPPD();
                 
             } catch (error) {
-                console.error("Gagal memuat data:", error);
-                document.getElementById('jadual-sekolah').innerHTML = `<tr><td colspan="4" class="px-6 py-4 text-center text-red-500">Gagal menyambung ke pangkalan data.</td></tr>`;
-                document.getElementById('jadual-ppd').innerHTML = `<tr><td colspan="5" class="px-6 py-4 text-center text-red-500">Gagal menyambung ke pangkalan data.</td></tr>`;
+                console.error("Gagal memuat data keseluruhan:", error);
+                document.getElementById('jadual-sekolah').innerHTML = `<tr><td colspan="4" class="px-6 py-4 text-center text-red-500">Ralat sistem. Sila tekan F12 untuk semak Console.</td></tr>`;
+                document.getElementById('jadual-ppd').innerHTML = `<tr><td colspan="5" class="px-6 py-4 text-center text-red-500">Ralat pangkalan data.</td></tr>`;
             }
         }
 
