@@ -91,8 +91,8 @@
                         <thead class="bg-white">
                             <tr>
                                 <th scope="col" class="px-6 py-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider w-10">Bil</th>
-                                <th scope="col" class="px-6 py-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider">Program / Peranan</th>
-                                <th scope="col" class="px-6 py-3 text-center text-[10px] font-bold text-gray-400 uppercase tracking-wider w-32">Jenis</th>
+                                <th scope="col" class="px-6 py-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider">Program / Maklumat Penyelaras</th>
+                                <th scope="col" class="px-6 py-3 text-center text-[10px] font-bold text-gray-400 uppercase tracking-wider w-32">Status / Jenis</th>
                                 <th scope="col" class="px-6 py-3 text-center text-[10px] font-bold text-gray-400 uppercase tracking-wider w-40">Tindakan</th>
                             </tr>
                         </thead>
@@ -157,7 +157,7 @@
         async function initPage(icRaw) {
             const icNumber = icRaw.trim().replace(/[^0-9]/g, '');
             try {
-                // MUAT TURUN SENARAI IC PEGAWAI PPD YANG DISAHKAN
+                // MUAT TURUN SENARAI IC PEGAWAI PPD YANG DISAHKAN (Dari admin-sparktask)
                 const ppdRef = db.collection(`artifacts/${appId}/public/data/spark_verified_ppd`);
                 const ppdSnap = await ppdRef.get();
                 verifiedPpdIcs = [];
@@ -259,12 +259,12 @@
             filteredData.forEach(item => {
                 let isSchoolProgram = true;
                 
-                // LOGIK UTAMA: Semak IC pembuat program
-                const pembuatIc = String(item.program.ownerIc || item.program.owner || item.program.createdBy || item.program.hostIc || item.program.adminIc || item.program.ic || "").trim();
+                // LOGIK UTAMA BARU: Semak Penyelaras (IC penyelaras diutamakan)
+                const penyelarasIc = String(item.program.penyelaras_ic || item.program.ownerIc || item.program.ic || "").trim();
                 
-                if (pembuatIc !== "") {
-                    // JIKA IC pembuat ditemui DAN wujud dalam senarai warga PPD yang disahkan, ia BUKAN program sekolah
-                    isSchoolProgram = !verifiedPpdIcs.includes(pembuatIc);
+                if (penyelarasIc !== "") {
+                    // Jika IC Penyelaras wujud dalam senarai warga PPD (verifiedPpdIcs), ia adalah Sijil PPD
+                    isSchoolProgram = !verifiedPpdIcs.includes(penyelarasIc);
                 } else {
                     // FALLBACK: Jika program terlampau lama dan tiada rekod IC pembuat
                     const sectorRaw = item.program.sector ? String(item.program.sector).toUpperCase().trim() : '';
@@ -272,6 +272,9 @@
                     isSchoolProgram = !(ppdSectors.includes(sectorRaw) || sectorRaw.startsWith('SEKTOR'));
                 }
                 
+                item.penyelarasIc = penyelarasIc;
+                item.isSchoolProgram = isSchoolProgram;
+
                 // Asingkan data mengikut tab yang dipilih
                 if ((currentActiveTab === 'SEKOLAH' && isSchoolProgram) || (currentActiveTab === 'PPD' && !isSchoolProgram)) {
                     const status = getCertificateStatus(item.program, item.participant, globalIsPro, isSchoolProgram);
@@ -279,7 +282,7 @@
                         if (status.isLocked) totalLocked++;
                         else if (status.type === 'DOWNLOAD') totalAvailable++;
                         
-                        targetList.push({ ...item, status: status, isSchoolProgram: isSchoolProgram });
+                        targetList.push({ ...item, status: status });
                     }
                 }
             });
@@ -383,6 +386,12 @@
                     ? `<span class="ml-2 px-1.5 py-0.5 rounded bg-amber-50 text-amber-600 border border-amber-100 text-[9px] font-bold uppercase tracking-wider">${roleRaw}</span>` 
                     : '';
 
+                // PAPARAN PENYELARAS DALAM JADUAL
+                const namaPenyelaras = item.program.penyelaras_nama || item.program.owner || "Nama Tidak Dinyatakan";
+                const icPenyelaras = item.penyelarasIc ? item.penyelarasIc : "Tiada IC Direkodkan";
+                const statusPenyelaras = item.isSchoolProgram ? "Warga Sekolah" : "Warga PPD (Disahkan)";
+                const statusColor = item.isSchoolProgram ? "text-emerald-700 bg-emerald-100 border-emerald-300" : "text-indigo-700 bg-indigo-100 border-indigo-300";
+
                 const row = `
                     <tr class="hover:bg-gray-50 border-b border-gray-100 last:border-0 transition-colors">
                         <td class="px-6 py-4 whitespace-nowrap text-xs text-gray-500 font-medium">${idx + 1}.</td>
@@ -390,9 +399,16 @@
                             <div class="text-sm font-bold text-gray-800 uppercase leading-tight mb-1 flex items-center flex-wrap">
                                 ${item.program.name} ${roleBadge}
                             </div>
-                            <div class="flex items-center gap-2 text-[10px] font-bold uppercase">
+                            <div class="flex items-center gap-2 text-[10px] font-bold uppercase mb-2">
                                 <span class="bg-gray-100 text-gray-500 border border-gray-200 px-1.5 py-0.5 rounded">${yearStr}</span>
                                 <span class="text-gray-400 flex items-center gap-1">${dateStr}</span>
+                            </div>
+                            <div class="inline-flex flex-col bg-gray-50 border border-gray-200 p-2 rounded text-[10px]">
+                                <span class="font-bold text-gray-500 mb-0.5">Penyelaras Program:</span>
+                                <span class="text-gray-800 font-medium">${namaPenyelaras} (${icPenyelaras})</span>
+                                <div class="mt-1">
+                                    <span class="px-1.5 py-0.5 border rounded-sm ${statusColor} font-bold uppercase tracking-wider" style="font-size: 8px;">${statusPenyelaras}</span>
+                                </div>
                             </div>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-center align-middle">${item.status.html}</td>
