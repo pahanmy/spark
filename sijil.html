@@ -137,6 +137,7 @@
         let globalUserStation = ""; 
         let globalIsPro = false;
         let currentActiveTab = 'PPD'; 
+        let verifiedPpdIcs = []; 
 
         auth.onAuthStateChanged(async (user) => {
             if (user) {
@@ -156,6 +157,12 @@
         async function initPage(icRaw) {
             const icNumber = icRaw.trim().replace(/[^0-9]/g, '');
             try {
+                // Ambil senarai warga PPD yang disahkan terlebih dahulu
+                const ppdRef = db.collection(`artifacts/${appId}/public/data/spark_verified_ppd`);
+                const ppdSnap = await ppdRef.get();
+                verifiedPpdIcs = [];
+                ppdSnap.docs.forEach(doc => verifiedPpdIcs.push(doc.id));
+
                 // Get User Details (to know if PRO and what School Station)
                 const userSnap = await db.collection(`artifacts/${appId}/public/data/spark_participants`).where("ic", "==", icNumber).get();
                 if(!userSnap.empty) {
@@ -250,13 +257,21 @@
             let totalLocked = 0;
 
             filteredData.forEach(item => {
-                const sectorRaw = item.program.sector ? String(item.program.sector).toUpperCase().trim() : '';
-                const ppdSectors = [
-                    "SEKTOR PENGURUSAN", "SEKTOR PENGURUSAN SEKOLAH", "SEKTOR PEMBELAJARAN",
-                    "SEKTOR PENTAKSIRAN DAN PEPERIKSAAN", "SEKTOR PEMBANGUNAN MURID",
-                    "SEKTOR PERANCANGAN", "SEKTOR PSIKOLOGI DAN KAUNSELING", "LAIN-LAIN", "PPD MIRI", "PPD"
-                ];
-                const isSchoolProgram = !(ppdSectors.includes(sectorRaw) || sectorRaw.startsWith('SEKTOR'));
+                let isSchoolProgram = true;
+                
+                // Semak adakah pembuat (createdBy) wujud dalam senarai PPD yang disahkan
+                if (item.program.createdBy) {
+                    isSchoolProgram = !verifiedPpdIcs.includes(String(item.program.createdBy));
+                } else {
+                    // Fallback untuk program lama yang tiada rekod 'createdBy'
+                    const sectorRaw = item.program.sector ? String(item.program.sector).toUpperCase().trim() : '';
+                    const ppdSectors = [
+                        "SEKTOR PENGURUSAN", "SEKTOR PENGURUSAN SEKOLAH", "SEKTOR PEMBELAJARAN",
+                        "SEKTOR PENTAKSIRAN DAN PEPERIKSAAN", "SEKTOR PEMBANGUNAN MURID",
+                        "SEKTOR PERANCANGAN", "SEKTOR PSIKOLOGI DAN KAUNSELING", "LAIN-LAIN", "PPD MIRI", "PPD"
+                    ];
+                    isSchoolProgram = !(ppdSectors.includes(sectorRaw) || sectorRaw.startsWith('SEKTOR'));
+                }
                 
                 // Asingkan data mengikut tab yang dipilih
                 if ((currentActiveTab === 'SEKOLAH' && isSchoolProgram) || (currentActiveTab === 'PPD' && !isSchoolProgram)) {
@@ -297,13 +312,23 @@
 
         function getCertificateStatus(prog, part, isPro) {
             let result = { isRelevant: false, isLocked: false, html: '', btn: '', type: 'NONE' };
-            const sectorRaw = prog.sector ? String(prog.sector).toUpperCase().trim() : '';
-            const ppdSectors = [
-                "SEKTOR PENGURUSAN", "SEKTOR PENGURUSAN SEKOLAH", "SEKTOR PEMBELAJARAN",
-                "SEKTOR PENTAKSIRAN DAN PEPERIKSAAN", "SEKTOR PEMBANGUNAN MURID",
-                "SEKTOR PERANCANGAN", "SEKTOR PSIKOLOGI DAN KAUNSELING", "LAIN-LAIN", "PPD MIRI", "PPD"
-            ];
-            const isSchoolProgram = !(ppdSectors.includes(sectorRaw) || sectorRaw.startsWith('SEKTOR'));
+            
+            let isSchoolProgram = true;
+            
+            // Semak adakah pembuat wujud dalam senarai PPD
+            if (prog.createdBy) {
+                isSchoolProgram = !verifiedPpdIcs.includes(String(prog.createdBy));
+            } else {
+                // Fallback program lama
+                const sectorRaw = prog.sector ? String(prog.sector).toUpperCase().trim() : '';
+                const ppdSectors = [
+                    "SEKTOR PENGURUSAN", "SEKTOR PENGURUSAN SEKOLAH", "SEKTOR PEMBELAJARAN",
+                    "SEKTOR PENTAKSIRAN DAN PEPERIKSAAN", "SEKTOR PEMBANGUNAN MURID",
+                    "SEKTOR PERANCANGAN", "SEKTOR PSIKOLOGI DAN KAUNSELING", "LAIN-LAIN", "PPD MIRI", "PPD"
+                ];
+                isSchoolProgram = !(ppdSectors.includes(sectorRaw) || sectorRaw.startsWith('SEKTOR'));
+            }
+
             const btnColor = isSchoolProgram ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-indigo-600 hover:bg-indigo-700';
 
             const roleRaw = part.role ? String(part.role).trim().toLowerCase() : 'peserta';
