@@ -32,7 +32,6 @@
         .btn { transition: all 0.3s; }
         .btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
         .btn:disabled { cursor: not-allowed; opacity: 0.7; transform: none; box-shadow: none; }
-        .modal-backdrop { background-color: rgba(0,0,0,0.5); }
         
         @keyframes pulse-animation { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
         .logo-pulse { animation: pulse-animation 2s infinite; }
@@ -159,7 +158,6 @@
         let participantInfo = null;
         let evaluationDate = null; 
         
-        // PPD Verification variables
         let verifiedPpdIcs = [];
         let isSchoolProgram = true;
 
@@ -218,7 +216,6 @@
             
             if (!evaluationKey) { return showMessage('error', 'Pautan Tidak Sah', 'Kod penilaian tidak ditemui dalam pautan.'); }
 
-            // Ambil senarai PPD untuk membezakan status sijil nanti
             try {
                 const ppdRef = collection(db, `artifacts/${appId}/public/data/spark_verified_ppd`);
                 const ppdSnap = await getDocs(ppdRef);
@@ -233,7 +230,6 @@
                 const programDoc = querySnapshot.docs[0];
                 currentProgram = { id: programDoc.id, ...programDoc.data() };
                 
-                // Semak pemilikan PPD atau Sekolah
                 const penyelarasIc = String(currentProgram.penyelaras_ic || currentProgram.ownerIc || currentProgram.ic || "").trim();
                 if (penyelarasIc !== "") {
                     isSchoolProgram = !verifiedPpdIcs.includes(penyelarasIc);
@@ -265,12 +261,8 @@
             if (!currentProgram) return;
 
             const targetDate = evaluationDate || getLocalDateString(new Date());
-
             const attendanceList = currentProgram.attendance || [];
-            const dailyAttendance = attendanceList.filter(a => {
-                if (!a.time) return false;
-                return getLocalDateString(new Date(a.time)) === targetDate;
-            });
+            const dailyAttendance = attendanceList.filter(a => a.time && getLocalDateString(new Date(a.time)) === targetDate);
             const totalAttendance = dailyAttendance.length;
 
             const evaluations = currentProgram.evaluations || [];
@@ -282,11 +274,8 @@
                 return;
             }
 
-            let pct = 0;
-            if (totalAttendance > 0) {
-                pct = Math.round((totalEvals / totalAttendance) * 100);
-                if (pct > 100) pct = 100; 
-            }
+            let pct = totalAttendance > 0 ? Math.round((totalEvals / totalAttendance) * 100) : 0;
+            if (pct > 100) pct = 100; 
 
             container.innerHTML = `
                 <div class="bg-purple-50 rounded-xl p-3 border border-purple-100 shadow-sm">
@@ -335,11 +324,8 @@
             const counter = document.getElementById('ic-counter');
             const currentLength = input.value.length;
             counter.textContent = currentLength;
-             if (currentLength === 12) {
-                counter.classList.add('text-green-600', 'font-bold');
-            } else {
-                counter.classList.remove('text-green-600', 'font-bold');
-            }
+             if (currentLength === 12) counter.classList.add('text-green-600', 'font-bold');
+             else counter.classList.remove('text-green-600', 'font-bold');
         }
 
         window.handleIcSubmit = async function(event) {
@@ -353,15 +339,13 @@
             submitBtn.innerHTML = `<svg class="animate-spin h-5 w-5 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>`;
 
             const isAlreadyEvaluated = (currentProgram.evaluations || []).some(p => {
-                if (evaluationDate && p.evalDate) {
-                    return p.ic === ic && p.evalDate === evaluationDate;
-                }
+                if (evaluationDate && p.evalDate) return p.ic === ic && p.evalDate === evaluationDate;
                 return p.ic === ic; 
             });
 
             if (isAlreadyEvaluated) { 
                 const currentYear = new Date().getFullYear();
-                return showMessage('warning', 'Telah Menjawab', `Anda telah pun memberi maklum balas penilaian pada tarikh ini.<br><br>Sijil penyertaan atau penghargaan anda boleh disemak dan dimuat turun melalui <a href="index.html" class="text-purple-600 font-bold hover:underline">Halaman Utama SPARK</a> sepanjang tahun <b>${currentYear}</b>.`); 
+                return showMessage('warning', 'Telah Menjawab', `Anda telah pun memberi maklum balas penilaian pada tarikh ini.<br><br>Sijil anda boleh dimuat turun melalui <a href="index.html" class="text-purple-600 font-bold hover:underline">Halaman Utama SPARK</a> bagi tahun <b>${currentYear}</b>.`); 
             }
 
             const participantsRef = collection(db, `artifacts/${appId}/public/data/spark_participants`);
@@ -371,25 +355,17 @@
             if (querySnapshot.empty) {
                 submitBtn.disabled = false;
                 submitBtn.textContent = "Mula Menilai";
-                return alert("No. IC anda tidak ditemui dalam rekod kehadiran SPARK. Sila pastikan anda mendaftar kehadiran terlebih dahulu.");
+                return alert("No. IC anda tidak ditemui. Sila pastikan anda mendaftar kehadiran terlebih dahulu.");
             }
             
             const participantData = querySnapshot.docs[0].data();
+            const attData = (currentProgram.attendance || []).find(a => a.ic === ic);
             
-            // Set maklumat peserta, termasuk stesen (untuk sijil sekolah nanti)
             participantInfo = { 
                 ic: ic, 
                 name: participantData.name,
-                station: participantData.station || "",
-                role: 'Peserta' // default
+                role: attData ? (attData.role || 'Peserta') : 'Peserta'
             };
-
-            // Cari peranan (role) peserta dalam rekod program ini
-            const attendanceList = currentProgram.attendance || [];
-            const attData = attendanceList.find(a => a.ic === ic);
-            if (attData && attData.role) {
-                participantInfo.role = attData.role;
-            }
             
             renderEvaluationForm();
             document.getElementById('evaluator-name').innerHTML = `PENILAI: <span class="font-bold text-purple-700 ml-1 uppercase border-b-2 border-purple-200 pb-0.5">${participantInfo.name}</span>`;
@@ -418,7 +394,6 @@
                     alert(`Sila jawab soalan nombor ${i}.`);
                     submitBtn.disabled = false;
                     submitBtn.textContent = "Hantar Maklum Balas";
-                    document.querySelector(`input[name="q${i}"]`).closest('div.pt-5').scrollIntoView({ behavior: 'smooth', block: 'center' });
                     return; 
                 }
                 responses[`q${i}`] = parseInt(checkedRadio.value, 10);
@@ -436,22 +411,19 @@
             const programRef = doc(db, `artifacts/${appId}/public/data/spark_programs`, currentProgram.id);
             try {
                 await updateDoc(programRef, { evaluations: arrayUnion(newEvaluation) });
-                
                 if(!currentProgram.evaluations) currentProgram.evaluations = [];
                 currentProgram.evaluations.push(newEvaluation);
                 renderStats();
 
                 const currentYear = new Date().getFullYear();
                 if (currentProgram.eCertificateNeeded) {
-                    const successTitle = `Tahniah, ${participantInfo.name}!`;
-                    const successBody = `Penilaian anda direkodkan dengan jayanya. Anda kini boleh mencetak Sijil di bawah.<br><br>Sijil ini juga sentiasa boleh dimuat turun melalui <a href="index.html" class="text-purple-600 font-bold hover:underline">Halaman Utama SPARK</a> sepanjang tahun <b>${currentYear}</b>.`;
-                    showMessage('success', successTitle, successBody, true);
+                    showMessage('success', `Tahniah, ${participantInfo.name}!`, `Penilaian direkodkan. Sila cetak sijil di bawah.<br><br>Sijil juga boleh dimuat turun dari <a href="index.html" class="text-purple-600 font-bold hover:underline">Halaman Utama SPARK</a> bagi tahun <b>${currentYear}</b>.`, true);
                 } else {
-                    showMessage('success', 'Penilaian Diterima!', `Terima kasih, ${participantInfo.name}.<br><br>Sijil penyertaan/penghargaan (jika disediakan untuk program ini) boleh disemak dan dimuat turun melalui <a href="index.html" class="text-purple-600 font-bold hover:underline">Halaman Utama SPARK</a> sepanjang tahun <b>${currentYear}</b>.`);
+                    showMessage('success', 'Penilaian Diterima!', `Terima kasih, ${participantInfo.name}.<br><br>Sijil boleh dimuat turun melalui <a href="index.html" class="text-purple-600 font-bold hover:underline">Halaman Utama SPARK</a> bagi tahun <b>${currentYear}</b>.`);
                 }
             } catch(error) {
                 console.error("Error saving evaluation: ", error);
-                showMessage('error', 'Gagal', 'Gagal menyimpan penilaian. Sila cuba lagi.');
+                showMessage('error', 'Gagal', 'Gagal menyimpan penilaian.');
                 submitBtn.disabled = false;
                 submitBtn.textContent = "Hantar Maklum Balas";
             }
@@ -471,11 +443,8 @@
             msgBody.innerHTML = body; 
             
             const certButtonContainer = document.getElementById('cert-button-container');
-            if (showCertButton) {
-                certButtonContainer.classList.remove('hidden');
-            } else {
-                certButtonContainer.classList.add('hidden');
-            }
+            if (showCertButton) certButtonContainer.classList.remove('hidden');
+            else certButtonContainer.classList.add('hidden');
 
             let icon, color;
             if (type === 'success') { icon = `<svg class="h-8 w-8 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`; color = 'bg-green-500'; } 
@@ -495,17 +464,14 @@
             btnPrint.disabled = true;
 
             try {
-                // Tetingkap awal untuk halang popup blocker
                 const printWindow = window.open('', '_blank');
                 printWindow.document.write('<html><body style="font-family:sans-serif; display:flex; justify-content:center; align-items:center; height:100vh; background:#f4f4f5; color:#52525b;"><h2>Sila tunggu, sedang menjana sijil...</h2></body></html>');
 
                 const participantName = participantInfo.name.toUpperCase();
                 const participantIC = participantInfo.ic;
                 const courseName = currentProgram.name.toUpperCase();
-                
                 const roleRaw = participantInfo.role ? String(participantInfo.role).trim().toLowerCase() : 'peserta';
                 const isSpecial = ['penceramah', 'fasilitator', 'urusetia', 'pengacara bengkel', 'pembaca doa', 'teknikal siaraya'].includes(roleRaw);
-                
                 const certificateTitle = isSpecial ? "Sijil Penghargaan" : "Sijil Penyertaan";
                 const roleBadgeHTML = isSpecial ? `<div class="role-badge">SEBAGAI ${participantInfo.role.toUpperCase()}</div>` : '';
                 const introText = isSpecial ? "Dengan tulus ikhlas merakamkan setinggi-tinggi penghargaan kepada" : "Dengan ini disahkan bahawa";
@@ -513,51 +479,26 @@
 
                 const startDate = new Date(currentProgram.startDate + 'T00:00:00');
                 const endDate = new Date(currentProgram.endDate + 'T00:00:00');
-                let dateString;
-                
-                if (startDate.getTime() === endDate.getTime()) {
-                    dateString = `pada ${startDate.toLocaleDateString('ms-MY', { day: '2-digit', month: 'long', year: 'numeric' }).toUpperCase()}`;
-                } else {
-                    dateString = `pada ${startDate.toLocaleDateString('ms-MY', { day: '2-digit' })} hingga ${endDate.toLocaleDateString('ms-MY', { day: '2-digit', month: 'long', year: 'numeric' }).toUpperCase()}`;
-                }
+                let dateString = startDate.getTime() === endDate.getTime() ? `pada ${startDate.toLocaleDateString('ms-MY', { day: '2-digit', month: 'long', year: 'numeric' }).toUpperCase()}` : `pada ${startDate.toLocaleDateString('ms-MY', { day: '2-digit' })} hingga ${endDate.toLocaleDateString('ms-MY', { day: '2-digit', month: 'long', year: 'numeric' }).toUpperCase()}`;
 
-                // --- PENGIRAAN JAM KREDIT AUTOMATIK ---
                 let jumlahJam = 0;
-                if (currentProgram.jam || currentProgram.hours || currentProgram.masa) {
-                    jumlahJam = parseFloat(currentProgram.jam || currentProgram.hours || currentProgram.masa);
-                } else if (currentProgram.startTime && currentProgram.endTime) {
+                if (currentProgram.jam || currentProgram.hours || currentProgram.masa) jumlahJam = parseFloat(currentProgram.jam || currentProgram.hours || currentProgram.masa);
+                else if (currentProgram.startTime && currentProgram.endTime) {
                     try {
-                        const parseTime = (timeStr) => {
-                            const [h, m] = String(timeStr).split(':').map(Number);
-                            return h + (m ? (m / 60) : 0);
-                        };
-                        const jamMula = parseTime(currentProgram.startTime);
-                        const jamTamat = parseTime(currentProgram.endTime);
-                        let jamSehari = jamTamat - jamMula;
+                        const [hM, mM] = String(currentProgram.startTime).split(':').map(Number);
+                        const [hT, mT] = String(currentProgram.endTime).split(':').map(Number);
+                        let jamSehari = (hT + (mT/60)) - (hM + (mM/60));
                         if (jamSehari > 0) {
-                            const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
-                            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+                            const diffDays = Math.ceil(Math.abs(endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
                             jumlahJam = Math.round((jamSehari * diffDays) * 10) / 10;
                         }
                     } catch(e) { }
                 }
 
                 let primaryColor = isSchoolProgram ? '#065f46' : '#4B40FF'; 
-                const masaHTML = jumlahJam > 0 ? `
-                    <div class="credit-box">
-                        <div class="credit-label">JUMLAH JAM KREDIT</div>
-                        <div class="credit-value">${jumlahJam} JAM</div>
-                    </div>
-                ` : '';
+                const masaHTML = jumlahJam > 0 ? `<div class="credit-box"><div class="credit-label">JUMLAH JAM KREDIT</div><div class="credit-value">${jumlahJam} JAM</div></div>` : '';
 
-                // --- TETAPAN LOGO & TANDATANGAN ---
-                let signatoryName = "";
-                let signatoryTitle = "";
-                let logoHTML = ""; 
-                let customTemplateCSS = "";
-                
-                // Cari stesen Pemilik Program (Bukan stesen peserta, tapi stesen Admin yang buat program ini)
-                // Oleh kerana kita berada dalam Penilaian, kita perlu bergantung pada `currentProgram.penyelaras_ic`
+                let signatoryName = "", signatoryTitle = "", logoHTML = "", customTemplateCSS = "";
                 let stesenSijil = currentProgram.location ? currentProgram.location.toUpperCase() : "SEKOLAH KEMENTERIAN PENDIDIKAN MALAYSIA";
                 let settingsRefId = isSchoolProgram ? stesenSijil : currentProgram.penyelaras_ic;
 
@@ -567,89 +508,45 @@
                     signatoryTitle = stesenSijil;
                     logoHTML = `<div style="height: 40px;"></div>`; 
                 } else {
-                    const tarikhProgram = new Date(currentProgram.startDate); 
-                    const tarikhBersara = new Date('2026-03-05');
-                    signatoryName = (tarikhProgram <= tarikhBersara) ? "MARIAM HAJI MONEK" : '<span style="color: transparent; user-select: none;">-</span>'; 
+                    const tarikhBERSARA = new Date('2026-03-05');
+                    signatoryName = (startDate <= tarikhBERSARA) ? "MARIAM HAJI MONEK" : '<span style="color: transparent;">-</span>'; 
                     signatoryTitle = "PEGAWAI PENDIDIKAN DAERAH,<br>PEJABAT PENDIDIKAN DAERAH MIRI.";
                     logoHTML = `<img src="https://i.imgur.com/FQpwGDo.png" class="logo" style="max-height: 80px;">`;
                 }
 
-                let showFooterNote = true;
-                let showSigName = true;
-
-                // BACA TETAPAN DARI FIREBASE
+                let showFooterNote = true, showSigName = true;
                 if (settingsRefId) {
                     try {
                         const setDoc = await getDoc(doc(db, `artifacts/${appId}/public/data/spark_school_cert_settings/${settingsRefId}`));
                         if (setDoc.exists()) {
-                            let customSettings = setDoc.data();
-                            
-                            if (customSettings.primaryColor) primaryColor = customSettings.primaryColor;
-                            const customFont = customSettings.fontFamily || 'Montserrat';
-                            
-                            if (customSettings.showBg && customSettings.customBgUrl) {
-                                customTemplateCSS += `
-                                    .certificate-container { background-image: url('${customSettings.customBgUrl}'); background-size: cover; background-position: center; background-repeat: no-repeat; }
-                                    .certificate-container::before, .certificate-container::after { display: none !important; }
-                                    .certificate-content { border: none !important; background: transparent !important; box-shadow: none !important; outline: none !important; }
-                                `;
-                            }
-
-                            let lSize = customSettings.logoSize ? customSettings.logoSize + "px" : "80px";
-                            if (isSchoolProgram) {
-                                if (customSettings.showLogo && customSettings.logoUrl) logoHTML = `<img src="${customSettings.logoUrl}" class="logo" style="max-height: ${lSize}; width: auto; object-fit: contain;">`;
-                                else logoHTML = `<div style="height: ${lSize};"></div>`;
-                            } else {
-                                logoHTML = `<img src="https://i.imgur.com/FQpwGDo.png" class="logo" style="max-height: ${lSize}; width: auto; object-fit: contain;">`;
-                            }
-                            
-                            if (customSettings.hasOwnProperty('showSigName')) showSigName = customSettings.showSigName;
-
-                            if (isSchoolProgram) {
-                                if (customSettings.signatoryName) signatoryName = customSettings.signatoryName.toUpperCase();
-                                if (customSettings.signatoryTitle) signatoryTitle = customSettings.signatoryTitle.toUpperCase() + `<br>${stesenSijil}`;
-                            } else {
-                                if (customSettings.signatoryName) signatoryName = customSettings.signatoryName.toUpperCase();
-                                if (customSettings.signatoryTitle) signatoryTitle = customSettings.signatoryTitle.toUpperCase() + "<br>PEJABAT PENDIDIKAN DAERAH MIRI";
-                            }
-
-                            if (!showSigName) signatoryName = '<span style="color: transparent; user-select: none;">-</span>';
-
-                            if (customSettings.showSignature && customSettings.signatureUrl) {
-                                signatoryName = `<img src="${customSettings.signatureUrl}" style="max-height: 60px; object-fit: contain; margin-bottom: 5px; display: inline-block;"><br>${signatoryName}`;
-                                showFooterNote = false; 
-                            }
-
-                            customTemplateCSS += `h1 { font-family: '${customFont}', sans-serif !important; }`;
-
-                            if (!customSettings.showBg) {
-                                if (customSettings.templateId === 'template2') { 
-                                    customTemplateCSS += `.certificate-container::before, .certificate-container::after { display: none; } .certificate-content { border: 8px double #d4af37; background: #faf9f6; } h1 { font-family: 'Playfair Display', serif !important; } .signatory-name { color: #111 !important; border-top: ${showSigName ? '1px solid #111' : 'none'}; padding-top: 10px; display: inline-block; }`;
-                                } else if (customSettings.templateId === 'template3') { 
-                                    customTemplateCSS += `.certificate-container::before, .certificate-container::after { display: none; } .certificate-content { border: none; border-left: 20px solid ${primaryColor}; text-align: left; background: #ffffff; padding-left: 30mm; } .header-section { justify-content: flex-start; gap: 20px; flex-direction: row-reverse; } .serial-section { align-items: flex-start; text-align: left; margin-right: auto; } .logo { margin: 0 0 20px 0; } h1 { text-align: left; } .divider { margin: 30px 0; background: #e5e7eb !important; width: 100%; } .signature-section { text-align: left; }`;
-                                } else if (customSettings.templateId === 'template4') { 
-                                    customTemplateCSS += `.certificate-container::before, .certificate-container::after { display: none; } .certificate-content { border: 1px solid #333; padding: 12mm; outline: 3px solid #333; outline-offset: -8px; background: #fff; } h1 { font-family: 'Cinzel', serif !important; letter-spacing: 2px; color: #111 !important; } .divider { width: 50%; height: 1px; background: #333 !important; }`;
-                                } else if (customSettings.templateId === 'template5') { 
-                                    customTemplateCSS += `.certificate-container::before, .certificate-container::after { display: none; } .certificate-content { border: none; border-bottom: 15px solid ${primaryColor}; background: #fff; } h1 { font-weight: 400 !important; letter-spacing: 5px; } .divider { background: #e5e7eb !important; }`;
-                                } else if (customSettings.templateId === 'template6') { 
-                                    customTemplateCSS += `.certificate-container::before, .certificate-container::after { display: none; } .certificate-content { border: none; background: #fff; border-radius: 20px; box-shadow: 0 0 0 8px inset ${primaryColor}; } .divider { background: #ccc !important; }`;
-                                }
+                            let custom = setDoc.data();
+                            if (custom.primaryColor) primaryColor = custom.primaryColor;
+                            const font = custom.fontFamily || 'Montserrat';
+                            if (custom.showBg && custom.customBgUrl) customTemplateCSS += `.certificate-container { background-image: url('${custom.customBgUrl}'); background-size: cover; background-position: center; } .certificate-container::before, .certificate-container::after { display: none !important; } .certificate-content { border: none !important; background: transparent !important; }`;
+                            let lSize = custom.logoSize ? custom.logoSize + "px" : "80px";
+                            if (isSchoolProgram) { if (custom.showLogo && custom.logoUrl) logoHTML = `<img src="${custom.logoUrl}" class="logo" style="max-height: ${lSize}; width: auto; object-fit: contain;">`; else logoHTML = `<div style="height: ${lSize};"></div>`; }
+                            else { logoHTML = `<img src="https://i.imgur.com/FQpwGDo.png" class="logo" style="max-height: ${lSize}; width: auto; object-fit: contain;">`; }
+                            if (custom.hasOwnProperty('showSigName')) showSigName = custom.showSigName;
+                            if (isSchoolProgram) { if (custom.signatoryName) signatoryName = custom.signatoryName.toUpperCase(); if (custom.signatoryTitle) signatoryTitle = custom.signatoryTitle.toUpperCase() + `<br>${stesenSijil}`; }
+                            else { if (custom.signatoryName) signatoryName = custom.signatoryName.toUpperCase(); if (custom.signatoryTitle) signatoryTitle = custom.signatoryTitle.toUpperCase() + "<br>PEJABAT PENDIDIKAN DAERAH MIRI"; }
+                            if (!showSigName) signatoryName = '<span style="color: transparent;">-</span>';
+                            if (custom.showSignature && custom.signatureUrl) { signatoryName = `<img src="${custom.signatureUrl}" style="max-height: 60px; object-fit: contain; margin-bottom: 5px; display: inline-block;"><br>${signatoryName}`; showFooterNote = false; }
+                            customTemplateCSS += `h1 { font-family: '${font}', sans-serif !important; }`;
+                            if (!custom.showBg) {
+                                if (custom.templateId === 'template2') customTemplateCSS += `.certificate-container::before, .certificate-container::after { display: none; } .certificate-content { border: 8px double #d4af37; background: #faf9f6; } h1 { font-family: 'Playfair Display', serif !important; } .signatory-name { color: #111 !important; border-top: ${showSigName ? '1px solid #111' : 'none'}; padding-top: 10px; display: inline-block; }`;
+                                else if (custom.templateId === 'template3') customTemplateCSS += `.certificate-container::before, .certificate-container::after { display: none; } .certificate-content { border: none; border-left: 20px solid ${primaryColor}; text-align: left; background: #ffffff; padding-left: 30mm; } .header-section { justify-content: flex-start; gap: 20px; flex-direction: row-reverse; } .serial-section { align-items: flex-start; text-align: left; margin-right: auto; } .logo { margin: 0 0 20px 0; } h1 { text-align: left; } .divider { margin: 30px 0; background: #e5e7eb !important; width: 100%; } .signature-section { text-align: left; }`;
+                                else if (custom.templateId === 'template4') customTemplateCSS += `.certificate-container::before, .certificate-container::after { display: none; } .certificate-content { border: 1px solid #333; padding: 12mm; outline: 3px solid #333; outline-offset: -8px; background: #fff; } h1 { font-family: 'Cinzel', serif !important; letter-spacing: 2px; color: #111 !important; } .divider { width: 50%; height: 1px; background: #333 !important; }`;
+                                else if (custom.templateId === 'template5') customTemplateCSS += `.certificate-container::before, .certificate-container::after { display: none; } .certificate-content { border: none; border-bottom: 15px solid ${primaryColor}; background: #fff; } h1 { font-weight: 400 !important; letter-spacing: 5px; } .divider { background: #e5e7eb !important; }`;
+                                else if (custom.templateId === 'template6') customTemplateCSS += `.certificate-container::before, .certificate-container::after { display: none; } .certificate-content { border: none; background: #fff; border-radius: 20px; box-shadow: 0 0 0 8px inset ${primaryColor}; } .divider { background: #ccc !important; }`;
                             }
                         }
                     } catch (e) { }
                 }
 
                 const signatureHTML = `<div class="signature-section"><div style="text-align: inherit;"><p class="signatory-name">${signatoryName}</p><p class="signatory-title">${signatoryTitle}</p></div></div>`;
-                
-                const prefix = isSpecial ? "SPK-H" : "SPK";
-                const serialNumber = `${prefix}/${currentProgram.id || 'GEN'}/${participantIC.slice(-4)}`;
-                const currentUrl = window.location.href;
-                const baseUrl = currentUrl.substring(0, currentUrl.lastIndexOf('/')); 
-                const verifyUrl = `${baseUrl}/scansijil.html?siri=${encodeURIComponent(serialNumber)}`;
-                const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(verifyUrl)}`;
-                const genDate = new Date().toLocaleDateString('ms-MY');
-
-                let footerNoteText = showFooterNote ? "Sijil ini adalah cetakan komputer, tandatangan tidak diperlukan." : "";
+                const serialNumber = `${isSpecial ? "SPK-H" : "SPK"}/${currentProgram.id}/${participantIC.slice(-4)}`;
+                const qrUrl = `${window.location.origin}${window.location.pathname.replace('penilaianprogram.html', 'scansijil.html')}?siri=${encodeURIComponent(serialNumber)}`;
+                const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(qrUrl)}`;
 
                 printWindow.document.open();
                 printWindow.document.write(`
@@ -660,17 +557,15 @@
                         <style>
                             @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;700&family=Playfair+Display:wght@700&family=Cinzel:wght@500;700&display=swap');
                             body { font-family: 'Montserrat', sans-serif; margin: 0; padding: 0; background: #f0f2f5; display: flex; justify-content: center; }
-                            .certificate-container { width: 210mm; height: 297mm; background: white; padding: 12mm; box-sizing: border-box; position: relative; display: flex; flex-direction: column; text-align: center; overflow: hidden; margin: auto; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+                            .certificate-container { width: 210mm; height: 297mm; background: white; padding: 12mm; box-sizing: border-box; position: relative; display: flex; flex-direction: column; text-align: center; overflow: hidden; }
                             .certificate-container::before { content: ''; position: absolute; width: 170px; height: 170px; background: ${primaryColor}; opacity: 0.9; top: -85px; left: -85px; transform: rotate(45deg); }
                             .certificate-container::after { content: ''; position: absolute; width: 170px; height: 170px; background: ${primaryColor}; opacity: 0.9; bottom: -85px; right: -85px; transform: rotate(45deg); }
                             .certificate-content { border: 6px solid; border-image-slice: 1; border-image-source: linear-gradient(to right top, #d4af37, ${primaryColor}, #d4af37); height: 100%; padding: 10mm; display: flex; flex-direction: column; z-index: 2; position: relative; background: #ffffff; }
-                            
                             .header-section { display: flex; justify-content: space-between; align-items: flex-start; width: 100%; height: 80px; }
                             .qr-code { width: 65px; height: 65px; }
                             .serial-section { text-align: right; display: flex; flex-direction: column; align-items: flex-end; }
                             .barcode-image { height: 30px; margin-bottom: 4px; opacity: 0.8; }
                             .serial-number { font-family: monospace; font-size: 14px; color: #555; margin: 0; }
-                            
                             .logo { margin: 0 auto 15px auto; object-fit: contain; }
                             h1 { font-family: 'Playfair Display', serif; font-size: 42px; font-weight: 700; margin: 10px 0; text-transform: uppercase; color: ${primaryColor}; line-height: 1.1; }
                             .role-badge { font-size: 18px; font-weight: 700; color: #d4af37; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 2px; }
@@ -680,29 +575,19 @@
                             .event-title-label { font-size: 16px; color: #555; }
                             .event-title { font-size: 22px; font-weight: 700; font-style: italic; margin: 10px 0; color: #111; line-height: 1.3; }
                             .event-date { font-size: 16px; font-weight: 500; margin-bottom: 5px; color: #444; }
-                            
                             .credit-box { margin: 15px auto 25px auto; padding: 10px 30px; border-top: 2px solid #d4af37; border-bottom: 2px solid #d4af37; display: inline-block; }
                             .credit-label { font-size: 11px; color: #666; letter-spacing: 2px; margin-bottom: 5px; }
                             .credit-value { font-size: 18px; font-weight: 700; color: ${primaryColor}; }
-
                             .divider { width: 100px; height: 2px; background: linear-gradient(90deg, #d4af37, ${primaryColor}); margin: 30px auto; border: none; }
                             .signature-section { margin-top: auto; }
                             .signatory-name { font-weight: 700; font-size: 16px; text-transform: uppercase; color: ${primaryColor}; }
                             .signatory-title { font-size: 14px; color: #333; line-height: 1.2; }
-                            
-                            .footer-bottom { margin-top: 30px; }
+                            .footer-bottom { margin-top: 30px; text-align: center;}
                             .footer-note { font-size: 10px; font-style: italic; margin-bottom: 2px; color: #999; }
                             .spark-brand-container { margin-top: 5px; }
                             .spark-title { font-weight: 700; font-size: 10px; letter-spacing: 1px; color: ${primaryColor}; margin: 0; }
-                            
                             .gen-timestamp { position: absolute; bottom: 5px; right: 10px; font-size: 9px; color: #aaa; }
-                            
-                            @media print { 
-                                body { background: none; -webkit-print-color-adjust: exact; print-color-adjust: exact; } 
-                                .certificate-container { box-shadow: none; margin: 0 auto; transform: scale(0.9); transform-origin: top center; } 
-                                @page { size: A4 portrait; margin: 0; }
-                            }
-                            
+                            @media print { body { background: none; -webkit-print-color-adjust: exact; print-color-adjust: exact; } .certificate-container { box-shadow: none; margin: 0 auto; width: 210mm; height: 297mm; } @page { size: A4 portrait; margin: 0; } }
                             ${customTemplateCSS}
                         </style>
                     </head>
@@ -725,19 +610,14 @@
                                 <p class="event-title-label">${eventLabel}</p>
                                 <p class="event-title">${courseName}</p>
                                 <p class="event-date">${dateString}</p>
-                                
-                                ${masaHTML}
-                                
+                                <div style="text-align: center;">${masaHTML}</div>
                                 <hr class="divider">
                                 ${signatureHTML}
-                                
                                 <div class="footer-bottom">
-                                    <p class="footer-note">${footerNoteText}</p>
-                                    <div class="spark-brand-container">
-                                        <p class="spark-title">JANAAN SPARK</p>
-                                    </div>
+                                    <p class="footer-note">${showFooterNote ? "Sijil ini adalah cetakan komputer, tandatangan tidak diperlukan." : ""}</p>
+                                    <div class="spark-brand-container"><p class="spark-title">JANAAN SPARK</p></div>
                                 </div>
-                                <div class="gen-timestamp">Dijana: ${genDate}</div>
+                                <div class="gen-timestamp">Dijana: ${new Date().toLocaleDateString('ms-MY')}</div>
                             </div>
                         </div>
                     </body>
@@ -745,15 +625,9 @@
                 `);
                 printWindow.document.close();
                 printWindow.onload = () => { printWindow.focus(); printWindow.print(); };
-            } catch (error) {
-                console.error(error);
-                alert("Gagal menjana sijil.");
-            } finally {
-                btnPrint.innerHTML = ogText;
-                btnPrint.disabled = false;
-            }
+            } catch (error) { console.error(error); alert("Gagal menjana sijil."); }
+            finally { btnPrint.innerHTML = ogText; btnPrint.disabled = false; }
         }
-        
         window.validateIcInput = validateIcInput;
     </script>
 </body>
