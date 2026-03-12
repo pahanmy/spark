@@ -1019,7 +1019,21 @@
 
                 const tr = document.createElement('tr'); tr.className = "hover:bg-gray-50 transition-colors group";
                 let dateStr = data.tarikh ? new Date(data.tarikh).toLocaleDateString('ms-MY', {day:'2-digit', month:'2-digit', year:'2-digit'}) : "-";
-                tr.innerHTML = `<td class="px-3 py-3 font-medium text-gray-900">${dateStr}</td><td class="px-3 py-3 truncate max-w-[140px]">${subjekStr || "-"}</td><td class="px-3 py-3 text-center"><button onclick="loadHistory('${data.id}')" class="p-1.5 text-indigo-600 hover:bg-indigo-100 rounded-md">Buka</button></td>`;
+                
+                // Tambah butang Edit dan Delete (Ikon)
+                tr.innerHTML = `
+                    <td class="px-3 py-3 font-medium text-gray-900">${dateStr}</td>
+                    <td class="px-3 py-3 truncate max-w-[140px]">${subjekStr || "-"}</td>
+                    <td class="px-3 py-3 text-center">
+                        <div class="flex items-center justify-center gap-2">
+                            <button onclick="loadHistory('${data.id}')" class="p-1.5 text-indigo-600 hover:bg-indigo-100 rounded-md transition-colors" title="Buka & Edit">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                            </button>
+                            <button onclick="deleteHistory('${data.id}')" class="p-1.5 text-red-500 hover:bg-red-100 rounded-md transition-colors" title="Padam Rekod">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                            </button>
+                        </div>
+                    </td>`;
                 tbody.appendChild(tr);
             });
         }
@@ -1046,6 +1060,36 @@
             } catch (err) { console.error("Error tagged reports: ", err); document.getElementById('tag-table-body').innerHTML = '<tr><td colspan="3" class="px-3 py-4 text-center text-red-500 text-[10px]">Ralat memuatkan rekod tag.</td></tr>'; }
         }
 
+window.deleteHistory = async function(id) {
+            if(!confirm("Adakah anda pasti mahu memadam rekod PLC ini secara kekal?")) return;
+            
+            const btn = event.currentTarget; 
+            const originalContent = btn.innerHTML;
+            
+            // Tunjuk animasi loading pada butang
+            btn.innerHTML = '<svg class="animate-spin h-4 w-4 text-red-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>';
+            btn.disabled = true;
+            
+            try {
+                // Padam rekod dari Firestore
+                await deleteDoc(doc(db, `artifacts/${appId}/public/data/spark_plc_records`, id));
+                
+                // Refresh senarai sejarah
+                await loadSavedReports(); 
+                
+                // Jika rekod yang sedang dibuka dipadam, kosongkan ID supaya tidak bertindih bila di-save semula
+                if(document.getElementById('report-id').value === id) {
+                    document.getElementById('report-id').value = "";
+                    alert("Rekod yang sedang dibuka telah berjaya dipadam.");
+                }
+            } catch (error) {
+                console.error("Gagal memadam:", error);
+                alert("Gagal memadam rekod. Ralat: " + error.message);
+                btn.innerHTML = originalContent;
+                btn.disabled = false;
+            }
+        }
+        
         window.loadHistory = function(id) {
             const r = window.allMyReports.find(x => x.id === id); if(!r) return;
             document.getElementById('report-id').value = r.id;
