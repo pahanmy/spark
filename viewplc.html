@@ -29,6 +29,10 @@
 
         /* Loader */
         #loader { position: fixed; inset: 0; background: #f8fafc; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: opacity 0.5s ease; }
+        
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
 
         @media print {
             .no-print { display: none !important; }
@@ -215,11 +219,54 @@
                 </div>
             </div>
         </div>
+
+        <div class="max-w-[210mm] w-[95%] mx-auto mt-6 bg-white p-6 rounded-xl shadow-md border border-gray-200 no-print mb-10">
+            <h3 class="font-bold text-lg text-indigo-700 uppercase mb-4 border-b border-gray-200 pb-2 flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                Pengesahan Makluman
+            </h3>
+            
+            <div id="auth-warning" class="bg-yellow-50 border-l-4 border-yellow-400 text-yellow-700 p-4 rounded-r-lg text-sm mb-5 shadow-sm">
+                Sila <a href="index.html" class="font-bold underline hover:text-yellow-800">Log Masuk</a> ke sistem SPARK untuk membuat pengesahan makluman dokumen ini.
+            </div>
+
+            <div id="ack-controls" class="hidden flex flex-col sm:flex-row items-center justify-between bg-indigo-50 p-4 rounded-lg mb-6 border border-indigo-100 gap-4 shadow-inner">
+                <div class="text-sm text-center sm:text-left">
+                    <p class="text-gray-500 text-[11px] uppercase tracking-wider font-bold mb-0.5">Log masuk sebagai:</p>
+                    <p id="current-user-name" class="font-bold text-indigo-800 uppercase text-base"></p>
+                </div>
+                <button id="btn-ack" onclick="acknowledgeReport()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-8 rounded-lg shadow-md transition-all w-full sm:w-auto active:scale-95 uppercase tracking-wide text-sm">
+                    Klik Untuk Sahkan
+                </button>
+            </div>
+
+            <div class="mt-4">
+                <p class="text-xs font-bold text-gray-500 uppercase mb-2 flex items-center gap-1">
+                    Senarai Makluman Minit <span class="bg-gray-200 text-gray-700 px-2 py-0.5 rounded-full" id="reader-count">0</span>
+                </p>
+                <div class="max-h-60 overflow-y-auto border border-gray-200 rounded-lg custom-scrollbar">
+                    <table class="w-full text-left text-sm">
+                        <thead class="bg-gray-100 border-b border-gray-200 text-xs uppercase text-gray-600 sticky top-0 z-10">
+                            <tr>
+                                <th class="px-4 py-3 w-12 text-center font-bold tracking-wider">Bil</th>
+                                <th class="px-4 py-3 font-bold tracking-wider">Nama Pegawai</th>
+                                <th class="px-4 py-3 w-48 text-right font-bold tracking-wider">Tarikh / Masa</th>
+                            </tr>
+                        </thead>
+                        <tbody id="reader-tbody" class="divide-y divide-gray-100 bg-white">
+                            <tr><td colspan="3" class="text-center py-6 text-gray-400 italic text-sm">Belum ada pengesahan makluman.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, collection, query, where, getDocs, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM",
@@ -232,18 +279,123 @@
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
+        const auth = getAuth(app);
         const appId = firebaseConfig.projectId;
 
+        // Variables untuk pengesahan makluman
+        window.currentUserName = "";
+        window.currentUserIc = "";
+        window.reportId = new URLSearchParams(window.location.search).get('id');
+        window.hasAcknowledged = false;
+
         document.addEventListener("DOMContentLoaded", () => {
-            const urlParams = new URLSearchParams(window.location.search);
-            const id = urlParams.get('id');
-            if (id) {
-                fetchReportData(id);
+            if (window.reportId) {
+                fetchReportData(window.reportId);
             } else {
                 showError();
             }
         });
 
+        // Tapis IC
+        function maskIC(ic) {
+            if (!ic) return "";
+            ic = ic.replace(/-/g, '').trim();
+            if (ic.length >= 12) return ic.substring(0, 6) + "-**-****";
+            if (ic.length > 4) return ic.substring(0, ic.length - 4) + "****";
+            return "***";
+        }
+
+        // --- AUTH & PENGESAHAN MAKLUMAN ---
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                window.currentUserIc = localStorage.getItem('user_ic');
+                if (window.currentUserIc) {
+                    await fetchCurrentUserName();
+                    document.getElementById('auth-warning').classList.add('hidden');
+                    document.getElementById('ack-controls').classList.remove('hidden');
+                    document.getElementById('current-user-name').textContent = window.currentUserName;
+                }
+            }
+            if(window.reportId) {
+                window.loadReaders();
+            }
+        });
+
+        async function fetchCurrentUserName() {
+            const usersRef = collection(db, `artifacts/${appId}/public/data/spark_participants`);
+            const q = query(usersRef, where("ic", "==", window.currentUserIc));
+            const snap = await getDocs(q);
+            if (!snap.empty) {
+                window.currentUserName = snap.docs[0].data().name || "PENGGUNA";
+            }
+        }
+
+        window.loadReaders = async function() {
+            const readersRef = collection(db, `artifacts/${appId}/public/data/spark_plc_readers`);
+            const q = query(readersRef, where("reportId", "==", window.reportId));
+            const snaps = await getDocs(q);
+            
+            const tbody = document.getElementById('reader-tbody');
+            let readers = [];
+            snaps.forEach(doc => readers.push(doc.data()));
+            
+            // Susun yang paling baru di atas
+            readers.sort((a,b) => b.timestamp - a.timestamp);
+            document.getElementById('reader-count').textContent = readers.length;
+            
+            if(readers.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="3" class="text-center py-6 text-gray-400 italic text-sm">Belum ada pengesahan makluman.</td></tr>';
+            } else {
+                tbody.innerHTML = '';
+                readers.forEach((r, idx) => {
+                    // Check jika diri sendiri sudah sahkan
+                    if(r.ic === window.currentUserIc) {
+                        window.hasAcknowledged = true;
+                        const btn = document.getElementById('btn-ack');
+                        btn.innerHTML = `<svg class="w-4 h-4 mr-1 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Telah Disahkan`;
+                        btn.disabled = true;
+                        btn.classList.replace('bg-indigo-600', 'bg-green-500');
+                        btn.classList.replace('hover:bg-indigo-700', 'hover:bg-green-600');
+                        btn.classList.replace('active:scale-95', 'cursor-not-allowed');
+                    }
+                    
+                    const dateObj = r.timestamp ? new Date(r.timestamp) : new Date();
+                    const dateStr = dateObj.toLocaleDateString('ms-MY', {day:'2-digit', month:'short', year:'numeric'}) + ' ' + dateObj.toLocaleTimeString('ms-MY', {hour:'2-digit', minute:'2-digit'});
+                    
+                    tbody.innerHTML += `
+                        <tr class="hover:bg-gray-50 transition-colors">
+                            <td class="px-4 py-3 text-center font-bold text-gray-400 text-xs">${readers.length - idx}</td>
+                            <td class="px-4 py-3 font-semibold uppercase text-gray-700 text-xs">${r.name || 'PENGGUNA'}</td>
+                            <td class="px-4 py-3 text-right text-gray-500 text-[11px] tracking-wide">${dateStr}</td>
+                        </tr>
+                    `;
+                });
+            }
+        }
+
+        window.acknowledgeReport = async function() {
+            if(!window.reportId || !window.currentUserIc) return;
+            const btn = document.getElementById('btn-ack');
+            btn.innerHTML = '<svg class="animate-spin h-4 w-4 mr-2 inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Menyimpan...'; 
+            btn.disabled = true;
+            
+            try {
+                await addDoc(collection(db, `artifacts/${appId}/public/data/spark_plc_readers`), {
+                    reportId: window.reportId,
+                    ic: window.currentUserIc,
+                    name: window.currentUserName,
+                    timestamp: Date.now()
+                });
+                alert("Terima kasih! Pengesahan makluman anda telah berjaya direkodkan.");
+                await window.loadReaders();
+            } catch(e) {
+                alert("Ralat: " + e.message);
+                btn.innerHTML = 'Klik Untuk Sahkan'; 
+                btn.disabled = false;
+            }
+        }
+
+        // --- FETCH REPORT DATA ---
         async function fetchReportData(id) {
             try {
                 const docRef = doc(db, `artifacts/${appId}/public/data/spark_plc_records`, id);
@@ -263,12 +415,10 @@
         function renderReport(data) {
             document.title = `PLC | ${data.institusi || 'Laporan'}`;
 
-            // Barcode
             if(data.serialNumber) {
                 JsBarcode("#barcode", data.serialNumber, { format: "CODE128", width: 1, height: 15, displayValue: true, fontSize: 8, margin: 0, textMargin: 1 });
             }
 
-            // 1-5 Asas
             document.getElementById('out-institusi').textContent = data.institusi || "-";
             document.getElementById('out-daerah').textContent = data.daerah || "-";
             document.getElementById('out-negeri').textContent = data.negeri || "-";
@@ -283,7 +433,6 @@
                 document.getElementById('out-tarikh').textContent = "-";
             }
 
-            // 6. Ahli (Smart Layout, Tidak Bold)
             const tbody = document.getElementById('out-ahli-tbody'); 
             tbody.innerHTML = '';
             if(!data.ahli || data.ahli.length === 0) { 
@@ -308,7 +457,6 @@
                 });
             }
 
-            // 7. Alat Kolaboratif
             if (data.alat && Array.isArray(data.alat)) {
                 data.alat.forEach(a => {
                     const targetId = `chk-out-${a}`;
@@ -319,12 +467,10 @@
                 }
             }
 
-            // 8. Proses
             document.getElementById('out-focus').innerHTML = data.focus ? `<span class="font-bold">Isu:</span>\n${data.focus}` : '';
             document.getElementById('out-improve').textContent = data.improve || "";
             document.getElementById('out-share').textContent = data.share || "";
 
-            // 9. Pautan Bahan Multiple
             const tablePautan = document.getElementById('out-table-pautan');
             const tbodyPautan = document.getElementById('out-pautan-tbody');
             tbodyPautan.innerHTML = '';
@@ -354,7 +500,6 @@
             }
             if(!hasValidLinks) tablePautan.classList.add('hidden');
 
-            // Gambar Bukti
             const imgUrls = [data.img1, data.img2, data.img3, data.img4];
             let hasImage = false;
             
@@ -383,7 +528,6 @@
                 document.getElementById('section-gambar').classList.remove('hidden'); 
             }
             
-            // Image Layout Grid
             const gridPreview = document.getElementById('preview-image-grid');
             if(data.imageMode === 4) {
                 gridPreview.classList.add('grid-cols-2', 'grid-rows-2');
@@ -391,7 +535,6 @@
                 gridPreview.classList.remove('grid-rows-2');
             }
 
-            // Signatures
             document.getElementById('out-disediakan').textContent = data.disediakan || "";
             document.getElementById('out-jawatan-disediakan').textContent = data.jawatanDisediakan || "";
             document.getElementById('out-disahkan').textContent = data.disahkan || "";
@@ -404,7 +547,6 @@
                 sigImg.classList.add('hidden');
             }
 
-            // Hide loader, show content
             document.getElementById('loader').style.opacity = '0';
             setTimeout(() => {
                 document.getElementById('loader').classList.add('hidden');
