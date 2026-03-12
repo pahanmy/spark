@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SparkPLC – Paparan Laporan</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.0/dist/JsBarcode.all.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        body { font-family: 'Poppins', sans-serif; background-color: #f8fafc; }
+        
+        #pdf-wrapper { width: 210mm; margin: 0 auto; padding: 20px 0; }
+
+        .a4-paper {
+            width: 210mm; min-height: 297mm; height: auto; 
+            padding-left: 15mm; padding-right: 15mm; padding-bottom: 20mm; padding-top: 15mm;
+            margin: 0 auto; background: white; box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            font-family: Arial, Helvetica, sans-serif; color: black; position: relative;
+            display: flex; flex-direction: column;
+        }
+
+        .plc-table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; background: rgba(255,255,255,0.85); font-size: 10pt;}
+        .plc-table td, .plc-table th { border: 1px solid black; padding: 6px 8px; vertical-align: top; }
+        
+        .report-img-container { width: 100%; aspect-ratio: 16 / 9; display: flex; justify-content: center; align-items: center; overflow: hidden; position: relative; background-color: transparent; border: 1px solid #cbd5e1; }
+        .report-img-container img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+        /* Loader */
+        #loader { position: fixed; inset: 0; background: #f8fafc; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: opacity 0.5s ease; }
+
+        @media print {
+            .no-print { display: none !important; }
+            body, html { height: auto !important; width: 100% !important; background-color: white !important; margin: 0 !important; padding: 0 !important; }
+            #pdf-wrapper { width: 100% !important; margin: 0 !important; padding: 0 !important; box-shadow: none !important; }
+            .a4-paper { width: 100% !important; margin: 0 !important; padding: 10mm 15mm !important; box-shadow: none !important; display: block !important; page-break-after: always !important; page-break-inside: auto; }
+            tr { page-break-inside: avoid; }
+            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        }
+    </style>
+</head>
+<body class="flex flex-col min-h-screen text-gray-800">
+
+    <div id="loader">
+        <svg class="animate-spin h-10 w-10 text-indigo-600 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <p class="text-xs font-bold text-gray-500 uppercase tracking-widest">Memuatkan Laporan...</p>
+    </div>
+
+    <div id="error-screen" class="hidden flex-grow flex flex-col items-center justify-center text-center p-6 bg-white z-10">
+        <div class="bg-red-50 text-red-500 p-4 rounded-full mb-4">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+        </div>
+        <h2 class="text-xl font-bold text-gray-800 mb-2">Laporan Tidak Ditemui</h2>
+        <p class="text-sm text-gray-500 mb-6">Pautan tidak sah atau laporan telah dipadam oleh penyedia.</p>
+    </div>
+
+    <div id="main-content" class="hidden flex-col items-center w-full relative pb-10">
+        
+        <div class="w-full bg-white border-b border-gray-200 shadow-sm sticky top-0 z-50 no-print flex justify-between items-center px-6 py-3">
+            <div class="flex items-center gap-3">
+                <div class="bg-indigo-600 p-2 rounded shadow text-white">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold text-indigo-700 uppercase leading-none">SparkPLC</h1>
+                    <p class="text-[10px] text-gray-500 mt-0.5">Pemapar Dokumen</p>
+                </div>
+            </div>
+            <button onclick="window.print()" class="bg-gray-800 hover:bg-black text-white px-5 py-2 rounded-lg text-xs font-bold uppercase shadow-md flex items-center gap-2 transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                Cetak / Muat Turun PDF
+            </button>
+        </div>
+
+        <div id="pdf-wrapper">
+            <div class="a4-paper transform scale-100 origin-top">
+                <div class="paper-content flex flex-col h-full">
+                    
+                    <div class="flex justify-between items-start mb-4 border-b-2 border-black pb-2">
+                        <div class="flex-1 text-center relative ml-[60px]">
+                            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/2/26/Coat_of_arms_of_Malaysia.svg/1200px-Coat_of_arms_of_Malaysia.svg.png" class="h-20 mx-auto mb-2 object-contain" alt="Jata Negara">
+                            <h1 class="font-bold text-[14pt] uppercase">KEMENTERIAN PENDIDIKAN</h1>
+                            <h2 class="font-bold text-[12pt] mt-2 uppercase">LAPORAN KOMUNITI PEMBELAJARAN PROFESIONAL (OFF LINE)</h2>
+                            <h3 class="font-bold text-[11pt] uppercase">Professional Learning Community (PLC)</h3>
+                        </div>
+                        <div class="flex flex-col items-end pt-2 w-[60px]">
+                             <svg id="barcode"></svg>
+                        </div>
+                    </div>
+
+                    <table class="plc-table break-inside-avoid">
+                        <tr>
+                            <td class="font-bold w-[25%] uppercase">1. NAMA INSTITUSI:</td>
+                            <td colspan="3" id="out-institusi" class="uppercase font-semibold"></td>
+                        </tr>
+                        <tr>
+                            <td class="font-bold uppercase">2. MATA PELAJARAN:</td>
+                            <td colspan="3" id="out-subjek" class="uppercase font-semibold"></td>
+                        </tr>
+                        <tr>
+                            <td class="font-bold w-[25%] uppercase">3. DAERAH:</td>
+                            <td id="out-daerah" class="w-[25%] uppercase font-semibold"></td>
+                            <td class="font-bold w-[20%] uppercase text-right border-l-0">4. NEGERI: </td>
+                            <td id="out-negeri" class="w-[30%] uppercase border-l-0 font-semibold"></td>
+                        </tr>
+                        <tr>
+                            <td class="font-bold uppercase">5. TARIKH PELAKSANAAN:</td>
+                            <td colspan="3" id="out-tarikh" class="uppercase font-semibold"></td>
+                        </tr>
+                    </table>
+
+                    <div class="font-bold text-[10pt] mb-1 uppercase break-before-avoid">6. NAMA & NO.KP AHLI KUMPULAN:</div>
+                    <table class="plc-table text-center break-inside-auto">
+                        <thead class="bg-gray-100 font-bold">
+                            <tr>
+                                <th class="w-12">BIL</th>
+                                <th>NAMA</th>
+                                <th class="w-[40%]">JAWATAN / NO. KAD PENGENALAN</th>
+                            </tr>
+                        </thead>
+                        <tbody id="out-ahli-tbody">
+                            </tbody>
+                    </table>
+
+                    <div class="font-bold text-[10pt] mb-1 uppercase break-inside-avoid">7. ALAT KOLABORATIF PLC: <span class="font-normal italic text-[9pt] normal-case ml-2">Pilih dan tandakan ( / ) salah satu kotak yang berkenaan.</span></div>
+                    <table class="plc-table break-inside-avoid" id="table-alat">
+                        <tr>
+                            <td class="w-8 text-center font-bold text-lg leading-none" id="chk-out-Kritikan Video (Video Kritik)"></td>
+                            <td class="w-[45%]">Kritikan Video (Video Kritik)</td>
+                            <td class="w-8 text-center font-bold text-lg leading-none" id="chk-out-Jelajah Pembelajaran (Learning Walk)"></td>
+                            <td>Jelajah Pembelajaran (Learning Walk)</td>
+                        </tr>
+                        <tr>
+                            <td class="text-center font-bold text-lg leading-none" id="chk-out-Bimbingan Rakan Sekerja (Peer Coaching)"></td>
+                            <td>Bimbingan Rakan Sekerja (Peer Coaching)</td>
+                            <td class="text-center font-bold text-lg leading-none" id="chk-out-Kumpulan Penyelesaian Masalah (Problem Solving Group)"></td>
+                            <td>Kumpulan Penyelesaian Masalah (Problem Solving Group)</td>
+                        </tr>
+                        <tr>
+                            <td class="text-center font-bold text-lg leading-none" id="chk-out-Sesi Perkongsian Guru (Teacher Sharing Session)"></td>
+                            <td>Sesi Perkongsian Guru (Teacher Sharing Session)</td>
+                            <td class="text-center font-bold text-lg leading-none" id="chk-out-Lain-lain"></td>
+                            <td>Lain-lain : <span id="out-alat-lain" class="border-b border-black inline-block min-w-[150px] px-2 font-semibold"></span></td>
+                        </tr>
+                        <tr>
+                            <td class="text-center font-bold text-lg leading-none" id="chk-out-Belajar menggunakan RPH (Lesson Study)"></td>
+                            <td colspan="3">Belajar menggunakan RPH (Lesson Study)</td>
+                        </tr>
+                    </table>
+
+                    <table class="plc-table flex-grow break-inside-auto">
+                        <tr><td class="font-bold bg-gray-100 py-1 uppercase">8. PROSES PELAKSANAAN FOCUS: Punca/ Isu/ Masalah</td></tr>
+                        <tr><td class="min-h-[60px] align-top whitespace-pre-wrap pb-2 pt-2 text-[10pt]" id="out-focus"></td></tr>
+                        <tr><td class="font-bold bg-gray-100 py-1 uppercase">IMPROVE: Aktiviti/ Langkah Pelaksanaan.</td></tr>
+                        <tr><td class="min-h-[60px] align-top whitespace-pre-wrap pb-2 pt-2 text-[10pt]" id="out-improve"></td></tr>
+                        <tr><td class="font-bold bg-gray-100 py-1 uppercase">SHARE: Dapatan/ Perkongsian</td></tr>
+                        <tr><td class="min-h-[60px] align-top whitespace-pre-wrap pb-2 pt-2 text-[10pt]" id="out-share"></td></tr>
+                    </table>
+
+                    <table class="plc-table break-inside-avoid hidden mb-2" id="out-table-pautan">
+                        <thead>
+                            <tr>
+                                <td class="font-bold bg-gray-100 py-1 uppercase" colspan="2">9. PAUTAN BAHAN PERKONGSIAN</td>
+                            </tr>
+                        </thead>
+                        <tbody id="out-pautan-tbody">
+                        </tbody>
+                    </table>
+
+                    <div class="mt-2 border border-black p-1 bg-white break-inside-avoid" id="section-gambar">
+                        <h3 class="text-[9pt] font-bold uppercase bg-gray-100 p-1 border-b border-black text-center mb-1">LAMPIRAN BERGAMBAR</h3>
+                        <div id="preview-image-grid" class="grid grid-cols-2 gap-2"> 
+                            <div class="report-img-container hidden" id="prev-box-0">
+                                <img id="prev-img-0" src="">
+                                <span id="prev-cap-0" class="absolute bottom-0 w-full bg-white/90 text-black font-bold border-t border-gray-200 text-[8pt] text-center py-1">Gambar 1</span>
+                            </div>
+                            <div class="report-img-container hidden" id="prev-box-1">
+                                <img id="prev-img-1" src="">
+                                <span id="prev-cap-1" class="absolute bottom-0 w-full bg-white/90 text-black font-bold border-t border-gray-200 text-[8pt] text-center py-1">Gambar 2</span>
+                            </div>
+                            <div class="report-img-container hidden" id="prev-box-2">
+                                <img id="prev-img-2" src="">
+                                <span id="prev-cap-2" class="absolute bottom-0 w-full bg-white/90 text-black font-bold border-t border-gray-200 text-[8pt] text-center py-1">Gambar 3</span>
+                            </div>
+                            <div class="report-img-container hidden" id="prev-box-3">
+                                <img id="prev-img-3" src="">
+                                <span id="prev-cap-3" class="absolute bottom-0 w-full bg-white/90 text-black font-bold border-t border-gray-200 text-[8pt] text-center py-1">Gambar 4</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-between items-end mt-6 mb-2 break-inside-avoid relative">
+                        <div class="w-[35%] text-center flex flex-col items-center mx-auto">
+                            <p class="text-left w-full mb-1 italic text-[10pt]">Disediakan oleh:</p>
+                            <div class="h-16 w-full flex items-end justify-center mb-1 relative z-10">
+                                 <img id="out-sig-img" class="h-full w-auto object-contain hidden" src="">
+                            </div>
+                            <div class="border-b border-black w-full mb-1 relative z-0"></div>
+                            <p id="out-disediakan" class="font-bold uppercase mt-1 text-[9pt] leading-tight min-h-[1rem]"></p>
+                            <p id="out-jawatan-disediakan" class="uppercase text-[8pt] text-gray-700 leading-tight"></p>
+                        </div>
+                        
+                        <div class="w-[35%] text-center flex flex-col items-center ml-auto">
+                            <p class="text-left w-full mb-1 italic text-[10pt]">Disahkan oleh:</p>
+                            <div class="h-16 w-full mb-1"></div> 
+                            <div class="border-b border-black w-full mb-1"></div>
+                            <p id="out-disahkan" class="font-bold uppercase mt-1 text-[9pt] whitespace-pre-wrap leading-tight min-h-[2rem]"></p>
+                        </div>
+                    </div>
+                    
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM",
+            authDomain: "myqrhadir.firebaseapp.com",
+            projectId: "myqrhadir",
+            storageBucket: "myqrhadir.appspot.com",
+            messagingSenderId: "799691133747",
+            appId: "1:799691133747:web:835a5e3e9413eace806446"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const appId = firebaseConfig.projectId;
+
+        // Mask IC for Privacy
+        function maskIC(ic) {
+            if (!ic) return "";
+            ic = ic.replace(/-/g, '').trim();
+            if (ic.length >= 12) return ic.substring(0, 6) + "-**-****";
+            if (ic.length > 4) return ic.substring(0, ic.length - 4) + "****";
+            return "***";
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const id = urlParams.get('id');
+            if (id) {
+                fetchReportData(id);
+            } else {
+                showError();
+            }
+        });
+
+        async function fetchReportData(id) {
+            try {
+                const docRef = doc(db, `artifacts/${appId}/public/data/spark_plc_records`, id);
+                const docSnap = await getDoc(docRef);
+                
+                if (docSnap.exists()) {
+                    renderReport(docSnap.data());
+                } else {
+                    showError();
+                }
+            } catch (error) {
+                console.error("Error fetching report:", error);
+                showError();
+            }
+        }
+
+        function renderReport(data) {
+            document.title = `PLC | ${data.institusi || 'Laporan'}`;
+
+            // Barcode
+            if(data.serialNumber) {
+                JsBarcode("#barcode", data.serialNumber, { format: "CODE128", width: 1, height: 15, displayValue: true, fontSize: 8, margin: 0, textMargin: 1 });
+            }
+
+            // 1-5 Asas
+            document.getElementById('out-institusi').textContent = data.institusi || "-";
+            document.getElementById('out-daerah').textContent = data.daerah || "-";
+            document.getElementById('out-negeri').textContent = data.negeri || "-";
+            
+            let subjekStr = data.subjekSelect === 'LAIN-LAIN' ? data.subjekLain : data.subjekSelect;
+            document.getElementById('out-subjek').textContent = subjekStr || "-";
+
+            if(data.tarikh) {
+                const d = new Date(data.tarikh); 
+                document.getElementById('out-tarikh').textContent = `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth()+1).toString().padStart(2, '0')}/${d.getFullYear()}`; 
+            } else {
+                document.getElementById('out-tarikh').textContent = "-";
+            }
+
+            // 6. Ahli (Masked)
+            const tbody = document.getElementById('out-ahli-tbody'); 
+            tbody.innerHTML = '';
+            if(!data.ahli || data.ahli.length === 0) { 
+                tbody.innerHTML = `<tr><td colspan="3" class="text-center italic text-gray-500 py-2">Tiada rekod ahli.</td></tr>`; 
+            } else {
+                data.ahli.forEach((ahli, index) => {
+                    const nama = ahli.nama ? ahli.nama.toUpperCase() : '<span class="text-transparent">.</span>';
+                    const jawatan = ahli.jawatan ? ahli.jawatan.toUpperCase() + " / " : '';
+                    const maskedKp = maskIC(ahli.kp);
+                    const jawatanKp = (jawatan + maskedKp).trim() !== "/" ? (jawatan + maskedKp) : '<span class="text-transparent">.</span>';
+                    tbody.innerHTML += `<tr><td>${index + 1}</td><td class="text-left font-semibold">${nama}</td><td>${jawatanKp}</td></tr>`;
+                });
+            }
+
+            // 7. Alat Kolaboratif
+            if (data.alat && Array.isArray(data.alat)) {
+                data.alat.forEach(a => {
+                    const targetId = `chk-out-${a}`;
+                    if (document.getElementById(targetId)) document.getElementById(targetId).textContent = '/';
+                });
+                if(data.alat.includes("Lain-lain")) {
+                    document.getElementById('out-alat-lain').textContent = data.alatLain || "";
+                }
+            }
+
+            // 8. Proses
+            document.getElementById('out-focus').innerHTML = data.focus ? `<span class="font-bold">Isu:</span>\n${data.focus}` : '';
+            document.getElementById('out-improve').textContent = data.improve || "";
+            document.getElementById('out-share').textContent = data.share || "";
+
+            // 9. Pautan Bahan Multiple
+            const tablePautan = document.getElementById('out-table-pautan');
+            const tbodyPautan = document.getElementById('out-pautan-tbody');
+            tbodyPautan.innerHTML = '';
+
+            let hasValidLinks = false;
+            if(data.links && Array.isArray(data.links)) {
+                const activeLinks = data.links.filter(l => l.url && l.url.trim() !== "");
+                if (activeLinks.length > 0) {
+                    hasValidLinks = true;
+                    tablePautan.classList.remove('hidden');
+                    activeLinks.forEach((link, idx) => {
+                        const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(link.url)}`;
+                        const titleText = link.title ? link.title.toUpperCase() : `PAUTAN ${idx+1}`;
+                        tbodyPautan.innerHTML += `
+                            <tr>
+                                <td class="w-24 text-center align-middle py-2 border-r-0">
+                                    <img src="${qrUrl}" class="w-16 h-16 mx-auto border border-gray-300 p-0.5">
+                                </td>
+                                <td class="align-middle pl-0 border-l-0">
+                                    <div class="font-bold text-[9pt] leading-tight">${titleText}</div>
+                                    <div class="text-[8pt] text-blue-700 italic break-all leading-tight mt-0.5">${link.url}</div>
+                                </td>
+                            </tr>
+                        `;
+                    });
+                }
+            }
+            if(!hasValidLinks) tablePautan.classList.add('hidden');
+
+            // Gambar Bukti
+            const imgUrls = [data.img1, data.img2, data.img3, data.img4];
+            let hasImage = false;
+            
+            for(let i=0; i<4; i++) {
+                const box = document.getElementById(`prev-box-${i}`);
+                const img = document.getElementById(`prev-img-${i}`);
+                const cap = document.getElementById(`prev-cap-${i}`);
+                
+                if(imgUrls[i]) {
+                    hasImage = true;
+                    box.classList.remove('hidden');
+                    img.src = imgUrls[i];
+                    
+                    if(data.showCaption !== false) {
+                        cap.classList.remove('hidden');
+                        cap.textContent = (data.captions && data.captions[i]) ? data.captions[i] : `Gambar ${i+1}`;
+                    } else {
+                        cap.classList.add('hidden');
+                    }
+                } else {
+                    box.classList.add('hidden');
+                }
+            }
+
+            if(!hasImage) { document.getElementById('section-gambar').classList.add('hidden'); }
+            
+            // Image Layout Grid
+            const gridPreview = document.getElementById('preview-image-grid');
+            if(data.imageMode === 4) {
+                gridPreview.classList.add('grid-cols-2', 'grid-rows-2');
+            } else {
+                gridPreview.classList.remove('grid-rows-2');
+            }
+
+            // Signatures
+            document.getElementById('out-disediakan').textContent = data.disediakan || "";
+            document.getElementById('out-jawatan-disediakan').textContent = data.jawatanDisediakan || "";
+            document.getElementById('out-disahkan').textContent = data.disahkan || "";
+
+            const sigImg = document.getElementById('out-sig-img');
+            if(data.showSignature && data.signatureUrl) {
+                sigImg.src = data.signatureUrl;
+                sigImg.classList.remove('hidden');
+            } else {
+                sigImg.classList.add('hidden');
+            }
+
+            // Hide loader, show content
+            document.getElementById('loader').style.opacity = '0';
+            setTimeout(() => {
+                document.getElementById('loader').classList.add('hidden');
+                document.getElementById('main-content').classList.remove('hidden');
+                document.getElementById('main-content').classList.add('flex');
+            }, 500);
+        }
+
+        function showError() {
+            document.getElementById('loader').classList.add('hidden');
+            document.getElementById('error-screen').classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>
