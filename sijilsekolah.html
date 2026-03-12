@@ -5,95 +5,267 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tetapan Sijil Sekolah - SPARK</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Montserrat:wght@400;500;700&family=Playfair+Display:wght@700&family=Roboto:wght@400;500;700&family=Merriweather:wght@400;700&family=Cinzel:wght@500;700&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Poppins', sans-serif; background-color: #f8f9fa; }
+        body { font-family: 'Poppins', sans-serif; background-color: #f3f4f6; }
         .template-card { transition: all 0.2s; border: 2px solid transparent; cursor: pointer; }
         .template-card:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
         .template-card.active { border-color: #4f46e5; background-color: #e0e7ff; }
-        .preview-box { height: 150px; background-size: cover; background-position: center; border-radius: 0.375rem; border: 1px solid #e5e7eb; }
+        
+        /* Skala Pra-Tayang (Live Preview) */
+        .preview-wrapper { width: 100%; height: 600px; overflow: hidden; display: flex; justify-content: center; background-color: #e5e7eb; border-radius: 0.5rem; position: relative; }
+        .preview-container { 
+            width: 210mm; height: 297mm; background: white; padding: 12mm; box-sizing: border-box; position: relative; display: flex; flex-direction: column; text-align: center; overflow: hidden;
+            transform-origin: top center; transform: scale(0.45); /* Skala 45% supaya muat di skrin */
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            background-size: cover; background-position: center; background-repeat: no-repeat;
+        }
+        
+        /* Elemen CSS Sijil (Sama seperti PDF) */
+        .cert-content { height: 100%; padding: 10mm; display: flex; flex-direction: column; z-index: 2; position: relative; }
+        .cert-header { display: flex; justify-content: space-between; align-items: flex-start; width: 100%; height: 80px; }
+        .cert-qr { width: 65px; height: 65px; background: #ddd; display: flex; align-items:center; justify-content:center; font-size:10px; color:#666; }
+        .cert-serial { text-align: right; display: flex; flex-direction: column; align-items: flex-end; }
+        .cert-barcode { height: 30px; width: 120px; background: #ccc; margin-bottom: 4px; }
+        .cert-serial-text { font-family: monospace; font-size: 14px; color: #555; margin: 0; }
+        .cert-logo { max-height: 80px; margin: 0 auto 15px auto; object-fit: contain; }
+        .cert-title { font-size: 42px; font-weight: 700; margin: 10px 0; text-transform: uppercase; }
+        .cert-role { font-size: 18px; font-weight: 700; color: #d4af37; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 2px; }
+        .cert-intro { font-size: 16px; margin: 20px 0; color: #555; }
+        .cert-name { font-size: 30px; font-weight: 700; margin: 10px 0; color: #111; }
+        .cert-ic { font-size: 16px; font-weight: 500; margin-bottom: 30px; color: #444; }
+        .cert-event-title { font-size: 22px; font-weight: 700; font-style: italic; margin: 10px 0; color: #111; }
+        .cert-event-date { font-size: 16px; font-weight: 500; margin-bottom: 5px; color: #444; }
+        .cert-divider { width: 100px; height: 2px; background: #d4af37; margin: 30px auto; border: none; }
+        .cert-sig-section { margin-top: auto; }
+        .cert-sig-img { max-height: 60px; object-fit: contain; margin-bottom: 5px; }
+        .cert-sig-name { font-weight: 700; font-size: 16px; text-transform: uppercase; }
+        .cert-sig-title { font-size: 14px; color: #333; line-height: 1.2; }
+        
+        /* Templat 1 (Standard) */
+        .tpl-1::before { content: ''; position: absolute; width: 170px; height: 170px; opacity: 0.9; top: -85px; left: -85px; transform: rotate(45deg); z-index: 1; }
+        .tpl-1::after { content: ''; position: absolute; width: 170px; height: 170px; opacity: 0.9; bottom: -85px; right: -85px; transform: rotate(45deg); z-index: 1; }
+        .tpl-1 .cert-content { border: 6px solid; border-image-slice: 1; }
+        
+        /* Templat 2 (Klasik) */
+        .tpl-2 .cert-content { border: 8px double #d4af37; background: rgba(250, 249, 246, 0.9); }
+        .tpl-2 .cert-title { font-family: 'Playfair Display', serif; }
+        .tpl-2 .cert-sig-name { color: #111 !important; border-top: 1px solid #111; padding-top: 10px; display: inline-block; }
+
+        /* Templat 3 (Moden) */
+        .tpl-3 .cert-content { border: none; border-left: 20px solid; text-align: left; background: rgba(255, 255, 255, 0.95); padding-left: 30mm; }
+        .tpl-3 .cert-header { justify-content: flex-start; gap: 20px; flex-direction: row-reverse; }
+        .tpl-3 .cert-serial { align-items: flex-start; text-align: left; margin-right: auto; }
+        .tpl-3 .cert-logo { margin: 0 0 20px 0; }
+        .tpl-3 .cert-title { text-align: left; font-family: 'Montserrat', sans-serif; }
+        .tpl-3 .cert-divider { margin: 30px 0; background: #e5e7eb; width: 100%; }
+        .tpl-3 .cert-sig-section { text-align: left; }
     </style>
 </head>
-<body class="bg-gray-50 flex flex-col min-h-screen">
+<body class="flex flex-col min-h-screen">
 
-    <header class="bg-white shadow-sm sticky top-0 z-40">
-        <div class="max-w-screen-xl mx-auto py-4 px-4 flex justify-between items-center">
+    <header class="bg-indigo-700 shadow-md sticky top-0 z-40 text-white">
+        <div class="max-w-screen-2xl mx-auto py-4 px-4 sm:px-6 flex justify-between items-center">
             <div>
-                <h1 class="text-xl font-bold text-indigo-600 uppercase tracking-wide">Tetapan Sijil Sekolah</h1>
-                <p id="school-name-header" class="text-xs text-gray-500 font-medium">Memuatkan...</p>
+                <p class="text-xs text-indigo-200 font-bold uppercase tracking-widest mb-1">Papan Pemuka Tetapan Sijil</p>
+                <h1 id="school-name-header" class="text-xl sm:text-2xl font-extrabold uppercase tracking-wide">Memuatkan Maklumat Sekolah...</h1>
             </div>
-            <button onclick="window.history.back()" class="bg-gray-100 text-gray-800 py-2 px-4 rounded-lg text-xs font-bold hover:bg-gray-200">KEMBALI</button>
+            <button onclick="window.history.back()" class="bg-indigo-800 border border-indigo-600 hover:bg-indigo-900 text-white py-2 px-4 rounded-lg text-xs font-bold transition-colors">KEMBALI</button>
         </div>
     </header>
 
-    <main class="flex-grow w-full max-w-4xl mx-auto px-4 py-8 hidden" id="main-content">
-        <div class="bg-white rounded-xl shadow-md p-6 mb-6">
-            <h2 class="text-lg font-bold text-gray-800 mb-4 border-b pb-2">1. Tetapan Logo & Tandatangan</h2>
+    <main class="flex-grow w-full max-w-screen-2xl mx-auto px-4 py-8 hidden" id="main-content">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
             
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                    <label class="flex items-center gap-2 mb-3 cursor-pointer">
-                        <input type="checkbox" id="use-logo" class="w-4 h-4 text-indigo-600 rounded">
-                        <span class="font-bold text-sm text-gray-700">Gunakan Logo Sekolah</span>
-                    </label>
-                    <div id="logo-input-area" class="hidden">
-                        <p class="text-[10px] text-gray-500 mb-1">Masukkan URL (Pautan) Gambar Logo (PNG lutsinar digalakkan):</p>
-                        <input type="url" id="logo-url" placeholder="https://contoh.com/logo.png" class="w-full text-sm p-2 border border-gray-300 rounded focus:ring-indigo-500 focus:border-indigo-500">
-                    </div>
-                </div>
-
-                <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                    <label class="flex items-center gap-2 mb-3 cursor-pointer">
-                        <input type="checkbox" id="use-signature" class="w-4 h-4 text-indigo-600 rounded">
-                        <span class="font-bold text-sm text-gray-700">Gunakan Tandatangan Digital</span>
-                    </label>
-                    <div id="signature-input-area" class="hidden">
-                        <p class="text-[10px] text-gray-500 mb-1">Masukkan URL (Pautan) Gambar Tandatangan (PNG tanpa latar belakang):</p>
-                        <input type="url" id="signature-url" placeholder="https://contoh.com/tandatangan.png" class="w-full text-sm p-2 border border-gray-300 rounded focus:ring-indigo-500 focus:border-indigo-500">
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="bg-white rounded-xl shadow-md p-6 mb-6">
-            <h2 class="text-lg font-bold text-gray-800 mb-4 border-b pb-2">2. Pilih Reka Bentuk (Templat)</h2>
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div class="lg:col-span-7 space-y-6">
                 
-                <div class="template-card p-3 rounded-xl bg-white" onclick="selectTemplate('template1')" id="card-template1">
-                    <div class="preview-box bg-gray-100 flex items-center justify-center mb-2" style="background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);">
-                        <span class="text-xs font-bold text-gray-400">Standard (Hijau)</span>
+                <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+                    <h2 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2 border-b pb-2">
+                        <span class="bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded text-sm">1</span> Gambar & Latar Belakang
+                    </h2>
+                    
+                    <div class="space-y-4">
+                        <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                            <label class="flex items-center gap-2 mb-3 cursor-pointer">
+                                <input type="checkbox" id="use-logo" class="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500">
+                                <span class="font-bold text-sm text-gray-700">Papar Logo Sekolah (PNG Lutsinar Digalakkan)</span>
+                            </label>
+                            <div id="logo-input-area" class="hidden space-y-2">
+                                <div class="flex flex-col sm:flex-row gap-2">
+                                    <input type="url" id="logo-url" placeholder="Pautan URL Gambar (https://...)" class="flex-1 text-sm p-2 border border-gray-300 rounded focus:ring-indigo-500 focus:border-indigo-500">
+                                    <div class="relative overflow-hidden">
+                                        <button class="w-full sm:w-auto bg-gray-200 text-gray-700 font-bold text-xs px-4 py-2.5 rounded border border-gray-300 hover:bg-gray-300 transition-colors cursor-pointer">Muat Naik Gambar</button>
+                                        <input type="file" id="logo-file" accept="image/*" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full" onchange="uploadImage(this, 'logo-url')">
+                                    </div>
+                                </div>
+                                <p class="text-[10px] text-gray-400 italic" id="logo-status"></p>
+                            </div>
+                        </div>
+
+                        <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                            <label class="flex items-center gap-2 mb-3 cursor-pointer">
+                                <input type="checkbox" id="use-bg" class="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500">
+                                <span class="font-bold text-sm text-gray-700">Gunakan Latar Belakang Khas (A4 Portrait)</span>
+                            </label>
+                            <div id="bg-input-area" class="hidden space-y-2">
+                                <div class="flex flex-col sm:flex-row gap-2">
+                                    <input type="url" id="bg-url" placeholder="Pautan URL Latar Belakang (Jpg/Png)" class="flex-1 text-sm p-2 border border-gray-300 rounded focus:ring-indigo-500 focus:border-indigo-500">
+                                    <div class="relative overflow-hidden">
+                                        <button class="w-full sm:w-auto bg-gray-200 text-gray-700 font-bold text-xs px-4 py-2.5 rounded border border-gray-300 hover:bg-gray-300 transition-colors cursor-pointer">Muat Naik Gambar</button>
+                                        <input type="file" id="bg-file" accept="image/*" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full" onchange="uploadImage(this, 'bg-url')">
+                                    </div>
+                                </div>
+                                <p class="text-[10px] text-gray-400 italic">Format menegak (Portrait) sangat digalakkan.</p>
+                                <p class="text-[10px] text-red-500 italic font-semibold" id="bg-status"></p>
+                            </div>
+                        </div>
                     </div>
-                    <p class="font-bold text-sm text-center">SPARK Standard</p>
                 </div>
 
-                <div class="template-card p-3 rounded-xl bg-white" onclick="selectTemplate('template2')" id="card-template2">
-                    <div class="preview-box bg-amber-50 flex items-center justify-center mb-2 border-amber-200" style="background: linear-gradient(to right, #fef3c7, #fde68a); border-width: 4px; border-style: double;">
-                        <span class="text-xs font-bold text-amber-700">Klasik (Emas/Biru)</span>
+                <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+                    <h2 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2 border-b pb-2">
+                        <span class="bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded text-sm">2</span> Pegawai Pengesah & Tandatangan
+                    </h2>
+                    
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 mb-1">Nama Pegawai Pengesah</label>
+                            <input type="text" id="sig-name" placeholder="Contoh: AHMAD BIN ALI" class="w-full text-sm p-2 border border-gray-300 rounded focus:ring-indigo-500 focus:border-indigo-500 font-bold uppercase">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 mb-1">Jawatan Pegawai</label>
+                            <input type="text" id="sig-title" placeholder="Contoh: PENGETUA CEMERLANG" class="w-full text-sm p-2 border border-gray-300 rounded focus:ring-indigo-500 focus:border-indigo-500 uppercase">
+                        </div>
                     </div>
-                    <p class="font-bold text-sm text-center">Klasik Formal</p>
+
+                    <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                        <label class="flex items-center gap-2 mb-3 cursor-pointer">
+                            <input type="checkbox" id="use-signature" class="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500">
+                            <span class="font-bold text-sm text-gray-700">Papar Tandatangan Digital (PNG Lutsinar)</span>
+                        </label>
+                        <div id="signature-input-area" class="hidden space-y-2">
+                            <div class="flex flex-col sm:flex-row gap-2">
+                                <input type="url" id="signature-url" placeholder="Pautan URL Tandatangan" class="flex-1 text-sm p-2 border border-gray-300 rounded focus:ring-indigo-500 focus:border-indigo-500">
+                                <div class="relative overflow-hidden">
+                                    <button class="w-full sm:w-auto bg-gray-200 text-gray-700 font-bold text-xs px-4 py-2.5 rounded border border-gray-300 hover:bg-gray-300 transition-colors cursor-pointer">Muat Naik</button>
+                                    <input type="file" id="sig-file" accept="image/*" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full" onchange="uploadImage(this, 'signature-url')">
+                                </div>
+                            </div>
+                            <p class="text-[10px] text-gray-400 italic" id="sig-status"></p>
+                        </div>
+                    </div>
                 </div>
 
-                <div class="template-card p-3 rounded-xl bg-white" onclick="selectTemplate('template3')" id="card-template3">
-                    <div class="preview-box bg-indigo-50 flex items-center justify-center mb-2 relative overflow-hidden">
-                        <div class="absolute left-0 top-0 bottom-0 w-4 bg-indigo-600"></div>
-                        <span class="text-xs font-bold text-indigo-700 pl-4">Moden (Minimalis)</span>
+                <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+                    <h2 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2 border-b pb-2">
+                        <span class="bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded text-sm">3</span> Susun Atur & Tema
+                    </h2>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+                        <div class="template-card p-3 rounded-xl bg-white" onclick="selectTemplate('template1')" id="card-template1">
+                            <div class="h-24 bg-gray-100 flex items-center justify-center mb-2 rounded border border-gray-200" style="background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);">
+                                <span class="text-xs font-bold text-gray-500">Standard</span>
+                            </div>
+                            <p class="font-bold text-sm text-center">SPARK Standard</p>
+                        </div>
+
+                        <div class="template-card p-3 rounded-xl bg-white" onclick="selectTemplate('template2')" id="card-template2">
+                            <div class="h-24 bg-amber-50 flex items-center justify-center mb-2 rounded" style="background: linear-gradient(to right, #fef3c7, #fde68a); border: 4px double #d4af37;">
+                                <span class="text-xs font-bold text-amber-800">Klasik</span>
+                            </div>
+                            <p class="font-bold text-sm text-center">Klasik Formal</p>
+                        </div>
+
+                        <div class="template-card p-3 rounded-xl bg-white" onclick="selectTemplate('template3')" id="card-template3">
+                            <div class="h-24 bg-indigo-50 flex items-center justify-center mb-2 rounded relative overflow-hidden border border-indigo-100">
+                                <div class="absolute left-0 top-0 bottom-0 w-4 bg-indigo-600"></div>
+                                <span class="text-xs font-bold text-indigo-700 pl-4">Moden</span>
+                            </div>
+                            <p class="font-bold text-sm text-center">Moden Korporat</p>
+                        </div>
                     </div>
-                    <p class="font-bold text-sm text-center">Moden Korporat</p>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 mb-1">Warna Tema Sijil (Utama)</label>
+                            <div class="flex items-center gap-3">
+                                <input type="color" id="primary-color" value="#065f46" class="w-12 h-12 rounded cursor-pointer border-0 p-0">
+                                <span class="text-sm font-mono text-gray-500" id="color-hex">#065f46</span>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 mb-1">Jenis Tulisan (Font)</label>
+                            <select id="font-family" class="w-full text-sm p-2.5 border border-gray-300 rounded focus:ring-indigo-500 focus:border-indigo-500">
+                                <option value="Montserrat" style="font-family: 'Montserrat', sans-serif;">Montserrat (Standard)</option>
+                                <option value="Playfair Display" style="font-family: 'Playfair Display', serif;">Playfair Display (Klasik)</option>
+                                <option value="Poppins" style="font-family: 'Poppins', sans-serif;">Poppins (Moden)</option>
+                                <option value="Roboto" style="font-family: 'Roboto', sans-serif;">Roboto (Formal)</option>
+                                <option value="Cinzel" style="font-family: 'Cinzel', serif;">Cinzel (Eksklusif)</option>
+                            </select>
+                        </div>
+                    </div>
                 </div>
+
+                <button onclick="simpanTetapan()" id="btn-simpan" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-xl shadow-lg transition-transform active:scale-95 uppercase tracking-widest text-sm">
+                    SIMPAN TETAPAN SIJIL
+                </button>
 
             </div>
-        </div>
 
-        <button onclick="simpanTetapan()" id="btn-simpan" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl shadow-lg transition-transform active:scale-95 uppercase tracking-wider">
-            Simpan Tetapan Sijil Sekolah
-        </button>
+            <div class="lg:col-span-5">
+                <div class="sticky top-24">
+                    <h2 class="text-sm font-bold text-gray-500 uppercase tracking-widest mb-3 flex items-center justify-between">
+                        Pra-Tayang Sijil 
+                        <span class="bg-green-100 text-green-700 text-[10px] px-2 py-0.5 rounded-full font-bold animate-pulse">Live</span>
+                    </h2>
+                    
+                    <div class="preview-wrapper border-4 border-gray-200 shadow-inner">
+                        <div class="preview-container tpl-1" id="cert-preview">
+                            <div class="cert-content" id="cert-content-border">
+                                <div class="cert-header">
+                                    <div class="cert-qr">QR CODE</div>
+                                    <div class="cert-serial">
+                                        <div class="cert-barcode"></div>
+                                        <p class="cert-serial-text">NO. SIRI: SPK/GEN/1234</p>
+                                    </div>
+                                </div>
+                                
+                                <img src="" id="prev-logo" class="cert-logo hidden">
+                                
+                                <h1 class="cert-title" id="prev-title" style="color: #065f46;">SIJIL PENYERTAAN</h1>
+                                
+                                <p class="cert-intro">Dengan ini disahkan bahawa</p>
+                                <p class="cert-name">NAMA GURU / PESERTA</p>
+                                <p class="cert-ic">900101-13-5555</p>
+                                <p class="cert-intro">telah mengikuti</p>
+                                <p class="cert-event-title">PROGRAM LATIHAN CONTOH SPARK</p>
+                                <p class="cert-event-date">pada 12 JANUARI 2026</p>
+                                
+                                <hr class="cert-divider" id="prev-divider" style="background: linear-gradient(90deg, #d4af37, #065f46);">
+                                
+                                <div class="cert-sig-section">
+                                    <img src="" id="prev-sig" class="cert-sig-img hidden">
+                                    <p class="cert-sig-name" id="prev-sig-name" style="color: #065f46;">NAMA PENGESAH</p>
+                                    <p class="cert-sig-title" id="prev-sig-title">JAWATAN<br>SEKOLAH CONTOH</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <p class="text-[10px] text-gray-400 mt-2 text-center italic">* Nota: Ini hanyalah lakaran pra-tayang (skala 45%). Hasil cetakan PDF sebenar akan lebih tajam dan sempurna mengikut resolusi A4.</p>
+                </div>
+            </div>
+
+        </div>
     </main>
 
     <div id="access-denied" class="hidden flex-grow flex items-center justify-center py-20">
-        <div class="text-center">
-            <svg class="mx-auto h-12 w-12 text-red-500 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-            <h3 class="text-lg font-bold text-gray-900">Akses Ditolak</h3>
-            <p class="text-sm text-gray-500 mt-2">Hanya Guru Besar/Pengetua atau Penyelaras Sijil yang dilantik boleh mengakses halaman ini.</p>
+        <div class="text-center bg-white p-8 rounded-xl shadow-sm border border-red-100 max-w-md">
+            <svg class="mx-auto h-16 w-16 text-red-500 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+            <h3 class="text-xl font-bold text-gray-900">Akses Ditolak</h3>
+            <p class="text-sm text-gray-500 mt-2 leading-relaxed">Hanya Guru Besar/Pengetua atau Penyelaras Sijil yang dilantik oleh PPD boleh mengakses halaman ini. Sila hubungi PPD Miri untuk penetapan sistem.</p>
+            <button onclick="window.location.href='index.html'" class="mt-6 bg-indigo-600 text-white px-6 py-2 rounded-lg text-sm font-bold shadow-sm">Kembali ke Laman Utama</button>
         </div>
     </div>
 
@@ -102,6 +274,9 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
     
     <script>
+        // MASUKKAN API KEY IMGBB ANDA DI SINI
+        const IMGBB_API_KEY = "a7c600ac733fe14649cacd8e65619c4b"; // Gantikan dengan Key sebenar anda dari api.imgbb.com jika limit
+
         const firebaseConfig = { apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM", authDomain: "myqrhadir.firebaseapp.com", projectId: "myqrhadir", storageBucket: "myqrhadir.appspot.com", messagingSenderId: "799691133747", appId: "1:799691133747:web:835a5e3e9413eace806446" };
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
@@ -123,22 +298,18 @@
         async function checkAccess(ic) {
             ic = ic.trim().replace(/[^0-9]/g, '');
             try {
-                // 1. Cari stesen (sekolah) pengguna dari spark_participants
                 const userSnap = await db.collection(`artifacts/${appId}/public/data/spark_participants`).where("ic", "==", ic).get();
-                if (userSnap.empty) throw new Error("Tiada rekod pengguna.");
+                if (userSnap.empty) throw new Error("Tiada rekod");
                 currentSchool = userSnap.docs[0].data().station;
-                if (!currentSchool) throw new Error("Tiada stesen.");
+                if (!currentSchool) throw new Error("Tiada stesen");
 
                 document.getElementById('school-name-header').textContent = currentSchool;
+                document.getElementById('prev-sig-title').innerHTML = `JAWATAN PENGESAH<br>${currentSchool}`;
 
-                // 2. Semak sama ada dia Guru Besar ATAU Penyelaras Sijil untuk sekolah tersebut
                 let isAuthorized = false;
-                
-                // Semak Guru Besar
                 const gbDoc = await db.doc(`artifacts/${appId}/public/data/spark_school_principals/${currentSchool}`).get();
                 if (gbDoc.exists && gbDoc.data().ic === ic) isAuthorized = true;
 
-                // Semak Penyelaras Sijil (Tag baharu)
                 const adminDoc = await db.doc(`artifacts/${appId}/public/data/spark_school_cert_admins/${currentSchool}`).get();
                 if (adminDoc.exists && adminDoc.data().ic === ic) isAuthorized = true;
 
@@ -149,7 +320,6 @@
                     document.getElementById('access-denied').classList.remove('hidden');
                 }
             } catch (error) {
-                console.error("Ralat akses:", error);
                 document.getElementById('access-denied').classList.remove('hidden');
             }
         }
@@ -160,47 +330,174 @@
                 if (docSnap.exists) {
                     const data = docSnap.data();
                     
-                    if(data.showLogo) {
-                        document.getElementById('use-logo').checked = true;
-                        document.getElementById('logo-input-area').classList.remove('hidden');
-                        document.getElementById('logo-url').value = data.logoUrl || '';
-                    }
-                    if(data.showSignature) {
-                        document.getElementById('use-signature').checked = true;
-                        document.getElementById('signature-input-area').classList.remove('hidden');
-                        document.getElementById('signature-url').value = data.signatureUrl || '';
-                    }
+                    if(data.showLogo) { document.getElementById('use-logo').checked = true; document.getElementById('logo-input-area').classList.remove('hidden'); }
+                    document.getElementById('logo-url').value = data.logoUrl || '';
+
+                    if(data.showBg) { document.getElementById('use-bg').checked = true; document.getElementById('bg-input-area').classList.remove('hidden'); }
+                    document.getElementById('bg-url').value = data.customBgUrl || '';
+                    
+                    if(data.showSignature) { document.getElementById('use-signature').checked = true; document.getElementById('signature-input-area').classList.remove('hidden'); }
+                    document.getElementById('signature-url').value = data.signatureUrl || '';
+
+                    document.getElementById('sig-name').value = data.signatoryName || '';
+                    document.getElementById('sig-title').value = data.signatoryTitle || '';
+
+                    document.getElementById('primary-color').value = data.primaryColor || '#065f46';
+                    document.getElementById('font-family').value = data.fontFamily || 'Montserrat';
+
                     if(data.templateId) selectTemplate(data.templateId);
-                } else {
-                    selectTemplate('template1'); // Default
                 }
+                updateLivePreview(); // Render first time
             } catch(e) { console.error("Ralat load setting:", e); }
         }
 
-        // Togles
+        // --- FUNGSI UPLOAD IMGBB ---
+        async function uploadImage(inputElement, targetUrlId) {
+            const file = inputElement.files[0];
+            if (!file) return;
+
+            const statusId = inputElement.id.replace('file', 'status'); // e.g., logo-status
+            const statusEl = document.getElementById(statusId);
+            
+            statusEl.textContent = "Sedang memuat naik... Sila tunggu.";
+            statusEl.className = "text-[10px] text-blue-500 italic font-semibold";
+
+            const formData = new FormData();
+            formData.append("image", file);
+
+            try {
+                const response = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    document.getElementById(targetUrlId).value = data.data.url;
+                    statusEl.textContent = "Berjaya dimuat naik!";
+                    statusEl.className = "text-[10px] text-green-600 italic font-bold";
+                    updateLivePreview(); // Refresh preview
+                } else {
+                    statusEl.textContent = "Gagal memuat naik: " + data.error.message;
+                    statusEl.className = "text-[10px] text-red-500 italic font-bold";
+                }
+            } catch (error) {
+                statusEl.textContent = "Ralat pelayan/internet.";
+                statusEl.className = "text-[10px] text-red-500 italic font-bold";
+            }
+        }
+
+        // --- LIVE PREVIEW LOGIC ---
+        function updateLivePreview() {
+            const preview = document.getElementById('cert-preview');
+            const color = document.getElementById('primary-color').value;
+            const font = document.getElementById('font-family').value;
+            const contentBorder = document.getElementById('cert-content-border');
+            
+            // Text Variables
+            document.getElementById('color-hex').textContent = color;
+            document.getElementById('prev-title').style.color = color;
+            document.getElementById('prev-title').style.fontFamily = `"${font}", sans-serif`;
+            
+            // Sig Logic
+            const sigName = document.getElementById('sig-name').value || 'NAMA PENGESAH';
+            const sigTitle = document.getElementById('sig-title').value || 'JAWATAN PENGESAH';
+            document.getElementById('prev-sig-name').textContent = sigName;
+            document.getElementById('prev-sig-title').innerHTML = `${sigTitle}<br>${currentSchool}`;
+            
+            // Custom Background
+            const useBg = document.getElementById('use-bg').checked;
+            const bgUrl = document.getElementById('bg-url').value;
+            if (useBg && bgUrl) {
+                preview.style.backgroundImage = `url('${bgUrl}')`;
+            } else {
+                preview.style.backgroundImage = 'none';
+            }
+
+            // Logo & Sig Images
+            const useLogo = document.getElementById('use-logo').checked;
+            const logoUrl = document.getElementById('logo-url').value;
+            const prevLogo = document.getElementById('prev-logo');
+            if (useLogo && logoUrl) { prevLogo.src = logoUrl; prevLogo.classList.remove('hidden'); }
+            else { prevLogo.classList.add('hidden'); }
+
+            const useSig = document.getElementById('use-signature').checked;
+            const sigUrl = document.getElementById('signature-url').value;
+            const prevSig = document.getElementById('prev-sig');
+            if (useSig && sigUrl) { prevSig.src = sigUrl; prevSig.classList.remove('hidden'); }
+            else { prevSig.classList.add('hidden'); }
+
+            // Template CSS Overrides for Preview
+            preview.className = `preview-container tpl-${selectedTemplateId.replace('template', '')}`;
+            
+            const divider = document.getElementById('prev-divider');
+            const sigNameEl = document.getElementById('prev-sig-name');
+
+            // Reset Styles
+            contentBorder.style.borderImageSource = 'none';
+            contentBorder.style.borderColor = 'transparent';
+            divider.style.background = 'none';
+            sigNameEl.style.color = color;
+            
+            if (selectedTemplateId === 'template1') {
+                contentBorder.style.borderImageSource = `linear-gradient(to right top, #d4af37, ${color}, #d4af37)`;
+                divider.style.background = `linear-gradient(90deg, #d4af37, ${color})`;
+                // Sudut CSS ditangani di style atas guna pseudo-elements ::before ::after
+                // Untuk preview live, kita adjust pseudo elements color pakai trik CSS variables atau biarkan saja warna default hijau.
+                // Oleh kerana pseudo-elements susah ditukar secara inline JS, kita gubah CSS head.
+                let styleId = 'dynamic-tpl1-colors';
+                let styleEl = document.getElementById(styleId);
+                if(!styleEl) { styleEl = document.createElement('style'); styleEl.id = styleId; document.head.appendChild(styleEl); }
+                styleEl.innerHTML = `.tpl-1::before, .tpl-1::after { background-color: ${color}; }`;
+            } 
+            else if (selectedTemplateId === 'template2') {
+                contentBorder.style.borderColor = '#d4af37';
+                divider.style.background = '#d4af37';
+            }
+            else if (selectedTemplateId === 'template3') {
+                contentBorder.style.borderLeftColor = color;
+            }
+        }
+
+        // Toggles & Event Listeners
         document.getElementById('use-logo').addEventListener('change', (e) => {
-            document.getElementById('logo-input-area').classList.toggle('hidden', !e.target.checked);
+            document.getElementById('logo-input-area').classList.toggle('hidden', !e.target.checked); updateLivePreview();
+        });
+        document.getElementById('use-bg').addEventListener('change', (e) => {
+            document.getElementById('bg-input-area').classList.toggle('hidden', !e.target.checked); updateLivePreview();
         });
         document.getElementById('use-signature').addEventListener('change', (e) => {
-            document.getElementById('signature-input-area').classList.toggle('hidden', !e.target.checked);
+            document.getElementById('signature-input-area').classList.toggle('hidden', !e.target.checked); updateLivePreview();
+        });
+
+        // Event listener ke atas input untuk realtime update
+        ['logo-url', 'bg-url', 'signature-url', 'sig-name', 'sig-title', 'primary-color', 'font-family'].forEach(id => {
+            document.getElementById(id).addEventListener('input', updateLivePreview);
         });
 
         window.selectTemplate = function(id) {
             selectedTemplateId = id;
             document.querySelectorAll('.template-card').forEach(el => el.classList.remove('active'));
             document.getElementById('card-' + id).classList.add('active');
+            updateLivePreview();
         }
 
         window.simpanTetapan = async function() {
             const btn = document.getElementById('btn-simpan');
-            btn.textContent = "Menyimpan...";
+            btn.innerHTML = "MENYIMPAN... SILA TUNGGU";
             btn.disabled = true;
 
             const settings = {
                 showLogo: document.getElementById('use-logo').checked,
                 logoUrl: document.getElementById('logo-url').value.trim(),
+                showBg: document.getElementById('use-bg').checked,
+                customBgUrl: document.getElementById('bg-url').value.trim(),
                 showSignature: document.getElementById('use-signature').checked,
                 signatureUrl: document.getElementById('signature-url').value.trim(),
+                signatoryName: document.getElementById('sig-name').value.trim(),
+                signatoryTitle: document.getElementById('sig-title').value.trim(),
+                primaryColor: document.getElementById('primary-color').value,
+                fontFamily: document.getElementById('font-family').value,
                 templateId: selectedTemplateId,
                 updatedBy: currentUserIC,
                 updatedAt: new Date().toISOString()
@@ -208,12 +505,12 @@
 
             try {
                 await db.doc(`artifacts/${appId}/public/data/spark_school_cert_settings/${currentSchool}`).set(settings);
-                alert("Tetapan berjaya disimpan! Sijil sekolah anda kini menggunakan reka bentuk terbaharu.");
+                alert("Tetapan berjaya disimpan! Semua sijil sekolah anda kini akan menggunakan reka bentuk terbaharu.");
             } catch (error) {
                 console.error("Ralat simpan:", error);
-                alert("Gagal menyimpan tetapan.");
+                alert("Gagal menyimpan tetapan. Sila pastikan talian internet stabil.");
             } finally {
-                btn.textContent = "Simpan Tetapan Sijil Sekolah";
+                btn.innerHTML = "SIMPAN TETAPAN SIJIL";
                 btn.disabled = false;
             }
         }
