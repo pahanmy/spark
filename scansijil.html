@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SPARK - Verifikasi Sijil</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <style>
+        body { font-family: 'Poppins', sans-serif; background-color: #f8f9fa; }
+        .pulse-ring { animation: pulsering 2s infinite; }
+        @keyframes pulsering { 0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); } 70% { box-shadow: 0 0 0 15px rgba(16, 185, 129, 0); } 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); } }
+    </style>
+</head>
+<body class="flex flex-col min-h-screen">
+
+    <header class="bg-indigo-700 shadow-md sticky top-0 z-40 text-white">
+        <div class="max-w-screen-md mx-auto py-4 px-4 flex items-center justify-center gap-3">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="text-white"><path d="M4 4H8V8H4V4Z" fill="currentColor"></path><path d="M4 16H8V20H4V16Z" fill="currentColor"></path><path d="M16 4H20V8H16V4Z" fill="currentColor"></path><path d="M10 4H14V6H10V4Z" fill="currentColor"></path><path d="M10 8H12V10H10V8Z" fill="currentColor"></path><path d="M12 12H14V14H12V12Z" fill="currentColor"></path></svg>
+            <h1 class="text-xl font-bold uppercase tracking-wide">SPARK Verifikasi</h1>
+        </div>
+    </header>
+
+    <main class="flex-grow w-full max-w-md mx-auto px-4 py-8 flex flex-col items-center">
+        
+        <div class="text-center mb-8">
+            <h2 class="text-2xl font-extrabold text-gray-800">Semakan Sijil Digital</h2>
+            <p class="text-sm text-gray-500 mt-2">Semak kesahihan e-sijil SPARK bagi mengelakkan sebarang pemalsuan rekod.</p>
+        </div>
+
+        <div class="bg-white w-full rounded-2xl shadow-sm border border-gray-200 p-6 mb-6">
+            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Carian Manual (No. Siri Sijil)</label>
+            <div class="flex gap-2">
+                <input type="text" id="serial-input" placeholder="Cth: SPK/PROG123/5555" class="flex-1 border border-gray-300 rounded-lg px-4 py-3 font-mono text-sm uppercase focus:ring-2 focus:ring-indigo-500 outline-none">
+                <button onclick="manualSearch()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 py-3 rounded-lg shadow-md transition-colors">Semak</button>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-4 w-full mb-6">
+            <div class="flex-1 h-px bg-gray-300"></div>
+            <span class="text-xs font-bold text-gray-400 uppercase tracking-widest">ATAU</span>
+            <div class="flex-1 h-px bg-gray-300"></div>
+        </div>
+
+        <div class="bg-white w-full rounded-2xl shadow-sm border border-gray-200 p-6 flex flex-col items-center">
+            <button id="btn-scan" onclick="startScanner()" class="w-full bg-gray-100 hover:bg-gray-200 text-gray-800 border border-gray-300 font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 mb-4 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h4a1 1 0 010 2H5v3a1 1 0 01-2 0V4zm14-1a1 1 0 011 1v3a1 1 0 01-2 0V5h-3a1 1 0 010-2h4zM4 17a1 1 0 011 1v3h3a1 1 0 010 2H4a1 1 0 01-1-1v-4a1 1 0 011-1zm16 0a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 010-2h3v-3a1 1 0 011-1z" /></svg>
+                Buka Kamera (Scan QR)
+            </button>
+            <div id="reader" class="w-full hidden rounded-lg overflow-hidden border-2 border-indigo-200"></div>
+            <button id="btn-stop-scan" onclick="stopScanner()" class="hidden mt-4 text-red-500 font-bold text-xs uppercase hover:underline">Tutup Kamera</button>
+        </div>
+
+    </main>
+
+    <div id="result-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden transform transition-all">
+            
+            <div id="state-loading" class="p-8 text-center hidden">
+                <div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-indigo-200 border-t-indigo-600 mb-4"></div>
+                <h3 class="text-lg font-bold text-gray-800">Menyemak Pangkalan Data...</h3>
+                <p class="text-xs text-gray-500 mt-2">Sila tunggu sebentar.</p>
+            </div>
+
+            <div id="state-error" class="p-8 text-center hidden bg-red-50">
+                <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-red-100 mb-4">
+                    <svg class="h-8 w-8 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                </div>
+                <h3 class="text-xl font-bold text-red-800 mb-2">Sijil Tidak Sah</h3>
+                <p id="error-message" class="text-sm text-red-600 mb-6">Rekod tidak dijumpai di dalam pangkalan data. Sijil ini mungkin telah dipalsukan.</p>
+                <button onclick="closeModal()" class="w-full bg-white border border-red-200 text-red-700 font-bold py-2.5 rounded-xl hover:bg-red-50">Cuba Lagi</button>
+            </div>
+
+            <div id="state-success" class="p-6 hidden">
+                <div class="text-center mb-6">
+                    <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-4 pulse-ring">
+                        <svg class="h-8 w-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+                    </div>
+                    <h3 class="text-2xl font-extrabold text-green-700 uppercase tracking-wide">Sijil Sah!</h3>
+                    <p class="text-xs text-green-600 font-medium mt-1">Rekod wujud di pangkalan data SPARK.</p>
+                </div>
+
+                <div class="bg-gray-50 rounded-xl p-4 border border-gray-200 space-y-3 mb-6">
+                    <div>
+                        <p class="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-0.5">Pemilik Sijil</p>
+                        <p id="res-name" class="text-sm font-bold text-gray-900 leading-tight">NAMA PENGGUNA</p>
+                        <p id="res-ic" class="text-xs font-mono text-gray-500 mt-0.5">******-**-1234</p>
+                    </div>
+                    <div class="pt-3 border-t border-gray-200">
+                        <p class="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-0.5">Sijil Peranan</p>
+                        <p id="res-role" class="text-xs font-bold text-indigo-700 uppercase bg-indigo-50 inline-block px-2 py-0.5 rounded border border-indigo-100">PESERTA</p>
+                    </div>
+                    <div class="pt-3 border-t border-gray-200">
+                        <p class="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-0.5">Nama Program / Kursus</p>
+                        <p id="res-program" class="text-xs font-bold text-gray-800 leading-snug uppercase">NAMA PROGRAM</p>
+                    </div>
+                    <div class="pt-3 border-t border-gray-200">
+                        <p class="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-0.5">Tarikh Program</p>
+                        <p id="res-date" class="text-xs font-semibold text-gray-700">12 JAN 2026</p>
+                    </div>
+                </div>
+
+                <button onclick="closeModal()" class="w-full bg-gray-100 text-gray-800 font-bold py-3 rounded-xl hover:bg-gray-200 transition-colors uppercase tracking-widest text-xs">Tutup</button>
+            </div>
+
+        </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+    
+    <script>
+        const firebaseConfig = { apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM", authDomain: "myqrhadir.firebaseapp.com", projectId: "myqrhadir", storageBucket: "myqrhadir.appspot.com", messagingSenderId: "799691133747", appId: "1:799691133747:web:835a5e3e9413eace806446" };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        const appId = firebaseConfig.projectId;
+
+        let html5QrcodeScanner = null;
+
+        // Auto-check jika pautan URL mempunyai No Siri (apabila Scan dari kamera biasa)
+        window.onload = function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const siri = urlParams.get('siri');
+            if (siri) {
+                document.getElementById('serial-input').value = siri;
+                verifySerial(siri);
+            }
+        };
+
+        function manualSearch() {
+            const siri = document.getElementById('serial-input').value.trim();
+            if (!siri) return alert("Sila masukkan No. Siri.");
+            verifySerial(siri);
+        }
+
+        async function verifySerial(serial) {
+            stopScanner(); // Hentikan kamera jika sedang on
+            showState('loading');
+            
+            try {
+                // Format No. Siri: SPK / KEY_PROGRAM / 4_DIGIT_IC
+                const parts = serial.split('/');
+                if (parts.length < 3) throw new Error("Format No. Siri Tidak Sah.");
+                
+                const progKey = parts[1];
+                const icLast4 = parts[2];
+
+                // Cari rekod program di Firebase
+                const progRef = await db.collection(`artifacts/${appId}/public/data/spark_programs`).where("key", "==", progKey).get();
+                if (progRef.empty) throw new Error("Rekod Program Tidak Dijumpai.");
+
+                const programData = progRef.docs[0].data();
+                const attendance = programData.attendance || [];
+
+                // Cari peserta dengan 4 digit IC terakhir yang sepadan
+                const participant = attendance.find(p => p.ic && p.ic.slice(-4) === icLast4);
+                
+                if (!participant) throw new Error("Rekod Peserta Tidak Dijumpai Untuk Program Ini.");
+
+                // Kejayaan! Paparkan Data
+                const pName = participant.name;
+                const pRole = participant.role || 'PESERTA';
+                const pDate = new Date(programData.startDate).toLocaleDateString('ms-MY', { day: 'numeric', month: 'short', year: 'numeric' });
+
+                document.getElementById('res-name').textContent = pName.toUpperCase();
+                document.getElementById('res-ic').textContent = `******-**-${icLast4}`;
+                document.getElementById('res-role').textContent = pRole.toUpperCase();
+                document.getElementById('res-program').textContent = programData.name.toUpperCase();
+                document.getElementById('res-date').textContent = pDate.toUpperCase();
+
+                showState('success');
+
+            } catch (error) {
+                document.getElementById('error-message').textContent = error.message;
+                showState('error');
+            }
+        }
+
+        // --- Kawalan UI Modal ---
+        function showState(state) {
+            document.getElementById('result-modal').classList.remove('hidden');
+            document.getElementById('state-loading').classList.add('hidden');
+            document.getElementById('state-error').classList.add('hidden');
+            document.getElementById('state-success').classList.add('hidden');
+            document.getElementById(`state-${state}`).classList.remove('hidden');
+        }
+
+        window.closeModal = function() {
+            document.getElementById('result-modal').classList.add('hidden');
+        }
+
+        // --- Kawalan Pengimbas Kamera ---
+        function startScanner() {
+            document.getElementById('reader').classList.remove('hidden');
+            document.getElementById('btn-scan').classList.add('hidden');
+            document.getElementById('btn-stop-scan').classList.remove('hidden');
+
+            html5QrcodeScanner = new Html5Qrcode("reader");
+            const config = { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 };
+
+            html5QrcodeScanner.start({ facingMode: "environment" }, config, onScanSuccess, onScanFailure)
+            .catch(err => {
+                alert("Gagal mengakses kamera. Sila pastikan kebenaran kamera (Camera Permission) diberikan.");
+                stopScanner();
+            });
+        }
+
+        function onScanSuccess(decodedText, decodedResult) {
+            // Berhenti scan selepas dapat
+            stopScanner();
+            
+            // Jika ia mengandungi URL penuh (contoh: https://.../scansijil.html?siri=XXX)
+            if (decodedText.includes('siri=')) {
+                const url = new URL(decodedText);
+                const siri = url.searchParams.get('siri');
+                document.getElementById('serial-input').value = siri;
+                verifySerial(siri);
+            } else {
+                // Jika QR hanya teks No Siri biasa
+                document.getElementById('serial-input').value = decodedText;
+                verifySerial(decodedText);
+            }
+        }
+
+        function onScanFailure(error) { /* Ignore background scan errors */ }
+
+        function stopScanner() {
+            if (html5QrcodeScanner) {
+                html5QrcodeScanner.stop().then(() => {
+                    html5QrcodeScanner.clear();
+                    html5QrcodeScanner = null;
+                }).catch(err => console.log(err));
+            }
+            document.getElementById('reader').classList.add('hidden');
+            document.getElementById('btn-scan').classList.remove('hidden');
+            document.getElementById('btn-stop-scan').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
