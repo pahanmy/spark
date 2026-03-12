@@ -291,7 +291,7 @@
         let assignedICs = []; 
         
         let senaraiSahPPD = {}; 
-        let senaraiIgnoredPPD = {}; // Menyimpan rekod PPD yang dibuang
+        let senaraiIgnoredPPD = {}; 
 
         let sekolahDipilih = "";
         let penggunaDisahkan = null;
@@ -420,13 +420,10 @@
                 const pentadbirDitetapkan = senaraiPentadbir[sekolah];
                 const certAdmin = window.senaraiCertAdmin ? window.senaraiCertAdmin[sekolah] : null;
                 
-                // Cari staf yang berdaftar di sekolah ini untuk dropdown Penyelaras Sijil
                 let staffSekolah = semuaPeserta.filter(p => p.station && p.station.toUpperCase() === sekolah.toUpperCase());
                 staffSekolah.sort((a, b) => a.name.localeCompare(b.name));
 
-                // -----------------------------
-                // 1. Logik Guru Besar (Kekal)
-                // -----------------------------
+                // 1. Logik Guru Besar
                 const cadanganSistem = semuaPeserta.find(p => {
                     if (!p.station || !p.position) return false;
                     return p.station.toUpperCase() === sekolah.toUpperCase() && (p.position.toUpperCase().includes('GURU BESAR') || p.position.toUpperCase().includes('PENGETUA'));
@@ -455,7 +452,7 @@
                             </div>
                             <div class="text-xs text-gray-500 font-mono mt-0.5 mb-2">${pentadbirDitetapkan.ic}</div>
                         `;
-                        butangTeks = "Tukar ";
+                        butangTeks = "Tukar GB Manual";
                         butangWarna = "bg-white text-gray-600 border border-gray-300 hover:bg-gray-100";
                     }
                 } else {
@@ -476,12 +473,10 @@
                     }
                 }
 
-                // -----------------------------
-                // 2. Logik Dropdown Penyelaras Sijil
-                // -----------------------------
-                const defaultIC = certAdmin ? certAdmin.ic : (pentadbirDitetapkan ? pentadbirDitetapkan.ic : '');
+                // 2. Logik Dropdown Penyelaras Sijil (Default: TIADA)
+                const defaultIC = certAdmin ? certAdmin.ic : '';
 
-                let optionsHtml = `<option value="">-- Pilih Penyelaras --</option>`;
+                let optionsHtml = `<option value="">-- TIADA PENYELARAS --</option>`;
                 let foundInList = false;
 
                 staffSekolah.forEach(staff => {
@@ -492,8 +487,6 @@
 
                 if (certAdmin && !foundInList) {
                     optionsHtml += `<option value="${certAdmin.ic}" selected>${certAdmin.nama} (Tidak Dikemaskini / Luar Stesen)</option>`;
-                } else if (!certAdmin && pentadbirDitetapkan && !foundInList) {
-                    optionsHtml += `<option value="${pentadbirDitetapkan.ic}" selected>${pentadbirDitetapkan.nama} (Terkini: Luar Stesen)</option>`;
                 }
 
                 const paparanCertAdmin = `
@@ -502,7 +495,7 @@
                         <select onchange="tukarCertAdmin('${sekolah.replace(/'/g, "\\'")}', this.value, this.options[this.selectedIndex].text)" class="block w-full rounded border-blue-300 shadow-sm focus:border-indigo-500 text-xs p-1.5 bg-white font-medium text-gray-700">
                             ${optionsHtml}
                         </select>
-                        <p class="text-[9px] text-gray-400 mt-1 italic">* Default: Guru Besar atau Pengetua</p>
+                       <p class="text-[9px] text-gray-400 mt-1 italic">* Default: Tiada (Akses reka bentuk sijil ditutup untuk sekolah ini)</p>
                     </div>
                 `;
                 
@@ -527,7 +520,6 @@
             paparJadualSekolah(document.getElementById('carian-sekolah').value);
         });
 
-        // Simpan terus Guru Besar
         window.pilihCadanganTerus = async function(namaSekolah, icCadangan) {
             if(!confirm(`Tetapkan Guru Besar ini untuk ${namaSekolah}?`)) return;
             const cadanganData = semuaPeserta.find(p => p.ic === icCadangan);
@@ -539,23 +531,27 @@
             } catch(error) { alert("Gagal mengemas kini data."); }
         }
 
-        // Simpan terus Penyelaras Sijil dari Dropdown
         window.tukarCertAdmin = async function(sekolah, ic, nama) {
-            if (!ic) return;
             try {
+                if (!ic) {
+                    const docRef = doc(db, `artifacts/${appId}/public/data/spark_school_cert_admins`, sekolah);
+                    await deleteDoc(docRef);
+                    if (window.senaraiCertAdmin && window.senaraiCertAdmin[sekolah]) {
+                        delete window.senaraiCertAdmin[sekolah];
+                    }
+                    return;
+                }
                 const docRef = doc(db, `artifacts/${appId}/public/data/spark_school_cert_admins`, sekolah);
                 await setDoc(docRef, { sekolah: sekolah, ic: ic, nama: nama, dikemaskiniPada: new Date().toISOString() });
                 if (!window.senaraiCertAdmin) window.senaraiCertAdmin = {};
                 window.senaraiCertAdmin[sekolah] = { ic: ic, nama: nama };
-                // Tak perlu loading jadual penuh, kita hanya simpan di background untuk UX yang laju
             } catch(e) {
                 console.error(e);
-                alert("Gagal menyimpan Penyelaras Sijil. Sila cuba lagi.");
+                alert("Gagal mengemaskini Penyelaras Sijil. Sila cuba lagi.");
             }
         }
 
         // --- MODAL MANUAL (GB/PENYELARAS) ---
-        // (Kekal berfungsi jika pengguna mahu cari nama yang tiada dalam senarai dropdown)
         document.getElementById('pilihan-peranan').addEventListener('change', function(e) {
             const peranan = e.target.value;
             let sediaAda = peranan === 'gb' ? senaraiPentadbir[sekolahDipilih] : (window.senaraiCertAdmin ? window.senaraiCertAdmin[sekolahDipilih] : null);
@@ -664,7 +660,6 @@
             const tbody = document.getElementById('jadual-ppd');
             tbody.innerHTML = '';
             
-            // TAPISAN: Stesen PPD, atau Pernah Sah, DAN Tidak Ada Dalam Senarai Buang (Ignored)
             let pegawaiPPD = semuaPeserta.filter(p => {
                 const stesen = (p.station || '').toUpperCase();
                 const isPpdStation = stesen.includes('PPD MIRI') || stesen.includes('PEJABAT PENDIDIKAN DAERAH');
@@ -707,7 +702,6 @@
                         </button>
                     `;
                 } else {
-                    // Ciri Baharu: Tag BARU dan Butang Buang
                     statusHtml = `<span class="inline-block bg-red-100 text-red-700 border border-red-300 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider animate-pulse shadow-sm">BARU / BELUM SAH</span>`;
                     actionBtnHtml = `
                         <select id="sec-${p.ic}" class="block w-full rounded border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-[10px] p-1.5 border mb-1.5 bg-gray-50 uppercase font-medium">
@@ -776,7 +770,6 @@
             if (allBoxes.length > 0) document.getElementById('check-all-ppd').checked = (checkedBoxes.length === allBoxes.length);
         }
 
-        // --- Ciri Baharu: Buang Dari PPD ---
         window.buangDariPPD = async function(ic, nama) {
             if(!confirm(`Adakah anda pasti mahu membuang ${nama} dari senarai PPD? Mereka tidak akan kelihatan lagi di sini.`)) return;
             try {
