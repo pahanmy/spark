@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SPARK – Penjana PLC Pro (Secure)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        body { font-family: 'Poppins', sans-serif; background-color: #f8fafc; }
+        
+        #pdf-wrapper { width: 210mm; margin: 0; padding: 0; background: white; }
+
+        .a4-paper {
+            width: 210mm; min-height: 297mm; height: 297mm; 
+            padding-left: 15mm; padding-right: 15mm; padding-bottom: 10mm; padding-top: 10mm;
+            margin: 0 auto; margin-bottom: 0px; 
+            background: white; box-shadow: 0 0 25px rgba(0,0,0,0.1);
+            font-family: Arial, Helvetica, sans-serif; color: black; position: relative;
+            overflow: hidden; display: flex; flex-direction: column;
+        }
+
+        @media screen { #pdf-wrapper .a4-paper { margin-bottom: 20px; } }
+
+        .paper-background { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-size: cover; background-position: center; background-repeat: no-repeat; z-index: 0; pointer-events: none; opacity: 0.1; }
+        .paper-content { position: relative; z-index: 10; flex-grow: 1; display: flex; flex-direction: column; }
+        
+        .plc-table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; background: rgba(255,255,255,0.85); font-size: 10pt;}
+        .plc-table td, .plc-table th { border: 1px solid black; padding: 6px 8px; vertical-align: top; }
+        
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+
+        @media print {
+            .no-print, header, .lg\:w-1\/3, .no-print-col { display: none !important; }
+            
+            body, html, .flex-1, .lg\:w-2\/3 {
+                height: auto !important; overflow: visible !important; width: 100% !important; display: block !important; background-color: white !important; padding: 0 !important; margin: 0 !important;
+            }
+            
+            #pdf-wrapper { width: 100% !important; margin: 0 !important; padding: 0 !important; background: white !important; }
+            
+            .a4-paper {
+                width: 100% !important; margin: 0 !important; padding: 10mm 15mm !important; box-shadow: none !important; min-height: auto !important; height: auto !important; display: block !important; page-break-after: always !important; page-break-inside: avoid;
+            }
+            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        }
+    </style>
+</head>
+<body class="flex flex-col h-screen overflow-hidden text-gray-800 relative">
+
+    <header class="bg-white shadow-sm border-b border-gray-200 z-50 no-print flex-shrink-0">
+        <div class="w-full px-6 py-3 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="bg-indigo-600 p-2 rounded-lg shadow-md">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="text-white"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold text-indigo-700 uppercase tracking-wide flex items-center gap-2">
+                        SPARK PLC
+                    </h1>
+                    <p class="text-xs text-gray-500">Penjana Laporan Komuniti Pembelajaran Profesional</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="window.location.href='user.html'" class="text-gray-500 hover:text-indigo-600 text-sm font-semibold px-3 flex items-center gap-1 transition-colors">
+                    Kembali
+                </button>
+                <div class="h-6 w-px bg-gray-300 mx-1"></div>
+                <button onclick="window.print()" class="bg-gray-800 hover:bg-black text-white text-xs font-bold py-2 px-4 rounded-lg shadow-md flex items-center gap-2 uppercase transition-all">
+                    Cetak / Simpan PDF
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <div class="flex flex-1 overflow-hidden">
+        
+        <div class="w-full lg:w-1/3 bg-white border-r border-gray-200 overflow-y-auto p-5 no-print z-10 custom-scrollbar space-y-5">
+            
+            <div class="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                <h3 class="text-xs font-bold text-gray-700 uppercase mb-3 border-b pb-1">Maklumat Asas</h3>
+                
+                <label class="text-[10px] font-bold text-gray-500 uppercase">Nama Institusi</label>
+                <input type="text" id="in-institusi" oninput="updatePreview()" class="w-full text-sm border border-gray-300 rounded p-2 mb-2 uppercase bg-white" placeholder="Contoh: SMK BANDAR MIRI">
+
+                <label class="text-[10px] font-bold text-gray-500 uppercase">Mata Pelajaran / Unit</label>
+                <input type="text" id="in-subjek" oninput="updatePreview()" class="w-full text-sm border border-gray-300 rounded p-2 mb-2 uppercase bg-white" placeholder="Contoh: BAHASA MELAYU">
+
+                <div class="grid grid-cols-2 gap-2 mb-2">
+                    <div>
+                        <label class="text-[10px] font-bold text-gray-500 uppercase">Daerah</label>
+                        <input type="text" id="in-daerah" oninput="updatePreview()" class="w-full text-sm border border-gray-300 rounded p-2 uppercase bg-white" value="MIRI">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-bold text-gray-500 uppercase">Negeri</label>
+                        <input type="text" id="in-negeri" oninput="updatePreview()" class="w-full text-sm border border-gray-300 rounded p-2 uppercase bg-white" value="SARAWAK">
+                    </div>
+                </div>
+
+                <label class="text-[10px] font-bold text-gray-500 uppercase">Tarikh Pelaksanaan</label>
+                <input type="date" id="in-tarikh" oninput="updatePreview()" class="w-full text-sm border border-gray-300 rounded p-2 bg-white">
+            </div>
+
+            <div class="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                <h3 class="text-xs font-bold text-gray-700 uppercase mb-3 border-b pb-1">Ahli Kumpulan (Maksima 6)</h3>
+                <div id="ahli-container" class="space-y-2">
+                    </div>
+            </div>
+
+            <div class="bg-indigo-50 p-3 rounded-lg border border-indigo-200">
+                <h3 class="text-xs font-bold text-indigo-700 uppercase mb-3 border-b border-indigo-200 pb-1">Alat Kolaboratif PLC</h3>
+                <select id="in-alat" onchange="updatePreview()" class="w-full text-sm border border-indigo-300 rounded p-2 bg-white mb-2 font-medium text-indigo-800">
+                    <option value="">-- Pilih Alat Kolaboratif --</option>
+                    <option value="Kritikan Video (Video Kritik)">Kritikan Video (Video Kritik)</option>
+                    <option value="Bimbingan Rakan Sekerja (Peer Coaching)">Bimbingan Rakan Sekerja (Peer Coaching)</option>
+                    <option value="Sesi Perkongsian Guru (Teacher Sharing Session)">Sesi Perkongsian Guru (Teacher Sharing Session)</option>
+                    <option value="Belajar menggunakan RPH (Lesson Study)">Belajar menggunakan RPH (Lesson Study)</option>
+                    <option value="Jelajah Pembelajaran (Learning Walk)">Jelajah Pembelajaran (Learning Walk)</option>
+                    <option value="Kumpulan Penyelesaian Masalah (Problem Solving Group)">Kumpulan Penyelesaian Masalah (Problem Solving Group)</option>
+                    <option value="Lain-lain">Lain-lain (Sila Nyatakan)</option>
+                </select>
+                <input type="text" id="in-alat-lain" oninput="updatePreview()" class="w-full text-sm border border-indigo-300 rounded p-2 bg-white hidden" placeholder="Nyatakan alat kolaboratif lain...">
+            </div>
+
+            <div class="bg-gray-50 p-3 rounded-lg border border-gray-200 space-y-3">
+                <h3 class="text-xs font-bold text-gray-700 uppercase border-b pb-1">Proses Pelaksanaan</h3>
+                
+                <div>
+                    <label class="text-[10px] font-bold text-red-600 uppercase flex items-center gap-1">FOCUS: Punca / Isu / Masalah</label>
+                    <textarea id="in-focus" oninput="updatePreview()" rows="3" class="w-full text-sm border border-gray-300 rounded p-2 bg-white" placeholder="Nyatakan isu yang difokuskan..."></textarea>
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-blue-600 uppercase flex items-center gap-1">IMPROVE: Aktiviti / Langkah Pelaksanaan</label>
+                    <textarea id="in-improve" oninput="updatePreview()" rows="3" class="w-full text-sm border border-gray-300 rounded p-2 bg-white" placeholder="Nyatakan aktiviti yang dijalankan..."></textarea>
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-green-600 uppercase flex items-center gap-1">SHARE: Dapatan / Perkongsian</label>
+                    <textarea id="in-share" oninput="updatePreview()" rows="3" class="w-full text-sm border border-gray-300 rounded p-2 bg-white" placeholder="Nyatakan hasil atau perkongsian dapatan..."></textarea>
+                </div>
+            </div>
+
+            <div class="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                <h3 class="text-xs font-bold text-gray-700 uppercase mb-3 border-b pb-1">Tandatangan / Pengesahan</h3>
+                <label class="text-[10px] font-bold text-gray-500 uppercase">Disediakan Oleh (Nama)</label>
+                <input type="text" id="in-disediakan" oninput="updatePreview()" class="w-full text-sm border border-gray-300 rounded p-2 mb-2 uppercase bg-white">
+                
+                <label class="text-[10px] font-bold text-gray-500 uppercase">Disahkan Oleh (Nama & Jawatan)</label>
+                <textarea id="in-disahkan" oninput="updatePreview()" rows="2" class="w-full text-sm border border-gray-300 rounded p-2 uppercase bg-white" placeholder="Contoh:&#10;PENGETUA&#10;SMK BANDAR MIRI"></textarea>
+            </div>
+            
+            <div class="pb-10"></div>
+        </div>
+
+        <div class="w-full lg:w-2/3 bg-gray-100 overflow-auto flex justify-center p-8">
+            <div id="pdf-wrapper">
+                <div class="a4-paper transform scale-100 origin-top">
+                    <div class="paper-background"></div>
+                    <div class="paper-content">
+                        
+                        <div class="text-center mb-6 border-b-2 border-black pb-4">
+                            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/2/26/Coat_of_arms_of_Malaysia.svg/1200px-Coat_of_arms_of_Malaysia.svg.png" class="h-24 mx-auto mb-2 object-contain" alt="Jata Negara">
+                            <h1 class="font-bold text-[14pt] uppercase">KEMENTERIAN PENDIDIKAN MALAYSIA</h1>
+                            <h2 class="font-bold text-[12pt] mt-4 uppercase">LAPORAN KOMUNITI PEMBELAJARAN PROFESIONAL (OFF LINE)</h2>
+                            <h3 class="font-bold text-[11pt] uppercase">Professional Learning Community (PLC)</h3>
+                        </div>
+
+                        <table class="plc-table">
+                            <tr>
+                                <td class="font-bold w-[25%] uppercase">1. NAMA INSTITUSI:</td>
+                                <td colspan="3" id="out-institusi" class="uppercase"></td>
+                            </tr>
+                            <tr>
+                                <td class="font-bold uppercase">2. MATA PELAJARAN:</td>
+                                <td colspan="3" id="out-subjek" class="uppercase"></td>
+                            </tr>
+                            <tr>
+                                <td class="font-bold w-[25%] uppercase">3. DAERAH:</td>
+                                <td id="out-daerah" class="w-[25%] uppercase"></td>
+                                <td class="font-bold w-[20%] uppercase text-right border-l-0">4. NEGERI: </td>
+                                <td id="out-negeri" class="w-[30%] uppercase border-l-0"></td>
+                            </tr>
+                            <tr>
+                                <td class="font-bold uppercase">5. TARIKH PELAKSANAAN:</td>
+                                <td colspan="3" id="out-tarikh" class="uppercase"></td>
+                            </tr>
+                        </table>
+
+                        <div class="font-bold text-[10pt] mb-1 uppercase">6. NAMA & NO.KP AHLI KUMPULAN:</div>
+                        <table class="plc-table text-center">
+                            <thead class="bg-gray-100 font-bold">
+                                <tr>
+                                    <th class="w-12">BIL</th>
+                                    <th>NAMA</th>
+                                    <th class="w-[35%]">NO. KAD PENGENALAN</th>
+                                </tr>
+                            </thead>
+                            <tbody id="out-ahli-tbody">
+                                </tbody>
+                        </table>
+
+                        <div class="font-bold text-[10pt] mb-1 uppercase">7. ALAT KOLABORATIF PLC: <span class="font-normal italic text-[9pt] normal-case ml-2">Pilih dan tandakan ( / ) salah satu kotak yang berkenaan.</span></div>
+                        <table class="plc-table" id="table-alat">
+                            <tr>
+                                <td class="w-8 text-center font-bold" id="chk-Kritikan Video (Video Kritik)"></td>
+                                <td class="w-[45%]">Kritikan Video (Video Kritik)</td>
+                                <td class="w-8 text-center font-bold" id="chk-Jelajah Pembelajaran (Learning Walk)"></td>
+                                <td>Jelajah Pembelajaran (Learning Walk)</td>
+                            </tr>
+                            <tr>
+                                <td class="text-center font-bold" id="chk-Bimbingan Rakan Sekerja (Peer Coaching)"></td>
+                                <td>Bimbingan Rakan Sekerja (Peer Coaching)</td>
+                                <td class="text-center font-bold" id="chk-Kumpulan Penyelesaian Masalah (Problem Solving Group)"></td>
+                                <td>Kumpulan Penyelesaian Masalah (Problem Solving Group)</td>
+                            </tr>
+                            <tr>
+                                <td class="text-center font-bold" id="chk-Sesi Perkongsian Guru (Teacher Sharing Session)"></td>
+                                <td>Sesi Perkongsian Guru (Teacher Sharing Session)</td>
+                                <td class="text-center font-bold" id="chk-Lain-lain"></td>
+                                <td>Lain-lain : <span id="out-alat-lain" class="border-b border-black inline-block min-w-[150px] px-2"></span></td>
+                            </tr>
+                            <tr>
+                                <td class="text-center font-bold" id="chk-Belajar menggunakan RPH (Lesson Study)"></td>
+                                <td colspan="3">Belajar menggunakan RPH (Lesson Study)</td>
+                            </tr>
+                        </table>
+
+                        <table class="plc-table mb-8">
+                            <tr>
+                                <td class="font-bold bg-gray-100 py-1 uppercase">8. PROSES PELAKSANAAN FOCUS: Punca/ Isu/ Masalah</td>
+                            </tr>
+                            <tr>
+                                <td class="min-h-[80px] align-top whitespace-pre-wrap pb-8 pt-2" id="out-focus"></td>
+                            </tr>
+                            <tr>
+                                <td class="font-bold bg-gray-100 py-1 uppercase">IMPROVE: Aktiviti/ Langkah Pelaksanaan.</td>
+                            </tr>
+                            <tr>
+                                <td class="min-h-[80px] align-top whitespace-pre-wrap pb-8 pt-2" id="out-improve"></td>
+                            </tr>
+                            <tr>
+                                <td class="font-bold bg-gray-100 py-1 uppercase">SHARE: Dapatan/ Perkongsian</td>
+                            </tr>
+                            <tr>
+                                <td class="min-h-[80px] align-top whitespace-pre-wrap pb-8 pt-2" id="out-share"></td>
+                            </tr>
+                        </table>
+
+                        <div class="flex justify-between text-[10pt] mt-auto pb-4">
+                            <div class="w-[40%] text-center">
+                                <p class="text-left mb-16 italic">Disediakan oleh:</p>
+                                <p>.......................................................................</p>
+                                <p id="out-disediakan" class="font-bold uppercase mt-1 min-h-[1.5rem]"></p>
+                            </div>
+                            <div class="w-[40%] text-center">
+                                <p class="text-left mb-16 italic">Disahkan oleh:</p>
+                                <p>.......................................................................</p>
+                                <p id="out-disahkan" class="font-bold uppercase mt-1 whitespace-pre-wrap min-h-[2.5rem]"></p>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Init 6 Input Ahli Kumpulan
+        const ahliContainer = document.getElementById('ahli-container');
+        for(let i=1; i<=6; i++) {
+            ahliContainer.innerHTML += `
+                <div class="flex gap-2 mb-1">
+                    <input type="text" id="in-nama-${i}" oninput="updatePreview()" class="w-2/3 text-xs border border-gray-300 rounded p-1.5 uppercase" placeholder="${i}. Nama Ahli">
+                    <input type="text" id="in-kp-${i}" oninput="updatePreview()" class="w-1/3 text-xs border border-gray-300 rounded p-1.5 uppercase" placeholder="No. KP">
+                </div>
+            `;
+        }
+
+        function setDefaultDate() {
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('in-tarikh').value = today;
+        }
+
+        window.updatePreview = function() {
+            // 1-5
+            document.getElementById('out-institusi').textContent = document.getElementById('in-institusi').value;
+            document.getElementById('out-subjek').textContent = document.getElementById('in-subjek').value;
+            document.getElementById('out-daerah').textContent = document.getElementById('in-daerah').value;
+            document.getElementById('out-negeri').textContent = document.getElementById('in-negeri').value;
+            
+            const rawDate = document.getElementById('in-tarikh').value;
+            if(rawDate) {
+                const d = new Date(rawDate);
+                document.getElementById('out-tarikh').textContent = `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth()+1).toString().padStart(2, '0')}/${d.getFullYear()}`;
+            }
+
+            // 6. Ahli
+            const tbody = document.getElementById('out-ahli-tbody');
+            tbody.innerHTML = '';
+            for(let i=1; i<=6; i++) {
+                const nama = document.getElementById(`in-nama-${i}`).value;
+                const kp = document.getElementById(`in-kp-${i}`).value;
+                
+                // Print empty spaces if no input just to keep the table structure intact
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${i}</td>
+                        <td class="text-left">${nama || '<span class="text-transparent">.</span>'}</td>
+                        <td>${kp || '<span class="text-transparent">.</span>'}</td>
+                    </tr>
+                `;
+            }
+
+            // 7. Alat
+            const selectedAlat = document.getElementById('in-alat').value;
+            const alatLainInput = document.getElementById('in-alat-lain');
+            const allBoxes = [
+                'Kritikan Video (Video Kritik)', 'Bimbingan Rakan Sekerja (Peer Coaching)', 
+                'Sesi Perkongsian Guru (Teacher Sharing Session)', 'Belajar menggunakan RPH (Lesson Study)', 
+                'Jelajah Pembelajaran (Learning Walk)', 'Kumpulan Penyelesaian Masalah (Problem Solving Group)', 'Lain-lain'
+            ];
+            
+            allBoxes.forEach(id => {
+                document.getElementById(`chk-${id}`).textContent = '';
+            });
+
+            if (selectedAlat) {
+                document.getElementById(`chk-${selectedAlat}`).textContent = '/';
+            }
+
+            if(selectedAlat === 'Lain-lain') {
+                alatLainInput.classList.remove('hidden');
+                document.getElementById('out-alat-lain').textContent = alatLainInput.value;
+            } else {
+                alatLainInput.classList.add('hidden');
+                document.getElementById('out-alat-lain').textContent = "";
+            }
+
+            // 8. Proses
+            const focus = document.getElementById('in-focus').value;
+            document.getElementById('out-focus').innerHTML = focus ? `<span class="font-bold">Isu:</span>\n${focus}` : '';
+            document.getElementById('out-improve').textContent = document.getElementById('in-improve').value;
+            document.getElementById('out-share').textContent = document.getElementById('in-share').value;
+
+            // Signatures
+            document.getElementById('out-disediakan').textContent = document.getElementById('in-disediakan').value;
+            document.getElementById('out-disahkan').textContent = document.getElementById('in-disahkan').value;
+        }
+
+        // Init Setup
+        setDefaultDate();
+        updatePreview();
+    </script>
+</body>
+</html>
