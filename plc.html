@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SPARK – Penjana PLC Pro (Secure)</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.0/dist/JsBarcode.all.min.js"></script>
+
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     
     <style>
@@ -33,6 +36,9 @@
         .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
 
+        .modal-backdrop { background-color: rgba(0,0,0,0.8); backdrop-filter: blur(4px); }
+        canvas#signature-pad { touch-action: none; } 
+
         @media print {
             .no-print, header, .lg\:w-1\/3, .no-print-col { display: none !important; }
             
@@ -60,17 +66,29 @@
                 <div>
                     <h1 class="text-xl font-bold text-indigo-700 uppercase tracking-wide flex items-center gap-2">
                         SPARK PLC
+                        <span id="account-badge" class="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded border border-gray-200 font-bold uppercase tracking-wider">Memuatkan...</span>
                     </h1>
                     <p class="text-xs text-gray-500">Penjana Laporan Komuniti Pembelajaran Profesional</p>
                 </div>
             </div>
+            
             <div class="flex items-center gap-2">
                 <button onclick="window.location.href='user.html'" class="text-gray-500 hover:text-indigo-600 text-sm font-semibold px-3 flex items-center gap-1 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
                     Kembali
                 </button>
                 <div class="h-6 w-px bg-gray-300 mx-1"></div>
+                
+                <button id="btn-share" onclick="shareRecord()" class="hidden bg-green-500 hover:bg-green-600 text-white text-xs font-bold py-2 px-4 rounded-lg shadow-md flex items-center gap-2 uppercase transition-all">
+                    Kongsi
+                </button>
+
                 <button onclick="window.print()" class="bg-gray-800 hover:bg-black text-white text-xs font-bold py-2 px-4 rounded-lg shadow-md flex items-center gap-2 uppercase transition-all">
-                    Cetak / Simpan PDF
+                    Cetak
+                </button>
+
+                <button onclick="saveWork()" id="btn-save" class="bg-gradient-to-r from-teal-500 to-green-600 hover:from-teal-600 hover:to-green-700 text-white text-xs font-bold py-2 px-6 rounded-lg shadow-md flex items-center gap-2 uppercase transition-transform hover:scale-105">
+                    Simpan
                 </button>
             </div>
         </div>
@@ -78,79 +96,182 @@
 
     <div class="flex flex-1 overflow-hidden">
         
-        <div class="w-full lg:w-1/3 bg-white border-r border-gray-200 overflow-y-auto p-5 no-print z-10 custom-scrollbar space-y-5">
+        <div class="w-full lg:w-1/3 bg-white border-r border-gray-200 overflow-y-auto p-5 no-print z-10 custom-scrollbar">
             
-            <div class="bg-gray-50 p-3 rounded-lg border border-gray-200">
-                <h3 class="text-xs font-bold text-gray-700 uppercase mb-3 border-b pb-1">Maklumat Asas</h3>
-                
-                <label class="text-[10px] font-bold text-gray-500 uppercase">Nama Institusi</label>
-                <input type="text" id="in-institusi" oninput="updatePreview()" class="w-full text-sm border border-gray-300 rounded p-2 mb-2 uppercase bg-white" placeholder="Contoh: SMK BANDAR MIRI">
+            <div class="flex gap-3 mb-5">
+                <div class="w-1/2">
+                    <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Sejarah</label>
+                    <select id="history-select" onchange="loadHistory(this.value)" class="w-full text-xs border border-gray-300 rounded bg-white focus:ring-1 focus:ring-indigo-500 h-9">
+                        <option value="">-- Pilih Rekod --</option>
+                    </select>
+                </div>
+                <div class="w-1/2">
+                    <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Import Program</label>
+                    <select id="program-select" onchange="importProgramData(this.value)" class="w-full text-xs border border-blue-300 rounded bg-blue-50 focus:ring-1 focus:ring-blue-500 h-9">
+                        <option value="">-- Pilih Program --</option>
+                    </select>
+                </div>
+            </div>
 
-                <label class="text-[10px] font-bold text-gray-500 uppercase">Mata Pelajaran / Unit</label>
-                <input type="text" id="in-subjek" oninput="updatePreview()" class="w-full text-sm border border-gray-300 rounded p-2 mb-2 uppercase bg-white" placeholder="Contoh: BAHASA MELAYU">
+            <div class="flex p-1 bg-gray-100 rounded-lg mb-5 border border-gray-200">
+                <button onclick="showTab('form')" id="tab-btn-form" class="flex-1 py-2 text-xs font-bold uppercase rounded-md shadow-sm bg-white text-indigo-600 transition-all">Isi Borang</button>
+                <button onclick="showTab('history')" id="tab-btn-history" class="flex-1 py-2 text-xs font-bold uppercase rounded-md text-gray-500 hover:text-gray-700 transition-all">Sejarah</button>
+            </div>
 
-                <div class="grid grid-cols-2 gap-2 mb-2">
+            <div id="tab-content-form" class="block space-y-4">
+                <input type="hidden" id="report-id">
+                <input type="hidden" id="plc-serial-hidden"> 
+
+                <div class="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                    <h3 class="text-xs font-bold text-gray-700 uppercase mb-3 border-b pb-1">Maklumat Asas</h3>
+                    
+                    <label class="text-[10px] font-bold text-gray-500 uppercase">Nama Institusi</label>
+                    <input type="text" id="in-institusi" oninput="updatePreview()" class="w-full text-sm border border-gray-300 rounded p-2 mb-2 uppercase bg-white">
+
+                    <label class="text-[10px] font-bold text-gray-500 uppercase">Mata Pelajaran / Unit</label>
+                    <select id="in-subjek-select" onchange="toggleSubjekLain()" class="w-full text-sm border border-gray-300 rounded p-2 mb-2 uppercase bg-white">
+                        <option value="">-- PILIH MATA PELAJARAN --</option>
+                        <option value="BAHASA MELAYU">BAHASA MELAYU</option>
+                        <option value="BAHASA INGGERIS">BAHASA INGGERIS</option>
+                        <option value="MATEMATIK">MATEMATIK</option>
+                        <option value="SAINS">SAINS</option>
+                        <option value="SEJARAH">SEJARAH</option>
+                        <option value="PENDIDIKAN ISLAM">PENDIDIKAN ISLAM</option>
+                        <option value="PENDIDIKAN MORAL">PENDIDIKAN MORAL</option>
+                        <option value="LAIN-LAIN">LAIN-LAIN (SILA NYATAKAN)</option>
+                    </select>
+                    <input type="text" id="in-subjek-lain" oninput="updatePreview()" class="w-full text-sm border border-gray-300 rounded p-2 mb-2 uppercase bg-white hidden" placeholder="NYATAKAN MATA PELAJARAN / UNIT...">
+
+                    <div class="grid grid-cols-2 gap-2 mb-2">
+                        <div>
+                            <label class="text-[10px] font-bold text-gray-500 uppercase">Daerah</label>
+                            <input type="text" id="in-daerah" oninput="updatePreview()" class="w-full text-sm border border-gray-300 rounded p-2 uppercase bg-white" value="MIRI">
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-bold text-gray-500 uppercase">Negeri</label>
+                            <input type="text" id="in-negeri" oninput="updatePreview()" class="w-full text-sm border border-gray-300 rounded p-2 uppercase bg-white" value="SARAWAK">
+                        </div>
+                    </div>
+
+                    <label class="text-[10px] font-bold text-gray-500 uppercase">Tarikh Pelaksanaan</label>
+                    <input type="date" id="in-tarikh" oninput="updatePreview()" class="w-full text-sm border border-gray-300 rounded p-2 bg-white">
+                </div>
+
+                <div class="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                    <h3 class="text-xs font-bold text-gray-700 uppercase mb-3 border-b pb-1">Ahli Kumpulan (Maksima 6)</h3>
+                    <p class="text-[9px] text-gray-500 mb-2 italic">* Data diambil automatik jika import program</p>
+                    <div id="ahli-container" class="space-y-2">
+                        </div>
+                </div>
+
+                <div class="bg-indigo-50 p-3 rounded-lg border border-indigo-200">
+                    <h3 class="text-xs font-bold text-indigo-700 uppercase mb-3 border-b border-indigo-200 pb-1">Alat Kolaboratif PLC</h3>
+                    <div class="space-y-2 text-xs font-medium text-gray-700" id="alat-checkboxes">
+                        <label class="flex items-center gap-2"><input type="checkbox" value="Kritikan Video (Video Kritik)" class="rounded text-indigo-600" onchange="updatePreview()"> Kritikan Video (Video Kritik)</label>
+                        <label class="flex items-center gap-2"><input type="checkbox" value="Bimbingan Rakan Sekerja (Peer Coaching)" class="rounded text-indigo-600" onchange="updatePreview()"> Bimbingan Rakan Sekerja (Peer Coaching)</label>
+                        <label class="flex items-center gap-2"><input type="checkbox" value="Sesi Perkongsian Guru (Teacher Sharing Session)" class="rounded text-indigo-600" onchange="updatePreview()"> Sesi Perkongsian Guru (Teacher Sharing Session)</label>
+                        <label class="flex items-center gap-2"><input type="checkbox" value="Belajar menggunakan RPH (Lesson Study)" class="rounded text-indigo-600" onchange="updatePreview()"> Belajar menggunakan RPH (Lesson Study)</label>
+                        <label class="flex items-center gap-2"><input type="checkbox" value="Jelajah Pembelajaran (Learning Walk)" class="rounded text-indigo-600" onchange="updatePreview()"> Jelajah Pembelajaran (Learning Walk)</label>
+                        <label class="flex items-center gap-2"><input type="checkbox" value="Kumpulan Penyelesaian Masalah (Problem Solving Group)" class="rounded text-indigo-600" onchange="updatePreview()"> Kumpulan Penyelesaian Masalah (Problem Solving Group)</label>
+                        <label class="flex items-center gap-2"><input type="checkbox" value="Lain-lain" id="chk-lain-lain" class="rounded text-indigo-600" onchange="toggleAlatLain()"> Lain-lain</label>
+                    </div>
+                    <input type="text" id="in-alat-lain" oninput="updatePreview()" class="w-full mt-2 text-sm border border-indigo-300 rounded p-2 bg-white hidden" placeholder="Nyatakan alat kolaboratif lain...">
+                </div>
+
+                <div class="bg-gray-50 p-3 rounded-lg border border-gray-200 space-y-4">
+                    <h3 class="text-xs font-bold text-gray-700 uppercase border-b pb-1">Proses Pelaksanaan</h3>
+                    
                     <div>
-                        <label class="text-[10px] font-bold text-gray-500 uppercase">Daerah</label>
-                        <input type="text" id="in-daerah" oninput="updatePreview()" class="w-full text-sm border border-gray-300 rounded p-2 uppercase bg-white" value="MIRI">
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="text-[10px] font-bold text-red-600 uppercase">FOCUS: Punca / Isu / Masalah</label>
+                            <button type="button" onclick="askAI('focus')" class="text-[8px] bg-gradient-to-r from-purple-500 to-indigo-500 text-white px-2 py-0.5 rounded shadow hover:opacity-90 font-bold">
+                                Bantu AI ✨ (PRO)
+                            </button>
+                        </div>
+                        <textarea id="in-focus" oninput="updatePreview()" rows="3" class="w-full text-sm border border-gray-300 rounded p-2 bg-white" placeholder="Nyatakan isu yang difokuskan..."></textarea>
                     </div>
                     <div>
-                        <label class="text-[10px] font-bold text-gray-500 uppercase">Negeri</label>
-                        <input type="text" id="in-negeri" oninput="updatePreview()" class="w-full text-sm border border-gray-300 rounded p-2 uppercase bg-white" value="SARAWAK">
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="text-[10px] font-bold text-blue-600 uppercase">IMPROVE: Aktiviti / Langkah Pelaksanaan</label>
+                            <button type="button" onclick="askAI('improve')" class="text-[8px] bg-gradient-to-r from-purple-500 to-indigo-500 text-white px-2 py-0.5 rounded shadow hover:opacity-90 font-bold">
+                                Bantu AI ✨ (PRO)
+                            </button>
+                        </div>
+                        <textarea id="in-improve" oninput="updatePreview()" rows="3" class="w-full text-sm border border-gray-300 rounded p-2 bg-white" placeholder="Nyatakan aktiviti yang dijalankan..."></textarea>
+                    </div>
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="text-[10px] font-bold text-green-600 uppercase">SHARE: Dapatan / Perkongsian</label>
+                            <button type="button" onclick="askAI('share')" class="text-[8px] bg-gradient-to-r from-purple-500 to-indigo-500 text-white px-2 py-0.5 rounded shadow hover:opacity-90 font-bold">
+                                Bantu AI ✨ (PRO)
+                            </button>
+                        </div>
+                        <textarea id="in-share" oninput="updatePreview()" rows="3" class="w-full text-sm border border-gray-300 rounded p-2 bg-white" placeholder="Nyatakan hasil atau perkongsian dapatan..."></textarea>
                     </div>
                 </div>
 
-                <label class="text-[10px] font-bold text-gray-500 uppercase">Tarikh Pelaksanaan</label>
-                <input type="date" id="in-tarikh" oninput="updatePreview()" class="w-full text-sm border border-gray-300 rounded p-2 bg-white">
-            </div>
-
-            <div class="bg-gray-50 p-3 rounded-lg border border-gray-200">
-                <h3 class="text-xs font-bold text-gray-700 uppercase mb-3 border-b pb-1">Ahli Kumpulan (Maksima 6)</h3>
-                <div id="ahli-container" class="space-y-2">
+                <div class="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                    <h3 class="text-xs font-bold text-gray-700 uppercase mb-3 border-b pb-1">Tandatangan / Pengesahan</h3>
+                    
+                    <div class="mb-4">
+                        <label class="text-[10px] font-bold text-gray-500 uppercase block mb-1">Disediakan Oleh (Nama)</label>
+                        <input type="text" id="in-disediakan" oninput="updatePreview()" class="w-full text-sm border border-gray-300 rounded p-2 mb-2 uppercase font-bold bg-white">
+                        
+                        <div class="flex items-center justify-between mb-2">
+                            <div class="flex items-center">
+                                <input type="checkbox" id="chk-signature" class="w-3 h-3 text-indigo-600 rounded" onchange="toggleSignature()">
+                                <span class="ml-1 text-[10px] font-bold text-gray-500 uppercase">Sertakan Tandatangan Digital</span>
+                            </div>
+                        </div>
+                        
+                        <div id="sig-input-container" class="hidden space-y-3">
+                             <div class="border border-gray-300 rounded-lg bg-white overflow-hidden">
+                                <div class="bg-gray-100 px-3 py-1 border-b border-gray-200 flex justify-between items-center">
+                                    <span class="text-[10px] font-bold text-gray-500 uppercase">Lukis Tandatangan</span>
+                                    <button onclick="clearSignature()" class="text-[9px] text-red-600 hover:text-red-800 font-bold uppercase">Padam</button>
+                                </div>
+                                <div class="relative w-full h-24 bg-white cursor-crosshair">
+                                    <canvas id="signature-pad" class="w-full h-full block"></canvas>
+                                    <div id="sig-instruction" class="absolute inset-0 flex items-center justify-center pointer-events-none text-gray-300 text-[10px] font-bold uppercase">Lukis di sini</div>
+                                </div>
+                             </div>
+                        </div>
                     </div>
-            </div>
 
-            <div class="bg-indigo-50 p-3 rounded-lg border border-indigo-200">
-                <h3 class="text-xs font-bold text-indigo-700 uppercase mb-3 border-b border-indigo-200 pb-1">Alat Kolaboratif PLC</h3>
-                <select id="in-alat" onchange="updatePreview()" class="w-full text-sm border border-indigo-300 rounded p-2 bg-white mb-2 font-medium text-indigo-800">
-                    <option value="">-- Pilih Alat Kolaboratif --</option>
-                    <option value="Kritikan Video (Video Kritik)">Kritikan Video (Video Kritik)</option>
-                    <option value="Bimbingan Rakan Sekerja (Peer Coaching)">Bimbingan Rakan Sekerja (Peer Coaching)</option>
-                    <option value="Sesi Perkongsian Guru (Teacher Sharing Session)">Sesi Perkongsian Guru (Teacher Sharing Session)</option>
-                    <option value="Belajar menggunakan RPH (Lesson Study)">Belajar menggunakan RPH (Lesson Study)</option>
-                    <option value="Jelajah Pembelajaran (Learning Walk)">Jelajah Pembelajaran (Learning Walk)</option>
-                    <option value="Kumpulan Penyelesaian Masalah (Problem Solving Group)">Kumpulan Penyelesaian Masalah (Problem Solving Group)</option>
-                    <option value="Lain-lain">Lain-lain (Sila Nyatakan)</option>
-                </select>
-                <input type="text" id="in-alat-lain" oninput="updatePreview()" class="w-full text-sm border border-indigo-300 rounded p-2 bg-white hidden" placeholder="Nyatakan alat kolaboratif lain...">
-            </div>
+                    <hr class="my-3 border-gray-300">
 
-            <div class="bg-gray-50 p-3 rounded-lg border border-gray-200 space-y-3">
-                <h3 class="text-xs font-bold text-gray-700 uppercase border-b pb-1">Proses Pelaksanaan</h3>
-                
-                <div>
-                    <label class="text-[10px] font-bold text-red-600 uppercase flex items-center gap-1">FOCUS: Punca / Isu / Masalah</label>
-                    <textarea id="in-focus" oninput="updatePreview()" rows="3" class="w-full text-sm border border-gray-300 rounded p-2 bg-white" placeholder="Nyatakan isu yang difokuskan..."></textarea>
-                </div>
-                <div>
-                    <label class="text-[10px] font-bold text-blue-600 uppercase flex items-center gap-1">IMPROVE: Aktiviti / Langkah Pelaksanaan</label>
-                    <textarea id="in-improve" oninput="updatePreview()" rows="3" class="w-full text-sm border border-gray-300 rounded p-2 bg-white" placeholder="Nyatakan aktiviti yang dijalankan..."></textarea>
-                </div>
-                <div>
-                    <label class="text-[10px] font-bold text-green-600 uppercase flex items-center gap-1">SHARE: Dapatan / Perkongsian</label>
-                    <textarea id="in-share" oninput="updatePreview()" rows="3" class="w-full text-sm border border-gray-300 rounded p-2 bg-white" placeholder="Nyatakan hasil atau perkongsian dapatan..."></textarea>
+                    <div>
+                        <label class="text-[10px] font-bold text-gray-500 uppercase block mb-1">Disahkan Oleh (Nama & Jawatan)</label>
+                        <textarea id="in-disahkan" oninput="updatePreview()" rows="2" class="w-full text-sm border border-gray-300 rounded p-2 uppercase bg-white" placeholder="Contoh:&#10;NAMA PENGETUA&#10;PENGETUA SMK BANDAR MIRI"></textarea>
+                    </div>
                 </div>
             </div>
 
-            <div class="bg-gray-50 p-3 rounded-lg border border-gray-200">
-                <h3 class="text-xs font-bold text-gray-700 uppercase mb-3 border-b pb-1">Tandatangan / Pengesahan</h3>
-                <label class="text-[10px] font-bold text-gray-500 uppercase">Disediakan Oleh (Nama)</label>
-                <input type="text" id="in-disediakan" oninput="updatePreview()" class="w-full text-sm border border-gray-300 rounded p-2 mb-2 uppercase bg-white">
-                
-                <label class="text-[10px] font-bold text-gray-500 uppercase">Disahkan Oleh (Nama & Jawatan)</label>
-                <textarea id="in-disahkan" oninput="updatePreview()" rows="2" class="w-full text-sm border border-gray-300 rounded p-2 uppercase bg-white" placeholder="Contoh:&#10;PENGETUA&#10;SMK BANDAR MIRI"></textarea>
+            <div id="tab-content-history" class="hidden">
+                <div class="flex justify-between items-end mb-3">
+                    <h3 class="text-xs font-bold text-gray-700 uppercase">Rekod Laporan PLC</h3>
+                    <div class="bg-indigo-50 border border-indigo-100 px-3 py-1 rounded-lg">
+                        <span class="text-[10px] text-gray-500 uppercase font-bold">Jumlah Dijana:</span>
+                        <span id="history-count" class="text-sm font-bold text-indigo-600 ml-1">0</span>
+                    </div>
+                </div>
+
+                <div class="overflow-hidden rounded-lg border border-gray-200 shadow-sm bg-white">
+                    <table class="min-w-full text-xs text-left text-gray-600">
+                        <thead class="text-[10px] text-gray-500 uppercase bg-gray-50 border-b border-gray-200">
+                            <tr>
+                                <th class="px-3 py-3 font-bold tracking-wider">Tarikh</th>
+                                <th class="px-3 py-3 font-bold tracking-wider">Subjek / Unit</th>
+                                <th class="px-3 py-3 font-bold text-center tracking-wider w-24">Tindakan</th>
+                            </tr>
+                        </thead>
+                        <tbody id="history-table-body" class="bg-white divide-y divide-gray-100">
+                            <tr><td colspan="3" class="px-3 py-8 text-center text-gray-400 italic">Sedang memuatkan data...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
-            
+
             <div class="pb-10"></div>
         </div>
 
@@ -158,12 +279,16 @@
             <div id="pdf-wrapper">
                 <div class="a4-paper transform scale-100 origin-top">
                     <div class="paper-background"></div>
-                    <div class="paper-content">
+                    <div class="paper-content flex flex-col h-full">
                         
-                        <div class="text-center mb-6 border-b-2 border-black pb-4">
-                            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/2/26/Coat_of_arms_of_Malaysia.svg/1200px-Coat_of_arms_of_Malaysia.svg.png" class="h-24 mx-auto mb-2 object-contain" alt="Jata Negara">
-                            <h1 class="font-bold text-[14pt] uppercase">KEMENTERIAN PENDIDIKAN MALAYSIA</h1>
-                            <h2 class="font-bold text-[12pt] mt-4 uppercase">LAPORAN KOMUNITI PEMBELAJARAN PROFESIONAL (OFF LINE)</h2>
+                        <div class="text-center mb-4 border-b-2 border-black pb-2 relative">
+                            <div class="absolute top-0 right-0">
+                                <svg id="barcode"></svg>
+                            </div>
+                            
+                            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/2/26/Coat_of_arms_of_Malaysia.svg/1200px-Coat_of_arms_of_Malaysia.svg.png" class="h-20 mx-auto mb-2 object-contain" alt="Jata Negara">
+                            <h1 class="font-bold text-[14pt] uppercase">KEMENTERIAN PENDIDIKAN</h1>
+                            <h2 class="font-bold text-[12pt] mt-2 uppercase">LAPORAN KOMUNITI PEMBELAJARAN PROFESIONAL (OFF LINE)</h2>
                             <h3 class="font-bold text-[11pt] uppercase">Professional Learning Community (PLC)</h3>
                         </div>
 
@@ -204,59 +329,66 @@
                         <div class="font-bold text-[10pt] mb-1 uppercase">7. ALAT KOLABORATIF PLC: <span class="font-normal italic text-[9pt] normal-case ml-2">Pilih dan tandakan ( / ) salah satu kotak yang berkenaan.</span></div>
                         <table class="plc-table" id="table-alat">
                             <tr>
-                                <td class="w-8 text-center font-bold" id="chk-Kritikan Video (Video Kritik)"></td>
+                                <td class="w-8 text-center font-bold" id="chk-out-Kritikan Video (Video Kritik)"></td>
                                 <td class="w-[45%]">Kritikan Video (Video Kritik)</td>
-                                <td class="w-8 text-center font-bold" id="chk-Jelajah Pembelajaran (Learning Walk)"></td>
+                                <td class="w-8 text-center font-bold" id="chk-out-Jelajah Pembelajaran (Learning Walk)"></td>
                                 <td>Jelajah Pembelajaran (Learning Walk)</td>
                             </tr>
                             <tr>
-                                <td class="text-center font-bold" id="chk-Bimbingan Rakan Sekerja (Peer Coaching)"></td>
+                                <td class="text-center font-bold" id="chk-out-Bimbingan Rakan Sekerja (Peer Coaching)"></td>
                                 <td>Bimbingan Rakan Sekerja (Peer Coaching)</td>
-                                <td class="text-center font-bold" id="chk-Kumpulan Penyelesaian Masalah (Problem Solving Group)"></td>
+                                <td class="text-center font-bold" id="chk-out-Kumpulan Penyelesaian Masalah (Problem Solving Group)"></td>
                                 <td>Kumpulan Penyelesaian Masalah (Problem Solving Group)</td>
                             </tr>
                             <tr>
-                                <td class="text-center font-bold" id="chk-Sesi Perkongsian Guru (Teacher Sharing Session)"></td>
+                                <td class="text-center font-bold" id="chk-out-Sesi Perkongsian Guru (Teacher Sharing Session)"></td>
                                 <td>Sesi Perkongsian Guru (Teacher Sharing Session)</td>
-                                <td class="text-center font-bold" id="chk-Lain-lain"></td>
+                                <td class="text-center font-bold" id="chk-out-Lain-lain"></td>
                                 <td>Lain-lain : <span id="out-alat-lain" class="border-b border-black inline-block min-w-[150px] px-2"></span></td>
                             </tr>
                             <tr>
-                                <td class="text-center font-bold" id="chk-Belajar menggunakan RPH (Lesson Study)"></td>
+                                <td class="text-center font-bold" id="chk-out-Belajar menggunakan RPH (Lesson Study)"></td>
                                 <td colspan="3">Belajar menggunakan RPH (Lesson Study)</td>
                             </tr>
                         </table>
 
-                        <table class="plc-table mb-8">
+                        <table class="plc-table flex-grow">
                             <tr>
                                 <td class="font-bold bg-gray-100 py-1 uppercase">8. PROSES PELAKSANAAN FOCUS: Punca/ Isu/ Masalah</td>
                             </tr>
                             <tr>
-                                <td class="min-h-[80px] align-top whitespace-pre-wrap pb-8 pt-2" id="out-focus"></td>
+                                <td class="min-h-[60px] align-top whitespace-pre-wrap pb-2 pt-2" id="out-focus"></td>
                             </tr>
                             <tr>
                                 <td class="font-bold bg-gray-100 py-1 uppercase">IMPROVE: Aktiviti/ Langkah Pelaksanaan.</td>
                             </tr>
                             <tr>
-                                <td class="min-h-[80px] align-top whitespace-pre-wrap pb-8 pt-2" id="out-improve"></td>
+                                <td class="min-h-[60px] align-top whitespace-pre-wrap pb-2 pt-2" id="out-improve"></td>
                             </tr>
                             <tr>
                                 <td class="font-bold bg-gray-100 py-1 uppercase">SHARE: Dapatan/ Perkongsian</td>
                             </tr>
                             <tr>
-                                <td class="min-h-[80px] align-top whitespace-pre-wrap pb-8 pt-2" id="out-share"></td>
+                                <td class="min-h-[60px] align-top whitespace-pre-wrap pb-2 pt-2" id="out-share"></td>
                             </tr>
                         </table>
 
-                        <div class="flex justify-between text-[10pt] mt-auto pb-4">
-                            <div class="w-[40%] text-center">
-                                <p class="text-left mb-16 italic">Disediakan oleh:</p>
-                                <p>.......................................................................</p>
+                        <div class="flex justify-between text-[10pt] mt-2 mb-2 break-inside-avoid">
+                            <div class="w-[45%] text-center flex flex-col items-center">
+                                <p class="text-left w-full mb-1 italic">Disediakan oleh:</p>
+                                
+                                <div class="h-16 w-full flex items-end justify-center mb-1 relative z-10">
+                                     <img id="out-sig-img" class="h-full w-auto object-contain hidden" src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=">
+                                </div>
+
+                                <div class="border-b border-black w-full mb-1 relative z-0"></div>
                                 <p id="out-disediakan" class="font-bold uppercase mt-1 min-h-[1.5rem]"></p>
                             </div>
-                            <div class="w-[40%] text-center">
-                                <p class="text-left mb-16 italic">Disahkan oleh:</p>
-                                <p>.......................................................................</p>
+                            
+                            <div class="w-[45%] text-center flex flex-col items-center">
+                                <p class="text-left w-full mb-1 italic">Disahkan oleh:</p>
+                                
+                                <div class="h-16 w-full mb-1"></div> <div class="border-b border-black w-full mb-1"></div>
                                 <p id="out-disahkan" class="font-bold uppercase mt-1 whitespace-pre-wrap min-h-[2.5rem]"></p>
                             </div>
                         </div>
@@ -267,30 +399,282 @@
         </div>
     </div>
 
-    <script>
-        // Init 6 Input Ahli Kumpulan
+    <div id="share-modal" class="hidden fixed inset-0 z-[100] flex items-center justify-center modal-backdrop">
+        <div class="bg-white rounded-2xl shadow-2xl p-6 w-[90%] max-w-md relative transform transition-all">
+            <button onclick="closeShareModal()" class="absolute top-4 right-4 text-gray-400 hover:text-red-500">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+            <h2 class="text-xl font-bold text-green-600 mb-2 flex items-center gap-2">Pautan Disalin!</h2>
+            <div class="text-sm text-gray-600 space-y-4 mt-4">
+                <p>Pautan Laporan PLC anda telah sedia untuk dikongsi.</p>
+                <div class="flex items-center gap-2 bg-gray-50 p-2 rounded-lg border border-gray-300 shadow-inner">
+                    <input type="text" id="share-link-input" readonly class="flex-1 bg-transparent text-[11px] font-mono text-gray-700 outline-none truncate" value="">
+                    <button onclick="copyFromModal()" id="btn-copy-modal" class="bg-sky-600 hover:bg-sky-700 text-white px-3 py-1.5 rounded text-xs font-bold transition-colors shadow-sm">Copy</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM",
+            authDomain: "myqrhadir.firebaseapp.com",
+            projectId: "myqrhadir",
+            storageBucket: "myqrhadir.appspot.com",
+            messagingSenderId: "799691133747",
+            appId: "1:799691133747:web:835a5e3e9413eace806446"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        const appId = firebaseConfig.projectId;
+
+        const SECRET_I = "YTdjNjAwYWM3MzNmZTE0NjQ5Y2FjZDhlNjU2MTljNGI="; 
+        const SECRET_G = "Z3NrX3hUbHQxRjVIYjRIdmRtejliS3Z5V0dkeWIzRllJcHdSazhrbWRxVlkySTdmTDlOZVdMMGs="; 
+
+        function getKey(encoded) { try { return atob(encoded); } catch (e) { return ""; } }
+
+        window.currentUserIc = "";
+        window.allMyPrograms = [];
+        window.allMyReports = [];
+        window.isSparkPro = false;
+        
+        // Canvas Vars
+        let isDrawing = false;
+        let sigCanvas, sigCtx;
+        let isSignatureDrawn = false;
+        window.sigUrl = "";
+
+        // Init Ahli Inputs (Max 6)
         const ahliContainer = document.getElementById('ahli-container');
         for(let i=1; i<=6; i++) {
             ahliContainer.innerHTML += `
                 <div class="flex gap-2 mb-1">
-                    <input type="text" id="in-nama-${i}" oninput="updatePreview()" class="w-2/3 text-xs border border-gray-300 rounded p-1.5 uppercase" placeholder="${i}. Nama Ahli">
-                    <input type="text" id="in-kp-${i}" oninput="updatePreview()" class="w-1/3 text-xs border border-gray-300 rounded p-1.5 uppercase" placeholder="No. KP">
+                    <input type="text" id="in-nama-${i}" oninput="updatePreview()" class="w-2/3 text-xs border border-gray-300 rounded p-1.5 uppercase" placeholder="${i}. NAMA AHLI">
+                    <input type="text" id="in-kp-${i}" oninput="updatePreview()" class="w-1/3 text-xs border border-gray-300 rounded p-1.5 uppercase" placeholder="NO. KP">
                 </div>
             `;
         }
 
-        function setDefaultDate() {
-            const today = new Date().toISOString().split('T')[0];
-            document.getElementById('in-tarikh').value = today;
+        // Render Barcode
+        function renderBarcode(text) {
+            JsBarcode("#barcode", text, { format: "CODE128", width: 1, height: 15, displayValue: true, fontSize: 8, margin: 0, textMargin: 1 });
+        }
+        renderBarcode("SPARK-PLC");
+
+        function generateSerial() {
+            const now = new Date();
+            const dateStr = now.getFullYear().toString().substr(-2) + (now.getMonth()+1).toString().padStart(2, '0') + now.getDate().toString().padStart(2, '0');
+            const random = Math.floor(1000 + Math.random() * 9000); 
+            return `PLC-${dateStr}-${random}`;
+        }
+
+        window.toggleSubjekLain = function() {
+            const select = document.getElementById('in-subjek-select');
+            const inputLain = document.getElementById('in-subjek-lain');
+            if(select.value === 'LAIN-LAIN') {
+                inputLain.classList.remove('hidden');
+            } else {
+                inputLain.classList.add('hidden');
+            }
+            updatePreview();
+        }
+
+        window.toggleAlatLain = function() {
+            const chkLain = document.getElementById('chk-lain-lain');
+            const inputLain = document.getElementById('in-alat-lain');
+            if(chkLain.checked) {
+                inputLain.classList.remove('hidden');
+            } else {
+                inputLain.classList.add('hidden');
+            }
+            updatePreview();
+        }
+
+        // AI Logic
+        window.askAI = async function(type) {
+            if (!window.isSparkPro) {
+                alert("Fungsi AI adalah eksklusif untuk pengguna SPARK PRO. Sila langgan akaun Pro untuk akses.");
+                return;
+            }
+
+            const btn = event.currentTarget;
+            const originalText = btn.innerHTML;
+            btn.innerHTML = `⏳...`; btn.disabled = true;
+
+            const subjekVal = document.getElementById('in-subjek-select').value;
+            const subjek = subjekVal === 'LAIN-LAIN' ? document.getElementById('in-subjek-lain').value : subjekVal;
+            
+            if(!subjek) { alert("Sila isikan Mata Pelajaran terlebih dahulu."); btn.innerHTML = originalText; btn.disabled = false; return; }
+
+            const GROQ_API_KEY = getKey(SECRET_G);
+            let systemPrompt = "Anda adalah pakar akademik KPM yang mahir menulis laporan PLC. Tulis dalam Bahasa Melayu rasmi dan ringkas. Jangan guna bold. Format bullet guna (-).";
+            let userPrompt = "";
+            let targetId = "";
+
+            if (type === 'focus') {
+                targetId = 'in-focus';
+                userPrompt = `Senaraikan 2 punca/isu utama pelajar untuk subjek ${subjek}. Format: Bullet point (-). Ringkas dan spesifik.`;
+            } else if (type === 'improve') {
+                targetId = 'in-improve';
+                userPrompt = `Berikan 3 langkah aktiviti/pelaksanaan PLC yang boleh menyelesaikan isu pemahaman pelajar dalam subjek ${subjek}. Format: Bullet point (-).`;
+            } else if (type === 'share') {
+                targetId = 'in-share';
+                userPrompt = `Nyatakan 2 dapatan/perkongsian hasil dari PLC subjek ${subjek} yang berjaya meningkatkan pencapaian pelajar. Format: Bullet point (-).`;
+            }
+
+            try {
+                const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+                    method: "POST", headers: { "Authorization": `Bearer ${GROQ_API_KEY}`, "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
+                        model: "llama-3.3-70b-versatile", temperature: 0.6, max_tokens: 300
+                    })
+                });
+
+                if (!response.ok) throw new Error("Ralat sambungan AI.");
+                const data = await response.json();
+                
+                if (data.choices && data.choices[0]) {
+                    let text = data.choices[0].message.content.replace(/\*\*/g, '').replace(/^[\*•] /gm, '- ').trim(); 
+                    document.getElementById(targetId).value = text;
+                    updatePreview(); 
+                }
+            } catch (error) { alert(`Gagal: ${error.message}`); } finally { btn.innerHTML = originalText; btn.disabled = false; }
+        }
+
+        // Signature Pad Logic
+        function initSignaturePad() {
+            sigCanvas = document.getElementById('signature-pad');
+            if (!sigCanvas) return;
+            sigCtx = sigCanvas.getContext('2d');
+            function resizeCanvas() {
+                if(sigCanvas && !document.getElementById('sig-input-container').classList.contains('hidden')) {
+                    const rect = sigCanvas.parentElement.getBoundingClientRect();
+                    sigCanvas.width = rect.width; sigCanvas.height = rect.height;
+                }
+            }
+            resizeCanvas(); window.addEventListener('resize', resizeCanvas);
+            sigCanvas.addEventListener('mousedown', startDrawing);
+            sigCanvas.addEventListener('mouseup', stopDrawing);
+            sigCanvas.addEventListener('mousemove', draw);
+            sigCanvas.addEventListener('mouseleave', stopDrawing);
+            sigCanvas.addEventListener('touchstart', (e) => { e.preventDefault(); startDrawing(e.touches[0]); });
+            sigCanvas.addEventListener('touchend', (e) => { e.preventDefault(); stopDrawing(); });
+            sigCanvas.addEventListener('touchmove', (e) => { e.preventDefault(); draw(e.touches[0]); });
+        }
+        function startDrawing(e) { isDrawing = true; isSignatureDrawn = true; document.getElementById('sig-instruction').classList.add('hidden'); draw(e); }
+        function stopDrawing() { isDrawing = false; sigCtx.beginPath(); updateSignaturePreviewFromCanvas(); }
+        function draw(e) {
+            if (!isDrawing) return;
+            const rect = sigCanvas.getBoundingClientRect();
+            const x = e.clientX - rect.left; const y = e.clientY - rect.top;
+            sigCtx.lineWidth = 2; sigCtx.lineCap = 'round'; sigCtx.strokeStyle = '#000';
+            sigCtx.lineTo(x, y); sigCtx.stroke(); sigCtx.beginPath(); sigCtx.moveTo(x, y);
+        }
+        window.clearSignature = function() {
+            sigCtx.clearRect(0, 0, sigCanvas.width, sigCanvas.height);
+            isSignatureDrawn = false; window.sigUrl = "";
+            document.getElementById('sig-instruction').classList.remove('hidden');
+            document.getElementById('out-sig-img').src = "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=";
+            document.getElementById('out-sig-img').classList.add('hidden');
+        }
+        function updateSignaturePreviewFromCanvas() {
+            if(!isSignatureDrawn) return;
+            const dataUrl = sigCanvas.toDataURL("image/png");
+            document.getElementById('out-sig-img').src = dataUrl;
+            if(document.getElementById('chk-signature').checked) document.getElementById('out-sig-img').classList.remove('hidden');
+        }
+        window.toggleSignature = function() {
+            const isChecked = document.getElementById('chk-signature').checked;
+            const container = document.getElementById('sig-input-container');
+            const outImg = document.getElementById('out-sig-img');
+            if(isChecked) {
+                container.classList.remove('hidden');
+                setTimeout(() => { const rect = sigCanvas.parentElement.getBoundingClientRect(); sigCanvas.width = rect.width; sigCanvas.height = rect.height; }, 100);
+                if(isSignatureDrawn || window.sigUrl) outImg.classList.remove('hidden');
+            } else {
+                container.classList.add('hidden'); outImg.classList.add('hidden');
+            }
+        }
+
+        // Initialize Firebase Data
+        onAuthStateChanged(auth, async (user) => {
+            const urlParams = new URLSearchParams(window.location.search);
+            window.currentUserIc = urlParams.get('ic') || localStorage.getItem('user_ic');
+            if (window.currentUserIc) {
+                document.getElementById('in-tarikh').value = new Date().toISOString().split('T')[0];
+                await loadUserData();
+                loadSavedReports();
+                initSignaturePad();
+            } else {
+                window.location.href = 'index.html';
+            }
+        });
+
+        async function loadUserData() {
+            const usersRef = collection(db, `artifacts/${appId}/public/data/spark_participants`);
+            const qUser = query(usersRef, where("ic", "==", window.currentUserIc));
+            const userSnap = await getDocs(qUser);
+            if (!userSnap.empty) {
+                const uData = userSnap.docs[0].data();
+                document.getElementById('in-disediakan').value = (uData.name || "").toUpperCase();
+                document.getElementById('in-institusi').value = (uData.station || "").toUpperCase();
+                window.isSparkPro = uData.isPro === true;
+                
+                const badge = document.getElementById('account-badge');
+                if (window.isSparkPro) { badge.textContent = "AKAUN PRO"; badge.className = "text-[10px] bg-yellow-100 text-yellow-800 border border-yellow-300 px-2 py-0.5 rounded font-bold uppercase tracking-wider"; }
+                else { badge.textContent = "AKAUN BIASA"; badge.className = "text-[10px] bg-gray-100 text-gray-500 border border-gray-200 px-2 py-0.5 rounded font-bold uppercase tracking-wider"; }
+                updatePreview();
+            }
+            
+            // Load SPARK Programs for Ahli import
+            const progRef = collection(db, `artifacts/${appId}/public/data/spark_programs`);
+            const q1 = query(progRef, where("createdBy", "==", window.currentUserIc));
+            const q2 = query(progRef, where("penyelaras_ic", "==", window.currentUserIc));
+            const select = document.getElementById('program-select');
+            window.allMyPrograms = [];
+            const [snap1, snap2] = await Promise.all([getDocs(q1), getDocs(q2)]);
+            
+            const appendOpt = (doc) => {
+                const data = { id: doc.id, ...doc.data() };
+                if(window.allMyPrograms.some(p => p.id === data.id)) return;
+                const opt = document.createElement('option');
+                opt.value = data.id; opt.textContent = (data.name || "PROGRAM TANPA NAMA").toUpperCase();
+                select.appendChild(opt); window.allMyPrograms.push(data);
+            };
+            snap1.forEach(appendOpt); snap2.forEach(appendOpt);
+        }
+
+        window.importProgramData = function(progId) {
+            const prog = window.allMyPrograms.find(p => p.id === progId);
+            if(prog && prog.attendance && Array.isArray(prog.attendance)) {
+                for(let i=1; i<=6; i++) {
+                    const member = prog.attendance[i-1];
+                    document.getElementById(`in-nama-${i}`).value = member ? member.name.toUpperCase() : "";
+                    document.getElementById(`in-kp-${i}`).value = ""; // SPARK QR doesn't store IC natively in attendance usually, left blank for user
+                }
+                updatePreview();
+            }
         }
 
         window.updatePreview = function() {
-            // 1-5
+            // 1. Institusi, 3 & 4 Daerah/Negeri
             document.getElementById('out-institusi').textContent = document.getElementById('in-institusi').value;
-            document.getElementById('out-subjek').textContent = document.getElementById('in-subjek').value;
             document.getElementById('out-daerah').textContent = document.getElementById('in-daerah').value;
             document.getElementById('out-negeri').textContent = document.getElementById('in-negeri').value;
             
+            // 2. Subjek
+            const subjekSelect = document.getElementById('in-subjek-select').value;
+            const subjekFinal = subjekSelect === 'LAIN-LAIN' ? document.getElementById('in-subjek-lain').value : subjekSelect;
+            document.getElementById('out-subjek').textContent = subjekFinal;
+
+            // 5. Tarikh
             const rawDate = document.getElementById('in-tarikh').value;
             if(rawDate) {
                 const d = new Date(rawDate);
@@ -303,39 +687,22 @@
             for(let i=1; i<=6; i++) {
                 const nama = document.getElementById(`in-nama-${i}`).value;
                 const kp = document.getElementById(`in-kp-${i}`).value;
-                
-                // Print empty spaces if no input just to keep the table structure intact
-                tbody.innerHTML += `
-                    <tr>
-                        <td>${i}</td>
-                        <td class="text-left">${nama || '<span class="text-transparent">.</span>'}</td>
-                        <td>${kp || '<span class="text-transparent">.</span>'}</td>
-                    </tr>
-                `;
+                tbody.innerHTML += `<tr><td>${i}</td><td class="text-left font-semibold">${nama || '<span class="text-transparent">.</span>'}</td><td>${kp || '<span class="text-transparent">.</span>'}</td></tr>`;
             }
 
-            // 7. Alat
-            const selectedAlat = document.getElementById('in-alat').value;
-            const alatLainInput = document.getElementById('in-alat-lain');
-            const allBoxes = [
-                'Kritikan Video (Video Kritik)', 'Bimbingan Rakan Sekerja (Peer Coaching)', 
-                'Sesi Perkongsian Guru (Teacher Sharing Session)', 'Belajar menggunakan RPH (Lesson Study)', 
-                'Jelajah Pembelajaran (Learning Walk)', 'Kumpulan Penyelesaian Masalah (Problem Solving Group)', 'Lain-lain'
-            ];
-            
-            allBoxes.forEach(id => {
-                document.getElementById(`chk-${id}`).textContent = '';
+            // 7. Alat Kolaboratif (Tick marks)
+            const allCheckboxes = document.querySelectorAll('#alat-checkboxes input[type="checkbox"]');
+            allCheckboxes.forEach(cb => {
+                const targetId = `chk-out-${cb.value}`;
+                if (document.getElementById(targetId)) {
+                    document.getElementById(targetId).textContent = cb.checked ? '/' : '';
+                }
             });
-
-            if (selectedAlat) {
-                document.getElementById(`chk-${selectedAlat}`).textContent = '/';
-            }
-
-            if(selectedAlat === 'Lain-lain') {
-                alatLainInput.classList.remove('hidden');
-                document.getElementById('out-alat-lain').textContent = alatLainInput.value;
+            
+            const isLainChecked = document.getElementById('chk-lain-lain').checked;
+            if(isLainChecked) {
+                document.getElementById('out-alat-lain').textContent = document.getElementById('in-alat-lain').value;
             } else {
-                alatLainInput.classList.add('hidden');
                 document.getElementById('out-alat-lain').textContent = "";
             }
 
@@ -350,8 +717,175 @@
             document.getElementById('out-disahkan').textContent = document.getElementById('in-disahkan').value;
         }
 
-        // Init Setup
-        setDefaultDate();
+        // Save Logic
+        function dataURLtoBlob(dataurl) {
+            var arr = dataurl.split(','), mime = arr[0].match(/:(.*?);/)[1],
+                bstr = atob(arr[1]), n = bstr.length, u8arr = new Uint8Array(n);
+            while(n--) { u8arr[n] = bstr.charCodeAt(n); }
+            return new Blob([u8arr], {type:mime});
+        }
+        async function uploadToImgBB(blob) {
+            const apiKey = getKey(SECRET_I);
+            const formData = new FormData(); formData.append("image", blob, "signature.png");
+            const res = await fetch(`https://api.imgbb.com/1/upload?key=${apiKey}`, { method: "POST", body: formData });
+            const result = await res.json();
+            if (result.success) return result.data.url; else throw new Error("Gagal upload gambar");
+        }
+
+        window.saveWork = async function() {
+            const btn = document.getElementById('btn-save');
+            const origText = btn.innerHTML; btn.innerHTML = "Menyimpan..."; btn.disabled = true;
+            try {
+                let currentSerial = document.getElementById('plc-serial-hidden').value;
+                if(!currentSerial) { currentSerial = generateSerial(); document.getElementById('plc-serial-hidden').value = currentSerial; renderBarcode(currentSerial); }
+
+                let finalSigUrl = window.sigUrl || "";
+                if (isSignatureDrawn) {
+                    const dataUrl = sigCanvas.toDataURL("image/png");
+                    finalSigUrl = await uploadToImgBB(dataURLtoBlob(dataUrl));
+                }
+
+                // Get Checkboxes
+                const alatChecked = [];
+                document.querySelectorAll('#alat-checkboxes input[type="checkbox"]:checked').forEach(cb => alatChecked.push(cb.value));
+                
+                // Get Ahli
+                const ahliData = [];
+                for(let i=1; i<=6; i++) {
+                    ahliData.push({ nama: document.getElementById(`in-nama-${i}`).value, kp: document.getElementById(`in-kp-${i}`).value });
+                }
+
+                const dataToSave = {
+                    ic: window.currentUserIc, serialNumber: currentSerial,
+                    institusi: document.getElementById('in-institusi').value,
+                    subjekSelect: document.getElementById('in-subjek-select').value, subjekLain: document.getElementById('in-subjek-lain').value,
+                    daerah: document.getElementById('in-daerah').value, negeri: document.getElementById('in-negeri').value,
+                    tarikh: document.getElementById('in-tarikh').value,
+                    ahli: ahliData, alat: alatChecked, alatLain: document.getElementById('in-alat-lain').value,
+                    focus: document.getElementById('in-focus').value, improve: document.getElementById('in-improve').value, share: document.getElementById('in-share').value,
+                    disediakan: document.getElementById('in-disediakan').value, disahkan: document.getElementById('in-disahkan').value,
+                    signatureUrl: finalSigUrl, showSignature: document.getElementById('chk-signature').checked,
+                    updatedAt: new Date()
+                };
+
+                let reportId = document.getElementById('report-id').value;
+                if(reportId) {
+                    await updateDoc(doc(db, `artifacts/${appId}/public/data/spark_plc_records`, reportId), dataToSave);
+                } else {
+                    dataToSave.createdAt = new Date();
+                    const newDoc = await addDoc(collection(db, `artifacts/${appId}/public/data/spark_plc_records`), dataToSave);
+                    reportId = newDoc.id; document.getElementById('report-id').value = reportId;
+                }
+                
+                document.getElementById('btn-share').classList.remove('hidden');
+                alert("Laporan PLC berjaya disimpan!");
+                loadSavedReports();
+            } catch(e) { alert("Ralat: " + e.message); } finally { btn.innerHTML = origText; btn.disabled = false; }
+        }
+
+        // History Load
+        async function loadSavedReports() {
+            if (!window.currentUserIc) return;
+            const reportRef = collection(db, `artifacts/${appId}/public/data/spark_plc_records`);
+            const q = query(reportRef, where("ic", "==", window.currentUserIc), orderBy("createdAt", "desc"));
+            const snaps = await getDocs(q);
+            const tbody = document.getElementById('history-table-body');
+            const select = document.getElementById('history-select');
+            
+            tbody.innerHTML = ''; select.innerHTML = '<option value="">-- Pilih Rekod --</option>';
+            window.allMyReports = []; let docs = [];
+            snaps.forEach(doc => docs.push({ id: doc.id, ...doc.data() }));
+            document.getElementById('history-count').textContent = docs.length;
+
+            if(docs.length === 0) { tbody.innerHTML = '<tr><td colspan="3" class="px-3 py-4 text-center italic text-gray-400">Tiada rekod dijumpai.</td></tr>'; return; }
+
+            docs.forEach(data => {
+                window.allMyReports.push(data);
+                const opt = document.createElement('option'); opt.value = data.id; 
+                let subjekStr = data.subjekSelect === 'LAIN-LAIN' ? data.subjekLain : data.subjekSelect;
+                opt.textContent = `${data.tarikh || '-'} | ${subjekStr || 'Tiada Subjek'}`;
+                select.appendChild(opt);
+
+                const tr = document.createElement('tr'); tr.className = "hover:bg-gray-50 transition-colors group";
+                let dateStr = data.tarikh ? new Date(data.tarikh).toLocaleDateString('ms-MY', {day:'2-digit', month:'2-digit', year:'2-digit'}) : "-";
+                tr.innerHTML = `
+                    <td class="px-3 py-3 font-medium text-gray-900">${dateStr}</td>
+                    <td class="px-3 py-3 truncate max-w-[140px]">${subjekStr || "-"}</td>
+                    <td class="px-3 py-3 text-center">
+                        <button onclick="loadHistory('${data.id}')" class="p-1.5 text-indigo-600 hover:bg-indigo-100 rounded-md">Buka</button>
+                    </td>`;
+                tbody.appendChild(tr);
+            });
+        }
+
+        window.loadHistory = function(id) {
+            const r = window.allMyReports.find(x => x.id === id); if(!r) return;
+            document.getElementById('report-id').value = r.id;
+            document.getElementById('plc-serial-hidden').value = r.serialNumber || "";
+            renderBarcode(r.serialNumber || "SPARK-PLC");
+            document.getElementById('btn-share').classList.remove('hidden');
+
+            document.getElementById('in-institusi').value = r.institusi || "";
+            document.getElementById('in-subjek-select').value = r.subjekSelect || "";
+            document.getElementById('in-subjek-lain').value = r.subjekLain || "";
+            toggleSubjekLain();
+            document.getElementById('in-daerah').value = r.daerah || "";
+            document.getElementById('in-negeri').value = r.negeri || "";
+            document.getElementById('in-tarikh').value = r.tarikh || "";
+
+            for(let i=1; i<=6; i++) {
+                if(r.ahli && r.ahli[i-1]) {
+                    document.getElementById(`in-nama-${i}`).value = r.ahli[i-1].nama || "";
+                    document.getElementById(`in-kp-${i}`).value = r.ahli[i-1].kp || "";
+                } else {
+                    document.getElementById(`in-nama-${i}`).value = ""; document.getElementById(`in-kp-${i}`).value = "";
+                }
+            }
+
+            document.querySelectorAll('#alat-checkboxes input[type="checkbox"]').forEach(cb => { cb.checked = (r.alat && r.alat.includes(cb.value)); });
+            document.getElementById('in-alat-lain').value = r.alatLain || "";
+            toggleAlatLain();
+
+            document.getElementById('in-focus').value = r.focus || "";
+            document.getElementById('in-improve').value = r.improve || "";
+            document.getElementById('in-share').value = r.share || "";
+            
+            document.getElementById('in-disediakan').value = r.disediakan || "";
+            document.getElementById('in-disahkan').value = r.disahkan || "";
+
+            window.sigUrl = r.signatureUrl || ""; clearSignature();
+            document.getElementById('chk-signature').checked = r.showSignature === true;
+            if(window.sigUrl) { document.getElementById('out-sig-img').src = window.sigUrl; }
+            toggleSignature();
+
+            updatePreview(); showTab('form');
+        }
+
+        // Tabs & Share
+        window.showTab = function(tabName) {
+            ['form', 'history'].forEach(t => {
+                document.getElementById('tab-content-' + t).classList.add('hidden');
+                document.getElementById('tab-btn-' + t).className = "flex-1 py-2 text-xs font-bold uppercase rounded-md text-gray-500 hover:text-gray-700 transition-all";
+            });
+            document.getElementById('tab-content-' + tabName).classList.remove('hidden');
+            document.getElementById('tab-btn-' + tabName).className = "flex-1 py-2 text-xs font-bold uppercase rounded-md shadow-sm bg-white text-indigo-600 transition-all";
+        }
+
+        window.shareRecord = function() {
+            const docId = document.getElementById('report-id').value;
+            if(!docId) return alert("Sila simpan laporan terlebih dahulu.");
+            const link = window.location.origin + window.location.pathname.replace(/\/[^\/]+$/, '/viewplc.html') + `?id=${docId}`;
+            document.getElementById('share-link-input').value = link;
+            document.getElementById('share-modal').classList.remove('hidden');
+            navigator.clipboard.writeText(link);
+        }
+        window.closeShareModal = function() { document.getElementById('share-modal').classList.add('hidden'); }
+        window.copyFromModal = function() {
+            const input = document.getElementById('share-link-input'); input.select(); navigator.clipboard.writeText(input.value);
+            const btn = document.getElementById('btn-copy-modal'); btn.innerText = "Copied!"; btn.classList.replace('bg-sky-600', 'bg-green-600');
+            setTimeout(() => { btn.innerText = "Copy"; btn.classList.replace('bg-green-600', 'bg-sky-600'); }, 2000);
+        }
+
         updatePreview();
     </script>
 </body>
