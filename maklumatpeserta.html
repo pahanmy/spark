@@ -268,7 +268,7 @@
             const versionInfo = document.getElementById('version-info');
             if(versionInfo) {
                 const year = new Date().getFullYear();
-                versionInfo.textContent = `Versi Pengurusan 3.0 (${year})`;
+                versionInfo.textContent = `Versi Pengurusan 4.0 (${year})`;
             }
         }
         
@@ -1046,7 +1046,139 @@
             });
         }
 
-        function generateCertificateHTMLString(participant) {
+        // --- FUNGSI BAHARU: DAPATKAN TETAPAN REKA BENTUK SIJIL (Dari Firebase) ---
+        async function getCertSettings() {
+            let primaryColor = isPpdProgram ? '#4B40FF' : '#065f46';
+            let signatoryName = "";
+            let signatoryTitle = "";
+            let logoHTML = "";
+            let customTemplateCSS = "";
+            let showFooterNote = true;
+            let showSigName = true;
+            let stesenSijil = coordinatorStation.toUpperCase();
+
+            let settingsRefId = isPpdProgram ? currentProgram.penyelaras_ic : stesenSijil;
+
+            if (!isPpdProgram) {
+                let isMenengah = stesenSijil.includes("SMK") || stesenSijil.includes("SM ") || stesenSijil.includes("MENENGAH") || stesenSijil.includes("KOLEJ");
+                signatoryName = isMenengah ? "PENGETUA" : "GURU BESAR";
+                signatoryTitle = stesenSijil || "SEKOLAH KEMENTERIAN PENDIDIKAN MALAYSIA";
+                logoHTML = `<div style="height: 40px;"></div>`;
+            } else {
+                const tarikhProgram = new Date(currentProgram.startDate);
+                const tarikhBersara = new Date('2026-03-05');
+                signatoryName = (tarikhProgram <= tarikhBersara) ? "MARIAM HAJI MONEK" : '<span style="color: transparent; user-select: none;">-</span>';
+                signatoryTitle = "PEGAWAI PENDIDIKAN DAERAH,<br>PEJABAT PENDIDIKAN DAERAH MIRI.";
+                logoHTML = `<img src="https://i.imgur.com/FQpwGDo.png" class="logo" style="max-height: 80px;">`;
+            }
+
+            if (settingsRefId) {
+                try {
+                    const setDoc = await getDoc(doc(db, `artifacts/${appId}/public/data/spark_school_cert_settings/${settingsRefId}`));
+                    if (setDoc.exists()) {
+                        let customSettings = setDoc.data();
+                        
+                        if (customSettings.primaryColor) primaryColor = customSettings.primaryColor;
+                        const customFont = customSettings.fontFamily || 'Montserrat';
+                        
+                        if (customSettings.showBg && customSettings.customBgUrl) {
+                            customTemplateCSS += `
+                                .certificate-container { background-image: url('${customSettings.customBgUrl}'); background-size: cover; background-position: center; background-repeat: no-repeat; }
+                                .certificate-container::before, .certificate-container::after { display: none !important; }
+                                .certificate-content { border: none !important; background: transparent !important; box-shadow: none !important; outline: none !important; }
+                            `;
+                        }
+
+                        let lSize = customSettings.logoSize ? customSettings.logoSize + "px" : "80px";
+                        if (!isPpdProgram) {
+                            if (customSettings.showLogo && customSettings.logoUrl) {
+                                logoHTML = `<img src="${customSettings.logoUrl}" class="logo" style="max-height: ${lSize}; width: auto; object-fit: contain;">`;
+                            } else {
+                                logoHTML = `<div style="height: ${lSize};"></div>`;
+                            }
+                        } else {
+                            logoHTML = `<img src="https://i.imgur.com/FQpwGDo.png" class="logo" style="max-height: ${lSize}; width: auto; object-fit: contain;">`;
+                        }
+                        
+                        if (customSettings.hasOwnProperty('showSigName')) showSigName = customSettings.showSigName;
+
+                        if (!isPpdProgram) {
+                            if (customSettings.signatoryName) signatoryName = customSettings.signatoryName.toUpperCase();
+                            if (customSettings.signatoryTitle) signatoryTitle = customSettings.signatoryTitle.toUpperCase() + `<br>${stesenSijil}`;
+                        } else {
+                            if (customSettings.signatoryName) signatoryName = customSettings.signatoryName.toUpperCase();
+                            if (customSettings.signatoryTitle) signatoryTitle = customSettings.signatoryTitle.toUpperCase() + "<br>PEJABAT PENDIDIKAN DAERAH MIRI";
+                        }
+
+                        if (!showSigName) signatoryName = '<span style="color: transparent; user-select: none;">-</span>';
+
+                        if (customSettings.showSignature && customSettings.signatureUrl) {
+                            signatoryName = `<img src="${customSettings.signatureUrl}" style="max-height: 60px; object-fit: contain; margin-bottom: 5px; display: inline-block;"><br>${signatoryName}`;
+                            showFooterNote = false;
+                        }
+
+                        customTemplateCSS += `h1 { font-family: '${customFont}', sans-serif !important; }`;
+
+                        if (!customSettings.showBg) {
+                            if (customSettings.templateId === 'template2') { 
+                                customTemplateCSS += `
+                                    .certificate-container::before, .certificate-container::after { display: none; }
+                                    .certificate-content { border: 8px double #d4af37; background: #faf9f6; }
+                                    h1 { font-family: 'Playfair Display', serif !important; }
+                                    .signatory-name { color: #111 !important; border-top: ${showSigName ? '1px solid #111' : 'none'}; padding-top: 10px; display: inline-block; }
+                                `;
+                            } else if (customSettings.templateId === 'template3') { 
+                                customTemplateCSS += `
+                                    .certificate-container::before, .certificate-container::after { display: none; }
+                                    .certificate-content { border: none; border-left: 20px solid ${primaryColor}; text-align: left; background: #ffffff; padding-left: 30mm; }
+                                    .header-section { justify-content: flex-start; gap: 20px; flex-direction: row-reverse; }
+                                    .serial-section { align-items: flex-start; text-align: left; margin-right: auto; }
+                                    .logo { margin: 0 0 20px 0; }
+                                    h1 { text-align: left; }
+                                    .divider { margin: 30px 0; background: #e5e7eb !important; width: 100%; }
+                                    .signature-section { text-align: left; }
+                                `;
+                            } else if (customSettings.templateId === 'template4') { 
+                                customTemplateCSS += `
+                                    .certificate-container::before, .certificate-container::after { display: none; }
+                                    .certificate-content { border: 1px solid #333; padding: 12mm; outline: 3px solid #333; outline-offset: -8px; background: #fff; }
+                                    h1 { font-family: 'Cinzel', serif !important; letter-spacing: 2px; color: #111 !important; }
+                                    .divider { width: 50%; height: 1px; background: #333 !important; }
+                                `;
+                            } else if (customSettings.templateId === 'template5') { 
+                                customTemplateCSS += `
+                                    .certificate-container::before, .certificate-container::after { display: none; }
+                                    .certificate-content { border: none; border-bottom: 15px solid ${primaryColor}; background: #fff; }
+                                    h1 { font-weight: 400 !important; letter-spacing: 5px; }
+                                    .divider { background: #e5e7eb !important; }
+                                `;
+                            } else if (customSettings.templateId === 'template6') { 
+                                customTemplateCSS += `
+                                    .certificate-container::before, .certificate-container::after { display: none; }
+                                    .certificate-content { border: none; background: #fff; border-radius: 20px; box-shadow: 0 0 0 8px inset ${primaryColor}; }
+                                    .divider { background: #ccc !important; }
+                                `;
+                            }
+                        }
+                    }
+                } catch(e) { console.error("Ralat ambil tetapan sijil:", e); }
+            }
+
+            const signatureHTML = `
+                <div class="signature-section">
+                    <div style="text-align: inherit;">
+                        <p class="signatory-name" style="color: ${primaryColor};">${signatoryName}</p>
+                        <p class="signatory-title">${signatoryTitle}</p>
+                    </div>
+                </div>
+            `;
+            const footerNoteText = showFooterNote ? "Sijil ini adalah cetakan komputer, tandatangan tidak diperlukan." : "";
+
+            return { primaryColor, logoHTML, signatureHTML, footerNoteText, customTemplateCSS };
+        }
+
+        // --- PENJANAAN HTML SIJIL PESERTA (BULK) ---
+        function generateCertificateHTMLString(participant, settings) {
             const name = participant.name.toUpperCase();
             const ic = participant.ic;
             const role = (participant.role || 'Peserta').toUpperCase();
@@ -1078,43 +1210,11 @@
                         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
                         jumlahJam = Math.round((jamSehari * diffDays) * 10) / 10;
                     }
-                } catch(e) { console.error("Ralat mengira jam:", e); }
+                } catch(e) {}
             }
 
-            const primaryColor = isPpdProgram ? '#4B40FF' : '#065f46';
-            const masaHTML = jumlahJam > 0 ? `<p class="credit-box"><span class="credit-label">JUMLAH JAM KREDIT</span><br><span class="credit-value" style="color: ${primaryColor};">${jumlahJam} JAM</span></p>` : '';
+            const masaHTML = jumlahJam > 0 ? `<p class="credit-box"><span class="credit-label">JUMLAH JAM KREDIT</span><br><span class="credit-value" style="color: ${settings.primaryColor};">${jumlahJam} JAM</span></p>` : '';
 
-            let signatoryName = "";
-            let signatoryTitle = "";
-            let logoHTML = "";
-
-            if (!isPpdProgram) {
-                let stesenSijil = coordinatorStation.toUpperCase();
-                let isMenengah = stesenSijil.includes("SMK") || stesenSijil.includes("SM ") || stesenSijil.includes("MENENGAH") || stesenSijil.includes("KOLEJ");
-                let gelaranPangkat = isMenengah ? "PENGETUA" : "GURU BESAR";
-
-                signatoryName = gelaranPangkat;
-                signatoryTitle = stesenSijil || "SEKOLAH KEMENTERIAN PENDIDIKAN MALAYSIA";
-                logoHTML = `<div style="height: 40px;"></div>`;
-            } else {
-                const tarikhProgram = new Date(currentProgram.startDate);
-                const tarikhBersara = new Date('2026-03-05');
-                if (tarikhProgram <= tarikhBersara) {
-                    signatoryName = "MARIAM HAJI MONEK";
-                } else {
-                    signatoryName = '<span style="color: transparent; user-select: none;">-</span>';
-                }
-                signatoryTitle = "PEGAWAI PENDIDIKAN DAERAH,<br>PEJABAT PENDIDIKAN DAERAH MIRI.";
-                logoHTML = `<img src="https://i.imgur.com/FQpwGDo.png" class="logo">`;
-            }
-
-            const signatureHTML = `
-                <div class="signature-section">
-                    <p class="signatory-name" style="color: ${primaryColor};">${signatoryName}</p>
-                    <p class="signatory-title">${signatoryTitle}</p>
-                </div>
-            `;
-            
             const roleRaw = participant.role ? String(participant.role).trim().toLowerCase() : 'peserta';
             const isSpecial = specialRoles.map(r => r.toLowerCase()).includes(roleRaw);
             
@@ -1124,16 +1224,19 @@
             const eventLabel = isSpecial ? "Atas sumbangan bakti dan komitmen menjayakan" : "telah mengikuti";
 
             const prefix = isSpecial ? "SPK-H" : "SPK";
-            const serial = `${prefix}/${currentProgram.id.substring(0,4)}/${ic.slice(-4)}`;
-            const qr = `https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=VERIFIED-${ic}`;
+            const serial = `${prefix}/${currentProgram.id || 'GEN'}/${ic.slice(-4)}`;
+            const currentUrl = window.location.href;
+            const baseUrl = currentUrl.substring(0, currentUrl.lastIndexOf('/'));
+            const verifyUrl = `${baseUrl}/scansijil.html?siri=${encodeURIComponent(serial)}`;
+            const qr = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(verifyUrl)}`;
             const genDate = new Date().toLocaleDateString('ms-MY');
 
             return `
             <div class="certificate-wrapper">
                 <div class="certificate-container">
-                    <div style="content: ''; position: absolute; width: 170px; height: 170px; background: ${primaryColor}; opacity: 0.9; top: -85px; left: -85px; transform: rotate(45deg);"></div>
-                    <div style="content: ''; position: absolute; width: 170px; height: 170px; background: ${primaryColor}; opacity: 0.9; bottom: -85px; right: -85px; transform: rotate(45deg);"></div>
-                    <div class="certificate-content" style="border: 6px solid ${primaryColor}; border-image-slice: 1; border-image-source: linear-gradient(to right top, #d4af37, ${primaryColor}, #d4af37); height: 100%; padding: 10mm; display: flex; flex-direction: column; z-index: 2; position: relative; background: #ffffff;">
+                    <div style="content: ''; position: absolute; width: 170px; height: 170px; background: ${settings.primaryColor}; opacity: 0.9; top: -85px; left: -85px; transform: rotate(45deg);"></div>
+                    <div style="content: ''; position: absolute; width: 170px; height: 170px; background: ${settings.primaryColor}; opacity: 0.9; bottom: -85px; right: -85px; transform: rotate(45deg);"></div>
+                    <div class="certificate-content" style="border: 6px solid ${settings.primaryColor}; border-image-slice: 1; border-image-source: linear-gradient(to right top, #d4af37, ${settings.primaryColor}, #d4af37); height: 100%; padding: 10mm; display: flex; flex-direction: column; z-index: 2; position: relative; background: #ffffff;">
                         <div class="header-section">
                             <img src="${qr}" class="qr-code">
                             <div class="serial-section">
@@ -1141,8 +1244,8 @@
                                 <p class="serial-number">NO. SIRI: ${serial}</p>
                             </div>
                         </div>
-                        ${logoHTML}
-                        <h1 style="color: ${primaryColor};">${certificateTitle}</h1>
+                        ${settings.logoHTML}
+                        <h1 style="color: ${settings.primaryColor};">${certificateTitle}</h1>
                         ${roleBadgeHTML}
                         <p class="intro-text">${introText}</p>
                         <p class="recipient-name">${name}</p>
@@ -1151,12 +1254,13 @@
                         <p class="event-title">${course}</p>
                         <p class="event-date">${dateStr}</p>
                         <div style="text-align: center;">${masaHTML}</div>
-                        <hr style="width: 100px; height: 2px; background: linear-gradient(90deg, #d4af37, ${primaryColor}); margin: 0 auto 30px auto; border: none;">
-                        ${signatureHTML}
-                        <p class="footer-note">Sijil ini adalah cetakan komputer, tandatangan tidak diperlukan.</p>
-                        <div class="spark-brand-container">
-                            <p class="spark-title" style="color: ${primaryColor};">SPARK</p>
-                            <p class="spark-subtitle">Percikan Inovasi Kehadiran Digital</p>
+                        <hr style="width: 100px; height: 2px; background: linear-gradient(90deg, #d4af37, ${settings.primaryColor}); margin: 0 auto 30px auto; border: none;">
+                        ${settings.signatureHTML}
+                        <div class="footer-bottom">
+                            <p class="footer-note">${settings.footerNoteText}</p>
+                            <div class="spark-brand-container">
+                                <p class="spark-title" style="color: ${settings.primaryColor};">JANAAN SPARK</p>
+                            </div>
                         </div>
                         <div class="gen-timestamp">Dijana: ${genDate}</div>
                     </div>
@@ -1164,7 +1268,8 @@
             </div>`;
         }
 
-        window.downloadAllCertificates = function(type) {
+        // --- MUAT TURUN SIJIL PUKAL (BULK) ---
+        window.downloadAllCertificates = async function(type) {
             const allList = getFilteredAndSortedParticipants();
             let targetList = [];
             
@@ -1196,7 +1301,7 @@
                 });
 
                 if (excludedCount > 0) {
-                    const confirmProceed = confirm(`Terdapat ${excludedCount} peserta yang BELUM mengisi borang maklum balas.\n\nSijil mereka TIDAK AKAN dijana dalam cetakan pukal ini. Sila arahkan mereka untuk mengisi maklum balas dahulu.\n\nAdakah anda mahu meneruskan cetakan untuk peserta yang telah melengkapkan maklum balas sahaja?`);
+                    const confirmProceed = confirm(`Terdapat ${excludedCount} peserta yang BELUM mengisi borang maklum balas.\n\nSijil mereka TIDAK AKAN dijana dalam cetakan pukal ini.\n\nTeruskan cetakan untuk peserta yang telah melengkapkan maklum balas sahaja?`);
                     if (!confirmProceed) return; 
                 }
 
@@ -1209,10 +1314,13 @@
                 return alert(`Tiada ${label} dalam tab/senarai ini untuk dicetak.`);
             }
             
-            const printWindow = window.open('', '_blank');
+            // Dapatkan Data Settings (Warna/Font/Logo/Sig dll)
+            document.getElementById('btn-cert-' + (type === 'peserta' ? 'peserta' : 'ajk')).innerHTML = "MEMPROSES...";
+            const settings = await getCertSettings();
+            
             let content = `<html><head><title>Sijil Pukal - ${currentProgram.name}</title>
             <style>
-                @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;700&family=Playfair+Display:wght@700&display=swap');
+                @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;700&family=Playfair+Display:wght@700&family=Cinzel:wght@500;700&display=swap');
                 body { font-family: 'Montserrat', sans-serif; margin: 0; padding: 0; background: #f0f2f5; display: flex; flex-direction: column; align-items: center; }
                 .certificate-wrapper { margin-bottom: 20mm; page-break-after: always; display: flex; justify-content: center; width: 100%; }
                 .certificate-container { width: 210mm; height: 297mm; background: white; padding: 12mm; box-sizing: border-box; position: relative; display: flex; flex-direction: column; text-align: center; overflow: hidden; margin: auto; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
@@ -1221,11 +1329,11 @@
                 .serial-section { text-align: right; display: flex; flex-direction: column; align-items: flex-end; }
                 .barcode-image { height: 30px; margin-bottom: 4px; opacity: 0.8; }
                 .serial-number { font-family: monospace; font-size: 14px; color: #555; margin: 0; }
-                .logo { width: 140px; margin: 0 auto 15px auto; display: block; }
-                h1 { font-family: 'Playfair Display', serif; font-size: 42px; font-weight: 700; margin: 10px 0; text-transform: uppercase; }
+                .logo { margin: 0 auto 15px auto; object-fit: contain; }
+                h1 { font-family: 'Playfair Display', serif; font-size: 42px; font-weight: 700; margin: 10px 0; text-transform: uppercase; line-height: 1.1; }
                 .role-badge { font-size: 18px; font-weight: 700; color: #d4af37; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 2px; text-align: center;}
                 .intro-text { font-size: 16px; margin: 20px 0; color: #555; text-align: center; }
-                .recipient-name { font-family: 'Playfair Display', serif; font-size: 30px; font-weight: 700; margin: 10px 0; color: #111; text-align: center; }
+                .recipient-name { font-family: 'Playfair Display', serif; font-size: 30px; font-weight: 700; margin: 10px 0; color: #111; text-align: center; line-height: 1.2; }
                 .recipient-ic { font-size: 16px; font-weight: 500; margin-bottom: 30px; color: #444; text-align: center; }
                 .event-title-label { font-size: 16px; color: #555; text-align: center; }
                 .event-title { font-size: 22px; font-weight: 700; font-style: italic; margin: 10px 0; color: #111; text-align: center; line-height: 1.3;}
@@ -1235,11 +1343,11 @@
                 .credit-value { font-size: 18px; font-weight: 700; text-align: center; }
                 .signature-section { margin-top: auto; text-align: center; }
                 .signatory-name { font-weight: 700; font-size: 16px; text-transform: uppercase; }
-                .signatory-title { font-size: 14px; color: #333; text-align: center; }
-                .footer-note { font-size: 10px; font-style: italic; margin-top: 30px; color: #999; text-align: center; }
-                .spark-brand-container { margin-top: 5px; text-align: center;}
-                .spark-title { font-weight: 700; font-size: 12px; letter-spacing: 2px; margin: 0; }
-                .spark-subtitle { font-size: 9px; color: #555; font-style: italic; margin: 0; }
+                .signatory-title { font-size: 14px; color: #333; text-align: center; line-height: 1.2;}
+                .footer-bottom { margin-top: 30px; text-align: center;}
+                .footer-note { font-size: 10px; font-style: italic; margin-bottom: 2px; color: #999; }
+                .spark-brand-container { margin-top: 5px; }
+                .spark-title { font-weight: 700; font-size: 10px; letter-spacing: 1px; margin: 0; }
                 .gen-timestamp { position: absolute; bottom: 5px; right: 10px; font-size: 9px; color: #aaa; }
                 
                 @media print { 
@@ -1247,21 +1355,27 @@
                     .certificate-wrapper { margin: 0; page-break-after: always; box-shadow: none; width: 100%; transform: scale(0.95); transform-origin: top center; } 
                     @page { size: A4 portrait; margin: 0; }
                 }
+
+                ${settings.customTemplateCSS}
             </style>
             </head><body>`;
-            targetList.forEach(p => { content += generateCertificateHTMLString(p); });
+            
+            targetList.forEach(p => { 
+                content += generateCertificateHTMLString(p, settings); 
+            });
+            
             content += `</body></html>`;
+            
+            document.getElementById('btn-cert-' + (type === 'peserta' ? 'peserta' : 'ajk')).innerHTML = type === 'peserta' ? "Sijil Peserta (Semua)" : "Sijil Penceramah / AJK";
+
+            const printWindow = window.open('', '_blank');
             printWindow.document.write(content);
             printWindow.document.close();
             setTimeout(() => { printWindow.focus(); printWindow.print(); }, 2000);
         };
 
-        window.showOrganizerCertModal = function() {
-            document.getElementById('organizer-cert-form').reset();
-            document.getElementById('organizer-cert-modal').classList.remove('hidden');
-        };
-
-        function generateSpecialCertHTMLString(name, role) {
+        // --- PENJANAAN HTML SIJIL PENGANJUR (KHAS PPD) ---
+        function generateSpecialCertHTMLString(name, role, settings) {
             const course = currentProgram.name.toUpperCase();
             const sDate = new Date(currentProgram.startDate);
             const eDate = new Date(currentProgram.endDate);
@@ -1273,32 +1387,19 @@
                 dateStr = `DARI ${sDate.toLocaleDateString('ms-MY', { day: '2-digit', month: '2-digit' })} HINGGA ${eDate.toLocaleDateString('ms-MY', { day: '2-digit', month: 'long', year: 'numeric' }).toUpperCase()}`;
             }
             
-            // --- LOGIK TANDATANGAN (KHAS PPD SAHAJA SEBAB DISABLED UNTUK SEKOLAH) ---
-            const tarikhProgram = new Date(currentProgram.startDate);
-            const tarikhBersara = new Date('2026-03-05');
-            let signatureHTML = "";
-            if (tarikhProgram <= tarikhBersara) {
-                signatureHTML = `
-                    <p class="signatory-name" style="color: #4B40FF;">MARIAM HAJI MONEK</p>
-                    <p class="signatory-title">PEGAWAI PENDIDIKAN DAERAH,<br>PEJABAT PENDIDIKAN DAERAH MIRI.</p>
-                `;
-            } else {
-                signatureHTML = `
-                    <p class="signatory-name" style="color: transparent; user-select: none;">-</p>
-                    <p class="signatory-title">PEGAWAI PENDIDIKAN DAERAH,<br>PEJABAT PENDIDIKAN DAERAH MIRI.</p>
-                `;
-            }
-
             const serial = `SPK-K/${currentProgram.id.substring(0,4)}/KHAS`;
-            const qr = `https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=VERIFIED-${encodeURIComponent(role)}-${encodeURIComponent(name)}`;
+            const currentUrl = window.location.href;
+            const baseUrl = currentUrl.substring(0, currentUrl.lastIndexOf('/'));
+            const verifyUrl = `${baseUrl}/scansijil.html?siri=${encodeURIComponent(serial)}`;
+            const qr = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(verifyUrl)}`;
             const genDate = new Date().toLocaleDateString('ms-MY');
 
             return `
             <div class="certificate-wrapper">
                 <div class="certificate-container">
-                    <div style="content: ''; position: absolute; width: 170px; height: 170px; background: #4B40FF; opacity: 0.9; top: -85px; left: -85px; transform: rotate(45deg);"></div>
-                    <div style="content: ''; position: absolute; width: 170px; height: 170px; background: #4B40FF; opacity: 0.9; bottom: -85px; right: -85px; transform: rotate(45deg);"></div>
-                    <div class="certificate-content" style="border: 6px solid #4B40FF; border-image-slice: 1; border-image-source: linear-gradient(to right top, #d4af37, #4B40FF, #d4af37); height: 100%; padding: 10mm; display: flex; flex-direction: column; z-index: 2; position: relative; background: #ffffff;">
+                    <div style="content: ''; position: absolute; width: 170px; height: 170px; background: ${settings.primaryColor}; opacity: 0.9; top: -85px; left: -85px; transform: rotate(45deg);"></div>
+                    <div style="content: ''; position: absolute; width: 170px; height: 170px; background: ${settings.primaryColor}; opacity: 0.9; bottom: -85px; right: -85px; transform: rotate(45deg);"></div>
+                    <div class="certificate-content" style="border: 6px solid ${settings.primaryColor}; border-image-slice: 1; border-image-source: linear-gradient(to right top, #d4af37, ${settings.primaryColor}, #d4af37); height: 100%; padding: 10mm; display: flex; flex-direction: column; z-index: 2; position: relative; background: #ffffff;">
                         <div class="header-section">
                             <img src="${qr}" class="qr-code">
                             <div class="serial-section">
@@ -1306,8 +1407,8 @@
                                 <p class="serial-number">NO. SIRI: ${serial}</p>
                             </div>
                         </div>
-                        <img src="https://i.imgur.com/FQpwGDo.png" class="logo">
-                        <h1 style="color: #4B40FF;">Sijil Penghargaan</h1>
+                        ${settings.logoHTML}
+                        <h1 style="color: ${settings.primaryColor};">Sijil Penghargaan</h1>
                         <div class="role-badge">SEBAGAI ${role}</div>
                         <p class="intro-text">Dengan tulus ikhlas merakamkan setinggi-tinggi penghargaan kepada</p>
                         <p class="recipient-name">${name}</p>
@@ -1315,12 +1416,14 @@
                         <p class="event-title">${course}</p>
                         <p class="event-date">${dateStr}</p>
                         
-                        <hr style="width: 100px; height: 2px; background: linear-gradient(90deg, #d4af37, #4B40FF); margin: 30px auto 30px auto; border: none;">
-                        ${signatureHTML}
-                        <p class="footer-note">Sijil ini adalah cetakan komputer, tandatangan tidak diperlukan.</p>
-                        <div class="spark-brand-container">
-                            <p class="spark-title" style="color: #4B40FF;">SPARK</p>
-                            <p class="spark-subtitle">Percikan Inovasi Kehadiran Digital</p>
+                        <hr style="width: 100px; height: 2px; background: linear-gradient(90deg, #d4af37, ${settings.primaryColor}); margin: 30px auto 30px auto; border: none;">
+                        ${settings.signatureHTML}
+                        
+                        <div class="footer-bottom">
+                            <p class="footer-note">${settings.footerNoteText}</p>
+                            <div class="spark-brand-container">
+                                <p class="spark-title" style="color: ${settings.primaryColor};">JANAAN SPARK</p>
+                            </div>
                         </div>
                         <div class="gen-timestamp">Dijana: ${genDate}</div>
                     </div>
@@ -1328,15 +1431,22 @@
             </div>`;
         }
 
-        window.generateOrganizerCert = function(event) {
+        window.showOrganizerCertModal = function() {
+            document.getElementById('organizer-cert-form').reset();
+            document.getElementById('organizer-cert-modal').classList.remove('hidden');
+        };
+
+        window.generateOrganizerCert = async function(event) {
             event.preventDefault();
             const name = document.getElementById('special-cert-name').value.toUpperCase();
             const role = document.getElementById('special-cert-role').value.toUpperCase();
             
+            const settings = await getCertSettings();
+
             const printWindow = window.open('', '_blank');
             printWindow.document.write(`<html><head><title>Sijil Khas - ${name}</title>
             <style>
-                @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;700&family=Playfair+Display:wght@700&display=swap');
+                @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;700&family=Playfair+Display:wght@700&family=Cinzel:wght@500;700&display=swap');
                 body { font-family: 'Montserrat', sans-serif; margin: 0; padding: 0; background: #f0f2f5; display: flex; flex-direction: column; align-items: center; }
                 .certificate-wrapper { margin-bottom: 20mm; page-break-after: always; display: flex; justify-content: center; width: 100%; }
                 .certificate-container { width: 210mm; height: 297mm; background: white; padding: 12mm; box-sizing: border-box; position: relative; display: flex; flex-direction: column; text-align: center; overflow: hidden; margin: auto; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
@@ -1345,21 +1455,21 @@
                 .serial-section { text-align: right; display: flex; flex-direction: column; align-items: flex-end; }
                 .barcode-image { height: 30px; margin-bottom: 4px; opacity: 0.8; }
                 .serial-number { font-family: monospace; font-size: 14px; color: #555; margin: 0; }
-                .logo { width: 140px; margin: 0 auto 15px auto; display: block; }
-                h1 { font-family: 'Playfair Display', serif; font-size: 42px; font-weight: 700; margin: 10px 0; text-transform: uppercase; }
+                .logo { margin: 0 auto 15px auto; object-fit: contain; }
+                h1 { font-family: 'Playfair Display', serif; font-size: 42px; font-weight: 700; margin: 10px 0; text-transform: uppercase; line-height: 1.1; }
                 .role-badge { font-size: 18px; font-weight: 700; color: #d4af37; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 2px; text-align: center;}
                 .intro-text { font-size: 16px; margin: 20px 0; color: #555; text-align: center; }
-                .recipient-name { font-family: 'Playfair Display', serif; font-size: 30px; font-weight: 700; margin: 10px 0; color: #111; text-align: center; }
+                .recipient-name { font-family: 'Playfair Display', serif; font-size: 30px; font-weight: 700; margin: 10px 0; color: #111; text-align: center; line-height: 1.2; }
                 .event-title-label { font-size: 16px; color: #555; text-align: center; }
                 .event-title { font-size: 22px; font-weight: 700; font-style: italic; margin: 10px 0; color: #111; text-align: center; line-height: 1.3;}
                 .event-date { font-size: 16px; font-weight: 500; margin-bottom: 5px; color: #444; text-align: center; }
                 .signature-section { margin-top: auto; text-align: center; }
                 .signatory-name { font-weight: 700; font-size: 16px; text-transform: uppercase; }
-                .signatory-title { font-size: 14px; color: #333; text-align: center; }
-                .footer-note { font-size: 10px; font-style: italic; margin-top: 30px; color: #999; text-align: center; }
-                .spark-brand-container { margin-top: 5px; text-align: center;}
-                .spark-title { font-weight: 700; font-size: 12px; letter-spacing: 2px; margin: 0; }
-                .spark-subtitle { font-size: 9px; color: #555; font-style: italic; margin: 0; }
+                .signatory-title { font-size: 14px; color: #333; text-align: center; line-height: 1.2; }
+                .footer-bottom { margin-top: 30px; text-align: center;}
+                .footer-note { font-size: 10px; font-style: italic; margin-bottom: 2px; color: #999; }
+                .spark-brand-container { margin-top: 5px; }
+                .spark-title { font-weight: 700; font-size: 10px; letter-spacing: 1px; margin: 0; }
                 .gen-timestamp { position: absolute; bottom: 5px; right: 10px; font-size: 9px; color: #aaa; }
                 
                 @media print { 
@@ -1367,10 +1477,12 @@
                     .certificate-wrapper { margin: 0; page-break-after: always; box-shadow: none; width: 100%; transform: scale(0.95); transform-origin: top center; } 
                     @page { size: A4 portrait; margin: 0; }
                 }
+
+                ${settings.customTemplateCSS}
             </style>
-            </head><body>${generateSpecialCertHTMLString(name, role)}</body></html>`);
+            </head><body>${generateSpecialCertHTMLString(name, role, settings)}</body></html>`);
             printWindow.document.close();
-            setTimeout(() => { printWindow.focus(); printWindow.print(); }, 1000);
+            setTimeout(() => { printWindow.focus(); printWindow.print(); }, 2000);
             
             closeModal('organizer-cert-modal');
         };
