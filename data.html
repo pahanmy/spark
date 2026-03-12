@@ -186,6 +186,12 @@
                            </div>
                        </div>
                        <div class="flex items-center gap-2">
+                            <label for="program-station-filter" class="text-sm font-medium text-gray-600 whitespace-nowrap">Stesen:</label>
+                            <select id="program-station-filter" class="py-2 px-3 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm max-w-[200px]">
+                                <option value="">Semua Stesen</option>
+                            </select>
+                        </div>
+                       <div class="flex items-center gap-2">
                             <label for="program-order-by" class="text-sm font-medium text-gray-600 whitespace-nowrap">Susun Ikut:</label>
                             <select id="program-order-by" class="py-2 px-3 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm">
                                 <option value="desc">Tarikh Terbaru</option>
@@ -195,7 +201,7 @@
                        <span id="program-count" class="text-sm font-medium text-gray-600"></span>
                    </div>
                    <div class="overflow-x-auto">
-                       <table class="min-w-full"><thead class="bg-gray-50"><tr><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Bil.</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nama Program</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tarikh</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Penyelaras</th><th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Tindakan</th></tr></thead><tbody id="program-list-body" class="divide-y divide-gray-200"></tbody></table>
+                       <table class="min-w-full"><thead class="bg-gray-50"><tr><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Bil.</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nama Program</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tarikh</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Penyelaras & Lokasi</th><th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Tindakan</th></tr></thead><tbody id="program-list-body" class="divide-y divide-gray-200"></tbody></table>
                    </div>
                    <div id="program-pagination-controls" class="flex justify-between items-center mt-4"></div>
                </div>
@@ -254,14 +260,13 @@
                                 <tr>
                                     <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Bil</th>
                                     <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Nama Pengguna</th>
-                                    <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">No. IC</th>
                                     <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Stesyen / Unit</th>
                                     <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Status Semasa</th>
                                     <th class="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase">Tukar Peranan</th>
                                 </tr>
                             </thead>
                             <tbody id="user-pro-list-body" class="bg-white divide-y divide-gray-200">
-                                <tr><td colspan="6" class="px-6 py-8 text-center text-gray-400 italic">Sedang memuatkan data...</td></tr>
+                                <tr><td colspan="5" class="px-6 py-8 text-center text-gray-400 italic">Sedang memuatkan data...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -555,8 +560,11 @@
             document.getElementById('edit-birthday-form').addEventListener('submit', handleEditBirthdaySubmit);
             document.getElementById('confirm-delete-birthday-btn').addEventListener('click', confirmDeleteBirthday);
 
+            // Program Filters
             document.getElementById('program-search').addEventListener('input', () => { programCurrentPage = 1; renderProgramTable(); });
             document.getElementById('program-order-by').addEventListener('change', () => { programCurrentPage = 1; renderProgramTable(); });
+            document.getElementById('program-station-filter').addEventListener('change', () => { programCurrentPage = 1; renderProgramTable(); });
+
             document.getElementById('participant-search').addEventListener('input', () => { participantCurrentPage = 1; renderParticipantTable(); });
             document.getElementById('user-pro-search').addEventListener('input', () => { userProCurrentPage = 1; filterAndRenderUserProTable(); });
             document.getElementById('user-pro-per-page').addEventListener('change', () => { usersProPerPage = parseInt(document.getElementById('user-pro-per-page').value); userProCurrentPage = 1; filterAndRenderUserProTable(); });
@@ -647,6 +655,17 @@
             onSnapshot(q, (snapshot) => {
                 allPrograms = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 document.getElementById('total-program-count').textContent = allPrograms.length; 
+
+                // Populate Station Dropdown
+                const stationFilter = document.getElementById('program-station-filter');
+                const currentStation = stationFilter.value;
+                const uniqueStations = [...new Set(allPrograms.map(p => p.location ? p.location.trim().toUpperCase() : '').filter(l => l !== ''))];
+                
+                stationFilter.innerHTML = '<option value="">Semua Stesen</option>';
+                uniqueStations.sort().forEach(st => {
+                    stationFilter.innerHTML += `<option value="${st}" ${currentStation === st ? 'selected' : ''}>${st}</option>`;
+                });
+
                 renderProgramTable();
             });
         }
@@ -654,12 +673,15 @@
         function renderProgramTable() {
             const listBody = document.getElementById('program-list-body');
             const searchInput = document.getElementById('program-search').value.toLowerCase();
+            const stationValue = document.getElementById('program-station-filter').value;
             const orderByValue = document.getElementById('program-order-by').value;
 
-            let filteredPrograms = allPrograms.filter(p => 
-                p.name.toLowerCase().includes(searchInput) || 
-                (p.penyelaras_name && p.penyelaras_name.toLowerCase().includes(searchInput))
-            );
+            let filteredPrograms = allPrograms.filter(p => {
+                const matchSearch = p.name.toLowerCase().includes(searchInput) || (p.penyelaras_name && p.penyelaras_name.toLowerCase().includes(searchInput));
+                const progStation = p.location ? p.location.trim().toUpperCase() : '';
+                const matchStation = stationValue === "" || progStation === stationValue;
+                return matchSearch && matchStation;
+            });
 
             filteredPrograms.sort((a, b) => {
                 const dateA = a.startDate ? new Date(a.startDate).getTime() : 0;
@@ -672,22 +694,34 @@
             const startIndex = (programCurrentPage - 1) * programsPerPage;
             const paginatedItems = filteredPrograms.slice(startIndex, startIndex + programsPerPage);
 
+            // Dapatkan tarikh hari ini dlm format YYYY-MM-DD
+            const todayDateObj = new Date();
+            const todayStr = todayDateObj.getFullYear() + '-' + String(todayDateObj.getMonth() + 1).padStart(2, '0') + '-' + String(todayDateObj.getDate()).padStart(2, '0');
+
             if (paginatedItems.length === 0) {
                 listBody.innerHTML = `<tr><td colspan="5" class="text-center text-gray-500 py-4">Tiada program ditemui.</td></tr>`;
             } else {
-                listBody.innerHTML = paginatedItems.map((p, index) => `
+                listBody.innerHTML = paginatedItems.map((p, index) => {
+                    const isToday = p.startDate === todayStr;
+                    const todayBadge = isToday ? `<span class="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold ml-2 shadow-sm uppercase tracking-wider animate-pulse">Hari Ini</span>` : '';
+                    
+                    return `
                     <tr class="hover:bg-gray-50">
                         <td class="px-6 py-4 text-sm text-gray-500">${startIndex + index + 1}</td>
-                        <td class="px-6 py-4 text-sm font-medium text-gray-900">${p.name}</td>
+                        <td class="px-6 py-4 text-sm font-medium text-gray-900">${p.name} ${todayBadge}</td>
                         <td class="px-6 py-4 text-sm text-gray-500">${formatDate(p.startDate)}</td>
-                        <td class="px-6 py-4 text-sm text-gray-500">${p.penyelaras_name || '-'}</td>
+                        <td class="px-6 py-4 text-sm text-gray-500 leading-tight">
+                            ${p.penyelaras_name || '-'}<br>
+                            <span class="text-[10px] text-gray-400 font-bold uppercase">${p.location || ''}</span>
+                        </td>
                         <td class="px-6 py-4 text-center">
                             <a href="program.html?kod=${p.id}" target="_blank" class="btn inline-flex items-center gap-2 text-xs font-bold text-white bg-gradient-to-r from-blue-500 to-indigo-600 py-2 px-4 rounded-lg shadow-md hover:-translate-y-0.5 transition-all">
                                 <span>Buka</span>
                             </a>
                         </td>
                     </tr>
-                `).join('');
+                    `;
+                }).join('');
             }
             renderProgramPagination(filteredPrograms.length);
         }
@@ -707,7 +741,13 @@
         function programPrevPage() { if (programCurrentPage > 1) { programCurrentPage--; renderProgramTable(); } }
         function programNextPage() { 
             const searchInput = document.getElementById('program-search').value.toLowerCase();
-            const filteredLength = allPrograms.filter(p => p.name.toLowerCase().includes(searchInput)).length;
+            const stationValue = document.getElementById('program-station-filter').value;
+            const filteredLength = allPrograms.filter(p => {
+                const matchSearch = p.name.toLowerCase().includes(searchInput) || (p.penyelaras_name && p.penyelaras_name.toLowerCase().includes(searchInput));
+                const progStation = p.location ? p.location.trim().toUpperCase() : '';
+                const matchStation = stationValue === "" || progStation === stationValue;
+                return matchSearch && matchStation;
+            }).length;
             if (programCurrentPage < Math.ceil(filteredLength / programsPerPage)) { programCurrentPage++; renderProgramTable(); } 
         }
 
@@ -786,7 +826,7 @@
         // --- Logik Panel Pengguna PRO ---
         function filterAndRenderUserProTable() {
             const searchTerm = document.getElementById('user-pro-search').value.toLowerCase();
-            filteredUsersPro = allParticipants.filter(user => user.name.toLowerCase().includes(searchTerm) || user.ic.includes(searchTerm));
+            filteredUsersPro = allParticipants.filter(user => user.name.toLowerCase().includes(searchTerm));
 
             const totalPages = Math.ceil(filteredUsersPro.length / usersProPerPage);
             if (userProCurrentPage > totalPages && totalPages > 0) userProCurrentPage = totalPages;
@@ -802,7 +842,7 @@
         function renderUserProTable(users, startIndex) {
             const tableBody = document.getElementById('user-pro-list-body');
             if (users.length === 0) {
-                tableBody.innerHTML = `<tr><td colspan="6" class="px-6 py-8 text-center text-sm text-gray-500">Tiada pengguna ditemui.</td></tr>`;
+                tableBody.innerHTML = `<tr><td colspan="5" class="px-6 py-8 text-center text-sm text-gray-500">Tiada pengguna ditemui.</td></tr>`;
                 return;
             }
             
@@ -832,7 +872,6 @@
                             <div class="text-sm font-semibold text-gray-900">${user.name.toUpperCase()}</div>
                             ${isPentadbir ? '<span class="text-[10px] text-indigo-600 font-bold bg-indigo-100 px-1.5 rounded">ADMIN UTAMA</span>' : ''}
                         </td>
-                        <td class="px-6 py-3 text-sm text-gray-500">${user.ic}</td>
                         <td class="px-6 py-3 text-sm text-gray-500">${user.station || '-'}</td>
                         <td class="px-6 py-3">${statusBadge}</td>
                         <td class="px-6 py-3 text-center w-40">
@@ -880,7 +919,7 @@
             pendingUserId = null; pendingStatus = null; pendingSelectElem = null;
         }
 
-        // --- Logik Hari Jadi (Dari namabirthday.html) ---
+        // --- Logik Hari Jadi (Terintegrasi) ---
         function extractDobFromIc(icString) {
             const cleanedIc = icString.replace(/[-\s]/g, '');
             if (!/^\d{6,}/.test(cleanedIc)) { throw new Error('Format IC tidak sah.'); }
@@ -1033,7 +1072,6 @@
             } catch (error) { console.error(error); errorMsg.textContent = "Gagal memadam."; errorMsg.classList.remove('hidden'); } 
             finally { submitBtn.disabled = false; submitBtn.textContent = "Sahkan Padam"; }
         }
-
 
         // --- Fungsi Penyelaras, Lokasi, Aktif ---
         function loadAndDisplayCoordinators() {
