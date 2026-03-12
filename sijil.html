@@ -37,8 +37,16 @@
                     <p class="text-[10px] text-gray-500 font-medium">Hab Sijil Digital & Penghargaan</p>
                 </div>
             </div>
-            <div>
-                 <button onclick="window.history.back()" class="btn bg-gray-100 text-gray-800 font-semibold py-2 px-4 rounded-lg shadow-sm hover:bg-gray-200 flex items-center gap-2 text-xs uppercase">
+            
+            <div class="flex gap-2 self-start sm:self-center">
+                <button id="btn-cert-settings" onclick="window.location.href='sijilsekolah.html'" class="hidden btn bg-indigo-50 border border-indigo-200 text-indigo-700 font-bold py-2 px-4 rounded-lg shadow-sm hover:bg-indigo-100 flex items-center gap-2 text-xs uppercase tracking-wider">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                    </svg>
+                    Reka Bentuk Sijil
+                </button>
+                
+                <button onclick="window.history.back()" class="btn bg-gray-100 text-gray-800 font-bold py-2 px-4 rounded-lg shadow-sm hover:bg-gray-200 flex items-center gap-2 text-xs uppercase tracking-wider">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
                     Kembali
                 </button>
@@ -208,11 +216,13 @@
         async function initPage(icRaw) {
             const icNumber = icRaw.trim().replace(/[^0-9]/g, '');
             try {
+                // Fetch PPD List
                 const ppdRef = db.collection(`artifacts/${appId}/public/data/spark_verified_ppd`);
                 const ppdSnap = await ppdRef.get();
                 verifiedPpdIcs = [];
                 ppdSnap.docs.forEach(doc => verifiedPpdIcs.push(doc.id));
 
+                // Fetch User Info
                 const userSnap = await db.collection(`artifacts/${appId}/public/data/spark_participants`).where("ic", "==", icNumber).get();
                 if(!userSnap.empty) {
                     const uData = userSnap.docs[0].data();
@@ -224,6 +234,32 @@
                     document.getElementById('pro-badge').classList.remove('hidden');
                     document.getElementById('normal-badge').classList.add('hidden');
                 }
+
+                // --- SEMAK KELAYAKAN BUTANG TETAPAN SIJIL ---
+                let hasSettingAccess = false;
+                
+                // 1. Jika PPD PRO
+                if (verifiedPpdIcs.includes(icNumber) && globalIsPro) {
+                    hasSettingAccess = true;
+                } 
+                // 2. Jika Sekolah (Pengetua/GB atau Admin Sijil)
+                else if (globalUserStation) {
+                    const currentSchool = globalUserStation;
+                    const gbDoc = await db.doc(`artifacts/${appId}/public/data/spark_school_principals/${currentSchool}`).get();
+                    if (gbDoc.exists && gbDoc.data().ic === icNumber) hasSettingAccess = true;
+
+                    if (!hasSettingAccess) {
+                        const adminDoc = await db.doc(`artifacts/${appId}/public/data/spark_school_cert_admins/${currentSchool}`).get();
+                        if (adminDoc.exists && adminDoc.data().ic === icNumber) hasSettingAccess = true;
+                    }
+                }
+
+                // Tunjuk Butang Jika Layak
+                if (hasSettingAccess) {
+                    document.getElementById('btn-cert-settings').classList.remove('hidden');
+                }
+                // ----------------------------------------------
+
                 await fetchAllCertificates(icNumber);
             } catch (error) {
                 console.error("Ralat init:", error);
@@ -523,7 +559,7 @@
                     } catch(e) { console.error("Ralat mengira jam:", e); }
                 }
                 
-                const primaryColor = isSchoolProgram ? '#065f46' : '#4B40FF'; 
+                let primaryColor = isSchoolProgram ? '#065f46' : '#4B40FF'; 
 
                 const masaHTML = jumlahJam > 0 ? `
                     <div class="credit-box">
@@ -552,78 +588,154 @@
                 let customTemplateCSS = "";
                 let stesenSijil = (globalUserStation || "").toUpperCase();
 
+                // ID Rujukan: Jika Sekolah = Nama Stesen. Jika PPD = IC Pemilik Program.
+                let settingsRefId = isSchoolProgram ? stesenSijil : dataItem.penyelarasIc;
+
                 if (isSchoolProgram) {
                     let isMenengah = stesenSijil.includes("SMK") || stesenSijil.includes("SM ") || stesenSijil.includes("MENENGAH") || stesenSijil.includes("KOLEJ");
-                    let gelaranPangkat = isMenengah ? "PENGETUA" : "GURU BESAR";
-
-                    signatoryName = gelaranPangkat; 
+                    signatoryName = isMenengah ? "PENGETUA" : "GURU BESAR";
                     signatoryTitle = stesenSijil || "SEKOLAH KEMENTERIAN PENDIDIKAN MALAYSIA";
                     logoHTML = `<div style="height: 40px;"></div>`; 
-
-                    // --- LOGIK TETAPAN SIJIL SEKOLAH (CUSTOM) ---
-                    try {
-                        const setDoc = await db.doc(`artifacts/${appId}/public/data/spark_school_cert_settings/${stesenSijil}`).get();
-                        if (setDoc.exists) {
-                            let customSettings = setDoc.data();
-                            
-                            // Override Logo
-                            if (customSettings.showLogo && customSettings.logoUrl) {
-                                logoHTML = `<img src="${customSettings.logoUrl}" class="logo" style="max-height: 80px; width: auto; object-fit: contain;">`;
-                            }
-                            
-                            // Override Tandatangan
-                            if (customSettings.showSignature && customSettings.signatureUrl) {
-                                signatoryName = `<img src="${customSettings.signatureUrl}" style="max-height: 60px; object-fit: contain; margin-bottom: 5px;"><br>${signatoryName}`;
-                            }
-
-                            // Tetapan CSS Templat
-                            if (customSettings.templateId === 'template2') { // Klasik
-                                customTemplateCSS = `
-                                    .certificate-container::before, .certificate-container::after { display: none; }
-                                    .certificate-content { border: 8px double #d4af37; background: #faf9f6; }
-                                    h1 { color: #1e3a8a; font-family: 'Playfair Display', serif; }
-                                    .credit-value { color: #1e3a8a; }
-                                    .signatory-name { color: #111; border-top: 1px solid #111; padding-top: 10px; display: inline-block; }
-                                `;
-                            } else if (customSettings.templateId === 'template3') { // Moden
-                                customTemplateCSS = `
-                                    .certificate-container::before, .certificate-container::after { display: none; }
-                                    .certificate-content { border: none; border-left: 20px solid #4f46e5; text-align: left; background: #ffffff; padding-left: 30mm; }
-                                    .header-section { justify-content: flex-start; gap: 20px; flex-direction: row-reverse; }
-                                    .serial-section { align-items: flex-start; text-align: left; margin-right: auto; }
-                                    .logo { margin: 0 0 20px 0; }
-                                    h1 { text-align: left; color: #374151; font-family: 'Montserrat', sans-serif; }
-                                    .divider { margin: 30px 0; background: #e5e7eb; width: 100%; }
-                                    .signature-section { text-align: left; }
-                                `;
-                            }
-                        }
-                    } catch (e) { console.error("Ralat ambil tetapan sijil:", e); }
-                    // ---------------------------------------------
                 } else {
                     const tarikhProgram = new Date(program.startDate); 
                     const tarikhBersara = new Date('2026-03-05');
-                    if (tarikhProgram <= tarikhBersara) {
-                        signatoryName = "MARIAM HAJI MONEK";
-                    } else {
-                        signatoryName = '<span style="color: transparent; user-select: none;">-</span>'; 
-                    }
+                    signatoryName = (tarikhProgram <= tarikhBersara) ? "MARIAM HAJI MONEK" : '<span style="color: transparent; user-select: none;">-</span>'; 
                     signatoryTitle = "PEGAWAI PENDIDIKAN DAERAH,<br>PEJABAT PENDIDIKAN DAERAH MIRI.";
-                    
-                    logoHTML = `<img src="https://i.imgur.com/FQpwGDo.png" class="logo">`;
+                    logoHTML = `<img src="https://i.imgur.com/FQpwGDo.png" class="logo" style="max-height: 80px;">`;
+                }
+
+                // Logik Asas Nota Kaki (Footer) & Papar Nama
+                let showFooterNote = true;
+                let showSigName = true;
+
+                // --- BACA TETAPAN REKA BENTUK DARI FIREBASE (Sekolah atau PPD PRO) ---
+                if (settingsRefId) {
+                    try {
+                        const setDoc = await db.doc(`artifacts/${appId}/public/data/spark_school_cert_settings/${settingsRefId}`).get();
+                        if (setDoc.exists) {
+                            let customSettings = setDoc.data();
+                            
+                            // 1. Warna & Font
+                            if (customSettings.primaryColor) primaryColor = customSettings.primaryColor;
+                            const customFont = customSettings.fontFamily || 'Montserrat';
+                            
+                            // 2. Latar Belakang
+                            if (customSettings.showBg && customSettings.customBgUrl) {
+                                customTemplateCSS += `
+                                    .certificate-container { 
+                                        background-image: url('${customSettings.customBgUrl}'); 
+                                        background-size: cover; background-position: center; background-repeat: no-repeat; 
+                                    }
+                                    .certificate-container::before, .certificate-container::after { display: none !important; }
+                                    .certificate-content { border: none !important; background: transparent !important; box-shadow: none !important; outline: none !important; }
+                                `;
+                            }
+
+                            // 3. Override Logo dan Saiz
+                            let lSize = customSettings.logoSize ? customSettings.logoSize + "px" : "80px";
+                            if (isSchoolProgram) {
+                                if (customSettings.showLogo && customSettings.logoUrl) {
+                                    logoHTML = `<img src="${customSettings.logoUrl}" class="logo" style="max-height: ${lSize}; width: auto; object-fit: contain;">`;
+                                } else {
+                                    logoHTML = `<div style="height: ${lSize};"></div>`;
+                                }
+                            } else {
+                                // PPD sentiasa guna Logo PPD, cuma saiz boleh berubah
+                                logoHTML = `<img src="https://i.imgur.com/FQpwGDo.png" class="logo" style="max-height: ${lSize}; width: auto; object-fit: contain;">`;
+                            }
+                            
+                            // 4. Override Nama & Jawatan
+                            if (customSettings.hasOwnProperty('showSigName')) {
+                                showSigName = customSettings.showSigName;
+                            }
+
+                            if (isSchoolProgram) {
+                                if (customSettings.signatoryName) signatoryName = customSettings.signatoryName.toUpperCase();
+                                if (customSettings.signatoryTitle) signatoryTitle = customSettings.signatoryTitle.toUpperCase() + `<br>${stesenSijil}`;
+                            } else {
+                                if (customSettings.signatoryName) signatoryName = customSettings.signatoryName.toUpperCase();
+                                if (customSettings.signatoryTitle) signatoryTitle = customSettings.signatoryTitle.toUpperCase() + "<br>PEJABAT PENDIDIKAN DAERAH MIRI";
+                            }
+
+                            // Sembunyikan Nama jika tetapan 'Papar Nama' ditutup
+                            if (!showSigName) {
+                                signatoryName = '<span style="color: transparent; user-select: none;">-</span>';
+                            }
+
+                            // 5. Override Tandatangan
+                            if (customSettings.showSignature && customSettings.signatureUrl) {
+                                signatoryName = `<img src="${customSettings.signatureUrl}" style="max-height: 60px; object-fit: contain; margin-bottom: 5px; display: inline-block;"><br>${signatoryName}`;
+                                showFooterNote = false; // Hilangkan nota kaki jika ada tandatangan
+                            }
+
+                            // 6. Tetapan CSS Templat
+                            customTemplateCSS += `h1 { font-family: '${customFont}', sans-serif !important; }`;
+
+                            if (!customSettings.showBg) {
+                                if (customSettings.templateId === 'template2') { 
+                                    customTemplateCSS += `
+                                        .certificate-container::before, .certificate-container::after { display: none; }
+                                        .certificate-content { border: 8px double #d4af37; background: #faf9f6; }
+                                        h1 { font-family: 'Playfair Display', serif !important; }
+                                        .signatory-name { color: #111 !important; border-top: ${showSigName ? '1px solid #111' : 'none'}; padding-top: 10px; display: inline-block; }
+                                    `;
+                                } else if (customSettings.templateId === 'template3') { 
+                                    customTemplateCSS += `
+                                        .certificate-container::before, .certificate-container::after { display: none; }
+                                        .certificate-content { border: none; border-left: 20px solid ${primaryColor}; text-align: left; background: #ffffff; padding-left: 30mm; }
+                                        .header-section { justify-content: flex-start; gap: 20px; flex-direction: row-reverse; }
+                                        .serial-section { align-items: flex-start; text-align: left; margin-right: auto; }
+                                        .logo { margin: 0 0 20px 0; }
+                                        h1 { text-align: left; }
+                                        .divider { margin: 30px 0; background: #e5e7eb !important; width: 100%; }
+                                        .signature-section { text-align: left; }
+                                    `;
+                                } else if (customSettings.templateId === 'template4') { 
+                                    customTemplateCSS += `
+                                        .certificate-container::before, .certificate-container::after { display: none; }
+                                        .certificate-content { border: 1px solid #333; padding: 12mm; outline: 3px solid #333; outline-offset: -8px; background: #fff; }
+                                        h1 { font-family: 'Cinzel', serif !important; letter-spacing: 2px; color: #111 !important; }
+                                        .divider { width: 50%; height: 1px; background: #333 !important; }
+                                    `;
+                                } else if (customSettings.templateId === 'template5') { 
+                                    customTemplateCSS += `
+                                        .certificate-container::before, .certificate-container::after { display: none; }
+                                        .certificate-content { border: none; border-bottom: 15px solid ${primaryColor}; background: #fff; }
+                                        h1 { font-weight: 400 !important; letter-spacing: 5px; }
+                                        .divider { background: #e5e7eb !important; }
+                                    `;
+                                } else if (customSettings.templateId === 'template6') { 
+                                    customTemplateCSS += `
+                                        .certificate-container::before, .certificate-container::after { display: none; }
+                                        .certificate-content { border: none; background: #fff; border-radius: 20px; box-shadow: 0 0 0 8px inset ${primaryColor}; }
+                                        .divider { background: #ccc !important; }
+                                    `;
+                                }
+                            }
+                        }
+                    } catch (e) { console.error("Ralat ambil tetapan sijil:", e); }
                 }
 
                 const signatureHTML = `
                     <div class="signature-section">
-                        <p class="signatory-name">${signatoryName}</p>
-                        <p class="signatory-title">${signatoryTitle}</p>
+                        <div style="text-align: inherit;">
+                            <p class="signatory-name">${signatoryName}</p>
+                            <p class="signatory-title">${signatoryTitle}</p>
+                        </div>
                     </div>
                 `;
 
+                // Tentukan No Siri dan Kod QR Verifikasi
                 const prefix = isSpecial ? "SPK-H" : "SPK";
                 const serialNumber = `${prefix}/${program.key || 'GEN'}/${participantIC.slice(-4)}`;
-                const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=VERIFIED:${serialNumber}`;
+                const currentUrl = window.location.href;
+                const baseUrl = currentUrl.substring(0, currentUrl.lastIndexOf('/')); 
+                const verifyUrl = `${baseUrl}/scansijil.html?siri=${encodeURIComponent(serialNumber)}`;
+                const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(verifyUrl)}`;
                 const genDate = new Date().toLocaleDateString('ms-MY');
+
+                // Teks Nota Kaki Sebenar
+                let footerNoteText = showFooterNote ? "Sijil ini adalah cetakan komputer, tandatangan tidak diperlukan." : "";
 
                 // Tulis struktur akhir sijil
                 printWindow.document.open();
@@ -633,7 +745,7 @@
                     <head>
                         <title>${certificateTitle}</title>
                         <style>
-                            @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;700&family=Playfair+Display:wght@700&display=swap');
+                            @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;700&family=Playfair+Display:wght@700&family=Cinzel:wght@500;700&display=swap');
                             body { font-family: 'Montserrat', sans-serif; margin: 0; padding: 0; background: #f0f2f5; display: flex; justify-content: center; }
                             .certificate-container { width: 210mm; height: 297mm; background: white; padding: 12mm; box-sizing: border-box; position: relative; display: flex; flex-direction: column; text-align: center; overflow: hidden; }
                             .certificate-container::before { content: ''; position: absolute; width: 170px; height: 170px; background: ${primaryColor}; opacity: 0.9; top: -85px; left: -85px; transform: rotate(45deg); }
@@ -646,29 +758,28 @@
                             .barcode-image { height: 30px; margin-bottom: 4px; opacity: 0.8; }
                             .serial-number { font-family: monospace; font-size: 14px; color: #555; margin: 0; }
                             
-                            .logo { width: 140px; margin: 0 auto 15px auto; }
-                            h1 { font-family: 'Playfair Display', serif; font-size: 42px; font-weight: 700; margin: 10px 0; text-transform: uppercase; color: ${primaryColor}; }
+                            .logo { margin: 0 auto 15px auto; object-fit: contain; }
+                            h1 { font-family: 'Playfair Display', serif; font-size: 42px; font-weight: 700; margin: 10px 0; text-transform: uppercase; color: ${primaryColor}; line-height: 1.1; }
                             .role-badge { font-size: 18px; font-weight: 700; color: #d4af37; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 2px; }
                             .intro-text { font-size: 16px; margin: 20px 0; color: #555; }
-                            .recipient-name { font-family: 'Playfair Display', serif; font-size: 30px; font-weight: 700; margin: 10px 0; color: #111; }
+                            .recipient-name { font-family: 'Playfair Display', serif; font-size: 30px; font-weight: 700; margin: 10px 0; color: #111; line-height: 1.2; }
                             .recipient-ic { font-size: 16px; font-weight: 500; margin-bottom: 30px; color: #444; }
-                            .event-title { font-size: 22px; font-weight: 700; font-style: italic; margin: 10px 0; color: #111; }
+                            .event-title { font-size: 22px; font-weight: 700; font-style: italic; margin: 10px 0; color: #111; line-height: 1.3; }
                             .event-date { font-size: 16px; font-weight: 500; margin-bottom: 5px; color: #444; }
                             
                             .credit-box { margin: 15px auto 25px auto; padding: 10px 30px; border-top: 2px solid #d4af37; border-bottom: 2px solid #d4af37; display: inline-block; }
                             .credit-label { font-size: 11px; color: #666; letter-spacing: 2px; margin-bottom: 5px; }
                             .credit-value { font-size: 18px; font-weight: 700; color: ${primaryColor}; }
 
-                            .divider { width: 100px; height: 2px; background: linear-gradient(90deg, #d4af37, ${primaryColor}); margin: 0 auto 30px auto; border: none; }
+                            .divider { width: 100px; height: 2px; background: linear-gradient(90deg, #d4af37, ${primaryColor}); margin: 30px auto; border: none; }
                             .signature-section { margin-top: auto; }
                             .signatory-name { font-weight: 700; font-size: 16px; text-transform: uppercase; color: ${primaryColor}; }
-                            .signatory-title { font-size: 14px; color: #333; }
+                            .signatory-title { font-size: 14px; color: #333; line-height: 1.2; }
                             
-                            .footer-bottom { margin-top: 20px; }
-                            .footer-note { font-size: 10px; font-style: italic; margin-bottom: 5px; color: #999; }
+                            .footer-bottom { margin-top: 30px; }
+                            .footer-note { font-size: 10px; font-style: italic; margin-bottom: 2px; color: #999; }
                             .spark-brand-container { margin-top: 5px; }
-                            .spark-title { font-weight: 700; font-size: 12px; letter-spacing: 2px; color: ${primaryColor}; margin: 0; }
-                            .spark-subtitle { font-size: 9px; color: #555; font-style: italic; margin: 0; }
+                            .spark-title { font-weight: 700; font-size: 10px; letter-spacing: 1px; color: ${primaryColor}; margin: 0; }
                             
                             .gen-timestamp { position: absolute; bottom: 5px; right: 10px; font-size: 9px; color: #aaa; }
                             
@@ -677,7 +788,7 @@
                                 .certificate-container { box-shadow: none; margin: 0 auto; transform: scale(0.9); transform-origin: top center; } 
                             }
                             
-                            /* CUSTOM CSS SEKOLAH (Jika Ada) */
+                            /* CUSTOM CSS SEKOLAH/PPD (Jika Ada) */
                             ${customTemplateCSS}
                         </style>
                     </head>
@@ -707,10 +818,9 @@
                                 ${signatureHTML}
                                 
                                 <div class="footer-bottom">
-                                    <p class="footer-note">Sijil ini adalah cetakan komputer, tandatangan tidak diperlukan.</p>
+                                    <p class="footer-note">${footerNoteText}</p>
                                     <div class="spark-brand-container">
-                                        <p class="spark-title">SPARK</p>
-                                        <p class="spark-subtitle">Percikan Inovasi Kehadiran Digital</p>
+                                        <p class="spark-title">JANAAN SPARK</p>
                                     </div>
                                 </div>
                                 <div class="gen-timestamp">Dijana: ${genDate}</div>
