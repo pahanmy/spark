@@ -74,14 +74,14 @@
                     <div class="bg-gray-50 p-6 sm:p-8 rounded-3xl border border-gray-200 shadow-inner">
                         <h3 class="text-sm font-bold text-gray-800 uppercase mb-5 text-center tracking-widest">8 Kriteria Penilaian</h3>
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-gray-700 font-medium">
-                            <div class="flex items-center gap-2 bg-white p-2 rounded-lg border border-gray-100 shadow-sm"><span class="text-teal-500 font-bold">1.</span> Kreativiti & Pencetusan Idea</div>
-                            <div class="flex items-center gap-2 bg-white p-2 rounded-lg border border-gray-100 shadow-sm"><span class="text-teal-500 font-bold">2.</span> Kemahiran Teknikal & Sistem</div>
+                            <div class="flex items-center gap-2 bg-white p-2 rounded-lg border border-gray-100 shadow-sm"><span class="text-teal-500 font-bold">1.</span> Kreativiti & Idea</div>
+                            <div class="flex items-center gap-2 bg-white p-2 rounded-lg border border-gray-100 shadow-sm"><span class="text-teal-500 font-bold">2.</span> Kemahiran Teknikal</div>
                             <div class="flex items-center gap-2 bg-white p-2 rounded-lg border border-gray-100 shadow-sm"><span class="text-teal-500 font-bold">3.</span> Penyelesaian Masalah</div>
-                            <div class="flex items-center gap-2 bg-white p-2 rounded-lg border border-gray-100 shadow-sm"><span class="text-teal-500 font-bold">4.</span> Komunikasi & Pembentangan</div>
+                            <div class="flex items-center gap-2 bg-white p-2 rounded-lg border border-gray-100 shadow-sm"><span class="text-teal-500 font-bold">4.</span> Komunikasi & Pengaruh</div>
                             <div class="flex items-center gap-2 bg-white p-2 rounded-lg border border-gray-100 shadow-sm"><span class="text-teal-500 font-bold">5.</span> Pengurusan Projek</div>
-                            <div class="flex items-center gap-2 bg-white p-2 rounded-lg border border-gray-100 shadow-sm"><span class="text-teal-500 font-bold">6.</span> Pengujian & Pelaksanaan</div>
+                            <div class="flex items-center gap-2 bg-white p-2 rounded-lg border border-gray-100 shadow-sm"><span class="text-teal-500 font-bold">6.</span> Pengujian Sistem</div>
                             <div class="flex items-center gap-2 bg-white p-2 rounded-lg border border-gray-100 shadow-sm"><span class="text-teal-500 font-bold">7.</span> Kelestarian & Peluasan</div>
-                            <div class="flex items-center gap-2 bg-white p-2 rounded-lg border border-gray-100 shadow-sm"><span class="text-teal-500 font-bold">8.</span> Kepimpinan & Kerjasama</div>
+                            <div class="flex items-center gap-2 bg-white p-2 rounded-lg border border-gray-100 shadow-sm"><span class="text-teal-500 font-bold">8.</span> Kerja Berpasukan</div>
                         </div>
                     </div>
                 </div>
@@ -99,7 +99,7 @@
                     <svg class="animate-spin h-10 w-10 text-indigo-600 mx-auto mb-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke-width="4" stroke="currentColor"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
                     <p class="text-gray-500 font-medium">Memuatkan profail ahli pasukan...</p>
                 </div>
-                <div id="team-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 hidden"></div>
+                <div id="team-container" class="grid grid-cols-1 lg:grid-cols-2 gap-8 hidden"></div>
             </div>
         </section>
     </main>
@@ -146,36 +146,77 @@
         const db = getFirestore(app); 
         const appId = firebaseConfig.projectId;
 
-        const skillLabels = ['Idea', 'Teknikal', 'Masalah', 'Komunikasi', 'Pengurusan', 'Pengujian', 'Kelestarian', 'Kerjasama'];
+        // Label mesti selaras dengan carta dan susunan index 0-7
+        const skillLabels = ['Kreativiti & Idea', 'Kemahiran Teknikal', 'Penyelesaian Masalah', 'Komunikasi', 'Pengurusan Projek', 'Pengujian Sistem', 'Kelestarian', 'Kerja Berpasukan'];
 
         window.teamMembersList = [];
         let currentEditingMemberId = null;
 
-        // FUNGSI JANA ANALISIS AI
+        // ==============================================================
+        // FUNGSI JANA ANALISIS AI YANG DIPERBAIK & LEBIH PANJANG
+        // ==============================================================
         function generateAIAnalysis(name, skillsData) {
-            let maxScore = Math.max(...skillsData);
-            let topSkillsIndex = [];
-            
-            skillsData.forEach((score, index) => {
-                if(score === maxScore) topSkillsIndex.push(index);
+            // Gabungkan label dan skor untuk mudah di 'sort'
+            let mappedSkills = skillLabels.map((label, index) => {
+                return { label: label, score: skillsData[index], index: index };
             });
 
+            // Susun dari markah paling tinggi ke rendah
+            mappedSkills.sort((a, b) => b.score - a.score);
+
+            let top1 = mappedSkills[0];
+            let top2 = mappedSkills[1];
+            let top3 = mappedSkills[2];
+
             let avg = skillsData.reduce((a, b) => a + b, 0) / skillsData.length;
-            let topLabels = topSkillsIndex.map(i => skillLabels[i]).join(' dan ');
-            
-            // Logik rumusan
-            let analysisText = ``;
-            if (avg >= 85) {
-                analysisText = `Berdasarkan bacaan radar, <strong>${name}</strong> adalah profil 'All-Rounder' dengan kepakaran tertinggi dalam <strong>${topLabels} (${maxScore}%)</strong>. Tahap keseimbangan graf ini sangat kritikal untuk memastikan kelestarian projek berskala besar.`;
-            } else if (topSkillsIndex.includes(1) || topSkillsIndex.includes(5)) { // Teknikal atau Pengujian
-                analysisText = `Melihat pada lonjakan markah <strong>${topLabels} (${maxScore}%)</strong>, profil ini merupakan tulang belakang teknikal SPARK. Ketelitian beliau memastikan setiap kod dan sistem berfungsi tanpa ralat sebelum dilancarkan.`;
-            } else if (topSkillsIndex.includes(0) || topSkillsIndex.includes(3)) { // Idea atau Komunikasi
-                analysisText = `Graf menunjukkan dominasi dalam <strong>${topLabels} (${maxScore}%)</strong>. <strong>${name}</strong> bertindak sebagai 'Pencetus Ruang'. Kebolehan beliau menyampaikan visi sistem kepada pengguna adalah nadi penerimaan SPARK di sekolah.`;
-            } else {
-                analysisText = `Teras kekuatan <strong>${name}</strong> berpaksikan pada <strong>${topLabels} (${maxScore}%)</strong>. Profil sebegini bertindak sebagai pemudahcara yang sangat efisien dalam menyusun gerak kerja dan menyelesaikan isu luar jangka.`;
+
+            let persona = "";
+            let description = "";
+
+            // Tentukan Persona berdasarkan kekuatan dominan (Top 1)
+            switch(top1.index) {
+                case 0: persona = "Arkitek Idea & Kreativiti"; break;
+                case 1: persona = "Pakar Arkitektur Sistem (Tech Lead)"; break;
+                case 2: persona = "Penyelesai Isu Taktikal (Problem Solver)"; break;
+                case 3: persona = "Pakar Komunikasi & Pengaruh"; break;
+                case 4: persona = "Pakar Strategi Pengurusan"; break;
+                case 5: persona = "Penguji Kualiti & Sistem (QA)"; break;
+                case 6: persona = "Pemacu Kelestarian Projek"; break;
+                case 7: persona = "Nadi Dinamik Pasukan"; break;
+                default: persona = "Pakar Inovasi Eksekutif";
             }
 
-            return analysisText;
+            if (avg >= 85) {
+                persona = `Mastermind All-Rounder (${persona})`;
+            }
+
+            // MULA JANA TEKS
+            let text = `Analisis graf radar secara komprehensif merumuskan bahawa <strong>${name}</strong> mendominasi peranan sebagai <strong>${persona}</strong> dalam ekosistem SPARK. `;
+
+            if (avg >= 85) {
+                text += `Dengan keupayaan luar biasa merentasi pelbagai domain (purata prestasi keseluruhan ${avg.toFixed(1)}%), beliau memiliki 'Pandangan Helikopter' yang amat kritikal bagi membimbing hala tuju projek. `;
+            }
+
+            text += `Kelebihan utama beliau terletak pada sinergi unik kepakaran <strong>${top1.label} (${top1.score}%)</strong> yang disokong padu oleh <strong>${top2.label} (${top2.score}%)</strong> dan <strong>${top3.label} (${top3.score}%)</strong>. `;
+
+            // Logik Penerangan Berdasarkan Kekuatan
+            if (top1.index === 1 || top1.index === 5) { 
+                // Jika dominan teknikal/testing
+                text += `Kombinasi ini menjadikan beliau 'Tulang Belakang Teknologi' pasukan. Ketelitian dan kemahiran analitikal beliau memastikan setiap baris kod, modul aplikasi, serta pengujian ralat beroperasi pada tahap optimum. Tanpa kelebihan teknikal beliau, sistem berisiko besar mengalami kegagalan fungsi apabila diakses oleh ribuan pendidik serentak. `;
+            } else if (top1.index === 0 || top1.index === 3) { 
+                // Jika dominan idea/komunikasi
+                text += `Bakat semula jadi ini membolehkan beliau bertindak sebagai ejen pembawa perubahan (Change Maker) yang sangat efektif. Beliau bukan sahaja pantas menterjemahkan masalah birokrasi yang kompleks kepada idea penyelesaian digital yang segar, malah mempunyai karisma tinggi untuk meyakinkan pihak pengurusan dan menjiwai pengguna akhir agar menerima SPARK dengan hati terbuka. `;
+            } else if (top1.index === 4 || top1.index === 2) { 
+                // Jika dominan management/problem solving
+                text += `Keupayaan analitikal ini membolehkan beliau bertindak sebagai perisai utuh kepada pasukan. Beliau mempamerkan kecemerlangan luar biasa dalam merungkai masalah rumit (troubleshooting), mengurus kekangan sumber, dan memastikan gerak kerja sentiasa berada di landasan yang betul walaupun pasukan sedang berdepan tekanan garis masa yang kritikal. `;
+            } else { 
+                // Jika dominan kelestarian/kerja berpasukan
+                text += `Kekuatan empati dan perancangan strategik jangka panjang ini menjadikan beliau 'gam' yang mengikat perpaduan keseluruhan pasukan. Beliau sentiasa merancang melangkaui fasa pelancaran sistem semata-mata—memastikan keluk inovasi ini terus relevan, mudah diselenggara untuk masa depan, serta menjaga tahap motivasi ahli yang lain walau apa jua cabaran mendatang. `;
+            }
+
+            text += `Kesimpulannya, kehadiran dan fungsi <strong>${name}</strong> bukan sekadar melengkapkan struktur carta, tetapi ia adalah satu kelebihan strategik eksklusif (strategic advantage) yang memastikan inovasi SPARK sentiasa berevolusi dan berimpak tinggi.`;
+
+            return text;
         }
 
         async function loadTeamMembers() {
@@ -216,11 +257,13 @@
                         ];
                     }
 
-                    // Panggil fungsi AI untuk jana teks
-                    const aiText = generateAIAnalysis(member.name.split(' ')[0], skillData);
+                    // JANA ANALISIS AI
+                    const shortName = member.name.split(' ')[0]; // Ambil nama panggilan (perkataan pertama)
+                    const aiText = generateAIAnalysis(shortName, skillData);
 
                     const card = document.createElement('div');
-                    card.className = "bg-white rounded-3xl border border-gray-100 shadow-sm p-6 card-hover flex flex-col relative overflow-hidden group";
+                    // Ditukar grid-cols ke lg:grid-cols-2 (atas) untuk bagi ruang teks panjang muat dgn cantik
+                    card.className = "bg-white rounded-3xl border border-gray-100 shadow-md hover:shadow-xl transition-all duration-500 p-6 flex flex-col relative overflow-hidden group";
                     card.innerHTML = `
                         <div class="absolute top-0 inset-x-0 h-24 bg-gradient-to-r from-indigo-500 to-teal-400 opacity-10"></div>
                         
@@ -237,7 +280,7 @@
                             <p class="text-xs text-gray-500 mt-0.5 uppercase">${member.organization}</p>
                         </div>
                         
-                        <div class="quote-container rounded-2xl p-5 border border-gray-100 mb-6 flex-grow relative flex flex-col justify-center">
+                        <div class="quote-container rounded-2xl p-5 border border-gray-100 mb-6 relative flex flex-col justify-center shrink-0">
                             <svg class="absolute top-3 left-3 w-8 h-8 text-indigo-100" fill="currentColor" viewBox="0 0 24 24"><path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10h-9.983zm-14.017 0v-7.391c0-5.704 3.748-9.57 9-10.609l.996 2.151c-2.433.917-3.996 3.638-3.996 5.849h3.983v10h-9.983z"/></svg>
                             <blockquote class="relative z-10 pt-2 px-2">
                                 <p id="quote-display-${member.id}" class="text-[13px] text-gray-700 italic leading-relaxed text-center font-medium">
@@ -246,18 +289,18 @@
                             </blockquote>
                         </div>
 
-                        <div class="mb-4">
+                        <div class="mb-6 shrink-0">
                             <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest text-center mb-2">Carta Fungsi (Spider Web)</p>
-                            <div class="relative h-56 w-full"><canvas id="chart-${member.id}"></canvas></div>
+                            <div class="relative h-64 w-full"><canvas id="chart-${member.id}"></canvas></div>
                         </div>
 
-                        <div class="mt-auto bg-gradient-to-br from-indigo-50 via-white to-purple-50 p-4 rounded-2xl border border-indigo-100 relative overflow-hidden shadow-sm">
+                        <div class="mt-auto bg-gradient-to-br from-indigo-50 via-white to-purple-50 p-5 rounded-2xl border border-indigo-100 relative overflow-hidden shadow-sm">
                             <div class="absolute inset-0 ai-shimmer opacity-30 pointer-events-none"></div>
-                            <div class="flex items-center gap-1.5 mb-2 relative z-10">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-purple-600 shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.381z" clip-rule="evenodd" /></svg>
-                                <span class="text-[10px] font-bold text-purple-700 uppercase tracking-widest line-clamp-1" title="Analisis Kepakaran AI: ${member.name}">Analisis Kepakaran AI: ${member.name}</span>
+                            <div class="flex items-center gap-2 mb-3 relative z-10 border-b border-indigo-100/50 pb-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-purple-600 shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.381z" clip-rule="evenodd" /></svg>
+                                <span class="text-xs font-bold text-purple-800 uppercase tracking-widest line-clamp-1" title="Analisis Kepakaran AI: ${member.name}">Analisis Kepakaran AI: ${member.name}</span>
                             </div>
-                            <p class="text-xs text-gray-600 leading-relaxed font-medium relative z-10">
+                            <p class="text-xs text-gray-700 leading-relaxed text-justify relative z-10">
                                 ${aiText}
                             </p>
                         </div>
