@@ -128,6 +128,17 @@
                         Cetak Sijil Penyertaan
                     </button>
                     <p class="text-[10px] text-gray-400 mt-3 italic">Sijil akan dibuka di tetingkap baru (Pop-up).</p>
+                    
+                    <div class="mt-5 bg-purple-50 p-3 rounded-lg border border-purple-100 flex items-start gap-3 text-left">
+                        <div class="bg-purple-200 p-1.5 rounded-full shrink-0 mt-0.5">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-purple-700" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                            </svg>
+                        </div>
+                        <p class="text-xs text-purple-800 leading-relaxed">
+                            <strong>Peringatan:</strong> Jika belum sempat memuat turun, anda boleh dapatkan semula sijil ini pada bila-bila masa. Hanya log masuk ke <a href="index.html" class="font-bold underline hover:text-purple-900">Portal SPARK</a> dan klik pada butang <strong>"Sijil & Penghargaan"</strong>.
+                        </p>
+                    </div>
                 </div>
             </div>
             
@@ -344,8 +355,7 @@
             });
 
             if (isAlreadyEvaluated) { 
-                const currentYear = new Date().getFullYear();
-                return showMessage('warning', 'Telah Menjawab', `Anda telah pun memberi maklum balas penilaian pada tarikh ini.<br><br>Sijil anda boleh dimuat turun melalui <a href="index.html" class="text-purple-600 font-bold hover:underline">Halaman Utama SPARK</a> bagi tahun <b>${currentYear}</b>.`); 
+                return showMessage('warning', 'Telah Menjawab', `Anda telah pun memberi maklum balas penilaian pada tarikh ini.`, true); 
             }
 
             const participantsRef = collection(db, `artifacts/${appId}/public/data/spark_participants`);
@@ -415,11 +425,10 @@
                 currentProgram.evaluations.push(newEvaluation);
                 renderStats();
 
-                const currentYear = new Date().getFullYear();
                 if (currentProgram.eCertificateNeeded) {
-                    showMessage('success', `Tahniah, ${participantInfo.name}!`, `Penilaian direkodkan. Sila cetak sijil di bawah.<br><br>Sijil juga boleh dimuat turun dari <a href="index.html" class="text-purple-600 font-bold hover:underline">Halaman Utama SPARK</a> bagi tahun <b>${currentYear}</b>.`, true);
+                    showMessage('success', `Tahniah, ${participantInfo.name}!`, `Penilaian anda telah direkodkan. Sila cetak/muat turun sijil anda di bawah.`, true);
                 } else {
-                    showMessage('success', 'Penilaian Diterima!', `Terima kasih, ${participantInfo.name}.<br><br>Sijil boleh dimuat turun melalui <a href="index.html" class="text-purple-600 font-bold hover:underline">Halaman Utama SPARK</a> bagi tahun <b>${currentYear}</b>.`);
+                    showMessage('success', 'Penilaian Diterima!', `Terima kasih, ${participantInfo.name}. Penilaian anda telah direkodkan dengan jayanya.`);
                 }
             } catch(error) {
                 console.error("Error saving evaluation: ", error);
@@ -460,7 +469,7 @@
 
             const btnPrint = document.getElementById('btn-print-cert');
             const ogText = btnPrint.innerHTML;
-            btnPrint.innerHTML = `<svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> MEMPROSES...`;
+            btnPrint.innerHTML = `<svg class="animate-spin h-5 w-5 text-white inline-block mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> MEMPROSES...`;
             btnPrint.disabled = true;
 
             try {
@@ -470,16 +479,32 @@
                 const participantName = participantInfo.name.toUpperCase();
                 const participantIC = participantInfo.ic;
                 const courseName = currentProgram.name.toUpperCase();
-                const roleRaw = participantInfo.role ? String(participantInfo.role).trim().toLowerCase() : 'peserta';
-                const isSpecial = ['penceramah', 'fasilitator', 'urusetia', 'pengacara bengkel', 'pembaca doa', 'teknikal siaraya'].includes(roleRaw);
+                
+                // MULTI-ROLE LOGIC
+                const roleRaw = participantInfo.role ? String(participantInfo.role).trim() : 'Peserta';
+                const rolesArray = roleRaw.split(',').map(r => r.trim()).filter(r => r);
+                const isSpecial = rolesArray.some(r => r.toLowerCase() !== 'peserta');
+                
                 const certificateTitle = isSpecial ? "Sijil Penghargaan" : "Sijil Penyertaan";
-                const roleBadgeHTML = isSpecial ? `<div class="role-badge">SEBAGAI ${participantInfo.role.toUpperCase()}</div>` : '';
                 const introText = isSpecial ? "Dengan tulus ikhlas merakamkan setinggi-tinggi penghargaan kepada" : "Dengan ini disahkan bahawa";
                 const eventLabel = isSpecial ? "Atas sumbangan bakti dan komitmen menjayakan" : "telah mengikuti";
 
+                let roleBadgeHTML = '';
+                if (isSpecial) {
+                    const rolesListHTML = rolesArray.map(r => `<div class="role-item">${r.toUpperCase()}</div>`).join('');
+                    roleBadgeHTML = `
+                        <div class="role-badge-container">
+                            <div class="role-prefix">SEBAGAI</div>
+                            <div class="role-list">
+                                ${rolesListHTML}
+                            </div>
+                        </div>
+                    `;
+                }
+
                 const startDate = new Date(currentProgram.startDate + 'T00:00:00');
                 const endDate = new Date(currentProgram.endDate + 'T00:00:00');
-                let dateString = startDate.getTime() === endDate.getTime() ? `pada ${startDate.toLocaleDateString('ms-MY', { day: '2-digit', month: 'long', year: 'numeric' }).toUpperCase()}` : `pada ${startDate.toLocaleDateString('ms-MY', { day: '2-digit' })} hingga ${endDate.toLocaleDateString('ms-MY', { day: '2-digit', month: 'long', year: 'numeric' }).toUpperCase()}`;
+                let dateString = startDate.getTime() === endDate.getTime() ? `pada ${startDate.toLocaleDateString('ms-MY', { day: '2-digit', month: 'long', year: 'numeric' }).toUpperCase()}` : `dari ${startDate.toLocaleDateString('ms-MY', { day: '2-digit' })} hingga ${endDate.toLocaleDateString('ms-MY', { day: '2-digit', month: 'long', year: 'numeric' }).toUpperCase()}`;
 
                 let jumlahJam = 0;
                 if (currentProgram.jam || currentProgram.hours || currentProgram.masa) jumlahJam = parseFloat(currentProgram.jam || currentProgram.hours || currentProgram.masa);
@@ -500,6 +525,19 @@
 
                 let signatoryName = "", signatoryTitle = "", logoHTML = "", customTemplateCSS = "";
                 let stesenSijil = currentProgram.location ? currentProgram.location.toUpperCase() : "SEKOLAH KEMENTERIAN PENDIDIKAN MALAYSIA";
+                
+                // DAPATKAN STESEN PEMILIK PROGRAM (BUKAN STESEN PESERTA)
+                if (isSchoolProgram) {
+                    if (currentProgram.penyelaras_ic) {
+                        try {
+                            const creatorSnap = await getDocs(query(collection(db, `artifacts/${appId}/public/data/spark_participants`), where("ic", "==", currentProgram.penyelaras_ic)));
+                            if (!creatorSnap.empty) {
+                                stesenSijil = (creatorSnap.docs[0].data().station || currentProgram.location || "").toUpperCase();
+                            }
+                        } catch(e) {}
+                    }
+                }
+
                 let settingsRefId = isSchoolProgram ? stesenSijil : currentProgram.penyelaras_ic;
 
                 if (isSchoolProgram) {
@@ -568,7 +606,13 @@
                             .serial-number { font-family: monospace; font-size: 14px; color: #555; margin: 0; }
                             .logo { margin: 0 auto 15px auto; object-fit: contain; }
                             h1 { font-family: 'Playfair Display', serif; font-size: 42px; font-weight: 700; margin: 10px 0; text-transform: uppercase; color: ${primaryColor}; line-height: 1.1; }
-                            .role-badge { font-size: 18px; font-weight: 700; color: #d4af37; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 2px; }
+                            
+                            /* STYLE MULTI-ROLE AJK */
+                            .role-badge-container { margin: 15px 0; text-align: center; }
+                            .role-prefix { font-size: 14px; font-weight: 600; color: #555; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 5px; }
+                            .role-list { display: flex; flex-direction: column; gap: 4px; align-items: center; }
+                            .role-item { font-size: 20px; font-weight: 700; color: #d4af37; text-transform: uppercase; letter-spacing: 1px; line-height: 1.2; }
+                            
                             .intro-text { font-size: 16px; margin: 20px 0; color: #555; }
                             .recipient-name { font-family: 'Playfair Display', serif; font-size: 30px; font-weight: 700; margin: 10px 0; color: #111; line-height: 1.2; }
                             .recipient-ic { font-size: 16px; font-weight: 500; margin-bottom: 30px; color: #444; }
@@ -603,12 +647,15 @@
                                 </div>
                                 ${logoHTML}
                                 <h1>${certificateTitle}</h1>
-                                ${roleBadgeHTML}
+                                
                                 <p class="intro-text">${introText}</p>
                                 <p class="recipient-name">${participantName}</p>
                                 <p class="recipient-ic">${participantIC}</p>
                                 <p class="event-title-label">${eventLabel}</p>
                                 <p class="event-title">${courseName}</p>
+                                
+                                ${roleBadgeHTML}
+                                
                                 <p class="event-date">${dateString}</p>
                                 <div style="text-align: center;">${masaHTML}</div>
                                 <hr class="divider">
