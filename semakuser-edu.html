@@ -1184,31 +1184,15 @@
                 ...extraInfo
             };
             
-           // === 5. Jalankan Transaksi ===
+ // === 5. Jalankan Transaksi ===
             try {
                 await runTransaction(db, async (transaction) => {
                     const programRef = doc(db, `artifacts/${appId}/public/data/spark_programs`, programKey);
                     transaction.set(programRef, newProgram);
 
+                    // 1. Simpan Tempahan Bilik (Jika Ada)
                     if (bookingNeeded) {
                         const newBooking = {
-
-// --- KOD BAHARU: HANTAR NOTIFIKASI TANPA LINK KEHADIRAN ---
-                    if (tagNeeded && selectedTaggedUsers.length > 0) {
-                        selectedTaggedUsers.forEach(user => {
-                            const notiRef = doc(collection(db, `artifacts/${appId}/public/data/spark_notifications`));
-                            transaction.set(notiRef, {
-                                ic: user.ic,
-                                title: "Jemputan Program Rasmi",
-                                message: `Anda telah ditag oleh ${currentApplicant.name} untuk program: ${newProgram.name}. Sila semak tab 'Aktiviti Saya' untuk butiran lanjut.`,
-                                type: "program", 
-                                isRead: false,
-                                createdAt: serverTimestamp(),
-                                link: "tab:planner" // Bawa terus ke tab Aktiviti Saya
-                            });
-                        });
-                    }
-                            
                             programKey: programKey,
                             programName: newProgram.name,
                             room: roomBooked,
@@ -1224,27 +1208,21 @@
                         transaction.set(bookingRef, newBooking);
                     }
 
-                    // --- KOD BAHARU: HANTAR NOTIFIKASI KE USER.HTML ---
+                    // 2. Hantar Notifikasi Peringatan (Jika Ada Tag)
                     if (tagNeeded && selectedTaggedUsers.length > 0) {
-                        let linkNoti = `${window.location.origin}${window.location.pathname.replace(/[^\/]*$/, 'participant.html')}?kod=${programKey}`;
-                        if (surveyNeeded && surveyKey) {
-                            linkNoti = `${window.location.origin}${window.location.pathname.replace(/[^\/]*$/, 'tinjauan.html')}?kod=${surveyKey}`;
-                        }
-                        
                         selectedTaggedUsers.forEach(user => {
                             const notiRef = doc(collection(db, `artifacts/${appId}/public/data/spark_notifications`));
                             transaction.set(notiRef, {
                                 ic: user.ic,
                                 title: "Jemputan Program Rasmi",
-                                message: `Anda telah ditag oleh ${currentApplicant.name} untuk program: ${newProgram.name}. Sila ambil maklum.`,
+                                message: `Anda telah ditag oleh ${currentApplicant.name} untuk program: ${newProgram.name}. Sila semak tab 'Aktiviti Saya' untuk butiran lanjut.`,
                                 type: "program", 
                                 isRead: false,
                                 createdAt: serverTimestamp(),
-                                link: linkNoti
+                                link: "tab:planner"
                             });
                         });
                     }
-                    // --- TAMAT KOD BAHARU ---
                 });
 
                 document.getElementById('generated-key').textContent = programKey;
