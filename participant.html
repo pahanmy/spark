@@ -33,7 +33,7 @@
             animation: fadeIn 0.5s ease-out forwards;
         }
         .btn { transition: all 0.3s; }
-        .btn:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        .btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
         .btn:disabled { cursor: not-allowed; opacity: 0.7; transform: none; box-shadow: none; }
         .modal-backdrop { background-color: rgba(0,0,0,0.5); }
         
@@ -209,10 +209,10 @@
                 </div>
             </div>
 
-            <div id="message-card" class="card p-8 text-center hidden">
+            <div id="message-card" class="card p-8 text-center hidden max-w-md mx-auto">
                  <div id="message-icon" class="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4"></div>
-                <h2 id="message-title" class="text-2xl font-bold"></h2>
-                <p id="message-body" class="text-gray-600 mt-2 text-sm"></p>
+                <h2 id="message-title" class="text-2xl font-bold text-gray-800 uppercase"></h2>
+                <div id="message-body" class="text-gray-600 mt-2 text-sm leading-relaxed"></div>
             </div>
 
             <div id="pdpa-modal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop hidden">
@@ -238,12 +238,12 @@
                     © 2026 SPARK oleh <a href="https://pahanmy.github.io/works/" target="_blank" class="font-bold hover:text-white transition-colors underline decoration-white/50 underline-offset-2">PahanStudio</a>.<br>
                     Dibangunkan dengan ❤️ di Miri.
                 </p>
-                <a href="sponsor.html" class="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white border border-white/20 shadow-sm transition-all duration-300 text-[10px] font-semibold tracking-wide backdrop-blur-sm">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-pink-300" viewBox="0 0 20 20" fill="currentColor">
-                        <path fill-rule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clip-rule="evenodd" />
+                <button onclick="window.location.href='index.html'" class="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white border border-white/20 shadow-sm transition-all duration-300 text-[10px] font-semibold tracking-wide backdrop-blur-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
                     </svg>
-                    Sokong Pembangunan SPARK
-                </a>
+                    Halaman Utama
+                </button>
             </footer>
 
         </div>
@@ -252,16 +252,9 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, updateDoc, arrayUnion, collection, query, where, getDocs, addDoc, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, updateDoc, arrayUnion, collection, query, where, getDocs, addDoc, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM",
-            authDomain: "myqrhadir.firebaseapp.com",
-            projectId: "myqrhadir",
-            storageBucket: "myqrhadir.appspot.com",
-            messagingSenderId: "799691133747",
-            appId: "1:799691133747:web:835a5e3e9413eace806446"
-        };
+        const firebaseConfig = { apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM", authDomain: "myqrhadir.firebaseapp.com", projectId: "myqrhadir", storageBucket: "myqrhadir.appspot.com", messagingSenderId: "799691133747", appId: "1:799691133747:web:835a5e3e9413eace806446" };
         
         let db, auth;
         let currentProgram = null;
@@ -282,11 +275,19 @@
             }
         });
 
+        function getLocalDateString(d) {
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
         function formatShortDate(dateStr) {
             if (!dateStr) return '';
             const d = new Date(dateStr + 'T00:00:00');
             return d.toLocaleDateString('ms-MY', { day: 'numeric', month: 'short', year: 'numeric' });
         }
+        
         function formatDateRange(start, end) {
             if (!start) return '';
             if (start === end || !end) return formatShortDate(start);
@@ -585,13 +586,28 @@
         
         async function addParticipantToAttendance(participantData) {
             const programRef = doc(db, `artifacts/${appId}/public/data/spark_programs`, currentProgram.id);
-            const newAttendanceRecord = { ...participantData, time: new Date().toISOString(), status: 'Hadir' };
+            
+            // Semak role dari TaggedIcs
+            let finalRole = "Peserta";
+            if (currentProgram.taggedIcs && currentProgram.taggedIcs.includes(participantData.ic)) {
+                finalRole = "AJK";
+            }
+            
+            const attendanceRecord = {
+                ic: participantData.ic,
+                name: participantData.name,
+                station: participantData.station || "TIADA",
+                position: participantData.position || "TIADA",
+                role: finalRole,
+                time: new Date().toISOString(),
+                status: "Hadir"
+            };
 
             try {
                 await updateDoc(programRef, {
-                    attendance: arrayUnion(newAttendanceRecord)
+                    attendance: arrayUnion(attendanceRecord)
                 });
-                showMessage('success', 'Kehadiran Disahkan!', `Terima kasih, ${participantData.name}. Kehadiran direkodkan.`);
+                showMessage('success', 'Kehadiran Disahkan!', `Terima kasih, <b>${participantData.name}</b>.<br>Kehadiran direkodkan.`);
             } catch (error) {
                 console.error("Error adding attendance: ", error);
                 showMessage('error', 'Gagal!', 'Gagal merekodkan kehadiran. Sila cuba lagi.');
@@ -614,7 +630,39 @@
             const msgBody = document.getElementById('message-body');
 
             msgTitle.textContent = title;
-            msgBody.textContent = body;
+            
+            // --- KOD BAHARU: SELITKAN PAUTAN BAHAN JIKA ADA ---
+            let finalBody = body;
+            
+            if ((type === 'success' || type === 'warning') && currentProgram && currentProgram.materialType) {
+                let matUrl = '';
+                let matLabel = '';
+                
+                if (currentProgram.materialType === 'direct' && currentProgram.materialUrl) {
+                    matUrl = currentProgram.materialUrl;
+                    matLabel = '📂 Buka Bahan (Link / G-Drive)';
+                } else if (currentProgram.materialType === 'sparklink' && currentProgram.materialSparkLinkSlug) {
+                    const baseUrl = window.location.origin + window.location.pathname.replace(/[^\/]*$/, 'viewlink.html');
+                    matUrl = `${baseUrl}?u=${currentProgram.materialSparkLinkSlug}`;
+                    matLabel = '🔗 Buka SPARK Link';
+                }
+
+                if (matUrl) {
+                    finalBody += `
+                        <div class="mt-6 p-4 bg-teal-50 border border-teal-200 rounded-xl text-left shadow-inner">
+                            <p class="text-[10px] font-bold text-teal-800 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
+                                Bahan Program Tersedia
+                            </p>
+                            <a href="${matUrl}" target="_blank" class="block w-full bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold py-3 px-4 rounded-lg shadow-sm transition-colors text-center uppercase tracking-wide">
+                                ${matLabel}
+                            </a>
+                        </div>
+                    `;
+                }
+            }
+            msgBody.innerHTML = finalBody;
+            // --- TAMAT KOD BAHARU ---
             
             let icon, color;
             if (type === 'success') {
@@ -628,14 +676,13 @@
                 color = 'bg-red-500';
             }
             
-            msgIcon.className = `w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-3 ${color}`;
+            msgIcon.className = `w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-3 ${color} shadow-lg`;
             msgIcon.innerHTML = icon;
 
             msgCard.classList.remove('hidden');
         }
 
         function setupDynamicFormListeners() {
-            // Urus Pertukaran Tab / Kategori
             const updateFields = () => {
                 const categoryRadio = document.querySelector('input[name="participant-category"]:checked');
                 if(!categoryRadio) return;
@@ -645,30 +692,25 @@
                     const fieldset = document.getElementById(`${cat}-fields`);
                     fieldset.classList.toggle('hidden', cat !== category);
                     
-                    // Disable semua input dalam tab yang tak aktif supaya tidak dihalang oleh atribut 'required'
                     if (cat !== category) {
                         fieldset.querySelectorAll('input, select').forEach(el => el.disabled = true);
                     } else {
-                        // Aktifkan input asas untuk tab aktif
                         fieldset.querySelectorAll('input[type="radio"], input[type="text"]:not([id*="-station-"]), select:not([id*="-station-"])').forEach(el => el.disabled = false);
                     }
                 });
 
-                // Set semula logik stesen bagi kategori yang sedang aktif
                 if (category === 'warga' || category === 'murid') {
                     const locRadio = document.querySelector(`input[name="${category}-location"]:checked`);
                     if(locRadio) {
                         locRadio.dispatchEvent(new Event('change'));
                     }
                 } 
-                // Jika kategori 'awam', semua input telah diaktifkan di dalam gelung foreach tadi
             };
 
             document.querySelectorAll('input[name="participant-category"]').forEach(radio => {
                 radio.addEventListener('change', updateFields);
             });
 
-            // Urus Pertukaran Lokasi (Miri vs Luar)
             const locationHandler = (prefix) => {
                 document.querySelectorAll(`input[name="${prefix}-location"]`).forEach(radio => {
                     radio.addEventListener('change', (e) => {
@@ -691,7 +733,6 @@
             locationHandler('warga');
             locationHandler('murid');
 
-            // Jalankan fungsi buat pertama kali apabila modal dibuka
             updateFields();
         }
 
