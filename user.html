@@ -1296,6 +1296,28 @@ async function loadUserData(ic) {
                         if (progCreatedBy === cleanUserIc || progAdminIc === cleanUserIc) {
                             createdList.push({ programData, participantData: null });
                         }
+                        // --- KOD TAMBAHAN: MASUKKAN PROGRAM KE PLANNER JIKA DITAG ---
+                        if (programData.taggedIcs && programData.taggedIcs.includes(cleanUserIc)) {
+                            plannerList.push({
+                                id: programData.id,
+                                isProgramTag: true, // Tag rahsia membezakan Program Rasmi dan Aktiviti Biasa
+                                title: programData.name,
+                                startDate: programData.startDate,
+                                endDate: programData.endDate || programData.startDate,
+                                startTime: programData.startTime,
+                                endTime: programData.endTime,
+                                location: programData.location,
+                                mode: programData.method || 'BERSEMUKA',
+                                link: programData.meetLink,
+                                surveyNeeded: programData.surveyNeeded,
+                                surveyKey: programData.surveyKey,
+                                ic: programData.penyelaras_ic,
+                                taggedIcs: programData.taggedIcs,
+                                participants: programData.participants,
+                                notes: "Ini adalah Program Rasmi SPARK.\nSila buat Pengesahan Kehadiran (jika ada) dan Daftar Kehadiran pada hari kejadian."
+                            });
+                        }
+                        // --- TAMAT KOD TAMBAHAN ---
                     }
                 });
 
@@ -2081,18 +2103,39 @@ return `
             }
 
 
-else if (eventData.taggedIcs && eventData.taggedIcs.includes(currentUserIc)) {
-                // Jika pengguna bukan pemilik, tetapi telah ditag
+else if (eventData.isProgramTag) {
+                // --- KOD TAMBAHAN: BUTANG PENGESAHAN & KEHADIRAN (PROGRAM RASMI) ---
+                const now = new Date();
+                const progStart = new Date(`${eventData.startDate}T${eventData.startTime || '00:00'}`);
+                
+                // 1. Butang Tinjauan (Pengesahan Awal) - Keluar jika Penyelaras aktifkan
+                if (eventData.surveyNeeded && eventData.surveyKey) {
+                    const btnSurvey = document.createElement('a');
+                    btnSurvey.href = `tinjauan.html?kod=${eventData.surveyKey}`;
+                    btnSurvey.target = "_blank";
+                    btnSurvey.className = "w-full text-xs bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-700 font-bold py-2.5 px-4 rounded-lg uppercase shadow-sm transition-colors flex justify-center items-center gap-2 mb-2";
+                    btnSurvey.innerHTML = `📝 PENGESAHAN KEHADIRAN (AWAL)`;
+                    actions.appendChild(btnSurvey);
+                }
+
+                // 2. Butang Kehadiran - Hanya aktif bila tarikh/masa sudah bermula
+                const btnCheckIn = document.createElement('a');
+                if (now >= progStart) {
+                    btnCheckIn.href = `participant.html?kod=${eventData.id}`;
+                    btnCheckIn.target = "_blank";
+                    btnCheckIn.className = "w-full text-xs bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 px-4 rounded-lg uppercase shadow-sm transition-colors flex justify-center items-center gap-2";
+                    btnCheckIn.innerHTML = `✅ DAFTAR KEHADIRAN SEKARANG`;
+                } else {
+                    btnCheckIn.className = "w-full text-xs bg-gray-200 text-gray-500 font-bold py-2.5 px-4 rounded-lg uppercase shadow-sm flex justify-center items-center gap-2 cursor-not-allowed";
+                    btnCheckIn.removeAttribute('href'); // Kunci link
+                    btnCheckIn.innerHTML = `⏳ KEHADIRAN DIBUKA PADA: ${new Date(eventData.startDate).toLocaleDateString('ms-MY')}`;
+                }
+                actions.appendChild(btnCheckIn);
+                // --- TAMAT KOD TAMBAHAN ---
+            }
+            else if (eventData.taggedIcs && eventData.taggedIcs.includes(currentUserIc)) {
+                // Jika pengguna bukan pemilik, tetapi telah ditag (Untuk Aktiviti Planner Biasa)
                 const btnUntag = document.createElement('button');
-                btnUntag.className = "w-full text-xs bg-red-50 border border-red-200 hover:bg-red-100 text-red-600 font-bold py-2.5 px-4 rounded-lg uppercase shadow-sm transition-colors flex justify-center items-center gap-2";
-                btnUntag.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7a4 4 0 11-8 0 4 4 0 018 0zM9 14a6 6 0 00-6 6v1h12v-1a6 6 0 00-6-6zm11-2l-4 4m0 0l-4-4m4 4V4" /></svg> KELUAR DARI TAG`;
-                btnUntag.title = "Padam tag anda dari aktiviti ini";
-                btnUntag.onclick = () => {
-                    if(confirm("Adakah anda pasti mahu memadam nama anda (untag) dari aktiviti ini?")) {
-                        untagFromPlannerActivity(eventData.id, eventData);
-                        modal.classList.add('hidden');
-                    }
-                };
                 actions.appendChild(btnUntag);
             }
 
