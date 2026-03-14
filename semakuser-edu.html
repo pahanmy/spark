@@ -1184,6 +1184,7 @@
                 ...extraInfo
             };
             
+           // === 5. Jalankan Transaksi ===
             try {
                 await runTransaction(db, async (transaction) => {
                     const programRef = doc(db, `artifacts/${appId}/public/data/spark_programs`, programKey);
@@ -1205,6 +1206,28 @@
                         const bookingRef = doc(db, `artifacts/${appId}/public/data/spark_bookings`, programKey);
                         transaction.set(bookingRef, newBooking);
                     }
+
+                    // --- KOD BAHARU: HANTAR NOTIFIKASI KE USER.HTML ---
+                    if (tagNeeded && selectedTaggedUsers.length > 0) {
+                        let linkNoti = `${window.location.origin}${window.location.pathname.replace(/[^\/]*$/, 'participant.html')}?kod=${programKey}`;
+                        if (surveyNeeded && surveyKey) {
+                            linkNoti = `${window.location.origin}${window.location.pathname.replace(/[^\/]*$/, 'tinjauan.html')}?kod=${surveyKey}`;
+                        }
+                        
+                        selectedTaggedUsers.forEach(user => {
+                            const notiRef = doc(collection(db, `artifacts/${appId}/public/data/spark_notifications`));
+                            transaction.set(notiRef, {
+                                ic: user.ic,
+                                title: "Jemputan Program Rasmi",
+                                message: `Anda telah ditag oleh ${currentApplicant.name} untuk program: ${newProgram.name}. Sila ambil maklum.`,
+                                type: "program", 
+                                isRead: false,
+                                createdAt: serverTimestamp(),
+                                link: linkNoti
+                            });
+                        });
+                    }
+                    // --- TAMAT KOD BAHARU ---
                 });
 
                 document.getElementById('generated-key').textContent = programKey;
