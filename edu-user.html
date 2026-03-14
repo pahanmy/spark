@@ -173,16 +173,31 @@
 
     <main class="flex-grow w-full bg-slate-50">
         
-        <div id="dynamic-header-bg" class="relative w-full h-[260px] bg-gradient-to-br from-blue-800 to-cyan-700 transition-all group">
-            <div class="absolute inset-0 bg-black/20"></div>
+        <div id="dynamic-header-bg" class="relative w-full header-cover-box bg-gray-200 transition-all group overflow-hidden select-none">
+            <div id="personal-bg-img" class="absolute inset-0 bg-cover bg-center transition-transform duration-0 bg-gradient-to-br from-blue-800 to-cyan-700"></div>
+            <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none"></div>
             
-            <button onclick="triggerBackgroundUpload()" id="btn-edit-bg" class="absolute top-6 right-6 z-20 bg-black/40 hover:bg-black/70 text-white p-2.5 rounded-full backdrop-blur-md transition-all shadow-lg hidden group-hover:scale-105" title="Tukar Gambar Latar Belakang (Pro)">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-            </button>
-            <input type="file" id="bg-upload-input" class="hidden" accept="image/*" onchange="handleBgImageUpload(this)">
+            <div id="drag-instruction" class="absolute inset-0 flex items-center justify-center bg-black/40 text-white font-bold uppercase tracking-widest hidden z-10 pointer-events-none">
+                <span class="bg-black/50 px-4 py-2 rounded-lg border border-white/30 backdrop-blur-md">Drag untuk laraskan</span>
+            </div>
+
+            <div class="absolute top-6 right-6 flex flex-col gap-2 z-30">
+                <div id="normal-header-controls" class="flex flex-col gap-2 group-hover:opacity-100 opacity-0 translate-y-[-10px] group-hover:translate-y-0 transition-all duration-300">
+                    <button onclick="startReposition()" id="btn-reposition-bg" class="hidden bg-black/40 hover:bg-black/70 backdrop-blur-md p-2.5 rounded-xl cursor-pointer text-white border border-white/20 shadow-lg flex items-center justify-end gap-2 w-full">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
+                        <span class="text-xs font-bold hidden md:inline">Laraskan</span>
+                    </button>
+                    <label id="btn-edit-bg" class="hidden bg-black/40 hover:bg-black/70 backdrop-blur-md p-2.5 rounded-xl cursor-pointer text-white border border-white/20 shadow-lg flex items-center justify-end gap-2 w-full" title="Tukar Gambar Cover (Pro)">
+                        <input type="file" id="bg-upload-input" class="hidden" accept="image/*" onchange="handleBgImageUpload(this)">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                        <span class="text-xs font-bold hidden md:inline">Tukar Cover</span>
+                    </label>
+                </div>
+                <div id="edit-header-controls" class="hidden flex flex-col gap-2">
+                    <button onclick="saveReposition()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg text-xs shadow-lg border border-white/20">SIMPAN</button>
+                    <button onclick="cancelReposition()" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg text-xs shadow-lg border border-white/20">BATAL</button>
+                </div>
+            </div>
         </div>
 
        <div class="relative z-10 px-4 sm:px-6 lg:px-8 -mt-20">
@@ -906,6 +921,11 @@
         let currentUserSector = "BUKAN PPD"; // Default ke BUKAN PPD untuk edu-user
         let currentUserUnit = "-"; 
         let isSparkPro = false;
+        let isRepositioning = false;
+        let isDragging = false;
+        let startY = 0;
+        let currentBgPosY = 50;
+        let tempBgPosY = 50;
         
         let attendanceList = [];
         let createdList = [];
@@ -1024,8 +1044,37 @@
                 if (isSparkPro) {
                     document.getElementById('btn-edit-bg').classList.remove('hidden');
                     if (userData && userData.userHeaderBgUrl) {
-                        headerElement.dataset.customBg = "true";
-                        headerElement.style.background = `url('${userData.userHeaderBgUrl}') center center / cover no-repeat`;
+                       const headerElement = document.getElementById('dynamic-header-bg');
+                const bgImgElement = document.getElementById('personal-bg-img');
+
+                if (isSparkPro) {
+                    document.getElementById('btn-edit-bg').classList.remove('hidden');
+                    document.getElementById('btn-reposition-bg').classList.remove('hidden');
+
+                    if (userData && userData.userHeaderBgUrl) {
+                        bgImgElement.style.backgroundImage = `url('${userData.userHeaderBgUrl}')`;
+                        
+                        if (userData.personalBgPosition !== undefined) {
+                            currentBgPosY = userData.personalBgPosition;
+                            bgImgElement.style.backgroundPosition = `center ${currentBgPosY}%`;
+                        } else {
+                            currentBgPosY = 50; 
+                            bgImgElement.style.backgroundPosition = `center 50%`;
+                        }
+                    }
+                    
+                    // Panggil fungsi drag bila profile Pro dimuatkan
+                    setupDragEvents();
+                } else {
+                    const settingsDocRef = doc(db, `artifacts/${appId}/public/data/spark_settings`, 'landing_page');
+                    getDoc(settingsDocRef).then((snap) => {
+                        if(snap.exists()) {
+                            const data = snap.data();
+                            if (data.headerBgUrl) bgImgElement.style.backgroundImage = `url('${data.headerBgUrl}')`;
+                            else if (data.gradientStart && data.gradientEnd) bgImgElement.style.background = `linear-gradient(to bottom right, ${data.gradientStart}, ${data.gradientEnd})`;
+                        }
+                    });
+                }
                     }
                 }
 
@@ -3094,6 +3143,88 @@ if (unreadCount > 0) {
                 console.error("Gagal memuatkan pautan alatan:", error);
                 container.innerHTML = '';
             }
+        }
+
+// --- REPOSITION LOGIC ---
+        function setupDragEvents() {
+            const bgContainer = document.getElementById('personal-bg-img');
+            
+            bgContainer.addEventListener('mousedown', (e) => {
+                if (!isRepositioning) return;
+                isDragging = true;
+                startY = e.clientY;
+                bgContainer.classList.add('cursor-grabbing');
+                bgContainer.classList.remove('cursor-grab');
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (!isDragging || !isRepositioning) return;
+                e.preventDefault();
+                const deltaY = startY - e.clientY;
+                let newPos = tempBgPosY + (deltaY * 0.2);
+                if(newPos < 0) newPos = 0; if(newPos > 100) newPos = 100;
+                bgContainer.style.backgroundPosition = `center ${newPos}%`;
+                startY = e.clientY;
+                tempBgPosY = newPos;
+            });
+
+            window.addEventListener('mouseup', () => {
+                if(isDragging) {
+                    isDragging = false;
+                    bgContainer.classList.remove('cursor-grabbing');
+                    bgContainer.classList.add('cursor-grab');
+                }
+            });
+
+            bgContainer.addEventListener('touchstart', (e) => {
+                if (!isRepositioning) return;
+                isDragging = true;
+                startY = e.touches[0].clientY;
+            }, {passive: false});
+
+            window.addEventListener('touchmove', (e) => {
+                if (!isDragging || !isRepositioning) return;
+                e.preventDefault(); 
+                const deltaY = startY - e.touches[0].clientY;
+                let newPos = tempBgPosY + (deltaY * 0.2);
+                if(newPos < 0) newPos = 0; if(newPos > 100) newPos = 100;
+                bgContainer.style.backgroundPosition = `center ${newPos}%`;
+                startY = e.touches[0].clientY;
+                tempBgPosY = newPos;
+            }, {passive: false});
+
+            window.addEventListener('touchend', () => isDragging = false);
+        }
+
+        window.startReposition = function() {
+            isRepositioning = true;
+            tempBgPosY = currentBgPosY; 
+            document.getElementById('normal-header-controls').classList.add('hidden');
+            document.getElementById('edit-header-controls').classList.remove('hidden');
+            document.getElementById('personal-bg-img').classList.add('cursor-grab');
+            document.getElementById('drag-instruction').classList.remove('hidden');
+        }
+
+        window.saveReposition = async function() {
+            if(!participantDocId) return;
+            currentBgPosY = tempBgPosY; 
+            try {
+                await updateDoc(doc(db, `artifacts/${appId}/public/data/spark_participants`, participantDocId), { personalBgPosition: currentBgPosY });
+                window.endReposition();
+            } catch(e) { console.error("Error saving pos", e); alert("Gagal simpan kedudukan gambar."); }
+        }
+
+        window.cancelReposition = function() {
+            document.getElementById('personal-bg-img').style.backgroundPosition = `center ${currentBgPosY}%`; 
+            window.endReposition();
+        }
+
+        window.endReposition = function() {
+            isRepositioning = false;
+            document.getElementById('normal-header-controls').classList.remove('hidden');
+            document.getElementById('edit-header-controls').classList.add('hidden');
+            document.getElementById('personal-bg-img').classList.remove('cursor-grab', 'cursor-grabbing');
+            document.getElementById('drag-instruction').classList.add('hidden');
         }
         
     </script>
