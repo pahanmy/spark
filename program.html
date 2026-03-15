@@ -514,9 +514,27 @@
             auth = getAuth(app);
         } catch (e) { console.error("Error initializing Firebase:", e); }
         
+       // Pembolehubah untuk simpan profil terkini
+        let allParticipantsData = {};
+
         onAuthStateChanged(auth, async (user) => {
             if (user) { 
                 userId = user.uid; 
+                
+                // --- KOD BARU: Tarik data profil terkini sentiasa ---
+                const participantsRef = collection(db, `artifacts/${appId}/public/data/spark_participants`);
+                onSnapshot(participantsRef, (snap) => {
+                    snap.forEach(doc => {
+                        allParticipantsData[doc.data().ic] = doc.data();
+                    });
+                    // Refresh paparan jadual dan carta jika program sedang dibuka
+                    if (currentLoadedProgram && selectedAttendanceDate) {
+                        filterAttendanceByDate(selectedAttendanceDate);
+                        renderEarlyBirds();
+                    }
+                });
+                // --- TAMAT KOD BARU ---
+
                 main(); 
             } else { 
                 try { 
@@ -1271,26 +1289,36 @@
             if(paginatedList.length === 0){
                 attendanceListBody.innerHTML=`<tr><td colspan="4" class="text-center text-gray-500 py-10">Belum ada kehadiran untuk tarikh ini.</td></tr>`
             } else {
+               if(paginatedList.length === 0){
+                attendanceListBody.innerHTML=`<tr><td colspan="4" class="text-center text-gray-500 py-10">Belum ada kehadiran untuk tarikh ini.</td></tr>`
+            } else {
                 attendanceListBody.innerHTML = paginatedList.map((p) => {
+                    // --- KOD BARU: Semak data PRO terkini ---
+                    const latestData = allParticipantsData[p.ic] || {};
+                    const isPro = latestData.isPro === true || p.ic === "890522135381"; // Tetapan PRO Admin
+                    const profileImageUrl = latestData.profileImageUrl || p.profileImageUrl || null;
+                    
+                    // Gabungkan data lama dengan status PRO & Gambar baru
+                    const pDisplay = { ...p, isPro, profileImageUrl };
+
                     const highlightClass = isNewEntryAdded ? 'new-entry' : '';
-                    const isPro = p.isPro === true; 
                     const proBadgeHtml = isPro ? '<span class="pro-badge">Pro</span>' : ''; 
 
                     return `
                         <tr class="${highlightClass} border-b ${themeBorder} ${themeBg} transition-colors duration-200">
                             <td class="px-3 py-3">
-                                ${generateAvatar(p)} </td>
+                                ${generateAvatar(pDisplay)} </td>
                             <td class="px-4 py-3">
-                                <div class="text-sm font-medium text-gray-900 truncate" title="${p.name}">
-                                    ${p.name.toUpperCase()} ${proBadgeHtml} </div>
-                                <div class="text-[11px] text-gray-500 truncate" title="${p.position || ''}">${(p.position || '-').toUpperCase()}</div>
-                                <div class="text-[11px] text-gray-500 truncate" title="${p.station || ''}">${(p.station || '-').toUpperCase()}</div>
+                                <div class="text-sm font-medium text-gray-900 truncate" title="${pDisplay.name}">
+                                    ${pDisplay.name.toUpperCase()} ${proBadgeHtml} </div>
+                                <div class="text-[11px] text-gray-500 truncate" title="${pDisplay.position || ''}">${(pDisplay.position || '-').toUpperCase()}</div>
+                                <div class="text-[11px] text-gray-500 truncate" title="${pDisplay.station || ''}">${(pDisplay.station || '-').toUpperCase()}</div>
                             </td>
                             <td class="px-4 py-3 whitespace-nowrap text-xs text-gray-500">
-                                ${new Date(p.time).toLocaleTimeString('ms-MY')}
+                                ${new Date(pDisplay.time).toLocaleTimeString('ms-MY')}
                             </td>
                             <td class="px-4 py-3 whitespace-nowrap text-sm">
-                                ${p.status === 'Daftar Lewat' ? '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">Lewat</span>' : '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Hadir</span>'}
+                                ${pDisplay.status === 'Daftar Lewat' ? '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">Lewat</span>' : '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Hadir</span>'}
                             </td>
                         </tr>`
                 }).join("");
@@ -1667,10 +1695,17 @@
                 { bg: 'bg-gradient-to-r from-orange-50 to-white', border: 'border-orange-200', text: 'text-orange-700', badge: '🥉' }
             ];
 
-            top3.forEach((p, index) => {
+           top3.forEach((p, index) => {
                 const style = medals[index];
-                const timeStr = new Date(p.time).toLocaleTimeString('ms-MY', {hour: '2-digit', minute:'2-digit'});
-                const avatarHtml = generateAvatar(p); 
+                
+                // --- KOD BARU: Semak data PRO terkini ---
+                const latestData = allParticipantsData[p.ic] || {};
+                const isPro = latestData.isPro === true || p.ic === "890522135381";
+                const profileImageUrl = latestData.profileImageUrl || p.profileImageUrl || null;
+                const pDisplay = { ...p, isPro, profileImageUrl };
+
+                const timeStr = new Date(pDisplay.time).toLocaleTimeString('ms-MY', {hour: '2-digit', minute:'2-digit'});
+                const avatarHtml = generateAvatar(pDisplay); 
 
                 const html = `
                     <div class="flex items-center gap-2 p-2 rounded-lg border ${style.border} ${style.bg} shadow-sm overflow-hidden">
@@ -1684,10 +1719,10 @@
                         
                         <div class="min-w-0 flex-1 flex flex-col justify-center">
                             <div class="flex justify-between items-baseline w-full">
-                                <h4 class="text-xs font-bold text-gray-800 truncate pr-1" title="${p.name}">${p.name.toUpperCase()}</h4>
+                                <h4 class="text-xs font-bold text-gray-800 truncate pr-1" title="${pDisplay.name}">${pDisplay.name.toUpperCase()}</h4>
                                 <span class="text-[9px] font-mono font-bold ${style.text} flex-shrink-0">${timeStr}</span>
                             </div>
-                            <p class="text-[9px] text-gray-500 truncate leading-none mt-0.5" title="${p.station || '-'}">${p.station || '-'}</p>
+                            <p class="text-[9px] text-gray-500 truncate leading-none mt-0.5" title="${pDisplay.station || '-'}">${pDisplay.station || '-'}</p>
                         </div>
                     </div>
                 `;
