@@ -479,28 +479,10 @@
                 const participantName = participantInfo.name.toUpperCase();
                 const participantIC = participantInfo.ic;
                 const courseName = currentProgram.name.toUpperCase();
-                
-                // MULTI-ROLE LOGIC
+
+                // MULTI-ROLE LOGIC - TENTUKAN SENARAI PERANAN
                 const roleRaw = participantInfo.role ? String(participantInfo.role).trim() : 'Peserta';
                 const rolesArray = roleRaw.split(',').map(r => r.trim()).filter(r => r);
-                const isSpecial = rolesArray.some(r => r.toLowerCase() !== 'peserta');
-                
-                const certificateTitle = isSpecial ? "Sijil Penghargaan" : "Sijil Penyertaan";
-                const introText = isSpecial ? "Dengan tulus ikhlas merakamkan setinggi-tinggi penghargaan kepada" : "Dengan ini disahkan bahawa";
-                const eventLabel = isSpecial ? "Atas sumbangan bakti dan komitmen menjayakan" : "telah mengikuti";
-
-                let roleBadgeHTML = '';
-                if (isSpecial) {
-                    const rolesListHTML = rolesArray.map(r => `<div class="role-item">${r.toUpperCase()}</div>`).join('');
-                    roleBadgeHTML = `
-                        <div class="role-badge-container">
-                            <div class="role-prefix">SEBAGAI</div>
-                            <div class="role-list">
-                                ${rolesListHTML}
-                            </div>
-                        </div>
-                    `;
-                }
 
                 const startDate = new Date(currentProgram.startDate + 'T00:00:00');
                 const endDate = new Date(currentProgram.endDate + 'T00:00:00');
@@ -582,20 +564,80 @@
                 }
 
                 const signatureHTML = `<div class="signature-section"><div style="text-align: inherit;"><p class="signatory-name">${signatoryName}</p><p class="signatory-title">${signatoryTitle}</p></div></div>`;
-                const serialNumber = `${isSpecial ? "SPK-H" : "SPK"}/${currentProgram.id}/${participantIC.slice(-4)}`;
-                const qrUrl = `${window.location.origin}${window.location.pathname.replace('penilaianprogram.html', 'scansijil.html')}?siri=${encodeURIComponent(serialNumber)}`;
-                const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(qrUrl)}`;
+                
+                // BINA HTML UNTUK SETIAP PERANAN
+                let allCertificatesHTML = '';
+
+                rolesArray.forEach((singleRole, index) => {
+                    const isSpecial = singleRole.toLowerCase() !== 'peserta';
+                    const certificateTitle = isSpecial ? "Sijil Penghargaan" : "Sijil Penyertaan";
+                    const introText = isSpecial ? "Dengan tulus ikhlas merakamkan setinggi-tinggi penghargaan kepada" : "Dengan ini disahkan bahawa";
+                    const eventLabel = isSpecial ? "Atas sumbangan bakti dan komitmen menjayakan" : "telah mengikuti";
+
+                    let roleBadgeHTML = '';
+                    if (isSpecial) {
+                        roleBadgeHTML = `
+                            <div class="role-badge-container">
+                                <div class="role-prefix">SEBAGAI</div>
+                                <div class="role-list">
+                                    <div class="role-item">${singleRole.toUpperCase()}</div>
+                                </div>
+                            </div>
+                        `;
+                    }
+
+                    const serialNumber = `${isSpecial ? "SPK-H" : "SPK"}/${currentProgram.id}/${participantIC.slice(-4)}`;
+                    const qrUrl = `${window.location.origin}${window.location.pathname.replace('penilaianprogram.html', 'scansijil.html')}?siri=${encodeURIComponent(serialNumber)}`;
+                    const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(qrUrl)}`;
+
+                    allCertificatesHTML += `
+                        <div class="certificate-wrapper" style="${index < rolesArray.length - 1 ? 'page-break-after: always; margin-bottom: 20px;' : ''}">
+                            <div class="certificate-container">
+                                <div class="certificate-content">
+                                    <div class="header-section">
+                                        <img src="${qrCodeUrl}" class="qr-code">
+                                        <div class="serial-section">
+                                            <img src="https://bwipjs-api.metafloor.com/?bcid=code128&text=${encodeURIComponent(serialNumber)}" class="barcode-image">
+                                            <p class="serial-number">NO. SIRI: ${serialNumber}</p>
+                                        </div>
+                                    </div>
+                                    ${logoHTML}
+                                    <h1>${certificateTitle}</h1>
+                                    
+                                    <p class="intro-text">${introText}</p>
+                                    <p class="recipient-name">${participantName}</p>
+                                    <p class="recipient-ic">${participantIC}</p>
+                                    <p class="event-title-label">${eventLabel}</p>
+                                    <p class="event-title">${courseName}</p>
+                                    
+                                    ${roleBadgeHTML}
+                                    
+                                    <p class="event-date">${dateString}</p>
+                                    <div style="text-align: center;">${masaHTML}</div>
+                                    <hr class="divider">
+                                    ${signatureHTML}
+                                    <div class="footer-bottom">
+                                        <p class="footer-note">${showFooterNote ? "Sijil ini adalah cetakan komputer, tandatangan tidak diperlukan." : ""}</p>
+                                        <div class="spark-brand-container"><p class="spark-title">JANAAN SPARK</p></div>
+                                    </div>
+                                    <div class="gen-timestamp">Dijana: ${new Date().toLocaleDateString('ms-MY')}</div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
 
                 printWindow.document.open();
                 printWindow.document.write(`
                     <!DOCTYPE html>
                     <html lang="ms">
                     <head>
-                        <title>${certificateTitle}</title>
+                        <title>Sijil Anda</title>
                         <style>
                             @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;700&family=Playfair+Display:wght@700&family=Cinzel:wght@500;700&display=swap');
-                            body { font-family: 'Montserrat', sans-serif; margin: 0; padding: 0; background: #f0f2f5; display: flex; justify-content: center; }
-                            .certificate-container { width: 210mm; height: 297mm; background: white; padding: 12mm; box-sizing: border-box; position: relative; display: flex; flex-direction: column; text-align: center; overflow: hidden; }
+                            body { font-family: 'Montserrat', sans-serif; margin: 0; padding: 0; background: #f0f2f5; display: flex; flex-direction: column; align-items: center; }
+                            .certificate-wrapper { width: 100%; display: flex; justify-content: center; }
+                            .certificate-container { width: 210mm; height: 297mm; background: white; padding: 12mm; box-sizing: border-box; position: relative; display: flex; flex-direction: column; text-align: center; overflow: hidden; margin: 20px auto; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
                             .certificate-container::before { content: ''; position: absolute; width: 170px; height: 170px; background: ${primaryColor}; opacity: 0.9; top: -85px; left: -85px; transform: rotate(45deg); }
                             .certificate-container::after { content: ''; position: absolute; width: 170px; height: 170px; background: ${primaryColor}; opacity: 0.9; bottom: -85px; right: -85px; transform: rotate(45deg); }
                             .certificate-content { border: 6px solid; border-image-slice: 1; border-image-source: linear-gradient(to right top, #d4af37, ${primaryColor}, #d4af37); height: 100%; padding: 10mm; display: flex; flex-direction: column; z-index: 2; position: relative; background: #ffffff; }
@@ -631,45 +673,21 @@
                             .spark-brand-container { margin-top: 5px; }
                             .spark-title { font-weight: 700; font-size: 10px; letter-spacing: 1px; color: ${primaryColor}; margin: 0; }
                             .gen-timestamp { position: absolute; bottom: 5px; right: 10px; font-size: 9px; color: #aaa; }
-                            @media print { body { background: none; -webkit-print-color-adjust: exact; print-color-adjust: exact; } .certificate-container { box-shadow: none; margin: 0 auto; width: 210mm; height: 297mm; } @page { size: A4 portrait; margin: 0; } }
+                            @media print { 
+                                body { background: none; -webkit-print-color-adjust: exact; print-color-adjust: exact; } 
+                                .certificate-wrapper { margin: 0; box-shadow: none; display: block; }
+                                .certificate-container { box-shadow: none; margin: 0 auto; width: 210mm; height: 297mm; } 
+                                @page { size: A4 portrait; margin: 0; } 
+                            }
                             ${customTemplateCSS}
                         </style>
                     </head>
                     <body>
-                        <div class="certificate-container">
-                            <div class="certificate-content">
-                                <div class="header-section">
-                                    <img src="${qrCodeUrl}" class="qr-code">
-                                    <div class="serial-section">
-                                        <img src="https://bwipjs-api.metafloor.com/?bcid=code128&text=${encodeURIComponent(serialNumber)}" class="barcode-image">
-                                        <p class="serial-number">NO. SIRI: ${serialNumber}</p>
-                                    </div>
-                                </div>
-                                ${logoHTML}
-                                <h1>${certificateTitle}</h1>
-                                
-                                <p class="intro-text">${introText}</p>
-                                <p class="recipient-name">${participantName}</p>
-                                <p class="recipient-ic">${participantIC}</p>
-                                <p class="event-title-label">${eventLabel}</p>
-                                <p class="event-title">${courseName}</p>
-                                
-                                ${roleBadgeHTML}
-                                
-                                <p class="event-date">${dateString}</p>
-                                <div style="text-align: center;">${masaHTML}</div>
-                                <hr class="divider">
-                                ${signatureHTML}
-                                <div class="footer-bottom">
-                                    <p class="footer-note">${showFooterNote ? "Sijil ini adalah cetakan komputer, tandatangan tidak diperlukan." : ""}</p>
-                                    <div class="spark-brand-container"><p class="spark-title">JANAAN SPARK</p></div>
-                                </div>
-                                <div class="gen-timestamp">Dijana: ${new Date().toLocaleDateString('ms-MY')}</div>
-                            </div>
-                        </div>
+                        ${allCertificatesHTML}
                     </body>
                     </html>
                 `);
+  
                 printWindow.document.close();
                 printWindow.onload = () => { printWindow.focus(); printWindow.print(); };
             } catch (error) { console.error(error); alert("Gagal menjana sijil."); }
