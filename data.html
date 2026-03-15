@@ -142,6 +142,11 @@
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" /></svg>
                     Utama
                 </a>
+                
+                <button onclick="logoutAdmin()" class="btn bg-red-50 text-red-700 border border-red-200 font-semibold py-2 px-4 rounded-lg shadow-sm hover:bg-red-100 flex items-center gap-2 text-sm ml-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+                    Log Keluar
+                </button>
             </div>
         </div>
     </header>
@@ -392,9 +397,9 @@
                             <thead class="bg-gray-50">
                                 <tr>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Bil.</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nama Peserta</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">No. IC</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tarikh Dikemaskini</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Maklumat Pengguna</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stesen & Jawatan</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tarikh & Masa Dikemaskini</th>
                                 </tr>
                             </thead>
                             <tbody id="log-password-list-body" class="divide-y divide-gray-200">
@@ -627,6 +632,25 @@
         let pendingSelectElem = null;
 
         function showAdminModal() {
+            // Check session storage if already authenticated
+            if (sessionStorage.getItem('spark_admin_auth') === 'true') {
+                document.getElementById('loading-screen').classList.add('hidden');
+                document.getElementById('admin-content').classList.remove('hidden');
+                
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        initializeAdminPage();
+                    } else {
+                        try {
+                            await signInAnonymously(auth);
+                        } catch (error) {
+                            console.error("Gagal daftar masuk:", error);
+                        }
+                    }
+                });
+                return;
+            }
+
             document.getElementById('security-modal').classList.remove('hidden');
             const input = document.getElementById('admin-code-input');
             const button = document.getElementById('submit-admin-code');
@@ -639,6 +663,9 @@
                 if (e.type === 'click' || (e.type === 'keyup' && e.key === 'Enter')) {
                     const code = input.value.trim().toUpperCase();
                     if (code === ADMIN_ACCESS_CODE) {
+                        // Simpan Sesi
+                        sessionStorage.setItem('spark_admin_auth', 'true');
+
                         document.getElementById('security-modal').classList.add('hidden');
                         document.getElementById('loading-screen').classList.add('hidden');
                         document.getElementById('admin-content').classList.remove('hidden');
@@ -671,9 +698,19 @@
             input.addEventListener('keyup', handleSubmission);
         }
         
+        window.logoutAdmin = function() {
+            if(confirm("Anda pasti mahu log keluar daripada Pentadbiran Data?")) {
+                sessionStorage.removeItem('spark_admin_auth');
+                window.location.reload();
+            }
+        }
+
         showAdminModal();
 
         function initializeAdminPage() {
+            // Default filter to blank (Semua Rekod)
+            document.getElementById('log-month-filter').value = ''; 
+
             loadAndDisplayPrograms();
             loadAndDisplayParticipants(); 
             loadAndDisplaySchools();
@@ -687,7 +724,6 @@
             loadProRequests();
             
             // Load Log Password
-            document.getElementById('log-month-filter').value = new Date().toISOString().slice(0, 7);
             document.getElementById('log-month-filter').addEventListener('change', renderPasswordLogs);
 
             // Init Hari Jadi features
@@ -1209,16 +1245,25 @@
                     }
                     
                     if (dateObj && !isNaN(dateObj.getTime())) {
-                        dateFormatted = dateObj.toLocaleDateString('ms-MY', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+                        dateFormatted = dateObj.toLocaleDateString('ms-MY', { day: '2-digit', month: 'short', year: 'numeric' }) + ' <br><span class="text-xs text-gray-400 font-medium">' + dateObj.toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit' }) + '</span>';
                     }
                 }
 
+                const stesen = user.station || "Tiada Stesen";
+                const jawatan = user.position || "Tiada Jawatan";
+
                 return `
                     <tr class="hover:bg-orange-50/30 transition-colors border-b border-gray-100"> 
-                        <td class="px-6 py-4 text-sm text-gray-500 font-mono">${index + 1}</td>
-                        <td class="px-6 py-4 font-semibold text-gray-900 text-sm">${user.name.toUpperCase()}</td>
-                        <td class="px-6 py-4 text-sm text-gray-500 font-mono">${user.ic}</td>
-                        <td class="px-6 py-4 text-sm text-gray-600">${dateFormatted}</td>
+                        <td class="px-6 py-4 text-sm text-gray-500 font-mono align-top">${index + 1}</td>
+                        <td class="px-6 py-4 align-top">
+                            <div class="font-bold text-gray-900 text-sm">${user.name.toUpperCase()}</div>
+                            <div class="text-xs text-gray-500 font-mono mt-0.5">${user.ic}</div>
+                        </td>
+                        <td class="px-6 py-4 align-top">
+                            <div class="text-sm text-gray-800 font-semibold">${stesen.toUpperCase()}</div>
+                            <div class="text-xs text-gray-500 mt-0.5">${jawatan.toUpperCase()}</div>
+                        </td>
+                        <td class="px-6 py-4 text-sm text-gray-600 align-top">${dateFormatted}</td>
                     </tr>
                 `;
             }).join('');
@@ -1255,7 +1300,7 @@
                                         <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg> Luluskan
                                     </button>
                                     <button onclick="rejectProRequest('${doc.id}', '${data.name.replace(/'/g, "\\'")}')" class="btn bg-red-100 hover:bg-red-200 text-red-600 border border-red-300 text-[10px] font-bold px-3 py-1.5 rounded shadow-sm flex items-center gap-1 uppercase tracking-wider">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.243a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" /></svg> Tolak
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.243a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" /></svg> Tolak
                                     </button>
                                 </div>
                             </td>
@@ -1676,7 +1721,7 @@
             filterAndRenderUserProTable, nextUserProPage, prevUserProPage,
             requestRoleChange, executeRoleChange, cancelRoleChange,
             adminDeleteProgram, approveProRequest, rejectProRequest,
-            copyIC, adminResetPassword, renderPasswordLogs
+            copyIC, adminResetPassword, renderPasswordLogs, logoutAdmin
         });
 
     </script>
