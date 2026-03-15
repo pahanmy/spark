@@ -100,9 +100,9 @@
                     <span class="text-4xl font-extrabold text-gray-900">Percuma</span>
                 </div>
                 
-                <a href="user.html" class="block w-full py-3 px-6 text-center rounded-xl border-2 border-gray-200 text-gray-700 font-bold hover:border-gray-300 hover:bg-gray-50 transition-all mb-8">
+                <button type="button" disabled class="block w-full py-3 px-6 text-center rounded-xl border-2 border-gray-200 text-gray-400 font-bold cursor-not-allowed mb-8 opacity-70">
                     Kekal Biasa
-                </a>
+                </button>
 
                 <ul class="space-y-4 text-sm text-gray-600">
                     <li class="flex items-center"><i class="fa-solid fa-check check-icon"></i> Rekod Kehadiran Asas</li>
@@ -197,8 +197,8 @@
         </div>
     </main>
 
-    <div id="payment-modal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop hidden px-4">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden relative animate-[pulse_0.2s_ease-out]">
+    <div id="payment-modal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop hidden px-4 py-6 overflow-y-auto">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden relative m-auto">
             <button onclick="closePaymentModal()" class="absolute top-3 right-3 text-gray-400 hover:text-gray-600 z-10 bg-white rounded-full p-1 shadow-sm">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
@@ -208,9 +208,11 @@
                 <p class="text-indigo-100 text-xs">Setiap sen amat bermakna.</p>
             </div>
 
-            <div class="p-5 text-center max-h-[85vh] overflow-y-auto">
-                <div class="bg-white p-2 mb-4 inline-block border-2 border-dashed border-indigo-200 rounded-lg shadow-inner">
-                    <img src="https://i.imgur.com/0FS1PHw.png" alt="QR Code DuitNow" class="w-72 h-auto mx-auto rounded-lg object-contain">
+            <div class="p-5">
+                <div class="text-center">
+                    <div class="bg-white p-2 mb-4 inline-block border-2 border-dashed border-indigo-200 rounded-lg shadow-inner">
+                        <img src="https://i.imgur.com/0FS1PHw.png" alt="QR Code DuitNow" class="w-64 h-auto mx-auto rounded-lg object-contain">
+                    </div>
                 </div>
 
                 <div class="mb-4">
@@ -225,7 +227,7 @@
                     </div>
                 </div>
 
-                <div class="mb-4 text-left px-2 bg-gray-50 p-3 rounded-lg">
+                <div class="mb-5 text-left px-2 bg-gray-50 p-3 rounded-lg border border-gray-100">
                     <div class="flex justify-between items-center mb-1">
                         <span class="text-xs text-gray-500">Nama Penerima:</span>
                         <span class="font-bold text-gray-800 text-xs uppercase">Muhd Farhan</span>
@@ -236,10 +238,26 @@
                     </div>
                 </div>
 
-                <button onclick="sendReceiptToWhatsapp()" class="w-full py-3.5 rounded-xl bg-green-500 hover:bg-green-600 text-white font-bold shadow-md flex items-center justify-center gap-2 transition-all transform hover:-translate-y-1">
-                    <i class="fa-brands fa-whatsapp text-xl"></i> Hantar Resit Pembayaran
-                </button>
-                <p class="text-[10px] text-gray-400 mt-3 leading-tight">Dengan menghantar resit, anda bersetuju untuk menyokong inovasi PahanStudio. Link group Telegram akan diberikan di WhatsApp.</p>
+                <form id="pro-request-form" class="border-t border-gray-200 pt-5 mt-2">
+                    <h4 class="font-bold text-sm text-gray-800 mb-2">Maklumat Penyumbang</h4>
+                    <p class="text-xs text-gray-500 mb-3">Sila isi No. IC untuk pihak kami semak dan kemas kini status SPARK PRO anda.</p>
+                    
+                    <div class="mb-4">
+                        <input type="text" id="pro-ic-input" placeholder="No. Kad Pengenalan (Contoh: 900101131234)" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500" required maxlength="12" pattern="\d{12}" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+                        <p id="pro-error-msg" class="text-xs text-red-500 mt-1 hidden"></p>
+                    </div>
+
+                    <div class="mb-4 flex items-start gap-2">
+                        <input type="checkbox" id="pro-agree-checkbox" class="mt-1 border-gray-300 rounded text-indigo-600 focus:ring-indigo-500" required>
+                        <label for="pro-agree-checkbox" class="text-[10px] text-gray-600 leading-tight">
+                            Saya telah membuat bayaran dan saya bersetuju sumbangan ini ikhlas untuk pembangunan SPARK serta mendoakan agar SPARK terus berkembang.
+                        </label>
+                    </div>
+
+                    <button type="submit" id="pro-submit-btn" class="w-full py-3 rounded-xl bg-green-500 hover:bg-green-600 text-white font-bold shadow-md flex items-center justify-center gap-2 transition-all transform hover:-translate-y-1 text-sm">
+                        <i class="fa-brands fa-whatsapp text-lg"></i> Hantar Resit Pembayaran
+                    </button>
+                </form>
             </div>
         </div>
     </div>
@@ -251,54 +269,121 @@
         </div>
     </footer>
 
-    <script>
-        function openPaymentModal() {
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, collection, addDoc, serverTimestamp, query, where, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM",
+            authDomain: "myqrhadir.firebaseapp.com",
+            projectId: "myqrhadir",
+            storageBucket: "myqrhadir.appspot.com",
+            messagingSenderId: "799691133747",
+            appId: "1:799691133747:web:835a5e3e9413eace806446"
+        };
+        
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const appId = firebaseConfig.projectId;
+
+        // Pastikan fungsi ini boleh dipanggil dari butang dalam HTML biasa (Global Scope)
+        window.openPaymentModal = function() {
+            // Cuba dapatkan IC dari LocalStorage untuk memudahkan pengguna
             let userIc = localStorage.getItem('user_ic');
+            if (userIc) {
+                const cleanIc = userIc.replace(/[^0-9]/g, '');
+                document.getElementById('pro-ic-input').value = cleanIc;
+            }
             
-            if (!userIc) {
-                userIc = prompt("Sila masukkan No. Kad Pengenalan anda untuk tujuan rekod SPARK PRO:");
-                if (userIc) {
-                    localStorage.setItem('user_ic', userIc.trim());
-                } else {
-                    return; 
-                }
-            }
-
-            const cleanIc = userIc.replace(/[^0-9]/g, '');
-            if (cleanIc.length < 6) {
-                alert("No. IC tidak sah. Sila pastikan anda telah Log Masuk atau masukkan IC yang betul.");
-                return;
-            }
-
+            document.getElementById('pro-error-msg').classList.add('hidden');
+            document.getElementById('pro-agree-checkbox').checked = false;
             document.getElementById('payment-modal').classList.remove('hidden');
         }
 
-        function closePaymentModal() {
+        window.closePaymentModal = function() {
             document.getElementById('payment-modal').classList.add('hidden');
         }
 
-        function copyToClipboard(text) {
+        window.copyToClipboard = function(text) {
             navigator.clipboard.writeText(text).then(() => {
-                // Toast notification ringkas
-                const originalText = document.querySelector('#bank-acc').innerText;
                 alert("No. Akaun Maybank Telah Disalin: " + text);
             }, (err) => {
                 console.error('Gagal menyalin: ', err);
             });
         }
 
-        function sendReceiptToWhatsapp() {
-            const userIc = localStorage.getItem('user_ic') || "TIADA_IC";
-            const cleanIc = userIc.replace(/[^0-9]/g, '');
+        // Tangani form submit
+        document.getElementById('pro-request-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
             
-            const phoneNumber = "60135792215"; 
-            
-            const message = `Salam Tuan Farhan (PahanStudio),%0A%0ASaya telah membuat pembayaran sumbangan ikhlas untuk *SPARK PRO*. Saya menyokong penuh usaha inovasi ini!%0A%0A📌 *Butiran Penyumbang:*%0A- No. IC: ${cleanIc}%0A- Jumlah: RM29.90 (Lifetime)%0A%0ABerserta ini saya lampirkan resit. Mohon akses SPARK PRO dan jemputan ke *Group Telegram Rasmi*. Doakan kejayaan kita bersama!`;
+            const icInput = document.getElementById('pro-ic-input').value.trim();
+            const agreeChecked = document.getElementById('pro-agree-checkbox').checked;
+            const errorMsg = document.getElementById('pro-error-msg');
+            const submitBtn = document.getElementById('pro-submit-btn');
 
-            const waUrl = `https://wa.me/${phoneNumber}?text=${message}`;
-            window.open(waUrl, '_blank');
-        }
+            if (icInput.length !== 12) {
+                errorMsg.textContent = "Sila masukkan 12 digit IC yang sah.";
+                errorMsg.classList.remove('hidden');
+                return;
+            }
+
+            if (!agreeChecked) {
+                alert("Sila tanda kotak persetujuan sebelum meneruskan.");
+                return;
+            }
+
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Menyemak Rekod...`;
+            errorMsg.classList.add('hidden');
+
+            try {
+                // 1. Semak jika pengguna wujud dalam spark_participants
+                const participantsRef = collection(db, `artifacts/${appId}/public/data/spark_participants`);
+                const q = query(participantsRef, where("ic", "==", icInput));
+                const querySnapshot = await getDocs(q);
+
+                if (querySnapshot.empty) {
+                    errorMsg.textContent = "Maaf, No. IC ini tiada dalam pangkalan data SPARK. Sila daftar/login SPARK terlebih dahulu.";
+                    errorMsg.classList.remove('hidden');
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = `<i class="fa-brands fa-whatsapp text-lg"></i> Hantar Resit Pembayaran`;
+                    return;
+                }
+
+                // Jika pengguna wujud, dapatkan nama penuh
+                const userData = querySnapshot.docs[0].data();
+                const userFullName = userData.name || "PENGGUNA SPARK";
+
+                // 2. Simpan permohonan di koleksi spark_pro_requests
+                const requestsRef = collection(db, `artifacts/${appId}/public/data/spark_pro_requests`);
+                await addDoc(requestsRef, {
+                    ic: icInput,
+                    name: userFullName,
+                    requestDate: serverTimestamp(),
+                    status: "Menunggu Pengesahan",
+                    amount: "RM29.90 (Atau Lebih)"
+                });
+
+                // 3. Buka WhatsApp PahanStudio
+                const phoneNumber = "60135792215"; 
+                const message = `Salam Tuan Farhan (PahanStudio),%0A%0ASaya telah membuat bayaran sumbangan untuk pembangunan *SPARK PRO*. Saya doakan agar SPARK terus berkembang luas.%0A%0A📌 *Butiran Penyumbang:*%0A- Nama: ${userFullName}%0A- No. IC: ${icInput}%0A%0ABerserta ini saya lampirkan resit. Mohon kelulusan SPARK PRO dan jemputan ke *Group Telegram Rasmi*. Terima kasih!`;
+
+                const waUrl = `https://wa.me/${phoneNumber}?text=${message}`;
+                
+                // Beritahu pengguna dan tutup modal
+                alert("Permohonan berjaya dihantar ke sistem! Sila hantar resit di WhatsApp sebentar lagi.");
+                closePaymentModal();
+                window.open(waUrl, '_blank');
+
+            } catch (error) {
+                console.error("Ralat sistem: ", error);
+                errorMsg.textContent = "Berlaku ralat sistem. Sila cuba sebentar lagi.";
+                errorMsg.classList.remove('hidden');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = `<i class="fa-brands fa-whatsapp text-lg"></i> Hantar Resit Pembayaran`;
+            }
+        });
     </script>
-
 </body>
 </html>
