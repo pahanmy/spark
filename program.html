@@ -1559,11 +1559,13 @@ function renderAttendanceTable(attendanceList){
          function openEvaluationLink() { const url = document.getElementById('evaluation-link-input').value; if (url) { window.open(url, '_blank'); } }
         async function downloadQrCode() { const qrImage = document.getElementById('qr-code-image'); const imageUrl = qrImage.src; if (!imageUrl || !currentLoadedProgram) { alert("QR belum dijana."); return; } try { const response = await fetch(imageUrl); const blob = await response.blob(); const link = document.createElement('a'); link.href = URL.createObjectURL(blob); const sanitizedName = currentLoadedProgram.name.replace(/[^a-z0-9]/gi, '_').toLowerCase(); link.download = `qr_kehadiran_${sanitizedName}.png`; document.body.appendChild(link); link.click(); document.body.removeChild(link); URL.revokeObjectURL(link.href); } catch (error) { console.error("Gagal muat turun QR:", error); alert("Gagal muat turun."); } }
         
-      function renderInfographic() { 
+function renderInfographic() { 
             if (!currentLoadedProgram) return; 
+            
             const attendance = currentLoadedProgram.attendance || [];
             const jumlahHadir = attendance.length; 
             const kuota = parseInt(currentLoadedProgram.quota) || 0; 
+            
             const hadirEl = document.getElementById('info-hadir'); 
             const kosongEl = document.getElementById('info-kosong'); 
             const peratusEl = document.getElementById('info-peratus'); 
@@ -1573,47 +1575,45 @@ function renderAttendanceTable(attendanceList){
             const taggedIcs = currentLoadedProgram.taggedIcs || [];
             const isTagged = taggedIcs.length > 0;
 
+            let missingTaggedCount = 0;
             let kosong = 0;
             let peratus = 0;
 
+            // 1. Kira bilangan peserta tag yang masih BELUM hadir
             if (isTagged) {
-                // Mod Peringatan Peserta (Tag) Digunakan
                 const attendedIcs = attendance.map(a => a.ic);
-                const missingCount = taggedIcs.filter(ic => !attendedIcs.includes(ic)).length;
-                const totalTagged = taggedIcs.length;
-                const hadirTagged = totalTagged - missingCount;
+                missingTaggedCount = taggedIcs.filter(ic => !attendedIcs.includes(ic)).length;
                 
-                peratus = totalTagged > 0 ? Math.round((hadirTagged / totalTagged) * 100) : 0;
-                
-                hadirEl.textContent = jumlahHadir; // Jumlah keseluruhan hadir (termasuk yang tak ditag)
-                kosongEl.textContent = missingCount; // Tepat berapa orang tag belum hadir
-                peratusEl.textContent = `${peratus}%`;
-                progressCircle.style.strokeDashoffset = 100 - peratus;
-
                 viewAbsentTaggedBtn.classList.remove('hidden');
                 viewAbsentTaggedBtn.classList.add('block');
-            } 
-            else if (kuota > 0) { 
-                // Mod Biasa (Kira dari Kuota)
-                kosong = Math.max(0, kuota - jumlahHadir); 
-                peratus = Math.min(100, Math.round((jumlahHadir / kuota) * 100)); 
+            } else {
+                viewAbsentTaggedBtn.classList.add('hidden');
+                viewAbsentTaggedBtn.classList.remove('block');
+            }
+
+            // 2. Gabungkan logik Kuota dan Tag
+            if (kuota > 0 || isTagged) {
+                // Baki kuota biasa
+                const missingQuota = Math.max(0, kuota - jumlahHadir);
+                
+                // "Belum Hadir" adalah nilai maksimum antara baki kuota ATAU peserta tag yang belum hadir
+                kosong = Math.max(missingQuota, missingTaggedCount);
+                
+                // Kira peratusan dinamik (Jika jumlah hadir + missing tag melebihi kuota)
+                const targetTotal = Math.max(kuota, jumlahHadir + missingTaggedCount);
+                peratus = targetTotal > 0 ? Math.min(100, Math.round((jumlahHadir / targetTotal) * 100)) : 0;
+                
                 hadirEl.textContent = jumlahHadir; 
                 kosongEl.textContent = kosong; 
                 peratusEl.textContent = `${peratus}%`; 
                 progressCircle.style.strokeDashoffset = 100 - peratus; 
-
-                viewAbsentTaggedBtn.classList.add('hidden');
-                viewAbsentTaggedBtn.classList.remove('block');
             } 
             else { 
-                // Tiada Had / Kuota Invalid
+                // Jika tiada Kuota dan tiada Tag
                 hadirEl.textContent = jumlahHadir; 
                 kosongEl.textContent = 'N/A'; 
                 peratusEl.textContent = 'N/A'; 
                 progressCircle.style.strokeDashoffset = 100; 
-
-                viewAbsentTaggedBtn.classList.add('hidden');
-                viewAbsentTaggedBtn.classList.remove('block');
             } 
         }
 
