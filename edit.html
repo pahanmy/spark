@@ -374,12 +374,24 @@
         </div>
     </div>
 
+    <div id="success-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm hidden">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-8 text-center m-4">
+            <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-4">
+                <svg class="h-8 w-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
+            </div>
+            <h3 class="text-xl font-bold text-gray-900 mb-2">Berjaya!</h3>
+            <p class="text-sm text-gray-500 mb-6">Profil dan kata laluan anda telah berjaya dikemaskini dan disimpan.</p>
+            <button onclick="window.location.href='index.html'" class="btn w-full bg-indigo-600 text-white font-bold py-3 rounded-xl shadow-md">Log Masuk Sekarang</button>
+        </div>
+    </div>
+
     <footer class="text-center py-4 mt-8 border-t border-gray-200"><p class="text-sm text-gray-600">Dibangunkan oleh <a href="https://pahanmy.github.io/works/" target="_blank" class="font-semibold text-indigo-600 hover:underline">Pahan</a></p><p id="version-info" class="text-xs text-gray-500"></p></footer>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, collection, query, where, getDocs, updateDoc, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        // PENTING: Import serverTimestamp di sini
+        import { getFirestore, doc, collection, query, where, getDocs, updateDoc, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM",
@@ -394,6 +406,7 @@
         let applicantIC = null; 
         let applicantDocId = null; 
         let updatedData = {}; 
+        let originalPassword = ""; // Simpan password lama
         const appId = firebaseConfig.projectId;
         let isPro = false;
         let cropper = null;
@@ -429,7 +442,7 @@
              const urlParams = new URLSearchParams(window.location.search);
              applicantIC = urlParams.get('ic');
 
-             // Jika tiada di URL, periksa LocalStorage (fallback dari index.html)
+             // Jika tiada di URL, periksa LocalStorage
              if (!applicantIC) {
                  applicantIC = localStorage.getItem('temp_update_ic');
              }
@@ -460,6 +473,7 @@
                     const participantDoc = querySnapshot.docs[0];
                     const data = participantDoc.data();
                     applicantDocId = participantDoc.id; 
+                    originalPassword = data.password || ""; // Simpan password lama
                     
                     const adminIC = "890522135381";
                     isPro = (data.isPro === true) || (applicantIC === adminIC);
@@ -507,16 +521,18 @@
 
             if (isPro) {
                 proBadge.classList.remove('hidden');
-                overlayBtn.classList.remove('hidden'); // Hanya pro nampak overlay "Tukar"
+                overlayBtn.classList.remove('hidden'); 
             } else {
                 proBadge.classList.add('hidden');
                 overlayBtn.classList.add('hidden');
             }
 
-            // --- NAMA, TELEFON & EMEL GLOBAL ---
+            // --- NAMA, TELEFON, EMEL & PASSWORD ---
             document.getElementById('global-name').value = data.name || '';
             document.getElementById('user-phone').value = data.phone || '';
             document.getElementById('user-email').value = data.email || ''; 
+            document.getElementById('user-password').value = data.password || ''; 
+            document.getElementById('user-password-confirm').value = data.password || ''; 
 
             // --- KATEGORI ---
             let category = 'warga'; 
@@ -539,7 +555,6 @@
             if (category === 'warga') {
                 document.getElementById('warga-position').value = data.position || '';
                 
-                // Check PPD
                 const isPPDUser = (data.sector && data.sector !== "" && data.sector !== "-" && data.sector !== "BUKAN PPD" && data.sector !== "AWAM" && data.sector !== "MURID") || (data.station === 'PPD MIRI') || (data.station === 'PEJABAT PENDIDIKAN DAERAH MIRI');
                 
                 if (isPPDUser) {
@@ -678,9 +693,8 @@
 
                     if (data.success) {
                         const imageUrl = data.data.url;
-                        if (participantDocId) {
-                            // Update terus ke database
-                            await updateDoc(doc(db, `artifacts/${appId}/public/data/spark_participants`, participantDocId), { profileImageUrl: imageUrl });
+                        if (applicantDocId) {
+                            await updateDoc(doc(db, `artifacts/${appId}/public/data/spark_participants`, applicantDocId), { profileImageUrl: imageUrl });
                             
                             const userImage = document.getElementById('profile-preview-img');
                             const defaultIcon = document.getElementById('profile-default-icon');
@@ -711,13 +725,12 @@
         // ==========================================
         // VALIDASI & SIMPAN BORANG UTAMA
         // ==========================================
-        function promptForEditVerification(event) {
+        window.promptForEditVerification = function(event) {
             event.preventDefault();
             
             const category = document.querySelector('input[name="participant-category"]:checked').value;
             updatedData = {};
 
-            // 1. Validasi Asas (Nama, Telefon, Emel)
             const globalName = document.getElementById('global-name').value.trim();
             const phone = document.getElementById('user-phone').value.trim();
             const email = document.getElementById('user-email').value.trim();
@@ -729,14 +742,14 @@
             
             updatedData.name = globalName.toUpperCase();
             updatedData.phone = phone;
-            updatedData.email = email;
+            updatedData.email = email.toLowerCase();
 
-            // 2. Validasi Kata Laluan (WAJIB DIISI JIKA KOSONG SEBELUM INI)
+            // Validasi Kata Laluan
             const pass = document.getElementById('user-password').value;
             const confirmPass = document.getElementById('user-password-confirm').value;
 
             if (!pass || !confirmPass) {
-                alert("Sila tetapkan KATA LALUAN baharu anda sebelum menyimpan.");
+                alert("Sila tetapkan KATA LALUAN anda sebelum menyimpan.");
                 document.getElementById('user-password').focus();
                 return;
             }
@@ -747,14 +760,20 @@
                 return;
             }
             
-            if (pass.length > 6) {
-                alert("Kata laluan tidak boleh melebihi 6 aksara.");
+            if (pass.length < 6) {
+                alert("Kata laluan mestilah sekurang-kurangnya 6 aksara.");
                 document.getElementById('user-password').focus();
                 return;
             }
+            
             updatedData.password = pass; 
+            
+            // TAMBAHAN PENTING: Jika password baru diisi/ditukar, simpan timestamp
+            if (pass !== originalPassword) {
+                updatedData.passwordUpdatedAt = serverTimestamp();
+            }
 
-            // 3. Kategori Spesifik Data
+            // Kategori Spesifik Data
             if (category === 'warga') {
                 const position = document.getElementById('warga-position').value;
                 if(!position) return alert("Sila pilih jawatan anda.");
@@ -810,7 +829,7 @@
             setTimeout(() => { document.getElementById('verify-ic-input').focus(); }, 100);
         }
 
-        async function verifyAndSaveChanges() {
+        window.verifyAndSaveChanges = async function() {
             if (!applicantIC || !applicantDocId) return;
 
             const verifyInput = document.getElementById('verify-ic-input');
@@ -840,10 +859,9 @@
                 // Clear temp storage if any
                 localStorage.removeItem('temp_update_ic');
                 
-                alert("Maklumat profil dan kata laluan berjaya dikemaskini. Anda boleh log masuk sekarang.");
+                // Show Success Modal
+                document.getElementById('success-modal').classList.remove('hidden');
                 closeModal('verify-edit-modal');
-                // Balik ke index.html supaya dia boleh login dgn password baru
-                window.location.href = 'index.html';
                 
             } catch (error) {
                 console.error("Error updating applicant data: ", error);
@@ -861,7 +879,7 @@
         // ==========================================
         // UI & TOGGLE FUNCTIONS
         // ==========================================
-        function closeModal(modalId) {
+        window.closeModal = function(modalId) {
             document.getElementById(modalId).classList.add('hidden');
             if (modalId === 'verify-edit-modal') {
                 document.getElementById('verify-ic-input').value = '';
@@ -1028,16 +1046,6 @@
                 });
             } catch (error) { console.error("Error loading positions: ", error); }
         }
-
-        Object.assign(window, { 
-            promptForEditVerification, 
-            verifyAndSaveChanges, 
-            closeModal,
-            handleCategoryChange,
-            handleLocationChange,
-            togglePPDFields,
-            populateUnits
-        });
     </script>
 </body>
 </html>
