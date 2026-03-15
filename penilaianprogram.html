@@ -358,23 +358,27 @@
                 return showMessage('warning', 'Telah Menjawab', `Anda telah pun memberi maklum balas penilaian pada tarikh ini.`, true); 
             }
 
+          // 1. Semak jika IC wujud dalam senarai kehadiran program INI
+            const attData = (currentProgram.attendance || []).find(a => a.ic === ic);
+            
+            if (!attData) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = "Mula Menilai";
+                // Sekat dan papar mesej ralat jika belum daftar kehadiran
+                return showMessage('error', 'Kehadiran Tidak Ditemui', 'Sistem mendapati anda <strong>belum mendaftar kehadiran</strong> untuk program ini. Sila imbas QR Kehadiran (Daftar Masuk) terlebih dahulu sebelum mengisi borang penilaian dan memuat turun sijil.');
+            }
+
+            // 2. Jika ada kehadiran, teruskan ambil maklumat untuk paparan
             const participantsRef = collection(db, `artifacts/${appId}/public/data/spark_participants`);
             const q = query(participantsRef, where("ic", "==", ic));
             const querySnapshot = await getDocs(q);
-
-            if (querySnapshot.empty) {
-                submitBtn.disabled = false;
-                submitBtn.textContent = "Mula Menilai";
-                return alert("No. IC anda tidak ditemui. Sila pastikan anda mendaftar kehadiran terlebih dahulu.");
-            }
             
-            const participantData = querySnapshot.docs[0].data();
-            const attData = (currentProgram.attendance || []).find(a => a.ic === ic);
+            const participantData = querySnapshot.empty ? attData : querySnapshot.docs[0].data();
             
             participantInfo = { 
                 ic: ic, 
-                name: participantData.name,
-                role: attData ? (attData.role || 'Peserta') : 'Peserta'
+                name: attData.name || participantData.name,
+                role: attData.role || 'Peserta'
             };
             
             renderEvaluationForm();
