@@ -121,7 +121,6 @@
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" /></svg>
                     Utama
                 </a>
-                
                 <button onclick="logoutAdmin()" class="btn bg-red-50 text-red-700 border border-red-200 font-semibold py-2 px-4 rounded-lg shadow-sm hover:bg-red-100 flex items-center gap-2 text-sm ml-2">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
                     Log Keluar
@@ -643,7 +642,6 @@
         let programCurrentPage = 1;
         const programsPerPage = 15;
 
-        // Vars for Pengguna PRO tab
         let userProCurrentPage = 1;
         let usersProPerPage = 10;
         let filteredUsersPro = [];
@@ -652,17 +650,15 @@
         let pendingStatus = null;
         let pendingSelectElem = null;
 
-        // Vars for Log Password Tab
         let logPwdCurrentPage = 1;
         let logPwdPerPage = 10;
         let filteredLogPwd = [];
 
-        // Vars for PPD Tab
         let allPpdEntities = [];
         let currentlyEditingPpdId = null;
+        let isSubmitting = false;
 
         function showAdminModal() {
-            // Check session storage if already authenticated
             if (sessionStorage.getItem('spark_admin_auth') === 'true') {
                 document.getElementById('loading-screen').classList.add('hidden');
                 document.getElementById('admin-content').classList.remove('hidden');
@@ -693,7 +689,6 @@
                 if (e.type === 'click' || (e.type === 'keyup' && e.key === 'Enter')) {
                     const code = input.value.trim().toUpperCase();
                     if (code === ADMIN_ACCESS_CODE) {
-                        // Simpan Sesi
                         sessionStorage.setItem('spark_admin_auth', 'true');
 
                         document.getElementById('security-modal').classList.add('hidden');
@@ -738,7 +733,6 @@
         showAdminModal();
 
         function initializeAdminPage() {
-            // Default filter to blank (Semua Rekod)
             document.getElementById('log-month-filter').value = ''; 
 
             loadAndDisplayPrograms();
@@ -749,16 +743,12 @@
             loadAndDisplayLocations();
             loadAndDisplayActiveParticipants(); 
             
-            // Inisialisasi Tab PPD
             fetchPpdOfficers(true);
             setupPpdTabListeners();
 
             initSortable();
-
-            // Load Permohonan SPARK PRO
             loadProRequests();
             
-            // Load Log Password Events
             document.getElementById('log-month-filter').addEventListener('change', () => { logPwdCurrentPage = 1; filterAndRenderPasswordLogs(); });
             document.getElementById('log-pwd-per-page').addEventListener('change', () => {
                 logPwdPerPage = parseInt(document.getElementById('log-pwd-per-page').value);
@@ -766,7 +756,6 @@
                 renderPasswordLogTable();
             });
 
-            // Program Filters
             document.getElementById('program-search').addEventListener('input', () => { programCurrentPage = 1; renderProgramTable(); });
             document.getElementById('program-order-by').addEventListener('change', () => { programCurrentPage = 1; renderProgramTable(); });
             document.getElementById('program-station-filter').addEventListener('change', () => { programCurrentPage = 1; renderProgramTable(); });
@@ -818,7 +807,6 @@
             return false;
         }
 
-        // FUNGSI COPY GENERIC
         function copyTextData(text, btnElement) {
             navigator.clipboard.writeText(text).then(() => {
                 const originalHtml = btnElement.innerHTML;
@@ -829,7 +817,932 @@
             });
         }
 
-        // --- PPD REFERENCE LOGIC ---
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.add('hidden');
+        }
+
+        function showModal(modalId) {
+            document.getElementById(modalId).classList.remove('hidden');
+        }
+
+        async function updateOrderInFirestore(listElement, collectionRef) {
+            const rows = listElement.querySelectorAll('tr');
+            if (rows.length === 0) return;
+            const batch = writeBatch(db);
+            rows.forEach((row, index) => {
+                const docId = row.dataset.id;
+                if (docId) batch.update(doc(collectionRef, docId), { order: index });
+            });
+            try { await batch.commit(); } catch (error) { console.error("Gagal mengemaskini:", error); }
+        }
+        
+        const createRowHTML = (docId, name, deleteFnName) => `
+            <tr data-id="${docId}" class="hover:bg-gray-50">
+                <td class="px-2 py-3 text-gray-400 drag-handle"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" /></svg></td>
+                <td class="px-6 py-3 text-sm font-medium text-gray-900">${name}</td>
+                <td class="px-6 py-3 whitespace-nowrap text-right text-sm font-medium">
+                    <button onclick="${deleteFnName}('${docId}')" class="text-gray-400 hover:text-red-600 p-1 rounded-md"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg></button>
+                </td>
+            </tr>`;
+
+        // --- Fungsi Sekolah & Jawatan ---
+        async function addSchool() { if (!confirmAdminAction("menambah sekolah")) return; const input = document.getElementById('school-name-input'); const name = input.value.trim().toUpperCase(); if (!name) return alert("Sila masukkan nama sekolah."); try { await addDoc(schoolsCollectionRef, { name, createdAt: serverTimestamp(), order: Date.now() }); input.value = ''; } catch (error) { console.error(error); alert("Gagal menambah sekolah."); } }
+        async function addSchoolsFromList() { if (!confirmAdminAction("menambah senarai sekolah")) return; const textarea = document.getElementById('school-list-textarea'); const lines = [...new Set(textarea.value.split('\n').map(l => l.trim().toUpperCase()).filter(l => l.length > 0))]; if (lines.length === 0) return alert("Tiada item sah untuk ditambah."); try { const batch = writeBatch(db); let orderIndex = Date.now(); lines.forEach(name => { batch.set(doc(schoolsCollectionRef), { name, createdAt: serverTimestamp(), order: orderIndex++ }); }); await batch.commit(); textarea.value = ''; alert(`${lines.length} sekolah berjaya ditambah!`); } catch (error) { console.error(error); alert("Gagal menambah senarai sekolah."); } }
+        async function deleteSchool(id) { if (confirm("Anda pasti mahu memadam sekolah ini?")) { if (!confirmAdminAction("memadam sekolah")) return; try { await deleteDoc(doc(schoolsCollectionRef, id)); } catch (error) { console.error(error); alert("Gagal memadam sekolah."); } } }
+        function loadAndDisplaySchools() { const listBody = document.getElementById('school-list-body'); const q = query(schoolsCollectionRef, orderBy("order", "asc")); onSnapshot(q, (snapshot) => { document.getElementById('school-count').textContent = `(${snapshot.size})`; listBody.innerHTML = snapshot.empty ? `<tr><td colspan="3" class="text-center text-gray-500 py-4">Tiada sekolah ditemui.</td></tr>` : snapshot.docs.map(doc => createRowHTML(doc.id, doc.data().name, 'deleteSchool')).join(''); }); }
+        
+        async function addPosition() { if (!confirmAdminAction("menambah jawatan")) return; const input = document.getElementById('position-name-input'); const name = input.value.trim().toUpperCase(); if (!name) return alert("Sila masukkan nama jawatan."); try { await addDoc(positionsCollectionRef, { name, createdAt: serverTimestamp(), order: Date.now() }); input.value = ''; } catch (error) { console.error(error); alert("Gagal menambah jawatan."); } }
+        async function addPositionsFromList() { if (!confirmAdminAction("menambah senarai jawatan")) return; const textarea = document.getElementById('position-list-textarea'); const lines = [...new Set(textarea.value.split('\n').map(l => l.trim().toUpperCase()).filter(l => l.length > 0))]; if (lines.length === 0) return alert("Tiada item sah untuk ditambah."); try { const batch = writeBatch(db); let orderIndex = Date.now(); lines.forEach(name => { batch.set(doc(positionsCollectionRef), { name, createdAt: serverTimestamp(), order: orderIndex++ }); }); await batch.commit(); textarea.value = ''; alert(`${lines.length} jawatan berjaya ditambah!`); } catch (error) { console.error(error); alert("Gagal menambah senarai jawatan."); } }
+        async function deletePosition(id) { if (confirm("Anda pasti mahu memadam jawatan ini?")) { if (!confirmAdminAction("memadam jawatan")) return; try { await deleteDoc(doc(positionsCollectionRef, id)); } catch (error) { console.error(error); alert("Gagal memadam jawatan."); } } }
+        function loadAndDisplayPositions() { const listBody = document.getElementById('position-list-body'); const q = query(positionsCollectionRef, orderBy("order", "asc")); onSnapshot(q, (snapshot) => { document.getElementById('position-count').textContent = `(${snapshot.size})`; listBody.innerHTML = snapshot.empty ? `<tr><td colspan="3" class="text-center text-gray-500 py-4">Tiada jawatan ditemui.</td></tr>` : snapshot.docs.map(doc => createRowHTML(doc.id, doc.data().name, 'deletePosition')).join(''); }); }
+
+        // --- Program ---
+        function adminDeleteProgram(id) {
+            if (confirm("Adakah anda pasti mahu memadam program ini? Segala rekod kehadiran berkaitan akan turut terpadam. Tindakan ini tidak boleh diubah.")) {
+                if (!confirmAdminAction("memadam program ini")) return;
+                deleteDoc(doc(db, `artifacts/${appId}/public/data/spark_programs`, id)).then(() => {
+                    alert("Program berjaya dipadam secara kekal.");
+                }).catch(error => {
+                    console.error("Ralat memadam program:", error);
+                    alert("Gagal memadam program.");
+                });
+            }
+        }
+
+        function formatTimeMalay(timeString) {
+            if (!timeString) return '';
+            const [hourStr, minuteStr] = timeString.split(':');
+            let hour = parseInt(hourStr, 10);
+            let period;
+            if (hour === 0) { period = 'tengah malam'; hour = 12; }
+            else if (hour < 12) { period = 'pagi'; }
+            else if (hour === 12) { period = 'tengah hari'; }
+            else { period = 'ptg'; hour -= 12; }
+            return `${hour}:${minuteStr} ${period}`;
+        }
+        function formatTimeRange(start, end) { 
+            if(!start || !end) return '';
+            return `${formatTimeMalay(start)} - ${formatTimeMalay(end)}`; 
+        }
+        function formatDate(dateString, format = 'DD-MM-YYYY') {
+            if (!dateString) return 'N/A';
+            const date = new Date(dateString);
+            if (format === 'YYYY-MM-DD') { return date.toISOString().split('T')[0]; }
+            return date.toLocaleDateString('ms-MY', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        }
+
+        function loadAndDisplayPrograms() {
+            const q = query(programsCollectionRef, orderBy("createdAt", "desc")); 
+            onSnapshot(q, (snapshot) => {
+                allPrograms = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                document.getElementById('total-program-count').textContent = allPrograms.length; 
+
+                const stationFilter = document.getElementById('program-station-filter');
+                const currentStation = stationFilter.value;
+                const uniqueStations = [...new Set(allPrograms.map(p => p.location ? p.location.trim().toUpperCase() : '').filter(l => l !== ''))];
+                
+                stationFilter.innerHTML = '<option value="">Semua Stesen</option>';
+                uniqueStations.sort().forEach(st => {
+                    stationFilter.innerHTML += `<option value="${st}" ${currentStation === st ? 'selected' : ''}>${st}</option>`;
+                });
+
+                if(allParticipants.length > 0) {
+                    renderTodayProgramTable(); 
+                    renderProgramTable();      
+                }
+            });
+        }
+
+        function renderTodayProgramTable() {
+            const listBody = document.getElementById('today-program-list-body');
+            const todayDateObj = new Date();
+            const todayStr = todayDateObj.getFullYear() + '-' + String(todayDateObj.getMonth() + 1).padStart(2, '0') + '-' + String(todayDateObj.getDate()).padStart(2, '0');
+
+            let todayPrograms = allPrograms.filter(p => {
+                if (p.startDate && p.endDate) { return todayStr >= p.startDate && todayStr <= p.endDate; }
+                return p.startDate === todayStr;
+            });
+
+            if (todayPrograms.length === 0) {
+                listBody.innerHTML = `<tr><td colspan="5" class="text-center text-gray-500 py-6 text-sm">Tiada program dijadualkan hari ini.</td></tr>`;
+            } else {
+                listBody.innerHTML = todayPrograms.map((p, index) => {
+                    
+                    const owner = allParticipants.find(u => u.ic === p.penyelaras_ic);
+                    const position = owner ? owner.position : 'Tiada Jawatan';
+                    const station = owner ? owner.station : (p.location || '');
+
+                    const attendanceCount = p.attendance ? p.attendance.length : 0;
+                    const quota = parseInt(p.quota, 10);
+                    let attendanceHtml = '<span class="text-gray-400 text-sm">-</span>';
+                    
+                    if (quota > 0) {
+                        const percentage = attendanceCount > 0 ? Math.round((attendanceCount / quota) * 100) : 0;
+                        let colorClass = 'text-gray-700';
+                        if (percentage >= 90) colorClass = 'text-green-600';
+                        else if (percentage >= 50) colorClass = 'text-yellow-600';
+                        else if (percentage > 0) colorClass = 'text-red-600';
+                        
+                        attendanceHtml = `
+                            <span class="font-bold ${colorClass} text-base">${percentage}%</span><br>
+                            <span class="text-[10px] text-gray-500 font-medium">${attendanceCount}/${quota} Hadir</span>
+                        `;
+                    } else if (attendanceCount > 0) {
+                        attendanceHtml = `
+                            <span class="font-bold text-indigo-600 text-base">${attendanceCount}</span><br>
+                            <span class="text-[10px] text-gray-500 font-medium">Hadir</span>
+                        `;
+                    }
+
+                    return `
+                    <tr class="hover:bg-red-50/80 transition-colors">
+                        <td class="px-6 py-4 text-sm text-gray-500 font-bold align-top">${index + 1}</td>
+                        <td class="px-6 py-4 align-top">
+                            <div class="font-bold text-gray-900 text-sm mb-1">${p.name} <span class="animate-pulse inline-block w-2 h-2 bg-red-500 rounded-full ml-1"></span></div>
+                            <div class="text-xs text-gray-600 leading-tight border-l-2 border-red-200 pl-2">
+                                <b>${p.penyelaras_name || '-'}</b><br>
+                                <span class="text-[10px] text-gray-500">${position}</span><br>
+                                <span class="text-[10px] text-indigo-600 font-bold uppercase">${station}</span>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 text-sm text-red-600 font-medium align-top">
+                            ${formatDate(p.startDate)}${p.endDate && p.startDate !== p.endDate ? ' - ' + formatDate(p.endDate) : ''}<br>
+                            <span class="text-[10px] text-gray-500 block mt-1">${formatTimeRange(p.startTime, p.endTime)}</span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-center align-top">${attendanceHtml}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-center align-top">
+                            <div class="flex items-center justify-center gap-2">
+                                <a href="program.html?kod=${p.id}" target="_blank" class="btn inline-flex items-center text-xs font-bold text-white bg-gradient-to-r from-red-500 to-red-600 py-1.5 px-3 rounded-lg shadow hover:-translate-y-0.5 transition-all">Buka</a>
+                                <button onclick="adminDeleteProgram('${p.id}')" class="btn inline-flex items-center text-xs font-bold text-red-600 bg-red-100 border border-red-200 py-1.5 px-2 rounded-lg shadow-sm hover:bg-red-200 transition-all" title="Padam Program"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+                }).join('');
+            }
+        }
+
+        function renderProgramTable() {
+            const listBody = document.getElementById('program-list-body');
+            const searchInput = document.getElementById('program-search').value.toLowerCase();
+            const stationValue = document.getElementById('program-station-filter').value;
+            const orderByValue = document.getElementById('program-order-by').value;
+
+            let filteredPrograms = allPrograms.filter(p => {
+                const matchSearch = p.name.toLowerCase().includes(searchInput) || (p.penyelaras_name && p.penyelaras_name.toLowerCase().includes(searchInput));
+                const progStation = p.location ? p.location.trim().toUpperCase() : '';
+                const matchStation = stationValue === "" || progStation === stationValue;
+                return matchSearch && matchStation;
+            });
+
+            filteredPrograms.sort((a, b) => {
+                const dateA = a.startDate ? new Date(a.startDate).getTime() : 0;
+                const dateB = b.startDate ? new Date(b.startDate).getTime() : 0;
+                return orderByValue === 'asc' ? dateA - dateB : dateB - dateA;
+            });
+
+            document.getElementById('program-count').textContent = `Jumlah: ${filteredPrograms.length} keputusan`;
+
+            const startIndex = (programCurrentPage - 1) * programsPerPage;
+            const paginatedItems = filteredPrograms.slice(startIndex, startIndex + programsPerPage);
+
+            const todayDateObj = new Date();
+            const todayStr = todayDateObj.getFullYear() + '-' + String(todayDateObj.getMonth() + 1).padStart(2, '0') + '-' + String(todayDateObj.getDate()).padStart(2, '0');
+
+            if (paginatedItems.length === 0) {
+                listBody.innerHTML = `<tr><td colspan="5" class="text-center text-gray-500 py-4">Tiada program ditemui.</td></tr>`;
+            } else {
+                listBody.innerHTML = paginatedItems.map((p, index) => {
+                    let isToday = false;
+                    if (p.startDate && p.endDate) { isToday = todayStr >= p.startDate && todayStr <= p.endDate; } 
+                    else { isToday = p.startDate === todayStr; }
+                    
+                    const todayBadge = isToday ? `<span class="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold ml-2 shadow-sm uppercase tracking-wider animate-pulse">Hari Ini</span>` : '';
+                    
+                    const owner = allParticipants.find(u => u.ic === p.penyelaras_ic);
+                    const position = owner ? owner.position : 'Tiada Jawatan';
+                    const station = owner ? owner.station : (p.location || '');
+
+                    const attendanceCount = p.attendance ? p.attendance.length : 0;
+                    const quota = parseInt(p.quota, 10);
+                    let attendanceHtml = '<span class="text-gray-400 text-sm">-</span>';
+                    
+                    if (quota > 0) {
+                        const percentage = attendanceCount > 0 ? Math.round((attendanceCount / quota) * 100) : 0;
+                        let colorClass = 'text-gray-700';
+                        if (percentage >= 90) colorClass = 'text-green-600';
+                        else if (percentage >= 50) colorClass = 'text-yellow-600';
+                        else if (percentage > 0) colorClass = 'text-red-600';
+                        
+                        attendanceHtml = `
+                            <span class="font-bold ${colorClass} text-base">${percentage}%</span><br>
+                            <span class="text-[10px] text-gray-500 font-medium">${attendanceCount}/${quota} Hadir</span>
+                        `;
+                    } else if (attendanceCount > 0) {
+                        attendanceHtml = `
+                            <span class="font-bold text-indigo-600 text-base">${attendanceCount}</span><br>
+                            <span class="text-[10px] text-gray-500 font-medium">Hadir</span>
+                        `;
+                    }
+
+                    return `
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-6 py-4 text-sm text-gray-500 align-top">${startIndex + index + 1}</td>
+                        <td class="px-6 py-4 align-top">
+                            <div class="font-bold text-gray-900 text-sm mb-1">${p.name} ${todayBadge}</div>
+                            <div class="text-xs text-gray-600 leading-tight border-l-2 border-indigo-200 pl-2">
+                                <b>${p.penyelaras_name || '-'}</b><br>
+                                <span class="text-[10px] text-gray-500">${position}</span><br>
+                                <span class="text-[10px] text-indigo-600 font-bold uppercase">${station}</span>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 text-sm text-gray-500 align-top">
+                            ${formatDate(p.startDate)}${p.endDate && p.startDate !== p.endDate ? ' - ' + formatDate(p.endDate) : ''}<br>
+                            <span class="text-[10px] text-gray-400 block mt-1">${formatTimeRange(p.startTime, p.endTime)}</span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-center align-top">${attendanceHtml}</td>
+                        <td class="px-6 py-4 text-center align-top">
+                            <div class="flex items-center justify-center gap-2">
+                                <a href="program.html?kod=${p.id}" target="_blank" class="btn inline-flex items-center text-xs font-bold text-white bg-gradient-to-r from-blue-500 to-indigo-600 py-1.5 px-3 rounded-lg shadow-md hover:-translate-y-0.5 transition-all">Buka</a>
+                                <button onclick="adminDeleteProgram('${p.id}')" class="btn inline-flex items-center text-xs font-bold text-red-600 bg-red-100 border border-red-200 py-1.5 px-2 rounded-lg shadow-sm hover:bg-red-200 transition-all" title="Padam Program"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
+                            </div>
+                        </td>
+                    </tr>
+                    `;
+                }).join('');
+            }
+            renderProgramPagination(filteredPrograms.length);
+        }
+
+        function renderProgramPagination(totalItems) {
+            const paginationControls = document.getElementById('program-pagination-controls');
+            const totalPages = Math.ceil(totalItems / programsPerPage);
+            if (totalPages <= 1) { paginationControls.innerHTML = ''; return; }
+            paginationControls.innerHTML = `
+                <span class="text-sm text-gray-700">Memaparkan ${Math.min(totalItems, (programCurrentPage - 1) * programsPerPage + 1)} hingga ${Math.min(programCurrentPage * programsPerPage, totalItems)} dari ${totalItems} keputusan</span>
+                <div class="flex gap-2">
+                    <button onclick="programPrevPage()" class="btn bg-white border border-gray-300 text-sm py-1.5 px-3 rounded-lg" ${programCurrentPage === 1 ? 'disabled' : ''}>Sebelumnya</button>
+                    <button onclick="programNextPage()" class="btn bg-white border border-gray-300 text-sm py-1.5 px-3 rounded-lg" ${programCurrentPage === totalPages ? 'disabled' : ''}>Seterusnya</button>
+                </div>
+            `;
+        }
+        function programPrevPage() { if (programCurrentPage > 1) { programCurrentPage--; renderProgramTable(); } }
+        function programNextPage() { 
+            const searchInput = document.getElementById('program-search').value.toLowerCase();
+            const stationValue = document.getElementById('program-station-filter').value;
+            const filteredLength = allPrograms.filter(p => {
+                const matchSearch = p.name.toLowerCase().includes(searchInput) || (p.penyelaras_name && p.penyelaras_name.toLowerCase().includes(searchInput));
+                const progStation = p.location ? p.location.trim().toUpperCase() : '';
+                const matchStation = stationValue === "" || progStation === stationValue;
+                return matchSearch && matchStation;
+            }).length;
+            if (programCurrentPage < Math.ceil(filteredLength / programsPerPage)) { programCurrentPage++; renderProgramTable(); } 
+        }
+
+        // --- Participants ---
+        function loadAndDisplayParticipants() {
+            const q = query(participantsCollectionRef, orderBy("name", "asc"));
+            onSnapshot(q, (snapshot) => {
+                allParticipants = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                
+                if (allPrograms.length > 0) {
+                    renderTodayProgramTable();
+                    renderProgramTable();
+                }
+
+                renderParticipantTable(); 
+                filterAndRenderUserProTable(); 
+                
+                const isLogActive = document.getElementById('tab-logpassword').classList.contains('active');
+                if (isLogActive) filterAndRenderPasswordLogs();
+            });
+        }
+
+        function renderParticipantTable() {
+            const listBody = document.getElementById('participant-list-body');
+            const searchInput = document.getElementById('participant-search').value.toLowerCase();
+            
+            const filteredParticipants = allParticipants.filter(p => p.name.toLowerCase().includes(searchInput) || (p.ic && p.ic.includes(searchInput)));
+            document.getElementById('participant-count').textContent = `Jumlah: ${filteredParticipants.length}`;
+
+            const startIndex = (participantCurrentPage - 1) * participantsPerPage;
+            const paginatedItems = filteredParticipants.slice(startIndex, startIndex + participantsPerPage);
+
+            if (paginatedItems.length === 0) {
+                listBody.innerHTML = `<tr><td colspan="6" class="text-center text-gray-500 py-4">Tiada peserta ditemui.</td></tr>`;
+            } else {
+                listBody.innerHTML = paginatedItems.map((p, index) => {
+                    let pwdDisplay = '';
+                    if (p.password && p.password.trim() !== '') {
+                        pwdDisplay = `
+                            <div class="flex items-center justify-center gap-2">
+                                <span class="text-sm text-gray-500 tracking-widest font-mono">••••••</span>
+                                <button onclick="copyTextData('${p.password.replace(/'/g, "\\'")}', this)" class="text-gray-400 hover:text-indigo-600 transition-colors p-1 rounded hover:bg-indigo-50" title="Salin Kata Laluan">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                                </button>
+                            </div>
+                        `;
+                    } else {
+                        pwdDisplay = `<span class="text-xs text-gray-400 italic">Belum Ditetapkan</span>`;
+                    }
+
+                    return `
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-6 py-4 text-sm text-gray-500">${startIndex + index + 1}</td>
+                        <td class="px-6 py-4 text-sm font-medium text-gray-900">
+                             <a href="edit.html?ic=${p.ic}" class="text-indigo-600 hover:text-indigo-800 hover:underline">${p.name}</a>
+                        </td>
+                        <td class="px-6 py-4 text-sm text-gray-500">
+                            <div class="flex items-center gap-2">
+                                <span>${p.ic}</span>
+                                <button onclick="copyTextData('${p.ic}', this)" class="text-gray-400 hover:text-indigo-600 transition-colors p-1 rounded hover:bg-indigo-50" title="Salin IC">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                                </button>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 text-sm text-gray-500">${p.station || '-'}</td>
+                        <td class="px-6 py-4 text-center whitespace-nowrap">${pwdDisplay}</td>
+                        <td class="px-6 py-4 text-center">
+                            <div class="flex justify-center gap-2">
+                                <button onclick="adminResetPassword('${p.id}', '${p.name.replace(/'/g, "\\'")}')" class="text-orange-400 hover:text-orange-600 p-1 rounded-md hover:bg-orange-50" title="Reset Kata Laluan">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" /></svg>
+                                </button>
+                                <button onclick="deleteParticipant('${p.id}')" class="text-gray-400 hover:text-red-600 p-1 rounded-md hover:bg-red-50" title="Padam Peserta">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+                }).join('');
+            }
+            renderParticipantPagination(filteredParticipants.length);
+        }
+
+        function adminResetPassword(id, name) {
+            if(confirm(`Anda pasti mahu menetapkan semula (reset) kata laluan untuk ${name}? Pengguna perlu menetapkan kata laluan baru selepas ini.`)) {
+                if (!confirmAdminAction("mereset kata laluan")) return;
+                updateDoc(doc(db, `artifacts/${appId}/public/data/spark_participants`, id), {
+                    password: "", 
+                    accountLocked: false, 
+                    failedAttempts: 0 
+                }).then(() => {
+                    alert("Kata laluan berjaya direset dan akaun (jika disekat) telah dinyahsekat.");
+                }).catch(error => {
+                    console.error(error);
+                    alert("Gagal mereset kata laluan.");
+                });
+            }
+        }
+        
+        function renderParticipantPagination(totalItems) {
+            const paginationControls = document.getElementById('participant-pagination-controls');
+            const totalPages = Math.ceil(totalItems / participantsPerPage);
+            if (totalPages <= 1) { paginationControls.innerHTML = ''; return; }
+            paginationControls.innerHTML = `
+                <span class="text-sm text-gray-700">Memaparkan ${Math.min(totalItems, (participantCurrentPage - 1) * participantsPerPage + 1)} hingga ${Math.min(participantCurrentPage * participantsPerPage, totalItems)} dari ${totalItems} keputusan</span>
+                <div class="flex gap-2">
+                    <button onclick="participantPrevPage()" class="btn bg-white border border-gray-300 text-sm py-1.5 px-3 rounded-lg" ${participantCurrentPage === 1 ? 'disabled' : ''}>Sebelumnya</button>
+                    <button onclick="participantNextPage()" class="btn bg-white border border-gray-300 text-sm py-1.5 px-3 rounded-lg" ${participantCurrentPage === totalPages ? 'disabled' : ''}>Seterusnya</button>
+                </div>
+            `;
+        }
+
+        function participantPrevPage() { if (participantCurrentPage > 1) { participantCurrentPage--; renderParticipantTable(); } }
+        function participantNextPage() { 
+            const searchInput = document.getElementById('participant-search').value.toLowerCase();
+            const totalItems = allParticipants.filter(p => p.name.toLowerCase().includes(searchInput) || (p.ic && p.ic.includes(searchInput))).length; 
+            if (participantCurrentPage < Math.ceil(totalItems / participantsPerPage)) { participantCurrentPage++; renderParticipantTable(); } 
+        }
+
+        function deleteParticipant(id) {
+            if (confirm("Anda pasti mahu memadam peserta ini dari senarai induk? Tindakan ini tidak boleh diubah.")) {
+                if (!confirmAdminAction("memadam peserta")) return;
+                deleteDoc(doc(participantsCollectionRef, id))
+                    .then(() => alert("Peserta berjaya dipadam."))
+                    .catch(error => { console.error(error); alert("Gagal memadam peserta."); });
+            }
+        }
+
+        // --- Log Password ---
+        function filterAndRenderPasswordLogs() {
+            const monthFilter = document.getElementById('log-month-filter').value; 
+            let loggedUsers = allParticipants.filter(p => p.password && p.password.trim() !== "");
+
+            if (monthFilter) {
+                loggedUsers = loggedUsers.filter(p => {
+                    if (!p.passwordUpdatedAt) return false; 
+                    let dateObj;
+                    if (p.passwordUpdatedAt.toDate) dateObj = p.passwordUpdatedAt.toDate();
+                    else if (p.passwordUpdatedAt.seconds) dateObj = new Date(p.passwordUpdatedAt.seconds * 1000);
+                    else if (typeof p.passwordUpdatedAt === 'string') dateObj = new Date(p.passwordUpdatedAt);
+                    else if (p.passwordUpdatedAt instanceof Date) dateObj = p.passwordUpdatedAt;
+
+                    if (dateObj && !isNaN(dateObj.getTime())) {
+                        let dateStr = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}`;
+                        return dateStr === monthFilter;
+                    }
+                    return false;
+                });
+            }
+
+            loggedUsers.sort((a, b) => {
+                const timeA = a.passwordUpdatedAt ? (a.passwordUpdatedAt.toDate ? a.passwordUpdatedAt.toDate().getTime() : new Date(a.passwordUpdatedAt).getTime()) : 0;
+                const timeB = b.passwordUpdatedAt ? (b.passwordUpdatedAt.toDate ? b.passwordUpdatedAt.toDate().getTime() : new Date(b.passwordUpdatedAt).getTime()) : 0;
+                return timeB - timeA;
+            });
+            
+            filteredLogPwd = loggedUsers;
+            document.getElementById('log-password-count').textContent = `${filteredLogPwd.length} Rekod`;
+            renderPasswordLogTable();
+        }
+        
+        function renderPasswordLogTable() {
+            const listBody = document.getElementById('log-password-list-body');
+            const paginationControls = document.getElementById('log-pwd-pagination-controls');
+            
+            if (filteredLogPwd.length === 0) {
+                const monthFilter = document.getElementById('log-month-filter').value;
+                const filterText = monthFilter ? `untuk bulan ${monthFilter}` : 'dalam pangkalan data';
+                listBody.innerHTML = `<tr><td colspan="4" class="px-6 py-8 text-center text-sm text-gray-500 italic">Tiada rekod perubahan kata laluan ${filterText}.</td></tr>`;
+                paginationControls.innerHTML = '';
+                return;
+            }
+            
+            const totalPages = Math.ceil(filteredLogPwd.length / logPwdPerPage);
+            if (logPwdCurrentPage > totalPages) logPwdCurrentPage = totalPages;
+            if (logPwdCurrentPage < 1) logPwdCurrentPage = 1;
+
+            const startIndex = (logPwdCurrentPage - 1) * logPwdPerPage;
+            const paginatedItems = filteredLogPwd.slice(startIndex, startIndex + logPwdPerPage);
+
+            listBody.innerHTML = paginatedItems.map((user, index) => {
+                let dateFormatted = "Tarikh Tidak Direkodkan";
+                if (user.passwordUpdatedAt) {
+                    let dateObj;
+                    if (user.passwordUpdatedAt.toDate) dateObj = user.passwordUpdatedAt.toDate();
+                    else if (user.passwordUpdatedAt.seconds) dateObj = new Date(user.passwordUpdatedAt.seconds * 1000);
+                    else if (typeof user.passwordUpdatedAt === 'string') dateObj = new Date(user.passwordUpdatedAt);
+                    else if (user.passwordUpdatedAt instanceof Date) dateObj = user.passwordUpdatedAt;
+                    
+                    if (dateObj && !isNaN(dateObj.getTime())) {
+                        dateFormatted = dateObj.toLocaleDateString('ms-MY', { day: '2-digit', month: 'short', year: 'numeric' }) + ' <br><span class="text-xs text-gray-400 font-medium">' + dateObj.toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit' }) + '</span>';
+                    }
+                }
+
+                const stesen = user.station || "Tiada Stesen";
+                const jawatan = user.position || "Tiada Jawatan";
+                let maskedIc = "N/A";
+                if (user.ic && user.ic.length >= 4) { maskedIc = `******${user.ic.slice(-4)}`; }
+
+                return `
+                    <tr class="hover:bg-orange-50/30 transition-colors border-b border-gray-100"> 
+                        <td class="px-6 py-4 text-sm text-gray-500 font-mono align-top">${startIndex + index + 1}</td>
+                        <td class="px-6 py-4 align-top">
+                            <div class="font-bold text-gray-900 text-sm">${user.name.toUpperCase()}</div>
+                            <div class="text-xs text-gray-500 font-mono mt-0.5">${maskedIc}</div>
+                        </td>
+                        <td class="px-6 py-4 align-top">
+                            <div class="text-sm text-gray-800 font-semibold">${stesen.toUpperCase()}</div>
+                            <div class="text-xs text-gray-500 mt-0.5">${jawatan.toUpperCase()}</div>
+                        </td>
+                        <td class="px-6 py-4 text-sm text-gray-600 align-top">${dateFormatted}</td>
+                    </tr>
+                `;
+            }).join('');
+            
+            renderLogPwdPagination(filteredLogPwd.length);
+        }
+
+        function renderLogPwdPagination(totalItems) {
+            const paginationControls = document.getElementById('log-pwd-pagination-controls');
+            const totalPages = Math.ceil(totalItems / logPwdPerPage);
+            if (totalPages <= 1) { paginationControls.innerHTML = ''; return; }
+            
+            paginationControls.innerHTML = `
+                <span class="text-sm text-gray-700">Memaparkan ${Math.min(totalItems, (logPwdCurrentPage - 1) * logPwdPerPage + 1)} hingga ${Math.min(logPwdCurrentPage * logPwdPerPage, totalItems)} dari ${totalItems} keputusan</span>
+                <div class="flex gap-2">
+                    <button onclick="logPwdPrevPage()" class="btn bg-white border border-gray-300 text-sm py-1.5 px-3 rounded-lg" ${logPwdCurrentPage === 1 ? 'disabled' : ''}>Sebelumnya</button>
+                    <button onclick="logPwdNextPage()" class="btn bg-white border border-gray-300 text-sm py-1.5 px-3 rounded-lg" ${logPwdCurrentPage === totalPages ? 'disabled' : ''}>Seterusnya</button>
+                </div>
+            `;
+        }
+
+        function logPwdPrevPage() { if (logPwdCurrentPage > 1) { logPwdCurrentPage--; renderPasswordLogTable(); } }
+        function logPwdNextPage() { const totalPages = Math.ceil(filteredLogPwd.length / logPwdPerPage); if (logPwdCurrentPage < totalPages) { logPwdCurrentPage++; renderPasswordLogTable(); } }
+
+        // --- PRO Users ---
+        function loadProRequests() {
+            const requestsRef = collection(db, `artifacts/${appId}/public/data/spark_pro_requests`);
+            const q = query(requestsRef, where("status", "==", "Menunggu Pengesahan"));
+            
+            onSnapshot(q, (snapshot) => {
+                const listBody = document.getElementById('pro-requests-list-body');
+                if (snapshot.empty) {
+                    listBody.innerHTML = `<tr><td colspan="5" class="px-6 py-8 text-center text-sm text-gray-500 italic">Tiada permohonan yang menunggu pengesahan.</td></tr>`;
+                    return;
+                }
+
+                let html = '';
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    const dateStr = data.requestDate ? new Date(data.requestDate.toDate()).toLocaleDateString('ms-MY', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
+                    const amountStr = data.amount ? data.amount : 'Tidak Dinyatakan';
+                    
+                    html += `
+                        <tr class="hover:bg-amber-50/50 transition-colors border-b border-amber-100">
+                            <td class="px-6 py-4 text-sm text-amber-900">${dateStr}</td>
+                            <td class="px-6 py-4 text-sm font-bold text-amber-900">${data.name.toUpperCase()}</td>
+                            <td class="px-6 py-4 text-sm text-amber-700 font-mono">${data.ic}</td>
+                            <td class="px-6 py-4 text-sm font-bold text-green-700 text-center">${amountStr}</td>
+                            <td class="px-6 py-4 text-center">
+                                <div class="flex justify-center gap-2">
+                                    <button onclick="approveProRequest('${doc.id}', '${data.ic}', '${data.name.replace(/'/g, "\\'")}')" class="btn bg-green-500 hover:bg-green-600 text-white text-[10px] font-bold px-3 py-1.5 rounded shadow-sm flex items-center gap-1 uppercase tracking-wider">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg> Luluskan
+                                    </button>
+                                    <button onclick="rejectProRequest('${doc.id}', '${data.name.replace(/'/g, "\\'")}')" class="btn bg-red-100 hover:bg-red-200 text-red-600 border border-red-300 text-[10px] font-bold px-3 py-1.5 rounded shadow-sm flex items-center gap-1 uppercase tracking-wider">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.243a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" /></svg> Tolak
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                });
+                listBody.innerHTML = html;
+            });
+        }
+
+        async function approveProRequest(requestId, ic, name) {
+            if (!confirmAdminAction(`meluluskan permohonan SPARK PRO untuk ${name}`)) return;
+            try {
+                const pRef = collection(db, `artifacts/${appId}/public/data/spark_participants`);
+                const q = query(pRef, where("ic", "==", ic));
+                const snap = await getDocs(q);
+
+                if (snap.empty) { alert("Pengguna tidak dijumpai di dalam pangkalan data utama. Pastikan IC betul."); return; }
+
+                const userDocId = snap.docs[0].id;
+                await updateDoc(doc(db, `artifacts/${appId}/public/data/spark_participants`, userDocId), { isPro: true });
+                await updateDoc(doc(db, `artifacts/${appId}/public/data/spark_pro_requests`, requestId), { status: "Diluluskan", approvedAt: serverTimestamp() });
+
+                alert(`Permohonan ${name} telah diluluskan! Status telah dinaiktaraf ke PRO.`);
+            } catch (error) { console.error("Gagal meluluskan: ", error); alert("Ralat semasa meluluskan permohonan."); }
+        }
+
+        async function rejectProRequest(requestId, name) {
+            if (!confirmAdminAction(`menolak permohonan SPARK PRO untuk ${name}`)) return;
+            try {
+                await updateDoc(doc(db, `artifacts/${appId}/public/data/spark_pro_requests`, requestId), { status: "Ditolak", rejectedAt: serverTimestamp() });
+                alert(`Permohonan ${name} telah ditolak.`);
+            } catch (error) { console.error("Gagal menolak: ", error); alert("Ralat semasa menolak permohonan."); }
+        }
+
+        function filterAndRenderUserProTable() {
+            const searchTerm = document.getElementById('user-pro-search').value.toLowerCase();
+            filteredUsersPro = allParticipants.filter(user => user.name.toLowerCase().includes(searchTerm) || (user.ic && user.ic.includes(searchTerm)));
+
+            const totalPages = Math.ceil(filteredUsersPro.length / usersProPerPage);
+            if (userProCurrentPage > totalPages && totalPages > 0) userProCurrentPage = totalPages;
+            else if (totalPages === 0) userProCurrentPage = 1;
+
+            const startIndex = (userProCurrentPage - 1) * usersProPerPage;
+            const paginatedUsers = filteredUsersPro.slice(startIndex, startIndex + usersProPerPage);
+
+            renderUserProTable(paginatedUsers, startIndex);
+            renderUserProPaginationControls(filteredUsersPro.length);
+        }
+
+        function renderUserProTable(users, startIndex) {
+            const tableBody = document.getElementById('user-pro-list-body');
+            if (users.length === 0) { tableBody.innerHTML = `<tr><td colspan="5" class="px-6 py-8 text-center text-sm text-gray-500">Tiada pengguna ditemui.</td></tr>`; return; }
+            
+            tableBody.innerHTML = users.map((user, index) => {
+                const globalIndex = startIndex + index + 1;
+                const isPentadbir = user.ic === ADMIN_IC; 
+                const isPro = user.isPro === true; 
+
+                const statusBadge = isPro 
+                    ? `<span class="px-2 py-1 text-[10px] font-bold rounded-full bg-green-100 text-green-700 border border-green-200">PRO</span>`
+                    : `<span class="px-2 py-1 text-[10px] font-bold rounded-full bg-gray-100 text-gray-600 border border-gray-200">STANDARD</span>`;
+                
+                const dropdown = `
+                    <select class="block w-full text-xs border border-gray-300 rounded-md py-1.5 px-2 cursor-pointer bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 shadow-sm" onchange="requestRoleChange('${user.id}', event.target.value === 'true', this)">
+                        <option value="false" ${!isPro ? 'selected' : ''}>Standard</option>
+                        <option value="true" ${isPro ? 'selected' : ''}>Pro</option>
+                    </select>
+                `;
+                
+                return `
+                    <tr class="hover:bg-gray-50 transition-colors border-b border-gray-100 ${isPentadbir ? 'bg-indigo-50/50' : ''}"> 
+                        <td class="px-6 py-3 text-sm text-gray-500 font-mono">${globalIndex}</td>
+                        <td class="px-6 py-3">
+                            <div class="text-sm font-semibold text-gray-900">${user.name.toUpperCase()}</div>
+                            <div class="text-[10px] text-gray-500 font-mono mt-0.5">${user.ic}</div>
+                            ${isPentadbir ? '<span class="text-[10px] text-indigo-600 font-bold bg-indigo-100 px-1.5 rounded inline-block mt-1">ADMIN UTAMA</span>' : ''}
+                        </td>
+                        <td class="px-6 py-3 text-sm text-gray-500">${user.station || '-'}</td>
+                        <td class="px-6 py-3">${statusBadge}</td>
+                        <td class="px-6 py-3 text-center w-40">${dropdown}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function renderUserProPaginationControls(total) {
+            const controls = document.getElementById('user-pro-pagination-controls');
+            const totalPages = Math.ceil(total / usersProPerPage);
+            if (totalPages <= 1) { controls.innerHTML = ''; return; }
+            controls.innerHTML = `
+                <button onclick="prevUserProPage()" ${userProCurrentPage === 1 ? 'disabled' : ''} class="btn bg-white border border-gray-300 text-gray-700 py-1 px-3 rounded-lg text-xs font-semibold hover:bg-gray-50 disabled:opacity-50">Lalu</button>
+                <span class="text-xs text-gray-600 font-medium">Halaman ${userProCurrentPage} / ${totalPages}</span>
+                <button onclick="nextUserProPage()" ${userProCurrentPage === totalPages ? 'disabled' : ''} class="btn bg-white border border-gray-300 text-gray-700 py-1 px-3 rounded-lg text-xs font-semibold hover:bg-gray-50 disabled:opacity-50">Kanan</button>
+            `;
+        }
+
+        function nextUserProPage() { if (userProCurrentPage < Math.ceil(filteredUsersPro.length / usersProPerPage)) { userProCurrentPage++; filterAndRenderUserProTable(); } }
+        function prevUserProPage() { if (userProCurrentPage > 1) { userProCurrentPage--; filterAndRenderUserProTable(); } }
+
+        function requestRoleChange(userId, newStatus, selectElem) {
+            pendingUserId = userId; pendingStatus = newStatus; pendingSelectElem = selectElem;
+            const text = newStatus ? "NAIK TARAF ke SPARK PRO" : "TURUN TARAF ke STANDARD";
+            document.getElementById('confirm-status-text').textContent = text;
+            document.getElementById('confirm-status-text').className = newStatus ? "font-bold text-green-600 text-sm" : "font-bold text-gray-600 text-sm";
+            document.getElementById('confirm-role-modal').classList.remove('hidden');
+        }
+
+        async function executeRoleChange() {
+            if (!confirmAdminAction("menukar status pengguna PRO")) { cancelRoleChange(); return; }
+            document.getElementById('confirm-role-modal').classList.add('hidden');
+            const userRef = doc(db, `artifacts/${appId}/public/data/spark_participants`, pendingUserId);
+            try { await updateDoc(userRef, { isPro: pendingStatus }); } 
+            catch (error) { console.error("Update Error:", error); alert("Gagal mengemaskini status."); cancelRoleChange(); } 
+            finally { pendingUserId = null; pendingStatus = null; pendingSelectElem = null; }
+        }
+
+        function cancelRoleChange() {
+            document.getElementById('confirm-role-modal').classList.add('hidden');
+            if (pendingSelectElem) { pendingSelectElem.value = (!pendingStatus).toString(); }
+            pendingUserId = null; pendingStatus = null; pendingSelectElem = null;
+        }
+
+        // --- Hari Jadi ---
+        function extractDobFromIc(icString) {
+            const cleanedIc = icString.replace(/[-\s]/g, '');
+            if (!/^\d{6,}/.test(cleanedIc)) { throw new Error('Format IC tidak sah.'); }
+            const currentYearLastTwo = new Date().getFullYear() % 100;
+            const icYearStr = cleanedIc.substring(0, 2);
+            const icYear = parseInt(icYearStr, 10);
+            const mm = cleanedIc.substring(2, 4);
+            const dd = cleanedIc.substring(4, 6);
+            const yearPrefix = (icYear > currentYearLastTwo && icYear <= 99) ? '19' : '20';
+            const extractedDob = `${yearPrefix}${icYearStr}-${mm}-${dd}`;
+            const testDate = new Date(extractedDob);
+            if (isNaN(testDate.getTime()) || testDate.getDate() !== parseInt(dd, 10)) { throw new Error('Tarikh lahir tidak wujud.'); }
+            return { dob: extractedDob, ic: cleanedIc };
+        }
+
+        function listenForBirthdayList() {
+            const q = query(birthdaysRef, orderBy("name", "asc"));
+            onSnapshot(q, (snapshot) => {
+                const tableBody = document.getElementById('birthday-table-body');
+                if (snapshot.empty) {
+                    tableBody.innerHTML = `<tr><td colspan="4" class="px-6 py-4 text-center text-gray-500">Tiada data ditemui.</td></tr>`;
+                    return;
+                }
+                let html = '';
+                snapshot.docs.forEach((doc, index) => {
+                    const data = doc.data();
+                    html += `
+                        <tr class="hover:bg-gray-100">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${index + 1}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 uppercase">${data.name}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${data.dob}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2 text-center">
+                                <button class="btn-edit text-indigo-600 hover:text-indigo-900" data-id="${doc.id}" data-name="${data.name}" data-dob="${data.dob}">Edit</button>
+                                <button class="btn-delete text-red-600 hover:text-red-900" data-id="${doc.id}" data-name="${data.name}">Padam</button>
+                            </td>
+                        </tr>`;
+                });
+                tableBody.innerHTML = html;
+            });
+        }
+
+        async function handleManualBirthdaySubmit(e) {
+            e.preventDefault();
+            if (!confirmAdminAction("menambah rekod hari jadi")) return;
+            const submitBtn = document.getElementById('manual-birthday-submit-btn');
+            const successMsg = document.getElementById('manual-birthday-success-msg');
+            const errorMsg = document.getElementById('manual-birthday-error-msg');
+            const name = document.getElementById('birthday-name').value;
+            const icInput = document.getElementById('birthday-ic').value; 
+
+            submitBtn.disabled = true; submitBtn.textContent = "Menyimpan...";
+            successMsg.classList.add('hidden'); errorMsg.classList.add('hidden');
+
+            let extractedData;
+            try { extractedData = extractDobFromIc(icInput); } 
+            catch (err) {
+                errorMsg.textContent = `Gagal ekstrak tarikh: ${err.message}`; errorMsg.classList.remove('hidden');
+                submitBtn.disabled = false; submitBtn.textContent = "Simpan Maklumat"; return;
+            }
+            try {
+                await addDoc(birthdaysRef, { name: name.toUpperCase(), dob: extractedData.dob, ic: extractedData.ic, createdAt: serverTimestamp() });
+                successMsg.classList.remove('hidden'); document.getElementById('manual-birthday-form').reset();
+            } catch (error) {
+                console.error(error); errorMsg.textContent = "Gagal menyimpan."; errorMsg.classList.remove('hidden');
+            } finally { submitBtn.disabled = false; submitBtn.textContent = "Simpan Maklumat"; }
+        }
+
+        async function handlePasteBirthdaySubmit(e) {
+            e.preventDefault();
+            if (!confirmAdminAction("menambah rekod hari jadi pukal")) return;
+            const submitBtn = document.getElementById('paste-birthday-submit-btn');
+            const successMsg = document.getElementById('paste-birthday-success-msg');
+            const errorMsg = document.getElementById('paste-birthday-error-msg');
+            const pasteData = document.getElementById('paste-birthday-data').value;
+
+            submitBtn.disabled = true; submitBtn.textContent = "Memproses...";
+            successMsg.classList.add('hidden'); errorMsg.classList.add('hidden');
+
+            const lines = pasteData.split('\n').filter(line => line.trim() !== '');
+            if (lines.length === 0) { errorMsg.textContent = "Tiada data diproses."; errorMsg.classList.remove('hidden'); submitBtn.disabled = false; submitBtn.textContent = "Proses Pukal"; return; }
+
+            try {
+                const batch = writeBatch(db);
+                let processedCount = 0, errorLines = [];
+                lines.forEach((line, index) => {
+                    const parts = line.split('\t');
+                    if (parts.length === 2 && parts[0].trim() !== '' && parts[1].trim() !== '') {
+                        try {
+                            const extractedData = extractDobFromIc(parts[1].trim());
+                            batch.set(doc(birthdaysRef), { name: parts[0].trim().toUpperCase(), dob: extractedData.dob, ic: extractedData.ic, createdAt: serverTimestamp() });
+                            processedCount++;
+                        } catch (err) { errorLines.push(index + 1); }
+                    } else { errorLines.push(index + 1); }
+                });
+
+                if (processedCount > 0) {
+                    await batch.commit(); 
+                    successMsg.textContent = `Berjaya menyimpan ${processedCount} rekod.`; successMsg.classList.remove('hidden');
+                    document.getElementById('paste-birthday-form').reset();
+                }
+                if (errorLines.length > 0) { errorMsg.textContent = `Gagal proses baris: ${errorLines.join(', ')}.`; errorMsg.classList.remove('hidden'); }
+            } catch (error) {
+                console.error(error); errorMsg.textContent = "Ralat sistem."; errorMsg.classList.remove('hidden');
+            } finally { submitBtn.disabled = false; submitBtn.textContent = "Proses Pukal"; }
+        }
+
+        function handleBirthdayTableClick(e) {
+            const target = e.target;
+            if (target.classList.contains('btn-edit')) {
+                document.getElementById('edit-birthday-doc-id').value = target.dataset.id;
+                document.getElementById('edit-birthday-name').value = target.dataset.name;
+                document.getElementById('edit-birthday-dob').value = target.dataset.dob;
+                document.getElementById('edit-birthday-error-msg').classList.add('hidden');
+                showModal('edit-birthday-modal');
+            }
+            if (target.classList.contains('btn-delete')) {
+                document.getElementById('delete-birthday-doc-id').value = target.dataset.id;
+                document.getElementById('delete-birthday-name').textContent = target.dataset.name;
+                document.getElementById('delete-birthday-error-msg').classList.add('hidden');
+                showModal('delete-birthday-modal');
+            }
+        }
+
+        async function handleEditBirthdaySubmit(e) {
+            e.preventDefault();
+            if (!confirmAdminAction("mengemaskini rekod hari jadi")) { closeModal('edit-birthday-modal'); return; }
+            const submitBtn = document.getElementById('edit-birthday-submit-btn');
+            const errorMsg = document.getElementById('edit-birthday-error-msg');
+            const id = document.getElementById('edit-birthday-doc-id').value;
+            submitBtn.disabled = true; submitBtn.textContent = "Menyimpan..."; errorMsg.classList.add('hidden');
+            try {
+                await updateDoc(doc(db, `artifacts/${appId}/public/data/spark_birthdays`, id), {
+                    name: document.getElementById('edit-birthday-name').value.toUpperCase(),
+                    dob: document.getElementById('edit-birthday-dob').value
+                });
+                closeModal('edit-birthday-modal');
+            } catch (error) { console.error(error); errorMsg.textContent = "Gagal mengemaskini."; errorMsg.classList.remove('hidden'); } 
+            finally { submitBtn.disabled = false; submitBtn.textContent = "Simpan Kemaskini"; }
+        }
+
+        async function confirmDeleteBirthday() {
+            if (!confirmAdminAction("memadam rekod hari jadi")) { closeModal('delete-birthday-modal'); return; }
+            const submitBtn = document.getElementById('confirm-delete-birthday-btn');
+            const errorMsg = document.getElementById('delete-birthday-error-msg');
+            const id = document.getElementById('delete-birthday-doc-id').value;
+            submitBtn.disabled = true; submitBtn.textContent = "Memadam..."; errorMsg.classList.add('hidden');
+            try {
+                await deleteDoc(doc(db, `artifacts/${appId}/public/data/spark_birthdays`, id));
+                closeModal('delete-birthday-modal');
+            } catch (error) { console.error(error); errorMsg.textContent = "Gagal memadam."; errorMsg.classList.remove('hidden'); } 
+            finally { submitBtn.disabled = false; submitBtn.textContent = "Sahkan Padam"; }
+        }
+
+        // --- Stats (Coordinators, Locations, Active) ---
+        function loadAndDisplayCoordinators() {
+            const q = query(programsCollectionRef);
+            onSnapshot(q, (snapshot) => {
+                const programs = snapshot.docs.map(doc => doc.data());
+                const coordinatorMap = {};
+                programs.forEach(p => {
+                    if (p.penyelaras_name && p.penyelaras_ic) {
+                        const key = p.penyelaras_ic;
+                        if (!coordinatorMap[key]) { coordinatorMap[key] = { name: p.penyelaras_name, ic: p.penyelaras_ic, count: 0 }; }
+                        coordinatorMap[key].count++;
+                    }
+                });
+                let coordinators = Object.values(coordinatorMap);
+                coordinators.sort((a, b) => b.count - a.count);
+                const listBody = document.getElementById('coordinator-list-body');
+                document.getElementById('coordinator-count').textContent = `Jumlah Penyelaras Unik: ${coordinators.length}`;
+                if (coordinators.length === 0) { listBody.innerHTML = `<tr><td colspan="4" class="text-center text-gray-500 py-4">Tiada data penyelaras ditemui.</td></tr>`; } else {
+                    listBody.innerHTML = coordinators.map((c, index) => `<tr class="hover:bg-gray-50"><td class="px-6 py-4 text-sm text-gray-500">${index + 1}</td><td class="px-6 py-4 text-sm font-medium text-gray-900">${c.name}</td><td class="px-6 py-4 text-sm text-gray-500">${c.ic}</td><td class="px-6 py-4 text-center text-sm font-bold text-indigo-600">${c.count}</td></tr>`).join('');
+                }
+            });
+        }
+
+        function loadAndDisplayLocations() {
+            const q = query(programsCollectionRef);
+            onSnapshot(q, (snapshot) => {
+                const programs = snapshot.docs.map(doc => doc.data());
+                const locationMap = {};
+                programs.forEach(p => {
+                    const location = p.location ? p.location.trim().toUpperCase() : null;
+                    if (location) {
+                        if (!locationMap[location]) { locationMap[location] = { name: location, count: 0 }; }
+                        locationMap[location].count++;
+                    }
+                });
+                let locations = Object.values(locationMap);
+                locations.sort((a, b) => b.count - a.count);
+                const listBody = document.getElementById('location-list-body');
+                document.getElementById('location-count').textContent = `Jumlah Lokasi Unik: ${locations.length}`;
+                if (locations.length === 0) { listBody.innerHTML = `<tr><td colspan="3" class="text-center text-gray-500 py-4">Tiada data lokasi ditemui.</td></tr>`; } else {
+                    listBody.innerHTML = locations.map((l, index) => `<tr class="hover:bg-gray-50"><td class="px-6 py-4 text-sm text-gray-500">${index + 1}</td><td class="px-6 py-4 text-sm font-medium text-gray-900">${l.name}</td><td class="px-6 py-4 text-center text-sm font-bold text-red-600">${l.count}</td></tr>`).join('');
+                }
+            });
+        }
+
+        function loadAndDisplayActiveParticipants() {
+            const q = query(programsCollectionRef); 
+            onSnapshot(q, (snapshot) => {
+                const programs = snapshot.docs.map(doc => doc.data());
+                const participantCountMap = {};
+                programs.forEach(p => {
+                    if (p.attendance && Array.isArray(p.attendance)) { 
+                        p.attendance.forEach(record => {
+                             if (record.ic) { participantCountMap[record.ic] = (participantCountMap[record.ic] || 0) + 1; }
+                        });
+                    }
+                });
+
+                const participantNameMap = allParticipants.reduce((acc, p) => { acc[p.ic] = p.name; return acc; }, {});
+                let activeParticipants = Object.keys(participantCountMap).map(ic => ({
+                    ic: ic, name: participantNameMap[ic] || 'Peserta Tidak Diketahui', count: participantCountMap[ic]
+                }));
+                activeParticipants.sort((a, b) => b.count - a.count);
+                const top20 = activeParticipants.slice(0, 20);
+
+                const listBody = document.getElementById('active-participant-list-body');
+                document.getElementById('active-participant-count').textContent = `Memaparkan: ${top20.length}`;
+                if (top20.length === 0) { listBody.innerHTML = `<tr><td colspan="4" class="text-center text-gray-500 py-4">Tiada data peserta aktif ditemui.</td></tr>`; } else {
+                    listBody.innerHTML = top20.map((p, index) => `<tr class="hover:bg-gray-50"><td class="px-6 py-4 text-sm font-bold text-gray-800">${index + 1}</td><td class="px-6 py-4 text-sm font-medium text-gray-900"><a href="edit.html?ic=${p.ic}" class="text-indigo-600 hover:text-indigo-800 hover:underline">${p.name}</a></td><td class="px-6 py-4 text-sm text-gray-500">${p.ic}</td><td class="px-6 py-4 text-center text-sm font-bold text-green-600">${p.count}</td></tr>`).join('');
+                }
+            });
+        }
+
+        async function removeDuplicates(collectionName) {
+            if (!confirmAdminAction(`membuang duplikat dari senarai ${collectionName}`)) return;
+            let collectionRef, collectionDisplayName;
+            if (collectionName === 'schools') { collectionRef = schoolsCollectionRef; collectionDisplayName = 'Sekolah'; } 
+            else if (collectionName === 'positions') { collectionRef = positionsCollectionRef; collectionDisplayName = 'Jawatan'; }
+            else { return; }
+
+            const snapshot = await getDocs(collectionRef);
+            if (snapshot.empty) { alert(`Senarai ${collectionDisplayName} sudah kosong.`); return; }
+
+            const seen = new Map(); const toDelete = [];
+            snapshot.docs.forEach(doc => {
+                const name = doc.data().name.trim().toUpperCase();
+                if (seen.has(name)) { toDelete.push(doc.id); } else { seen.set(name, doc.id); }
+            });
+
+            if (toDelete.length === 0) { alert(`Tiada item duplikat ditemui dalam senarai ${collectionDisplayName}.`); return; }
+
+            if (confirm(`Anda pasti mahu membuang ${toDelete.length} item duplikat dari senarai ${collectionDisplayName}? Tindakan ini tidak boleh diubah.`)) {
+                const batch = writeBatch(db);
+                toDelete.forEach(id => { batch.delete(doc(collectionRef, id)); });
+                try { await batch.commit(); alert(`${toDelete.length} item duplikat berjaya dibuang.`); } catch (error) { console.error(error); alert("Gagal membuang item duplikat."); }
+            }
+        }
+
+        function initSortable() {
+            new Sortable(document.getElementById('school-list-body'), { animation: 150, handle: '.drag-handle', ghostClass: 'sortable-ghost', onEnd: () => updateOrderInFirestore(document.getElementById('school-list-body'), schoolsCollectionRef) });
+            new Sortable(document.getElementById('position-list-body'), { animation: 150, handle: '.drag-handle', ghostClass: 'sortable-ghost', onEnd: () => updateOrderInFirestore(document.getElementById('position-list-body'), positionsCollectionRef) });
+        }
+
+        // --- PPD Reference ---
         function setupPpdTabListeners() {
             const ppdTabButtons = document.querySelectorAll('.ppd-tab-button');
             const ppdTabContents = document.querySelectorAll('.ppd-tab-content');
@@ -976,6 +1889,7 @@
 
                 collectAllPpdPositions(); 
                 displayFilteredPpd(); 
+                initializeSortablePpd();
                 
             } catch (error) {
                 console.error("RALAT KETIKA MEMUAT ENTITI PPD: ", error);
@@ -1067,7 +1981,7 @@
                     : `<span class="text-gray-400 italic">-</span>`;
 
                 tableHtml += `
-                    <tr class="hover:bg-gray-50"> 
+                    <tr class="hover:bg-gray-50 data-row" data-id="${entity.id}"> 
                         <td class="px-6 py-3 font-bold text-gray-900">${mainName}</td>
                         <td class="px-6 py-3">${categoryBadge}</td>
                         <td class="px-6 py-3">${sectorUnit}</td>
@@ -1087,6 +2001,60 @@
 
             tableHtml += `</tbody></table></div>`;
             container.innerHTML = tableHtml;
+        }
+
+        function initializeSortablePpd() {
+            const tableBody = document.querySelector('#senarai-pegawai-container tbody');
+            const isFilterActive = document.getElementById('filter-ppd-category').value !== 'all' || document.getElementById('filter-ppd-position').value !== 'all' || document.getElementById('search-ppd-input').value.trim().length > 0;
+            
+            if (tableBody && !isFilterActive) {
+                if (tableBody.sortable) tableBody.sortable.destroy();
+
+                tableBody.sortable = Sortable.create(tableBody, {
+                    animation: 150,
+                    ghostClass: 'sortable-ghost',
+                    onEnd: async function (evt) {
+                        if (evt.oldIndex === evt.newIndex) return; 
+                        const newOrderIds = Array.from(tableBody.children).map(row => row.dataset.id).filter(id => id);
+                        await updateOrderInDatabase(newOrderIds);
+                        fetchPpdOfficers();
+                    }
+                });
+            } else if (tableBody && isFilterActive) {
+                if (tableBody.sortable) {
+                    tableBody.sortable.destroy();
+                    tableBody.sortable = null; 
+                }
+            }
+        }
+        
+        async function updateOrderInDatabase(newOrderIds) {
+            if (newOrderIds.length === 0) return;
+            isSubmitting = true;
+            
+            const importMessage = document.getElementById('import-message');
+            importMessage.textContent = "Menyimpan susunan baharu, sila tunggu...";
+            importMessage.className = "mt-3 text-sm p-2 rounded-lg bg-yellow-100 text-yellow-800";
+            importMessage.classList.remove('hidden');
+
+            try {
+                const batch = writeBatch(db);
+                for (let i = 0; i < newOrderIds.length; i++) {
+                    const docId = newOrderIds[i];
+                    const docRef = doc(db, PPD_COLLECTION_PATH, docId);
+                    batch.update(docRef, { order: i, updatedAt: new Date().toISOString() });
+                }
+                await batch.commit();
+
+                importMessage.textContent = `Susunan ${newOrderIds.length} rekod berjaya disimpan.`;
+                importMessage.className = "mt-3 text-sm p-2 rounded-lg bg-green-100 text-green-700";
+            } catch (error) {
+                console.error("RALAT KETIKA MENGEMASKINI SUSUNAN: ", error);
+                importMessage.textContent = 'Gagal menyimpan susunan baru. Sila semak rules Firebase dan hak akses.';
+                importMessage.className = "mt-3 text-sm p-2 rounded-lg bg-red-100 text-red-700";
+            } finally {
+                isSubmitting = false;
+            }
         }
 
         async function handleAddPpdEntity(event) {
@@ -1152,8 +2120,7 @@
                 msgElement.classList.remove('hidden');
                 
                 if (category === 'pegawai' && newEntityData.ic) {
-                    const participantDocRef = doc(db, PARTICIPANTS_COLLECTION_PATH, newEntityData.ic);
-                    await setDoc(participantDocRef, {
+                    await setDoc(doc(db, PARTICIPANTS_COLLECTION_PATH, newEntityData.ic), {
                         name: newEntityData.name, position: newEntityData.position, station: newEntityData.station,
                         ic: newEntityData.ic, category: 'warga' 
                     }, { merge: true });
@@ -1239,14 +2206,13 @@
             fetchPpdOfficers(true); 
         }
 
-        window.handleEditPpd = function(id) {
+        function handleEditPpd(id) {
             const entityToEdit = allPpdEntities.find(e => e.id === id);
             if (!entityToEdit) return;
 
             currentlyEditingPpdId = id;
             const category = entityToEdit.category;
             
-            // Tukar Tab via logic DOM untuk pastikan forms switch
             const tabBtns = document.querySelectorAll('.ppd-tab-button');
             const tabContents = document.querySelectorAll('.ppd-tab-content');
             
@@ -1277,7 +2243,7 @@
             document.querySelector('#panel-ppd .lg\\:col-span-1').scrollIntoView({ behavior: 'smooth' });
         }
 
-        window.handleDeletePpd = async function(id, name) {
+        async function handleDeletePpd(id, name) {
             if (!confirmAdminAction(`memadam rujukan PPD ${name}`)) return;
             try {
                 await deleteDoc(doc(db, PPD_COLLECTION_PATH, id));
@@ -1288,794 +2254,19 @@
                 alert('Gagal memadam rujukan. (Semak rules Firebase)');
             }
         }
-        // --- TAMAT PPD REFERENCE LOGIC ---
 
-        function formatTimeMalay(timeString) {
-            if (!timeString) return '';
-            const [hourStr, minuteStr] = timeString.split(':');
-            let hour = parseInt(hourStr, 10);
-            let period;
-            if (hour === 0) { period = 'tengah malam'; hour = 12; }
-            else if (hour < 12) { period = 'pagi'; }
-            else if (hour === 12) { period = 'tengah hari'; }
-            else { period = 'ptg'; hour -= 12; }
-            return `${hour}:${minuteStr} ${period}`;
-        }
-        function formatTimeRange(start, end) { 
-            if(!start || !end) return '';
-            return `${formatTimeMalay(start)} - ${formatTimeMalay(end)}`; 
-        }
-        function formatDate(dateString, format = 'DD-MM-YYYY') {
-            if (!dateString) return 'N/A';
-            const date = new Date(dateString);
-            if (format === 'YYYY-MM-DD') { return date.toISOString().split('T')[0]; }
-            return date.toLocaleDateString('ms-MY', { day: '2-digit', month: '2-digit', year: 'numeric' });
-        }
-
-        function loadAndDisplayPrograms() {
-            const q = query(programsCollectionRef, orderBy("createdAt", "desc")); 
-            onSnapshot(q, (snapshot) => {
-                allPrograms = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                document.getElementById('total-program-count').textContent = allPrograms.length; 
-
-                const stationFilter = document.getElementById('program-station-filter');
-                const currentStation = stationFilter.value;
-                const uniqueStations = [...new Set(allPrograms.map(p => p.location ? p.location.trim().toUpperCase() : '').filter(l => l !== ''))];
-                
-                stationFilter.innerHTML = '<option value="">Semua Stesen</option>';
-                uniqueStations.sort().forEach(st => {
-                    stationFilter.innerHTML += `<option value="${st}" ${currentStation === st ? 'selected' : ''}>${st}</option>`;
-                });
-
-                if(allParticipants.length > 0) {
-                    renderTodayProgramTable(); 
-                    renderProgramTable();      
-                }
-            });
-        }
-
-        function renderTodayProgramTable() {
-            const listBody = document.getElementById('today-program-list-body');
-            const todayDateObj = new Date();
-            const todayStr = todayDateObj.getFullYear() + '-' + String(todayDateObj.getMonth() + 1).padStart(2, '0') + '-' + String(todayDateObj.getDate()).padStart(2, '0');
-
-            let todayPrograms = allPrograms.filter(p => {
-                if (p.startDate && p.endDate) { return todayStr >= p.startDate && todayStr <= p.endDate; }
-                return p.startDate === todayStr;
-            });
-
-            if (todayPrograms.length === 0) {
-                listBody.innerHTML = `<tr><td colspan="5" class="text-center text-gray-500 py-6 text-sm">Tiada program dijadualkan hari ini.</td></tr>`;
-            } else {
-                listBody.innerHTML = todayPrograms.map((p, index) => {
-                    
-                    // Cross-reference dengan allParticipants untuk jawatan/stesen (jika ada)
-                    const owner = allParticipants.find(u => u.ic === p.penyelaras_ic);
-                    const position = owner ? owner.position : 'Tiada Jawatan';
-                    const station = owner ? owner.station : (p.location || '');
-
-                    // Kira peratus kehadiran
-                    const attendanceCount = p.attendance ? p.attendance.length : 0;
-                    const quota = parseInt(p.quota, 10);
-                    let attendanceHtml = '<span class="text-gray-400 text-sm">-</span>';
-                    
-                    if (quota > 0) {
-                        const percentage = attendanceCount > 0 ? Math.round((attendanceCount / quota) * 100) : 0;
-                        let colorClass = 'text-gray-700';
-                        if (percentage >= 90) colorClass = 'text-green-600';
-                        else if (percentage >= 50) colorClass = 'text-yellow-600';
-                        else if (percentage > 0) colorClass = 'text-red-600';
-                        
-                        attendanceHtml = `
-                            <span class="font-bold ${colorClass} text-base">${percentage}%</span><br>
-                            <span class="text-[10px] text-gray-500 font-medium">${attendanceCount}/${quota} Hadir</span>
-                        `;
-                    } else if (attendanceCount > 0) {
-                        attendanceHtml = `
-                            <span class="font-bold text-indigo-600 text-base">${attendanceCount}</span><br>
-                            <span class="text-[10px] text-gray-500 font-medium">Hadir</span>
-                        `;
-                    }
-
-                    return `
-                    <tr class="hover:bg-red-50/80 transition-colors">
-                        <td class="px-6 py-4 text-sm text-gray-500 font-bold align-top">${index + 1}</td>
-                        <td class="px-6 py-4 align-top">
-                            <div class="font-bold text-gray-900 text-sm mb-1">${p.name} <span class="animate-pulse inline-block w-2 h-2 bg-red-500 rounded-full ml-1"></span></div>
-                            <div class="text-xs text-gray-600 leading-tight border-l-2 border-red-200 pl-2">
-                                <b>${p.penyelaras_name || '-'}</b><br>
-                                <span class="text-[10px] text-gray-500">${position}</span><br>
-                                <span class="text-[10px] text-indigo-600 font-bold uppercase">${station}</span>
-                            </div>
-                        </td>
-                        <td class="px-6 py-4 text-sm text-red-600 font-medium align-top">
-                            ${formatDate(p.startDate)}${p.endDate && p.startDate !== p.endDate ? ' - ' + formatDate(p.endDate) : ''}<br>
-                            <span class="text-[10px] text-gray-500 block mt-1">${formatTimeRange(p.startTime, p.endTime)}</span>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-center align-top">${attendanceHtml}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-center align-top">
-                            <div class="flex items-center justify-center gap-2">
-                                <a href="program.html?kod=${p.id}" target="_blank" class="btn inline-flex items-center text-xs font-bold text-white bg-gradient-to-r from-red-500 to-red-600 py-1.5 px-3 rounded-lg shadow hover:-translate-y-0.5 transition-all">Buka</a>
-                                <button onclick="adminDeleteProgram('${p.id}')" class="btn inline-flex items-center text-xs font-bold text-red-600 bg-red-100 border border-red-200 py-1.5 px-2 rounded-lg shadow-sm hover:bg-red-200 transition-all" title="Padam Program"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
-                            </div>
-                        </td>
-                    </tr>
-                `;
-                }).join('');
-            }
-        }
-
-        function renderProgramTable() {
-            const listBody = document.getElementById('program-list-body');
-            const searchInput = document.getElementById('program-search').value.toLowerCase();
-            const stationValue = document.getElementById('program-station-filter').value;
-            const orderByValue = document.getElementById('program-order-by').value;
-
-            let filteredPrograms = allPrograms.filter(p => {
-                const matchSearch = p.name.toLowerCase().includes(searchInput) || (p.penyelaras_name && p.penyelaras_name.toLowerCase().includes(searchInput));
-                const progStation = p.location ? p.location.trim().toUpperCase() : '';
-                const matchStation = stationValue === "" || progStation === stationValue;
-                return matchSearch && matchStation;
-            });
-
-            filteredPrograms.sort((a, b) => {
-                const dateA = a.startDate ? new Date(a.startDate).getTime() : 0;
-                const dateB = b.startDate ? new Date(b.startDate).getTime() : 0;
-                return orderByValue === 'asc' ? dateA - dateB : dateB - dateA;
-            });
-
-            document.getElementById('program-count').textContent = `Jumlah: ${filteredPrograms.length} keputusan`;
-
-            const startIndex = (programCurrentPage - 1) * programsPerPage;
-            const paginatedItems = filteredPrograms.slice(startIndex, startIndex + programsPerPage);
-
-            const todayDateObj = new Date();
-            const todayStr = todayDateObj.getFullYear() + '-' + String(todayDateObj.getMonth() + 1).padStart(2, '0') + '-' + String(todayDateObj.getDate()).padStart(2, '0');
-
-            if (paginatedItems.length === 0) {
-                listBody.innerHTML = `<tr><td colspan="5" class="text-center text-gray-500 py-4">Tiada program ditemui.</td></tr>`;
-            } else {
-                listBody.innerHTML = paginatedItems.map((p, index) => {
-                    let isToday = false;
-                    if (p.startDate && p.endDate) { isToday = todayStr >= p.startDate && todayStr <= p.endDate; } 
-                    else { isToday = p.startDate === todayStr; }
-                    
-                    const todayBadge = isToday ? `<span class="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold ml-2 shadow-sm uppercase tracking-wider animate-pulse">Hari Ini</span>` : '';
-                    
-                    const owner = allParticipants.find(u => u.ic === p.penyelaras_ic);
-                    const position = owner ? owner.position : 'Tiada Jawatan';
-                    const station = owner ? owner.station : (p.location || '');
-
-                    // Kira peratus kehadiran
-                    const attendanceCount = p.attendance ? p.attendance.length : 0;
-                    const quota = parseInt(p.quota, 10);
-                    let attendanceHtml = '<span class="text-gray-400 text-sm">-</span>';
-                    
-                    if (quota > 0) {
-                        const percentage = attendanceCount > 0 ? Math.round((attendanceCount / quota) * 100) : 0;
-                        let colorClass = 'text-gray-700';
-                        if (percentage >= 90) colorClass = 'text-green-600';
-                        else if (percentage >= 50) colorClass = 'text-yellow-600';
-                        else if (percentage > 0) colorClass = 'text-red-600';
-                        
-                        attendanceHtml = `
-                            <span class="font-bold ${colorClass} text-base">${percentage}%</span><br>
-                            <span class="text-[10px] text-gray-500 font-medium">${attendanceCount}/${quota} Hadir</span>
-                        `;
-                    } else if (attendanceCount > 0) {
-                        attendanceHtml = `
-                            <span class="font-bold text-indigo-600 text-base">${attendanceCount}</span><br>
-                            <span class="text-[10px] text-gray-500 font-medium">Hadir</span>
-                        `;
-                    }
-
-                    return `
-                    <tr class="hover:bg-gray-50">
-                        <td class="px-6 py-4 text-sm text-gray-500 align-top">${startIndex + index + 1}</td>
-                        <td class="px-6 py-4 align-top">
-                            <div class="font-bold text-gray-900 text-sm mb-1">${p.name} ${todayBadge}</div>
-                            <div class="text-xs text-gray-600 leading-tight border-l-2 border-indigo-200 pl-2">
-                                <b>${p.penyelaras_name || '-'}</b><br>
-                                <span class="text-[10px] text-gray-500">${position}</span><br>
-                                <span class="text-[10px] text-indigo-600 font-bold uppercase">${station}</span>
-                            </div>
-                        </td>
-                        <td class="px-6 py-4 text-sm text-gray-500 align-top">
-                            ${formatDate(p.startDate)}${p.endDate && p.startDate !== p.endDate ? ' - ' + formatDate(p.endDate) : ''}<br>
-                            <span class="text-[10px] text-gray-400 block mt-1">${formatTimeRange(p.startTime, p.endTime)}</span>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-center align-top">${attendanceHtml}</td>
-                        <td class="px-6 py-4 text-center align-top">
-                            <div class="flex items-center justify-center gap-2">
-                                <a href="program.html?kod=${p.id}" target="_blank" class="btn inline-flex items-center text-xs font-bold text-white bg-gradient-to-r from-blue-500 to-indigo-600 py-1.5 px-3 rounded-lg shadow-md hover:-translate-y-0.5 transition-all">Buka</a>
-                                <button onclick="adminDeleteProgram('${p.id}')" class="btn inline-flex items-center text-xs font-bold text-red-600 bg-red-100 border border-red-200 py-1.5 px-2 rounded-lg shadow-sm hover:bg-red-200 transition-all" title="Padam Program"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
-                            </div>
-                        </td>
-                    </tr>
-                    `;
-                }).join('');
-            }
-            renderProgramPagination(filteredPrograms.length);
-        }
-
-        function renderProgramPagination(totalItems) {
-            const paginationControls = document.getElementById('program-pagination-controls');
-            const totalPages = Math.ceil(totalItems / programsPerPage);
-            if (totalPages <= 1) { paginationControls.innerHTML = ''; return; }
-            paginationControls.innerHTML = `
-                <span class="text-sm text-gray-700">Memaparkan ${Math.min(totalItems, (programCurrentPage - 1) * programsPerPage + 1)} hingga ${Math.min(programCurrentPage * programsPerPage, totalItems)} dari ${totalItems} keputusan</span>
-                <div class="flex gap-2">
-                    <button onclick="programPrevPage()" class="btn bg-white border border-gray-300 text-sm py-1.5 px-3 rounded-lg" ${programCurrentPage === 1 ? 'disabled' : ''}>Sebelumnya</button>
-                    <button onclick="programNextPage()" class="btn bg-white border border-gray-300 text-sm py-1.5 px-3 rounded-lg" ${programCurrentPage === totalPages ? 'disabled' : ''}>Seterusnya</button>
-                </div>
-            `;
-        }
-        function programPrevPage() { if (programCurrentPage > 1) { programCurrentPage--; renderProgramTable(); } }
-        function programNextPage() { 
-            const searchInput = document.getElementById('program-search').value.toLowerCase();
-            const stationValue = document.getElementById('program-station-filter').value;
-            const filteredLength = allPrograms.filter(p => {
-                const matchSearch = p.name.toLowerCase().includes(searchInput) || (p.penyelaras_name && p.penyelaras_name.toLowerCase().includes(searchInput));
-                const progStation = p.location ? p.location.trim().toUpperCase() : '';
-                const matchStation = stationValue === "" || progStation === stationValue;
-                return matchSearch && matchStation;
-            }).length;
-            if (programCurrentPage < Math.ceil(filteredLength / programsPerPage)) { programCurrentPage++; renderProgramTable(); } 
-        }
-
-        // --- Fungsi Peserta Induk & Pengguna PRO & Reset PW ---
-        function loadAndDisplayParticipants() {
-            const q = query(participantsCollectionRef, orderBy("name", "asc"));
-            onSnapshot(q, (snapshot) => {
-                allParticipants = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                
-                // Re-render program table to ensure Jawatan displays correctly
-                if (allPrograms.length > 0) {
-                    renderTodayProgramTable();
-                    renderProgramTable();
-                }
-
-                renderParticipantTable(); 
-                filterAndRenderUserProTable(); 
-                
-                // Juga Render Log jika tab aktif
-                const isLogActive = document.getElementById('tab-logpassword').classList.contains('active');
-                if (isLogActive) filterAndRenderPasswordLogs();
-            });
-        }
-
-        function toggleAdminViewPassword(id) {
-            const mask = document.getElementById(`pwd-mask-${id}`);
-            const text = document.getElementById(`pwd-text-${id}`);
-            const icon = document.getElementById(`pwd-icon-${id}`);
-
-            if (mask.classList.contains('hidden')) {
-                // Hide password
-                mask.classList.remove('hidden');
-                text.classList.add('hidden');
-                icon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />`;
-            } else {
-                // Show password
-                mask.classList.add('hidden');
-                text.classList.remove('hidden');
-                icon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.29 3.29m0 0a10.05 10.05 0 015.71-1.59c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0l-3.29-3.29" />`;
-            }
-        }
-
-        function renderParticipantTable() {
-            const listBody = document.getElementById('participant-list-body');
-            const searchInput = document.getElementById('participant-search').value.toLowerCase();
-            
-            const filteredParticipants = allParticipants.filter(p => p.name.toLowerCase().includes(searchInput) || (p.ic && p.ic.includes(searchInput)));
-            document.getElementById('participant-count').textContent = `Jumlah: ${filteredParticipants.length}`;
-
-            const startIndex = (participantCurrentPage - 1) * participantsPerPage;
-            const paginatedItems = filteredParticipants.slice(startIndex, startIndex + participantsPerPage);
-
-            if (paginatedItems.length === 0) {
-                listBody.innerHTML = `<tr><td colspan="6" class="text-center text-gray-500 py-4">Tiada peserta ditemui.</td></tr>`;
-            } else {
-                listBody.innerHTML = paginatedItems.map((p, index) => {
-                    let pwdDisplay = '';
-                    if (p.password && p.password.trim() !== '') {
-                        pwdDisplay = `
-                            <div class="flex items-center justify-center gap-2">
-                                <span class="text-sm text-gray-500 tracking-widest font-mono">••••••</span>
-                                <button onclick="copyTextData('${p.password.replace(/'/g, "\\'")}', this)" class="text-gray-400 hover:text-indigo-600 transition-colors p-1 rounded hover:bg-indigo-50" title="Salin Kata Laluan">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
-                                </button>
-                            </div>
-                        `;
-                    } else {
-                        pwdDisplay = `<span class="text-xs text-gray-400 italic">Belum Ditetapkan</span>`;
-                    }
-
-                    return `
-                    <tr class="hover:bg-gray-50">
-                        <td class="px-6 py-4 text-sm text-gray-500">${startIndex + index + 1}</td>
-                        <td class="px-6 py-4 text-sm font-medium text-gray-900">
-                             <a href="edit.html?ic=${p.ic}" class="text-indigo-600 hover:text-indigo-800 hover:underline">${p.name}</a>
-                        </td>
-                        <td class="px-6 py-4 text-sm text-gray-500">
-                            <div class="flex items-center gap-2">
-                                <span>${p.ic}</span>
-                                <button onclick="copyTextData('${p.ic}', this)" class="text-gray-400 hover:text-indigo-600 transition-colors p-1 rounded hover:bg-indigo-50" title="Salin IC">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
-                                </button>
-                            </div>
-                        </td>
-                        <td class="px-6 py-4 text-sm text-gray-500">${p.station || '-'}</td>
-                        <td class="px-6 py-4 text-center whitespace-nowrap">${pwdDisplay}</td>
-                        <td class="px-6 py-4 text-center">
-                            <div class="flex justify-center gap-2">
-                                <button onclick="adminResetPassword('${p.id}', '${p.name.replace(/'/g, "\\'")}')" class="text-orange-400 hover:text-orange-600 p-1 rounded-md hover:bg-orange-50" title="Reset Kata Laluan">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" /></svg>
-                                </button>
-                                <button onclick="deleteParticipant('${p.id}')" class="text-gray-400 hover:text-red-600 p-1 rounded-md hover:bg-red-50" title="Padam Peserta">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>
-                                </button>
-                            </div>
-                        </td>
-                    </tr>
-                `;
-                }).join('');
-            }
-            renderParticipantPagination(filteredParticipants.length);
-        }
-
-        window.adminResetPassword = async function(id, name) {
-            if(confirm(`Anda pasti mahu menetapkan semula (reset) kata laluan untuk ${name}? Pengguna perlu menetapkan kata laluan baru selepas ini.`)) {
-                if (!confirmAdminAction("mereset kata laluan")) return;
-                try {
-                    await updateDoc(doc(db, `artifacts/${appId}/public/data/spark_participants`, id), {
-                        password: "", 
-                        accountLocked: false, 
-                        failedAttempts: 0 
-                    });
-                    alert("Kata laluan berjaya direset dan akaun (jika disekat) telah dinyahsekat.");
-                } catch (error) {
-                    console.error(error);
-                    alert("Gagal mereset kata laluan.");
-                }
-            }
-        };
-        
-        function renderParticipantPagination(totalItems) {
-            const paginationControls = document.getElementById('participant-pagination-controls');
-            const totalPages = Math.ceil(totalItems / participantsPerPage);
-            if (totalPages <= 1) { paginationControls.innerHTML = ''; return; }
-            paginationControls.innerHTML = `
-                <span class="text-sm text-gray-700">Memaparkan ${Math.min(totalItems, (participantCurrentPage - 1) * participantsPerPage + 1)} hingga ${Math.min(participantCurrentPage * participantsPerPage, totalItems)} dari ${totalItems} keputusan</span>
-                <div class="flex gap-2">
-                    <button onclick="participantPrevPage()" class="btn bg-white border border-gray-300 text-sm py-1.5 px-3 rounded-lg" ${participantCurrentPage === 1 ? 'disabled' : ''}>Sebelumnya</button>
-                    <button onclick="participantNextPage()" class="btn bg-white border border-gray-300 text-sm py-1.5 px-3 rounded-lg" ${participantCurrentPage === totalPages ? 'disabled' : ''}>Seterusnya</button>
-                </div>
-            `;
-        }
-
-        function participantPrevPage() { if (participantCurrentPage > 1) { participantCurrentPage--; renderParticipantTable(); } }
-        function participantNextPage() { 
-            const searchInput = document.getElementById('participant-search').value.toLowerCase();
-            const totalItems = allParticipants.filter(p => p.name.toLowerCase().includes(searchInput) || (p.ic && p.ic.includes(searchInput))).length; 
-            if (participantCurrentPage < Math.ceil(totalItems / participantsPerPage)) { participantCurrentPage++; renderParticipantTable(); } 
-        }
-
-        async function deleteParticipant(id) {
-            if (confirm("Anda pasti mahu memadam peserta ini dari senarai induk? Tindakan ini tidak boleh diubah.")) {
-                if (!confirmAdminAction("memadam peserta")) return;
-                try { await deleteDoc(doc(participantsCollectionRef, id)); alert("Peserta berjaya dipadam."); } catch (error) { console.error(error); alert("Gagal memadam peserta."); }
-            }
-        }
-
-        // --- Logik Panel LOG KATA LALUAN ---
-        function filterAndRenderPasswordLogs() {
-            const monthFilter = document.getElementById('log-month-filter').value; // format: "YYYY-MM"
-            
-            // Tapis peserta yang ada password
-            let loggedUsers = allParticipants.filter(p => p.password && p.password.trim() !== "");
-
-            // Jika ada filter bulan, kita cuba tapis
-            if (monthFilter) {
-                loggedUsers = loggedUsers.filter(p => {
-                    if (!p.passwordUpdatedAt) return false; 
-                    
-                    let dateObj;
-                    // Cuba resolve Firebase Timestamp atau Date Object
-                    if (p.passwordUpdatedAt.toDate) {
-                        dateObj = p.passwordUpdatedAt.toDate();
-                    } else if (p.passwordUpdatedAt.seconds) {
-                        dateObj = new Date(p.passwordUpdatedAt.seconds * 1000);
-                    } else if (typeof p.passwordUpdatedAt === 'string') {
-                        dateObj = new Date(p.passwordUpdatedAt);
-                    } else if (p.passwordUpdatedAt instanceof Date) {
-                        dateObj = p.passwordUpdatedAt;
-                    }
-
-                    if (dateObj && !isNaN(dateObj.getTime())) {
-                        // Padankan YYYY-MM (e.g. 2026-03)
-                        let dateStr = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}`;
-                        return dateStr === monthFilter;
-                    }
-                    return false;
-                });
-            }
-
-            // Susun terbaharu ke atas (jika ada timestamp)
-            loggedUsers.sort((a, b) => {
-                const timeA = a.passwordUpdatedAt ? (a.passwordUpdatedAt.toDate ? a.passwordUpdatedAt.toDate().getTime() : new Date(a.passwordUpdatedAt).getTime()) : 0;
-                const timeB = b.passwordUpdatedAt ? (b.passwordUpdatedAt.toDate ? b.passwordUpdatedAt.toDate().getTime() : new Date(b.passwordUpdatedAt).getTime()) : 0;
-                return timeB - timeA;
-            });
-            
-            filteredLogPwd = loggedUsers;
-            document.getElementById('log-password-count').textContent = `${filteredLogPwd.length} Rekod`;
-
-            renderPasswordLogTable();
-        }
-        
-        function renderPasswordLogTable() {
-            const listBody = document.getElementById('log-password-list-body');
-            const paginationControls = document.getElementById('log-pwd-pagination-controls');
-            
-            if (filteredLogPwd.length === 0) {
-                const monthFilter = document.getElementById('log-month-filter').value;
-                const filterText = monthFilter ? `untuk bulan ${monthFilter}` : 'dalam pangkalan data';
-                listBody.innerHTML = `<tr><td colspan="4" class="px-6 py-8 text-center text-sm text-gray-500 italic">Tiada rekod perubahan kata laluan ${filterText}.</td></tr>`;
-                paginationControls.innerHTML = '';
-                return;
-            }
-            
-            const totalPages = Math.ceil(filteredLogPwd.length / logPwdPerPage);
-            if (logPwdCurrentPage > totalPages) logPwdCurrentPage = totalPages;
-            if (logPwdCurrentPage < 1) logPwdCurrentPage = 1;
-
-            const startIndex = (logPwdCurrentPage - 1) * logPwdPerPage;
-            const paginatedItems = filteredLogPwd.slice(startIndex, startIndex + logPwdPerPage);
-
-            listBody.innerHTML = paginatedItems.map((user, index) => {
-                let dateFormatted = "Tarikh Tidak Direkodkan";
-                if (user.passwordUpdatedAt) {
-                    let dateObj;
-                    if (user.passwordUpdatedAt.toDate) {
-                        dateObj = user.passwordUpdatedAt.toDate();
-                    } else if (user.passwordUpdatedAt.seconds) {
-                        dateObj = new Date(user.passwordUpdatedAt.seconds * 1000);
-                    } else if (typeof user.passwordUpdatedAt === 'string') {
-                        dateObj = new Date(user.passwordUpdatedAt);
-                    } else if (user.passwordUpdatedAt instanceof Date) {
-                        dateObj = user.passwordUpdatedAt;
-                    }
-                    
-                    if (dateObj && !isNaN(dateObj.getTime())) {
-                        dateFormatted = dateObj.toLocaleDateString('ms-MY', { day: '2-digit', month: 'short', year: 'numeric' }) + ' <br><span class="text-xs text-gray-400 font-medium">' + dateObj.toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit' }) + '</span>';
-                    }
-                }
-
-                const stesen = user.station || "Tiada Stesen";
-                const jawatan = user.position || "Tiada Jawatan";
-                
-                // Mask IC (e.g., ******1234)
-                let maskedIc = "N/A";
-                if (user.ic && user.ic.length >= 4) {
-                    maskedIc = `******${user.ic.slice(-4)}`;
-                }
-
-                return `
-                    <tr class="hover:bg-orange-50/30 transition-colors border-b border-gray-100"> 
-                        <td class="px-6 py-4 text-sm text-gray-500 font-mono align-top">${startIndex + index + 1}</td>
-                        <td class="px-6 py-4 align-top">
-                            <div class="font-bold text-gray-900 text-sm">${user.name.toUpperCase()}</div>
-                            <div class="text-xs text-gray-500 font-mono mt-0.5">${maskedIc}</div>
-                        </td>
-                        <td class="px-6 py-4 align-top">
-                            <div class="text-sm text-gray-800 font-semibold">${stesen.toUpperCase()}</div>
-                            <div class="text-xs text-gray-500 mt-0.5">${jawatan.toUpperCase()}</div>
-                        </td>
-                        <td class="px-6 py-4 text-sm text-gray-600 align-top">${dateFormatted}</td>
-                    </tr>
-                `;
-            }).join('');
-            
-            renderLogPwdPagination(filteredLogPwd.length);
-        }
-
-        function renderLogPwdPagination(totalItems) {
-            const paginationControls = document.getElementById('log-pwd-pagination-controls');
-            const totalPages = Math.ceil(totalItems / logPwdPerPage);
-            if (totalPages <= 1) { paginationControls.innerHTML = ''; return; }
-            
-            paginationControls.innerHTML = `
-                <span class="text-sm text-gray-700">Memaparkan ${Math.min(totalItems, (logPwdCurrentPage - 1) * logPwdPerPage + 1)} hingga ${Math.min(logPwdCurrentPage * logPwdPerPage, totalItems)} dari ${totalItems} keputusan</span>
-                <div class="flex gap-2">
-                    <button onclick="logPwdPrevPage()" class="btn bg-white border border-gray-300 text-sm py-1.5 px-3 rounded-lg" ${logPwdCurrentPage === 1 ? 'disabled' : ''}>Sebelumnya</button>
-                    <button onclick="logPwdNextPage()" class="btn bg-white border border-gray-300 text-sm py-1.5 px-3 rounded-lg" ${logPwdCurrentPage === totalPages ? 'disabled' : ''}>Seterusnya</button>
-                </div>
-            `;
-        }
-
-        function logPwdPrevPage() {
-            if (logPwdCurrentPage > 1) {
-                logPwdCurrentPage--;
-                renderPasswordLogTable();
-            }
-        }
-
-        function logPwdNextPage() {
-            const totalPages = Math.ceil(filteredLogPwd.length / logPwdPerPage);
-            if (logPwdCurrentPage < totalPages) {
-                logPwdCurrentPage++;
-                renderPasswordLogTable();
-            }
-        }
-
-
-        // --- Logik Panel Pengguna PRO & Permohonan SPARK PRO ---
-
-        function loadProRequests() {
-            const requestsRef = collection(db, `artifacts/${appId}/public/data/spark_pro_requests`);
-            const q = query(requestsRef, where("status", "==", "Menunggu Pengesahan"));
-            
-            onSnapshot(q, (snapshot) => {
-                const listBody = document.getElementById('pro-requests-list-body');
-                if (snapshot.empty) {
-                    listBody.innerHTML = `<tr><td colspan="5" class="px-6 py-8 text-center text-sm text-gray-500 italic">Tiada permohonan yang menunggu pengesahan.</td></tr>`;
-                    return;
-                }
-
-                let html = '';
-                snapshot.forEach(doc => {
-                    const data = doc.data();
-                    const dateStr = data.requestDate ? new Date(data.requestDate.toDate()).toLocaleDateString('ms-MY', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
-                    const amountStr = data.amount ? data.amount : 'Tidak Dinyatakan';
-                    
-                    html += `
-                        <tr class="hover:bg-amber-50/50 transition-colors border-b border-amber-100">
-                            <td class="px-6 py-4 text-sm text-amber-900">${dateStr}</td>
-                            <td class="px-6 py-4 text-sm font-bold text-amber-900">${data.name.toUpperCase()}</td>
-                            <td class="px-6 py-4 text-sm text-amber-700 font-mono">${data.ic}</td>
-                            <td class="px-6 py-4 text-sm font-bold text-green-700 text-center">${amountStr}</td>
-                            <td class="px-6 py-4 text-center">
-                                <div class="flex justify-center gap-2">
-                                    <button onclick="approveProRequest('${doc.id}', '${data.ic}', '${data.name.replace(/'/g, "\\'")}')" class="btn bg-green-500 hover:bg-green-600 text-white text-[10px] font-bold px-3 py-1.5 rounded shadow-sm flex items-center gap-1 uppercase tracking-wider">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg> Luluskan
-                                    </button>
-                                    <button onclick="rejectProRequest('${doc.id}', '${data.name.replace(/'/g, "\\'")}')" class="btn bg-red-100 hover:bg-red-200 text-red-600 border border-red-300 text-[10px] font-bold px-3 py-1.5 rounded shadow-sm flex items-center gap-1 uppercase tracking-wider">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.243a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" /></svg> Tolak
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
-                    `;
-                });
-                listBody.innerHTML = html;
-            });
-        }
-
-        async function approveProRequest(requestId, ic, name) {
-            if (!confirmAdminAction(`meluluskan permohonan SPARK PRO untuk ${name}`)) return;
-
-            try {
-                // 1. Cari user di spark_participants
-                const pRef = collection(db, `artifacts/${appId}/public/data/spark_participants`);
-                const q = query(pRef, where("ic", "==", ic));
-                const snap = await getDocs(q);
-
-                if (snap.empty) {
-                    alert("Pengguna tidak dijumpai di dalam pangkalan data utama. Pastikan IC betul.");
-                    return;
-                }
-
-                const userDocId = snap.docs[0].id;
-
-                // 2. Update isPro = true
-                await updateDoc(doc(db, `artifacts/${appId}/public/data/spark_participants`, userDocId), {
-                    isPro: true
-                });
-
-                // 3. Update request status
-                await updateDoc(doc(db, `artifacts/${appId}/public/data/spark_pro_requests`, requestId), {
-                    status: "Diluluskan",
-                    approvedAt: serverTimestamp()
-                });
-
-                alert(`Permohonan ${name} telah diluluskan! Status telah dinaiktaraf ke PRO.`);
-            } catch (error) {
-                console.error("Gagal meluluskan: ", error);
-                alert("Ralat semasa meluluskan permohonan.");
-            }
-        }
-
-        async function rejectProRequest(requestId, name) {
-            if (!confirmAdminAction(`menolak permohonan SPARK PRO untuk ${name}`)) return;
-            try {
-                await updateDoc(doc(db, `artifacts/${appId}/public/data/spark_pro_requests`, requestId), {
-                    status: "Ditolak",
-                    rejectedAt: serverTimestamp()
-                });
-                alert(`Permohonan ${name} telah ditolak.`);
-            } catch (error) {
-                console.error("Gagal menolak: ", error);
-                alert("Ralat semasa menolak permohonan.");
-            }
-        }
-
-        function filterAndRenderUserProTable() {
-            const searchTerm = document.getElementById('user-pro-search').value.toLowerCase();
-            filteredUsersPro = allParticipants.filter(user => user.name.toLowerCase().includes(searchTerm) || (user.ic && user.ic.includes(searchTerm)));
-
-            const totalPages = Math.ceil(filteredUsersPro.length / usersProPerPage);
-            if (userProCurrentPage > totalPages && totalPages > 0) userProCurrentPage = totalPages;
-            else if (totalPages === 0) userProCurrentPage = 1;
-
-            const startIndex = (userProCurrentPage - 1) * usersProPerPage;
-            const paginatedUsers = filteredUsersPro.slice(startIndex, startIndex + usersProPerPage);
-
-            renderUserProTable(paginatedUsers, startIndex);
-            renderUserProPaginationControls(filteredUsersPro.length);
-        }
-
-        function renderUserProTable(users, startIndex) {
-            const tableBody = document.getElementById('user-pro-list-body');
-            if (users.length === 0) {
-                tableBody.innerHTML = `<tr><td colspan="5" class="px-6 py-8 text-center text-sm text-gray-500">Tiada pengguna ditemui.</td></tr>`;
-                return;
-            }
-            
-            tableBody.innerHTML = users.map((user, index) => {
-                const globalIndex = startIndex + index + 1;
-                const isPentadbir = user.ic === ADMIN_IC; 
-                const isPro = user.isPro === true; 
-
-                const statusBadge = isPro 
-                    ? `<span class="px-2 py-1 text-[10px] font-bold rounded-full bg-green-100 text-green-700 border border-green-200">PRO</span>`
-                    : `<span class="px-2 py-1 text-[10px] font-bold rounded-full bg-gray-100 text-gray-600 border border-gray-200">STANDARD</span>`;
-                
-                const dropdown = `
-                    <select 
-                        class="block w-full text-xs border border-gray-300 rounded-md py-1.5 px-2 cursor-pointer bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 shadow-sm"
-                        onchange="requestRoleChange('${user.id}', event.target.value === 'true', this)"
-                    >
-                        <option value="false" ${!isPro ? 'selected' : ''}>Standard</option>
-                        <option value="true" ${isPro ? 'selected' : ''}>Pro</option>
-                    </select>
-                `;
-                
-                return `
-                    <tr class="hover:bg-gray-50 transition-colors border-b border-gray-100 ${isPentadbir ? 'bg-indigo-50/50' : ''}"> 
-                        <td class="px-6 py-3 text-sm text-gray-500 font-mono">${globalIndex}</td>
-                        <td class="px-6 py-3">
-                            <div class="text-sm font-semibold text-gray-900">${user.name.toUpperCase()}</div>
-                            <div class="text-[10px] text-gray-500 font-mono mt-0.5">${user.ic}</div>
-                            ${isPentadbir ? '<span class="text-[10px] text-indigo-600 font-bold bg-indigo-100 px-1.5 rounded inline-block mt-1">ADMIN UTAMA</span>' : ''}
-                        </td>
-                        <td class="px-6 py-3 text-sm text-gray-500">${user.station || '-'}</td>
-                        <td class="px-6 py-3">${statusBadge}</td>
-                        <td class="px-6 py-3 text-center w-40">
-                            ${dropdown}
-                        </td>
-                    </tr>
-                `;
-            }).join('');
-        }
-
-        function renderUserProPaginationControls(total) {
-            const controls = document.getElementById('user-pro-pagination-controls');
-            const totalPages = Math.ceil(total / usersProPerPage);
-            if (totalPages <= 1) { controls.innerHTML = ''; return; }
-            controls.innerHTML = `
-                <button onclick="prevUserProPage()" ${userProCurrentPage === 1 ? 'disabled' : ''} class="btn bg-white border border-gray-300 text-gray-700 py-1 px-3 rounded-lg text-xs font-semibold hover:bg-gray-50 disabled:opacity-50">Lalu</button>
-                <span class="text-xs text-gray-600 font-medium">Halaman ${userProCurrentPage} / ${totalPages}</span>
-                <button onclick="nextUserProPage()" ${userProCurrentPage === totalPages ? 'disabled' : ''} class="btn bg-white border border-gray-300 text-gray-700 py-1 px-3 rounded-lg text-xs font-semibold hover:bg-gray-50 disabled:opacity-50">Kanan</button>
-            `;
-        }
-
-        function nextUserProPage() { if (userProCurrentPage < Math.ceil(filteredUsersPro.length / usersProPerPage)) { userProCurrentPage++; filterAndRenderUserProTable(); } }
-        function prevUserProPage() { if (userProCurrentPage > 1) { userProCurrentPage--; filterAndRenderUserProTable(); } }
-
-        function requestRoleChange(userId, newStatus, selectElem) {
-            pendingUserId = userId; pendingStatus = newStatus; pendingSelectElem = selectElem;
-            const text = newStatus ? "NAIK TARAF ke SPARK PRO" : "TURUN TARAF ke STANDARD";
-            document.getElementById('confirm-status-text').textContent = text;
-            document.getElementById('confirm-status-text').className = newStatus ? "font-bold text-green-600 text-sm" : "font-bold text-gray-600 text-sm";
-            document.getElementById('confirm-role-modal').classList.remove('hidden');
-        }
-
-        async function executeRoleChange() {
-            if (!confirmAdminAction("menukar status pengguna PRO")) { cancelRoleChange(); return; }
-            document.getElementById('confirm-role-modal').classList.add('hidden');
-            const userRef = doc(db, `artifacts/${appId}/public/data/spark_participants`, pendingUserId);
-            try { await updateDoc(userRef, { isPro: pendingStatus }); } 
-            catch (error) { console.error("Update Error:", error); alert("Gagal mengemaskini status."); cancelRoleChange(); } 
-            finally { pendingUserId = null; pendingStatus = null; pendingSelectElem = null; }
-        }
-
-        function cancelRoleChange() {
-            document.getElementById('confirm-role-modal').classList.add('hidden');
-            if (pendingSelectElem) { pendingSelectElem.value = (!pendingStatus).toString(); }
-            pendingUserId = null; pendingStatus = null; pendingSelectElem = null;
-        }
-
-        function loadAndDisplayCoordinators() {
-            const q = query(programsCollectionRef);
-            onSnapshot(q, (snapshot) => {
-                const programs = snapshot.docs.map(doc => doc.data());
-                const coordinatorMap = {};
-                programs.forEach(p => {
-                    if (p.penyelaras_name && p.penyelaras_ic) {
-                        const key = p.penyelaras_ic;
-                        if (!coordinatorMap[key]) { coordinatorMap[key] = { name: p.penyelaras_name, ic: p.penyelaras_ic, count: 0 }; }
-                        coordinatorMap[key].count++;
-                    }
-                });
-                let coordinators = Object.values(coordinatorMap);
-                coordinators.sort((a, b) => b.count - a.count);
-                const listBody = document.getElementById('coordinator-list-body');
-                document.getElementById('coordinator-count').textContent = `Jumlah Penyelaras Unik: ${coordinators.length}`;
-                if (coordinators.length === 0) { listBody.innerHTML = `<tr><td colspan="4" class="text-center text-gray-500 py-4">Tiada data penyelaras ditemui.</td></tr>`; } else {
-                    listBody.innerHTML = coordinators.map((c, index) => `<tr class="hover:bg-gray-50"><td class="px-6 py-4 text-sm text-gray-500">${index + 1}</td><td class="px-6 py-4 text-sm font-medium text-gray-900">${c.name}</td><td class="px-6 py-4 text-sm text-gray-500">${c.ic}</td><td class="px-6 py-4 text-center text-sm font-bold text-indigo-600">${c.count}</td></tr>`).join('');
-                }
-            });
-        }
-
-        function loadAndDisplayLocations() {
-            const q = query(programsCollectionRef);
-            onSnapshot(q, (snapshot) => {
-                const programs = snapshot.docs.map(doc => doc.data());
-                const locationMap = {};
-                programs.forEach(p => {
-                    const location = p.location ? p.location.trim().toUpperCase() : null;
-                    if (location) {
-                        if (!locationMap[location]) { locationMap[location] = { name: location, count: 0 }; }
-                        locationMap[location].count++;
-                    }
-                });
-                let locations = Object.values(locationMap);
-                locations.sort((a, b) => b.count - a.count);
-                const listBody = document.getElementById('location-list-body');
-                document.getElementById('location-count').textContent = `Jumlah Lokasi Unik: ${locations.length}`;
-                if (locations.length === 0) { listBody.innerHTML = `<tr><td colspan="3" class="text-center text-gray-500 py-4">Tiada data lokasi ditemui.</td></tr>`; } else {
-                    listBody.innerHTML = locations.map((l, index) => `<tr class="hover:bg-gray-50"><td class="px-6 py-4 text-sm text-gray-500">${index + 1}</td><td class="px-6 py-4 text-sm font-medium text-gray-900">${l.name}</td><td class="px-6 py-4 text-center text-sm font-bold text-red-600">${l.count}</td></tr>`).join('');
-                }
-            });
-        }
-
-        function loadAndDisplayActiveParticipants() {
-            const q = query(programsCollectionRef); 
-            onSnapshot(q, (snapshot) => {
-                const programs = snapshot.docs.map(doc => doc.data());
-                const participantCountMap = {};
-                programs.forEach(p => {
-                    if (p.attendance && Array.isArray(p.attendance)) { 
-                        p.attendance.forEach(record => {
-                             if (record.ic) { participantCountMap[record.ic] = (participantCountMap[record.ic] || 0) + 1; }
-                        });
-                    }
-                });
-
-                const participantNameMap = allParticipants.reduce((acc, p) => { acc[p.ic] = p.name; return acc; }, {});
-                let activeParticipants = Object.keys(participantCountMap).map(ic => ({
-                    ic: ic, name: participantNameMap[ic] || 'Peserta Tidak Diketahui', count: participantCountMap[ic]
-                }));
-                activeParticipants.sort((a, b) => b.count - a.count);
-                const top20 = activeParticipants.slice(0, 20);
-
-                const listBody = document.getElementById('active-participant-list-body');
-                document.getElementById('active-participant-count').textContent = `Memaparkan: ${top20.length}`;
-                if (top20.length === 0) { listBody.innerHTML = `<tr><td colspan="4" class="text-center text-gray-500 py-4">Tiada data peserta aktif ditemui.</td></tr>`; } else {
-                    listBody.innerHTML = top20.map((p, index) => `<tr class="hover:bg-gray-50"><td class="px-6 py-4 text-sm font-bold text-gray-800">${index + 1}</td><td class="px-6 py-4 text-sm font-medium text-gray-900"><a href="edit.html?ic=${p.ic}" class="text-indigo-600 hover:text-indigo-800 hover:underline">${p.name}</a></td><td class="px-6 py-4 text-sm text-gray-500">${p.ic}</td><td class="px-6 py-4 text-center text-sm font-bold text-green-600">${p.count}</td></tr>`).join('');
-                }
-            });
-        }
-
+        // Didaftarkan ke window.
         Object.assign(window, {
-            switchTab,
-            programPrevPage, programNextPage,
-            participantPrevPage, participantNextPage,
-            filterAndRenderUserProTable, nextUserProPage, prevUserProPage,
-            requestRoleChange, executeRoleChange, cancelRoleChange,
-            adminDeleteProgram, approveProRequest, rejectProRequest,
-            copyTextData, adminResetPassword, filterAndRenderPasswordLogs, logoutAdmin, toggleAdminViewPassword,
-            logPwdNextPage, logPwdPrevPage
+            switchTab, logoutAdmin, copyTextData, closeModal, showModal,
+            addSchool, addSchoolsFromList, deleteSchool,
+            addPosition, addPositionsFromList, deletePosition,
+            adminDeleteProgram, programPrevPage, programNextPage,
+            toggleAdminViewPassword, adminResetPassword, participantPrevPage, participantNextPage, deleteParticipant,
+            filterAndRenderPasswordLogs, logPwdPrevPage, logPwdNextPage,
+            approveProRequest, rejectProRequest, nextUserProPage, prevUserProPage, requestRoleChange, executeRoleChange, cancelRoleChange,
+            handleManualBirthdaySubmit, handlePasteBirthdaySubmit, handleBirthdayTableClick, handleEditBirthdaySubmit, confirmDeleteBirthday,
+            removeDuplicates,
+            handleEditPpd, handleDeletePpd
         });
 
     </script>
