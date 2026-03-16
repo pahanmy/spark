@@ -713,7 +713,7 @@
             input.addEventListener('keyup', handleSubmission);
         }
         
-        window.logoutAdmin = function() {
+        function logoutAdmin() {
             if(confirm("Anda pasti mahu log keluar daripada Pentadbiran Data?")) {
                 sessionStorage.removeItem('spark_admin_auth');
                 window.location.reload();
@@ -807,7 +807,7 @@
         }
 
         // FUNGSI COPY GENERIC
-        window.copyTextData = function(text, btnElement) {
+        function copyTextData(text, btnElement) {
             navigator.clipboard.writeText(text).then(() => {
                 const originalHtml = btnElement.innerHTML;
                 btnElement.innerHTML = `<span class="text-[10px] text-green-600 font-bold uppercase tracking-wider">Tersalin!</span>`;
@@ -815,11 +815,11 @@
             }).catch(err => {
                 console.error("Gagal menyalin: ", err);
             });
-        };
+        }
 
-        window.closeModal = (modalId) => {
+        function closeModal(modalId) {
             document.getElementById(modalId).classList.add('hidden');
-        };
+        }
 
         function showModal(modalId) {
             document.getElementById(modalId).classList.remove('hidden');
@@ -857,18 +857,17 @@
         function loadAndDisplayPositions() { const listBody = document.getElementById('position-list-body'); const q = query(positionsCollectionRef, orderBy("order", "asc")); onSnapshot(q, (snapshot) => { document.getElementById('position-count').textContent = `(${snapshot.size})`; listBody.innerHTML = snapshot.empty ? `<tr><td colspan="3" class="text-center text-gray-500 py-4">Tiada jawatan ditemui.</td></tr>` : snapshot.docs.map(doc => createRowHTML(doc.id, doc.data().name, 'deletePosition')).join(''); }); }
 
         // --- Fungsi Program Admin (Dengan Padam & Peratus Kehadiran) ---
-        window.adminDeleteProgram = async function(id) {
+        function adminDeleteProgram(id) {
             if (confirm("Adakah anda pasti mahu memadam program ini? Segala rekod kehadiran berkaitan akan turut terpadam. Tindakan ini tidak boleh diubah.")) {
                 if (!confirmAdminAction("memadam program ini")) return;
-                try {
-                    await deleteDoc(doc(db, `artifacts/${appId}/public/data/spark_programs`, id));
+                deleteDoc(doc(db, `artifacts/${appId}/public/data/spark_programs`, id)).then(() => {
                     alert("Program berjaya dipadam secara kekal.");
-                } catch (error) {
+                }).catch(error => {
                     console.error("Ralat memadam program:", error);
                     alert("Gagal memadam program.");
-                }
+                });
             }
-        };
+        }
 
         function formatTimeMalay(timeString) {
             if (!timeString) return '';
@@ -929,12 +928,10 @@
             } else {
                 listBody.innerHTML = todayPrograms.map((p, index) => {
                     
-                    // Cross-reference dengan allParticipants untuk jawatan/stesen (jika ada)
                     const owner = allParticipants.find(u => u.ic === p.penyelaras_ic);
                     const position = owner ? owner.position : 'Tiada Jawatan';
                     const station = owner ? owner.station : (p.location || '');
 
-                    // Kira peratus kehadiran
                     const attendanceCount = p.attendance ? p.attendance.length : 0;
                     const quota = parseInt(p.quota, 10);
                     let attendanceHtml = '<span class="text-gray-400 text-sm">-</span>';
@@ -1026,7 +1023,6 @@
                     const position = owner ? owner.position : 'Tiada Jawatan';
                     const station = owner ? owner.station : (p.location || '');
 
-                    // Kira peratus kehadiran
                     const attendanceCount = p.attendance ? p.attendance.length : 0;
                     const quota = parseInt(p.quota, 10);
                     let attendanceHtml = '<span class="text-gray-400 text-sm">-</span>';
@@ -1124,6 +1120,24 @@
             });
         }
 
+        function toggleAdminViewPassword(id) {
+            const mask = document.getElementById(`pwd-mask-${id}`);
+            const text = document.getElementById(`pwd-text-${id}`);
+            const icon = document.getElementById(`pwd-icon-${id}`);
+
+            if (mask.classList.contains('hidden')) {
+                // Hide password
+                mask.classList.remove('hidden');
+                text.classList.add('hidden');
+                icon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />`;
+            } else {
+                // Show password
+                mask.classList.add('hidden');
+                text.classList.remove('hidden');
+                icon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.29 3.29m0 0a10.05 10.05 0 015.71-1.59c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0l-3.29-3.29" />`;
+            }
+        }
+
         function renderParticipantTable() {
             const listBody = document.getElementById('participant-list-body');
             const searchInput = document.getElementById('participant-search').value.toLowerCase();
@@ -1185,22 +1199,21 @@
             renderParticipantPagination(filteredParticipants.length);
         }
 
-        window.adminResetPassword = async function(id, name) {
+        function adminResetPassword(id, name) {
             if(confirm(`Anda pasti mahu menetapkan semula (reset) kata laluan untuk ${name}? Pengguna perlu menetapkan kata laluan baru selepas ini.`)) {
                 if (!confirmAdminAction("mereset kata laluan")) return;
-                try {
-                    await updateDoc(doc(db, `artifacts/${appId}/public/data/spark_participants`, id), {
-                        password: "", 
-                        accountLocked: false, 
-                        failedAttempts: 0 
-                    });
+                updateDoc(doc(db, `artifacts/${appId}/public/data/spark_participants`, id), {
+                    password: "", 
+                    accountLocked: false, 
+                    failedAttempts: 0 
+                }).then(() => {
                     alert("Kata laluan berjaya direset dan akaun (jika disekat) telah dinyahsekat.");
-                } catch (error) {
+                }).catch(error => {
                     console.error(error);
                     alert("Gagal mereset kata laluan.");
-                }
+                });
             }
-        };
+        }
         
         function renderParticipantPagination(totalItems) {
             const paginationControls = document.getElementById('participant-pagination-controls');
@@ -1222,10 +1235,12 @@
             if (participantCurrentPage < Math.ceil(totalItems / participantsPerPage)) { participantCurrentPage++; renderParticipantTable(); } 
         }
 
-        async function deleteParticipant(id) {
+        function deleteParticipant(id) {
             if (confirm("Anda pasti mahu memadam peserta ini dari senarai induk? Tindakan ini tidak boleh diubah.")) {
                 if (!confirmAdminAction("memadam peserta")) return;
-                try { await deleteDoc(doc(participantsCollectionRef, id)); alert("Peserta berjaya dipadam."); } catch (error) { console.error(error); alert("Gagal memadam peserta."); }
+                deleteDoc(doc(participantsCollectionRef, id))
+                    .then(() => alert("Peserta berjaya dipadam."))
+                    .catch(error => { console.error(error); alert("Gagal memadam peserta."); });
             }
         }
 
@@ -1355,20 +1370,20 @@
             `;
         }
 
-        window.logPwdPrevPage = function() {
+        function logPwdPrevPage() {
             if (logPwdCurrentPage > 1) {
                 logPwdCurrentPage--;
                 renderPasswordLogTable();
             }
-        };
+        }
 
-        window.logPwdNextPage = function() {
+        function logPwdNextPage() {
             const totalPages = Math.ceil(filteredLogPwd.length / logPwdPerPage);
             if (logPwdCurrentPage < totalPages) {
                 logPwdCurrentPage++;
                 renderPasswordLogTable();
             }
-        };
+        }
 
 
         // --- Logik Panel Pengguna PRO & Permohonan SPARK PRO ---
@@ -1413,7 +1428,7 @@
             });
         }
 
-        window.approveProRequest = async function(requestId, ic, name) {
+        async function approveProRequest(requestId, ic, name) {
             if (!confirmAdminAction(`meluluskan permohonan SPARK PRO untuk ${name}`)) return;
 
             try {
@@ -1447,7 +1462,7 @@
             }
         }
 
-        window.rejectProRequest = async function(requestId, name) {
+        async function rejectProRequest(requestId, name) {
             if (!confirmAdminAction(`menolak permohonan SPARK PRO untuk ${name}`)) return;
             try {
                 await updateDoc(doc(db, `artifacts/${appId}/public/data/spark_pro_requests`, requestId), {
@@ -1531,10 +1546,10 @@
             `;
         }
 
-        window.nextUserProPage = () => { if (userProCurrentPage < Math.ceil(filteredUsersPro.length / usersProPerPage)) { userProCurrentPage++; filterAndRenderUserProTable(); } };
-        window.prevUserProPage = () => { if (userProCurrentPage > 1) { userProCurrentPage--; filterAndRenderUserProTable(); } };
+        function nextUserProPage() { if (userProCurrentPage < Math.ceil(filteredUsersPro.length / usersProPerPage)) { userProCurrentPage++; filterAndRenderUserProTable(); } }
+        function prevUserProPage() { if (userProCurrentPage > 1) { userProCurrentPage--; filterAndRenderUserProTable(); } }
 
-        window.requestRoleChange = function(userId, newStatus, selectElem) {
+        function requestRoleChange(userId, newStatus, selectElem) {
             pendingUserId = userId; pendingStatus = newStatus; pendingSelectElem = selectElem;
             const text = newStatus ? "NAIK TARAF ke SPARK PRO" : "TURUN TARAF ke STANDARD";
             document.getElementById('confirm-status-text').textContent = text;
@@ -1542,7 +1557,7 @@
             document.getElementById('confirm-role-modal').classList.remove('hidden');
         }
 
-        window.executeRoleChange = async function() {
+        async function executeRoleChange() {
             if (!confirmAdminAction("menukar status pengguna PRO")) { cancelRoleChange(); return; }
             document.getElementById('confirm-role-modal').classList.add('hidden');
             const userRef = doc(db, `artifacts/${appId}/public/data/spark_participants`, pendingUserId);
@@ -1551,7 +1566,7 @@
             finally { pendingUserId = null; pendingStatus = null; pendingSelectElem = null; }
         }
 
-        window.cancelRoleChange = function() {
+        function cancelRoleChange() {
             document.getElementById('confirm-role-modal').classList.add('hidden');
             if (pendingSelectElem) { pendingSelectElem.value = (!pendingStatus).toString(); }
             pendingUserId = null; pendingStatus = null; pendingSelectElem = null;
@@ -1711,7 +1726,6 @@
             finally { submitBtn.disabled = false; submitBtn.textContent = "Sahkan Padam"; }
         }
 
-        // --- Fungsi Penyelaras, Lokasi, Aktif ---
         function loadAndDisplayCoordinators() {
             const q = query(programsCollectionRef);
             onSnapshot(q, (snapshot) => {
@@ -1762,9 +1776,9 @@
                 const programs = snapshot.docs.map(doc => doc.data());
                 const participantCountMap = {};
                 programs.forEach(p => {
-                    if (p.participants) { 
-                        p.participants.forEach(participant => {
-                             if (participant.ic) { participantCountMap[participant.ic] = (participantCountMap[participant.ic] || 0) + 1; }
+                    if (p.attendance && Array.isArray(p.attendance)) { 
+                        p.attendance.forEach(record => {
+                             if (record.ic) { participantCountMap[record.ic] = (participantCountMap[record.ic] || 0) + 1; }
                         });
                     }
                 });
@@ -1824,7 +1838,8 @@
             requestRoleChange, executeRoleChange, cancelRoleChange,
             adminDeleteProgram, approveProRequest, rejectProRequest,
             copyTextData, adminResetPassword, filterAndRenderPasswordLogs, logoutAdmin, toggleAdminViewPassword,
-            logPwdNextPage, logPwdPrevPage
+            logPwdNextPage, logPwdPrevPage, showModal, closeModal, handleManualBirthdaySubmit, handlePasteBirthdaySubmit,
+            handleBirthdayTableClick, handleEditBirthdaySubmit, confirmDeleteBirthday
         });
 
     </script>
