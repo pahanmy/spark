@@ -3,31 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin - Import Data CSV ke Firebase</title>
+    <title>Admin - Import Fail Klasifikasi CSV</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 </head>
 <body class="bg-gray-100 p-10 font-sans">
     <div class="max-w-2xl mx-auto bg-white p-8 rounded-xl shadow-lg">
-        <h2 class="text-2xl font-bold mb-4 text-indigo-700">Import Fail CSV Klasifikasi</h2>
+        <h2 class="text-2xl font-bold mb-2 text-indigo-700">Import Fail CSV Klasifikasi</h2>
         <p class="text-sm text-gray-600 mb-6">Pilih fail CSV yang telah dibersihkan (Tajuk kolum mesti di Row 1: KOD, TAJUK). Data akan dimasukkan ke Firebase.</p>
         
-        <input type="file" id="csvFileInput" accept=".csv" class="mb-4 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100" />
+        <div id="auth-status" class="mb-4 p-3 bg-yellow-50 text-yellow-700 text-sm font-bold rounded-lg border border-yellow-200">
+            ⏳ Menyambung ke pelayan Firebase... Sila tunggu.
+        </div>
+
+        <input type="file" id="csvFileInput" accept=".csv" class="mb-4 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 disabled:opacity-50" disabled />
         
         <div class="flex gap-4 mb-4">
-            <select id="categorySelect" class="border p-2 rounded-lg w-full">
+            <select id="categorySelect" class="border p-2 rounded-lg w-full disabled:opacity-50" disabled>
                 <option value="100">Siri 100 - Pentadbiran</option>
-                <option value="200">Siri 200 - Aset</option>
-                <option value="300">Siri 300 - Kewangan</option>
-                <option value="400">Siri 400</option>
-                <option value="500">Siri 500</option>
-                <option value="600">Siri 600</option>
-                <option value="700">Siri 700</option>
-                <option value="800">Siri 800</option>
+                <option value="200">Siri 200 - Aset Tak Alih</option>
+                <option value="300">Siri 300 - Aset Kerajaan</option>
+                <option value="400">Siri 400 - Kewangan</option>
+                <option value="500">Siri 500 - Sumber Manusia</option>
+                <option value="600">Siri 600 - Pendidikan</option>
+                <option value="700">Siri 700 - Pengurusan Guru</option>
+                <option value="800">Siri 800 - Pengurusan Murid</option>
             </select>
         </div>
 
-        <button id="uploadBtn" class="bg-indigo-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-indigo-700 w-full mb-4">
+        <button id="uploadBtn" class="bg-indigo-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-indigo-700 w-full mb-4 disabled:bg-gray-400" disabled>
             Mula Muat Naik ke Firebase
         </button>
 
@@ -39,6 +43,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAEBe1XF7cqaxkTNBZBoo3DBJYIuchOEkM",
@@ -51,46 +56,68 @@
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
+        const auth = getAuth(app);
         const appId = firebaseConfig.projectId;
         const collectionPath = `artifacts/${appId}/public/data/spark_files`;
+
+        // Lakukan pengesahan supaya Firebase benarkan operasi menulis (Write)
+        onAuthStateChanged(auth, async (user) => {
+            if (!user) {
+                try {
+                    await signInAnonymously(auth);
+                } catch (error) {
+                    console.error("Auth Error:", error);
+                    document.getElementById('auth-status').className = "mb-4 p-3 bg-red-50 text-red-700 text-sm font-bold rounded-lg border border-red-200";
+                    document.getElementById('auth-status').innerText = "❌ Gagal menyambung ke pelayan (Auth Error).";
+                }
+            } else {
+                // Berjaya log masuk, benarkan butang ditekan
+                document.getElementById('auth-status').className = "mb-4 p-3 bg-green-50 text-green-700 text-sm font-bold rounded-lg border border-green-200";
+                document.getElementById('auth-status').innerText = "✅ Berhubung dengan Firebase. Anda boleh mula muat naik.";
+                document.getElementById('csvFileInput').disabled = false;
+                document.getElementById('categorySelect').disabled = false;
+                document.getElementById('uploadBtn').disabled = false;
+            }
+        });
 
         document.getElementById('uploadBtn').addEventListener('click', () => {
             const fileInput = document.getElementById('csvFileInput');
             const category = document.getElementById('categorySelect').value;
             const statusBox = document.getElementById('status');
+            const uploadBtn = document.getElementById('uploadBtn');
             
             if (!fileInput.files[0]) {
                 alert("Sila pilih fail CSV dahulu!");
                 return;
             }
 
-            statusBox.innerHTML = "Memproses fail...";
+            uploadBtn.disabled = true;
+            statusBox.innerHTML = "Membaca dan memproses fail...<br>";
 
             Papa.parse(fileInput.files[0], {
-                header: true, // Pastikan Row 1 adalah KOD, TAJUK
+                header: true, 
                 skipEmptyLines: true,
                 complete: async function(results) {
                     const data = results.data;
-                    statusBox.innerHTML = `Jumlah baris dibaca: ${data.length}<br>Memuat naik ke Firebase...<br><br>`;
+                    statusBox.innerHTML += `Jumlah baris dibaca: ${data.length}<br>Mula memuat naik ke Firebase...<br><br>`;
                     
                     let successCount = 0;
 
                     for (let i = 0; i < data.length; i++) {
                         const row = data[i];
                         
-                        // Cuba cari kolum 'KOD' dan 'TAJUK' walaupun ada spasi
+                        // Cuba pelbagai variasi tajuk kolum (case-insensitive)
                         const kod = row['KOD'] || row['Kod'] || row['KOD FAIL'] || "";
                         const tajuk = row['TAJUK'] || row['Tajuk'] || row['PERKARA'] || "";
                         const catatan = row['CATATAN'] || row['Catatan'] || "";
 
-                        if (kod.trim() === "") continue; // Abaikan jika kod kosong
+                        if (kod.trim() === "") continue; 
 
-                        // Format data untuk disimpan
                         const fileData = {
                             code: kod.trim(),
                             title: tajuk.trim(),
                             category: category,
-                            sector: "-", // Anda boleh kemaskini ini dalam sistem nanti
+                            sector: "-", 
                             unit: "-",
                             status: "BELUM DIBUKA",
                             openedBy: "",
@@ -99,18 +126,19 @@
                         };
 
                         try {
-                            // Guna Kod sebagai ID Dokumen supaya tidak berulang (Replace ID)
-                            const safeId = kod.trim().replace(/\//g, '-'); // Tukar / jadi - untuk ID Firestore
+                            const safeId = kod.trim().replace(/\//g, '-'); 
                             await setDoc(doc(db, collectionPath, safeId), fileData);
                             successCount++;
                             statusBox.innerHTML += `✅ Berjaya: ${kod}<br>`;
+                            // Auto-scroll ke bawah
                             statusBox.scrollTop = statusBox.scrollHeight;
                         } catch (error) {
                             statusBox.innerHTML += `❌ Gagal: ${kod} - ${error.message}<br>`;
                         }
                     }
                     
-                    statusBox.innerHTML += `<br><strong>SELESAI! ${successCount} rekod telah dimuat naik.</strong>`;
+                    statusBox.innerHTML += `<br><span class="text-green-600 font-extrabold">SELESAI! ${successCount} rekod telah dimuat naik.</span>`;
+                    uploadBtn.disabled = false;
                 }
             });
         });
