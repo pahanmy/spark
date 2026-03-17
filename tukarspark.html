@@ -465,7 +465,7 @@
             }
         }
 
-        // --- FUNGSI AUTO-ISI DARI DIARI (PLANNER) ---
+      // --- FUNGSI AUTO-ISI DARI DIARI (PLANNER) ---
         function checkAndLoadImportData() {
             const importDataStr = localStorage.getItem('spark_import_data');
             if (importDataStr) {
@@ -504,7 +504,43 @@
                     // Pautan (Link)
                     if (data.link) document.getElementById('meet-link').value = data.link;
 
-                    // Padam data import selepas digunakan supaya tak ganggu borang permohonan baru pada masa akan datang
+                    // --- LOGIK BAHARU: AUTO-ISI TAG PESERTA ---
+                    if (data.taggedIcs && data.taggedIcs.length > 0) {
+                        // 1. Tick kotak "Tag Peringatan Peserta"
+                        const tagNeededCheckbox = document.getElementById('tag-needed');
+                        if (tagNeededCheckbox) {
+                            tagNeededCheckbox.checked = true;
+                            tagNeededCheckbox.dispatchEvent(new Event('change')); // Buka menu bawah
+                        }
+
+                        // 2. Kosongkan senarai dan isi semula berdasarkan data diari
+                        selectedTaggedUsers = []; 
+                        
+                        data.taggedIcs.forEach((taggedIc, index) => {
+                            // Cari data penuh pengguna dari senarai (allUsersData)
+                            const userMatch = allUsersData.find(u => u.ic === taggedIc);
+                            
+                            if (userMatch) {
+                                selectedTaggedUsers.push(userMatch);
+                            } else {
+                                // Jika nama tak jumpa (fallback), tarik nama dari string 'participants'
+                                let fallbackName = "PESERTA DITAG";
+                                if (data.participants) {
+                                    const nameArray = data.participants.split(',');
+                                    if (nameArray[index]) fallbackName = nameArray[index].trim();
+                                }
+                                selectedTaggedUsers.push({ ic: taggedIc, name: fallbackName, station: "" });
+                            }
+                        });
+
+                        // 3. Render/Paparkan tag nama pada UI
+                        if (typeof renderSelectedTags === "function") {
+                            renderSelectedTags();
+                        }
+                    }
+                    // --- TAMAT LOGIK BAHARU ---
+
+                    // Padam data import selepas digunakan supaya tak ganggu borang permohonan baru
                     localStorage.removeItem('spark_import_data');
                     
                 } catch (e) {
@@ -512,7 +548,6 @@
                 }
             }
         }
-
         async function loadAdditionalData(ic) {
             try {
                 // Load SPARK Links
